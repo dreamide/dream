@@ -26,6 +26,7 @@ export type SettingsSection =
   | "mcp"
   | "prompts"
   | "skills"
+  | "sshHosts"
   | "chats";
 
 export type TerminalStatus = "running" | "stopped";

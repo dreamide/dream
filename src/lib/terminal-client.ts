@@ -24,7 +24,9 @@ import {
   apiClient,
   type TerminalStartResponse,
 } from "./api-client";
+import { LOCAL_HOST_ID, resolveRequestHost } from "./host-routing";
 import {
+  getHostSocketClient,
   type HostSocketClient,
   type HostSocketMessage,
   hostSocketClient,
@@ -44,6 +46,8 @@ type TerminalRoutes = Pick<
 export interface TerminalClientOptions {
   api?: TerminalRoutes;
   socket?: HostSocketClient;
+  /** The host the terminals run on; the local host when absent. */
+  hostId?: string;
 }
 
 export interface TerminalClient {
@@ -73,7 +77,9 @@ const withoutEnvelope = ({
 export const createTerminalClient = ({
   api = apiClient,
   socket = hostSocketClient,
+  hostId,
 }: TerminalClientOptions = {}): TerminalClient => {
+  const onHost = hostId ? { hostId } : undefined;
   const dataListeners = new Set<(event: TerminalDataEvent) => void>();
   const statusListeners = new Set<(event: TerminalStatusEvent) => void>();
   /** Where each live session's output stopped, as last received. */
@@ -127,25 +133,25 @@ export const createTerminalClient = ({
   };
 
   return {
-    detectShells: () => api.terminalShells({}),
+    detectShells: () => api.terminalShells({}, onHost),
 
     start: (payload) => {
       // Output can arrive before the socket is open; a cursor from the
       // start means the resume asks for all of it.
       cursors.set(payload.sessionId, { generation: null, sequence: 0 });
       socket.connect();
-      return api.terminalStart(payload);
+      return api.terminalStart(payload, onHost);
     },
 
     stop: (sessionId) => {
       cursors.delete(sessionId);
-      return api.terminalStop({ sessionId });
+      return api.terminalStop({ sessionId }, onHost);
     },
 
     stopAll: (options) =>
-      api.terminalStopAll({}, { keepalive: options?.keepalive }),
+      api.terminalStopAll({}, { ...onHost, keepalive: options?.keepalive }),
 
-    getDiagnostics: () => api.terminalDiagnostics({}),
+    getDiagnostics: () => api.terminalDiagnostics({}, onHost),
 
     sendInput: ({ sessionId, data }) => send("input", { sessionId, data }),
 
@@ -161,5 +167,90 @@ export const createTerminalClient = ({
   };
 };
 
-/** The app's terminal client, against the local host. */
-export const terminalClient = createTerminalClient();
+/**
+ * Terminals on every host, as one client: each call goes to the host of the
+ * session's project (host-routing.ts), and listeners hear every host.
+ */
+export const createMultiHostTerminalClient = (
+  createForHost: (hostId: string) => TerminalClient = (hostId) =>
+    createTerminalClient({
+      hostId,
+      socket: getHostSocketClient(hostId),
+    }),
+): TerminalClient & { forHost(hostId: string): TerminalClient } => {
+  const clients = new Map<string, TerminalClient>();
+  const dataListeners = new Map<
+    (event: TerminalDataEvent) => void,
+    Map<string, () => void>
+  >();
+  const statusListeners = new Map<
+    (event: TerminalStatusEvent) => void,
+    Map<string, () => void>
+  >();
+
+  const forHost = (hostId: string) => {
+    let client = clients.get(hostId);
+    if (!client) {
+      client = createForHost(hostId);
+      clients.set(hostId, client);
+      for (const [listener, removers] of dataListeners) {
+        removers.set(hostId, client.onData(listener));
+      }
+      for (const [listener, removers] of statusListeners) {
+        removers.set(hostId, client.onStatus(listener));
+      }
+    }
+    return client;
+  };
+  const forSession = (sessionId: string) =>
+    forHost(resolveRequestHost({ sessionId }));
+  forHost(LOCAL_HOST_ID);
+
+  return {
+    forHost,
+    detectShells: () => forHost(LOCAL_HOST_ID).detectShells(),
+    start: (payload) => forSession(payload.sessionId).start(payload),
+    stop: (sessionId) => forSession(sessionId).stop(sessionId),
+    stopAll: async (options) => {
+      const results = await Promise.all(
+        [...clients.values()].map((client) => client.stopAll(options)),
+      );
+      return results.every(Boolean);
+    },
+    getDiagnostics: async () =>
+      (
+        await Promise.all(
+          [...clients.values()].map((client) => client.getDiagnostics()),
+        )
+      ).flat(),
+    sendInput: (payload) => forSession(payload.sessionId).sendInput(payload),
+    resize: (payload) => forSession(payload.sessionId).resize(payload),
+    acknowledge: (payload) =>
+      forSession(payload.sessionId).acknowledge(payload),
+    onData: (listener) => {
+      const removers = new Map<string, () => void>();
+      for (const [hostId, client] of clients) {
+        removers.set(hostId, client.onData(listener));
+      }
+      dataListeners.set(listener, removers);
+      return () => {
+        for (const remove of removers.values()) remove();
+        dataListeners.delete(listener);
+      };
+    },
+    onStatus: (listener) => {
+      const removers = new Map<string, () => void>();
+      for (const [hostId, client] of clients) {
+        removers.set(hostId, client.onStatus(listener));
+      }
+      statusListeners.set(listener, removers);
+      return () => {
+        for (const remove of removers.values()) remove();
+        statusListeners.delete(listener);
+      };
+    },
+  };
+};
+
+/** The app's terminal client: every host's terminals. */
+export const terminalClient = createMultiHostTerminalClient();

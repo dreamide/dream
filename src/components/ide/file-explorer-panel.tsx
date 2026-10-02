@@ -828,11 +828,19 @@ const FileExplorerPanelImpl = ({
       return;
     }
 
+    // A folder on an SSH host is not on this machine: main refuses it.
+    const state = useIdeStore.getState();
+    const hostId = [...state.projects, ...state.closedProjects].find(
+      (project) => project.id === projectId,
+    )?.hostId;
     await getDesktopApi()?.openInEditor({
       editorId: "file-explorer",
       projectPath,
+      sshTarget: hostId
+        ? state.settings.sshHosts.find((host) => host.id === hostId)?.target
+        : undefined,
     });
-  }, [projectPath]);
+  }, [projectId, projectPath]);
 
   const handleRefreshFiles = useCallback(() => {
     if (!projectId) {

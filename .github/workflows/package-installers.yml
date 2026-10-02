@@ -453,6 +453,69 @@ jobs:
             release/*.blockmap
             release/latest.yml
 
+  # The host runtime an SSH host runs (scripts/build-host-runtime.mjs), built
+  # on each target platform's own runner: its Node and node-pty are native.
+  package-host:
+    name: Package host runtime (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            runner: blacksmith-4vcpu-ubuntu-2404
+          - target: linux-arm64
+            runner: blacksmith-4vcpu-ubuntu-2404-arm
+          - target: darwin-arm64
+            runner: blacksmith-6vcpu-macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.3
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6.0.8
+        with:
+          version: 11.3.0
+          run_install: false
+
+      # The runtime ships this Node: node:sqlite needs 22.13 or later.
+      - name: Setup Node
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build host runtime
+        run: node scripts/build-host-runtime.mjs --out release/host --archive
+
+      # The runtime starts, opens its database (migrations and the save
+      # worker) and stops, using only what is in the folder.
+      - name: Smoke test host runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          home="$(mktemp -d)"
+          release/host/bin/dream-host version
+          release/host/bin/dream-host ensure --home "$home" --idle-timeout 0 > ensure.json
+          port="$(node -e 'console.log(JSON.parse(require("fs").readFileSync("ensure.json","utf8")).port)')"
+          token="$(node -e 'console.log(JSON.parse(require("fs").readFileSync("ensure.json","utf8")).token)')"
+          curl -sf -X POST -H "x-dream-api-token: $token" -H "content-type: application/json" \
+            -d '{"projects":[{"id":"p","path":"/tmp"}]}' "http://127.0.0.1:$port/api/catalog/changes"
+          curl -sf -X POST -H "x-dream-api-token: $token" -H "content-type: application/json" \
+            -d '{"sessionId":"__project_terminal__:p:smoke","cwd":"/tmp"}' "http://127.0.0.1:$port/api/terminal-start" | grep -q '"transport":"pty"'
+          release/host/bin/dream-host stop --home "$home"
+
+      - name: Upload host runtime
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: dream-host-${{ matrix.target }}
+          if-no-files-found: error
+          path: release/dream-host-*.tar.gz
+
   publish-release:
     name: Publish GitHub release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
@@ -460,6 +523,7 @@ jobs:
       - package-linux
       - package-macos
       - package-windows
+      - package-host
     runs-on: blacksmith-2vcpu-ubuntu-2404
     timeout-minutes: 15
     permissions:
@@ -486,6 +550,22 @@ jobs:
           name: dream-windows
           path: release-assets
 
+      - name: Download host runtimes
+        uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: dream-host-*
+          merge-multiple: true
+          path: release-assets
+
+      # What an SSH host checks a downloaded runtime against.
+      - name: Checksum host runtimes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+          sha256sum dream-host-*.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
       - name: Publish release assets
         shell: bash
         run: |
@@ -501,7 +581,9 @@ jobs:
               -name '*.exe' -o \
               -name '*.rpm' -o \
               -name '*.yml' -o \
-              -name '*.zip' \
+              -name '*.zip' -o \
+              -name 'dream-host-*.tar.gz' -o \
+              -name 'SHA256SUMS' \
             \) -print | sort
           )
 

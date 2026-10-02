@@ -4,23 +4,32 @@
 // the rows. What a project, a chat or a setting looks like, what deserves to
 // be saved, and how a stored value is repaired on load are all decided by the
 // shared codec (./shared/persisted-state-codec.js), which the renderer uses
-// too. Save writes what it is given; load decodes once, so the renderer
-// receives a valid state.
+// too.
+//
+// One database holds two owners' rows. The client's **workspace** (config,
+// saved prompts, `workspace_projects`) is saved whole from the renderer's
+// state. The host's **catalog** (`projects`, `chats`, `chat_messages`) is
+// written only by the host, a change at a time (host/catalog-store.js). The
+// local host and the client share this file; a daemon's has only a catalog.
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { readMigrationFiles } from "drizzle-orm/migrator";
+import {
+  applyCatalogChanges,
+  loadCatalog,
+  loadChat,
+  loadChatMessages,
+  saveChatMessages,
+} from "./host/catalog-store.js";
 import { requireHostDataDirectory } from "./host/host-paths.js";
 import {
-  chatFromRow,
-  chatToRow,
-  createEmptyPersistedState,
   decodePersistedState,
   encodePersistedState,
-  projectFromRow,
-  projectToRow,
+  LOCAL_HOST_ID,
+  projectToWorkspaceRow,
   stateFromConfig,
   stateToConfig,
 } from "./shared/persisted-state-codec.js";
@@ -92,21 +101,6 @@ export function resolveStateDatabasePath() {
   // Workers must set DREAM_DB_PATH (the save worker always does): the host
   // data directory is configured per thread, so this branch never runs there.
   return path.join(requireHostDataDirectory(), STATE_DB_FILENAME);
-}
-
-function getMetadataObject(value) {
-  if (isRecord(value)) {
-    return { ...value };
-  }
-
-  if (typeof value === "string") {
-    const parsed = parseJson(value, {});
-    if (isRecord(parsed)) {
-      return parsed;
-    }
-  }
-
-  return {};
 }
 
 function nonEmptyString(value) {
@@ -303,88 +297,17 @@ function writeConfig(database, key, value, updatedAt) {
     .run(key, toJson(value), updatedAt);
 }
 
-function saveChatMessagesToRelationalDatabase(
-  database,
-  chatId,
-  messages,
-  now = new Date().toISOString(),
-) {
-  if (
-    typeof chatId !== "string" ||
-    !chatId.trim() ||
-    !Array.isArray(messages)
-  ) {
-    return false;
-  }
-
-  const chatExists = database
-    .prepare("SELECT 1 FROM chats WHERE id = ? LIMIT 1")
-    .get(chatId);
-  if (!chatExists) {
-    return false;
-  }
-
-  const upsertMessage = database.prepare(
-    `
-      INSERT INTO chat_messages (
-        id,
-        chat_id,
-        role,
-        sort_order,
-        payload,
-        metadata,
-        created_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        chat_id = excluded.chat_id,
-        role = excluded.role,
-        sort_order = excluded.sort_order,
-        payload = excluded.payload,
-        metadata = excluded.metadata
-    `,
-  );
-  const persistedMessageIds = [];
-
-  messages.forEach((message, index) => {
-    if (!isRecord(message)) {
-      return;
-    }
-
-    const messageId =
-      typeof message.id === "string" && message.id.trim()
-        ? message.id
-        : `message-${index}`;
-    const persistedMessageId = `${chatId}:${index}:${messageId}`;
-    persistedMessageIds.push(persistedMessageId);
-    upsertMessage.run(
-      persistedMessageId,
-      chatId,
-      typeof message.role === "string" ? message.role : "",
-      index,
-      toJson(message),
-      toJson({}),
-      now,
-    );
-  });
-
-  // Remove only stale rows belonging to this dirty chat. Other transcripts
-  // are deliberately untouched, including chats not loaded by the renderer.
-  if (persistedMessageIds.length === 0) {
-    database.prepare("DELETE FROM chat_messages WHERE chat_id = ?").run(chatId);
-  } else {
-    database
-      .prepare(
-        `DELETE FROM chat_messages
-         WHERE chat_id = ?
-           AND id NOT IN (${persistedMessageIds.map(() => "?").join(", ")})`,
-      )
-      .run(chatId, ...persistedMessageIds);
-  }
-
-  return true;
-}
-
+/**
+ * Saves the client's workspace from the renderer's (encoded) state: config,
+ * saved prompts, and a workspace row per open and closed project, on
+ * whichever host. The catalog rows are the hosts' and are not touched.
+ *
+ * `state.describedHostIds` are the hosts whose projects the state describes
+ * completely (by default the local host). A project of another host (an SSH
+ * host not loaded this session, shown from its snapshot) only moves: its
+ * status and place are saved, while its UI and snapshot stay as last saved
+ * by a window that had its chats.
+ */
 function saveStateToRelationalDatabase(database, state) {
   if (!isRecord(state)) {
     return false;
@@ -393,26 +316,22 @@ function saveStateToRelationalDatabase(database, state) {
   const now = new Date().toISOString();
 
   return runInTransaction(database, () => {
-    const existingProjectCreatedAt = new Map(
-      database
-        .prepare("SELECT id, created_at FROM projects")
-        .all()
-        .map((row) => [row.id, row.created_at]),
-    );
-    const existingChatCreatedAt = new Map(
-      database
-        .prepare("SELECT id, created_at FROM chats")
-        .all()
-        .map((row) => [row.id, row.created_at]),
-    );
-
     for (const [key, value] of Object.entries(stateToConfig(state))) {
       writeConfig(database, key, value, now);
     }
 
-    const projectRows = [];
-    const seenProjectIds = new Set();
-    const seenProjectPaths = new Set();
+    // A state that says nothing about saved prompts leaves them alone.
+    if (Array.isArray(state.savedPrompts)) {
+      saveSavedPromptsToRelationalDatabase(database, state.savedPrompts, now);
+    }
+
+    const describedHostIds = Array.isArray(state.describedHostIds)
+      ? state.describedHostIds.filter((id) => typeof id === "string")
+      : [LOCAL_HOST_ID];
+    const described = new Set(describedHostIds);
+
+    const rows = [];
+    const seen = new Set();
     for (const [status, projects] of [
       ["open", Array.isArray(state.projects) ? state.projects : []],
       [
@@ -424,172 +343,71 @@ function saveStateToRelationalDatabase(database, state) {
         if (
           !isRecord(project) ||
           typeof project.id !== "string" ||
-          !project.id.trim()
+          !project.id.trim() ||
+          seen.has(project.id)
         ) {
           continue;
         }
-
-        const row = projectToRow(project, status, projectRows.length);
-        if (
-          seenProjectIds.has(row.id) ||
-          seenProjectPaths.has(row.normalizedPath)
-        ) {
-          continue;
-        }
-
-        seenProjectIds.add(row.id);
-        seenProjectPaths.add(row.normalizedPath);
-        projectRows.push(row);
+        seen.add(project.id);
+        rows.push(projectToWorkspaceRow(project, status, rows.length));
       }
     }
 
-    // A chat can move to another project. `chats.project_id` cascades,
-    // so the stored row must follow before its old project is deleted below,
-    // or the delete takes the chat and its whole transcript with it. The new
-    // project may only be inserted further down, so the foreign key is
-    // checked at commit rather than here (the pragma ends with the
-    // transaction).
-    const chats = Array.isArray(state.chats) ? state.chats : [];
-    database.exec("PRAGMA defer_foreign_keys = ON");
-    const moveChat = database.prepare(
-      "UPDATE chats SET project_id = ? WHERE id = ? AND project_id <> ?",
-    );
-    for (const chat of chats) {
-      if (
-        isRecord(chat) &&
-        typeof chat.id === "string" &&
-        typeof chat.projectId === "string" &&
-        seenProjectIds.has(chat.projectId)
-      ) {
-        moveChat.run(chat.projectId, chat.id, chat.projectId);
-      }
-    }
-
-    if (projectRows.length === 0) {
-      database.prepare("DELETE FROM projects").run();
-    } else {
-      database
-        .prepare(
-          `DELETE FROM projects WHERE id NOT IN (${projectRows
-            .map(() => "?")
-            .join(", ")})`,
-        )
-        .run(...projectRows.map((row) => row.id));
-    }
-
-    const insertProject = database.prepare(
+    const upsert = database.prepare(
       `
-        INSERT INTO projects (
-          id,
-          path,
-          normalized_path,
-          name,
-          status,
-          sort_order,
-          metadata,
-          created_at,
-          updated_at
+        INSERT INTO workspace_projects (
+          host_id, project_id, status, sort_order, ui, last_used_at,
+          snapshot, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          path = excluded.path,
-          normalized_path = excluded.normalized_path,
-          name = excluded.name,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(host_id, project_id) DO UPDATE SET
           status = excluded.status,
           sort_order = excluded.sort_order,
-          metadata = excluded.metadata,
+          ui = excluded.ui,
+          last_used_at = excluded.last_used_at,
+          snapshot = excluded.snapshot,
           updated_at = excluded.updated_at
       `,
     );
-    for (const row of projectRows) {
-      insertProject.run(
-        row.id,
-        row.path,
-        row.normalizedPath,
-        row.name,
+    const move = database.prepare(
+      `
+        UPDATE workspace_projects
+        SET status = ?, sort_order = ?, updated_at = ?
+        WHERE host_id = ? AND project_id = ?
+      `,
+    );
+    for (const row of rows) {
+      if (!described.has(row.hostId)) {
+        move.run(row.status, row.sortOrder, now, row.hostId, row.projectId);
+        continue;
+      }
+      upsert.run(
+        row.hostId,
+        row.projectId,
         row.status,
         row.sortOrder,
-        toJson(row.metadata),
-        existingProjectCreatedAt.get(row.id) ?? now,
+        toJson(row.ui),
+        row.lastUsedAt,
+        toJson(row.snapshot),
         now,
       );
     }
 
-    // A state that says nothing about saved prompts leaves them alone.
-    if (Array.isArray(state.savedPrompts)) {
-      saveSavedPromptsToRelationalDatabase(database, state.savedPrompts, now);
-    }
-
-    const messagesByChatId = isRecord(state.messagesByChatId)
-      ? state.messagesByChatId
-      : {};
-    const insertChat = database.prepare(
-      `
-        INSERT INTO chats (
-          id,
-          project_id,
-          title,
-          metadata,
-          created_at,
-          updated_at,
-          deleted_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          project_id = excluded.project_id,
-          title = excluded.title,
-          metadata = excluded.metadata,
-          updated_at = excluded.updated_at,
-          deleted_at = excluded.deleted_at
-      `,
-    );
-    const persistedChatIds = [];
-
-    for (const chat of chats) {
-      if (
-        !isRecord(chat) ||
-        typeof chat.id !== "string" ||
-        !chat.id.trim() ||
-        !seenProjectIds.has(chat.projectId)
-      ) {
-        continue;
-      }
-
-      const row = chatToRow(chat);
-      const createdAt =
-        row.createdAt ?? existingChatCreatedAt.get(row.id) ?? now;
-      insertChat.run(
-        row.id,
-        row.projectId,
-        row.title,
-        toJson(row.metadata),
-        createdAt,
-        row.updatedAt ?? createdAt,
-        row.deletedAt,
-      );
-      persistedChatIds.push(row.id);
-
-      // A transcript key is present only when the renderer has it loaded.
-      if (Array.isArray(messagesByChatId[row.id])) {
-        saveChatMessagesToRelationalDatabase(
-          database,
-          row.id,
-          messagesByChatId[row.id],
-          now,
-        );
-      }
-    }
-
-    if (persistedChatIds.length === 0) {
-      database.prepare("DELETE FROM chats").run();
-    } else {
+    // This save describes the projects of these hosts completely; a host it
+    // says nothing about (one not connected this session) keeps its rows.
+    for (const hostId of describedHostIds) {
+      const kept = rows
+        .filter((row) => row.hostId === hostId)
+        .map((row) => row.projectId);
+      const keptClause =
+        kept.length > 0
+          ? ` AND project_id NOT IN (${kept.map(() => "?").join(", ")})`
+          : "";
       database
         .prepare(
-          `DELETE FROM chats WHERE id NOT IN (${persistedChatIds
-            .map(() => "?")
-            .join(", ")})`,
+          `DELETE FROM workspace_projects WHERE host_id = ?${keptClause}`,
         )
-        .run(...persistedChatIds);
+        .run(hostId, ...kept);
     }
 
     database
@@ -605,56 +423,36 @@ function saveStateToRelationalDatabase(database, state) {
   });
 }
 
-function loadStateFromRelationalDatabase(database) {
-  const config = readConfig(database);
-  const projectRows = database
+/**
+ * The client's workspace: the top-level state from config, saved prompts,
+ * and every workspace row (of every host). The renderer merges it with each
+ * host's catalog (codec mergeWorkspaceAndCatalog).
+ */
+function loadWorkspaceFromRelationalDatabase(database) {
+  const workspaceProjects = database
     .prepare(
       `
         SELECT *
-        FROM projects
-        ORDER BY status = 'closed', sort_order, created_at
+        FROM workspace_projects
+        ORDER BY host_id, status = 'closed', sort_order
       `,
     )
-    .all();
+    .all()
+    .map((row) => ({
+      hostId: row.host_id,
+      lastUsedAt: row.last_used_at,
+      projectId: row.project_id,
+      snapshot: parseJson(row.snapshot, {}),
+      sortOrder: row.sort_order,
+      status: row.status === "closed" ? "closed" : "open",
+      ui: parseJson(row.ui, {}),
+    }));
 
-  if (projectRows.length === 0 && Object.keys(config).length === 0) {
-    return createEmptyPersistedState();
-  }
-
-  const projects = [];
-  const closedProjects = [];
-  for (const row of projectRows) {
-    const project = projectFromRow({
-      ...row,
-      metadata: getMetadataObject(row.metadata),
-    });
-    (row.status === "closed" ? closedProjects : projects).push(project);
-  }
-
-  const chatRows = database
-    .prepare(
-      `
-        SELECT chats.*, COUNT(chat_messages.id) AS message_count
-        FROM chats
-        LEFT JOIN chat_messages ON chat_messages.chat_id = chats.id
-        GROUP BY chats.id
-        ORDER BY chats.created_at, chats.id
-      `,
-    )
-    .all();
-  const chats = chatRows.map((row) =>
-    chatFromRow({ ...row, metadata: getMetadataObject(row.metadata) }),
-  );
-
-  return decodePersistedState({
-    ...stateFromConfig(config),
-    chats,
-    closedProjects,
-    // Transcripts are loaded per chat when a panel first opens.
-    messagesByChatId: {},
-    projects,
+  return {
+    ...stateFromConfig(readConfig(database)),
     savedPrompts: loadSavedPromptsFromRelationalDatabase(database),
-  });
+    workspaceProjects,
+  };
 }
 
 function ensureTableColumn(database, tableName, columnName, columnDefinition) {
@@ -778,10 +576,25 @@ function runDrizzleMigrations(database) {
 }
 
 function importLegacyState(database, legacyState) {
-  // The pre-relational blob goes through the codec like any other input.
-  // It may predate saved prompts; a state that lacks them leaves the table
-  // alone rather than emptying it.
+  // The pre-relational blob goes through the codec like any other input,
+  // then splits: its projects, chats and transcripts become the local
+  // host's catalog, the rest this client's workspace. It may predate saved
+  // prompts; a state that lacks them leaves the table alone.
   const encoded = encodePersistedState(decodePersistedState(legacyState));
+  const now = new Date().toISOString();
+  runInTransaction(database, () => {
+    applyCatalogChanges(
+      database,
+      {
+        chats: encoded.chats,
+        projects: [...encoded.projects, ...encoded.closedProjects],
+      },
+      now,
+    );
+    for (const [chatId, messages] of Object.entries(encoded.messagesByChatId)) {
+      saveChatMessages(database, chatId, messages, now);
+    }
+  });
   saveStateToRelationalDatabase(
     database,
     Array.isArray(legacyState.savedPrompts)
@@ -807,6 +620,7 @@ function getStateDatabase(databasePath = resolveStateDatabasePath()) {
   database.exec(`
     PRAGMA foreign_keys = ON;
     PRAGMA journal_mode = WAL;
+    PRAGMA busy_timeout = 5000;
   `);
   const hadRelationalState = hasRelationalState(database);
   runDrizzleMigrations(database);
@@ -844,7 +658,29 @@ export function savePersistedChatMessages(
 ) {
   const database = getStateDatabase(databasePath);
   return runInTransaction(database, () =>
-    saveChatMessagesToRelationalDatabase(database, chatId, messages),
+    saveChatMessages(database, chatId, messages, new Date().toISOString()),
+  );
+}
+
+/** The host catalog: every project and chat, raw. */
+export function loadPersistedCatalog({ databasePath } = {}) {
+  return loadCatalog(getStateDatabase(databasePath));
+}
+
+/** One catalog chat, raw, or null. */
+export function loadPersistedChat(chatId, { databasePath } = {}) {
+  return loadChat(getStateDatabase(databasePath), chatId);
+}
+
+/** Applies one catalog change set; see host/catalog-store.js. */
+export function applyPersistedCatalogChanges(changes, { databasePath } = {}) {
+  const database = getStateDatabase(databasePath);
+  return runInTransaction(database, () =>
+    applyCatalogChanges(
+      database,
+      isRecord(changes) ? changes : {},
+      new Date().toISOString(),
+    ),
   );
 }
 
@@ -870,59 +706,28 @@ export function savePersistedActiveProject(
       return true;
     }
 
-    const row = database
-      .prepare("SELECT metadata FROM projects WHERE id = ? LIMIT 1")
-      .get(normalizedActiveProjectId);
-    if (!row) {
-      return true;
-    }
-
     database
       .prepare(
         `
-          UPDATE projects
-          SET metadata = ?, updated_at = ?
-          WHERE id = ?
+          UPDATE workspace_projects
+          SET last_used_at = ?, updated_at = ?
+          WHERE host_id = ? AND project_id = ?
         `,
       )
-      .run(
-        toJson({
-          ...getMetadataObject(row.metadata),
-          lastUsedAt: normalizedLastUsedAt,
-        }),
-        now,
-        normalizedActiveProjectId,
-      );
+      .run(normalizedLastUsedAt, now, LOCAL_HOST_ID, normalizedActiveProjectId);
 
     return true;
   });
 }
 
+/** The client's workspace (see loadWorkspaceFromRelationalDatabase). */
 export function loadPersistedState({ databasePath } = {}) {
   const database = getStateDatabase(databasePath);
-  return loadStateFromRelationalDatabase(database);
+  return loadWorkspaceFromRelationalDatabase(database);
 }
 
 export function loadPersistedChatMessages(chatId, { databasePath } = {}) {
-  if (typeof chatId !== "string" || !chatId.trim()) {
-    return [];
-  }
-
-  const database = getStateDatabase(databasePath);
-  return database
-    .prepare(
-      `
-        SELECT payload
-        FROM chat_messages
-        WHERE chat_id = ?
-        ORDER BY sort_order, id
-      `,
-    )
-    .all(chatId)
-    .flatMap((row) => {
-      const payload = parseJson(row.payload, null);
-      return isRecord(payload) ? [payload] : [];
-    });
+  return loadChatMessages(getStateDatabase(databasePath), chatId);
 }
 
 export function ensurePersistedInstallId({ databasePath } = {}) {

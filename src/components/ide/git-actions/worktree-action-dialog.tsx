@@ -374,6 +374,7 @@ export const WorktreeActionDialog = ({
           await forgetWorktree({
             deleteBranch,
             force: discardUncommitted,
+            hostId: project.hostId,
             mainWorktreePath: project.worktree.mainWorktreePath,
             worktreePath: project.path,
           }),
@@ -392,6 +393,7 @@ export const WorktreeActionDialog = ({
       project.path,
       project.worktree.mainWorktreePath,
       worktreeT,
+      project.hostId,
     ],
   );
 
@@ -424,9 +426,15 @@ export const WorktreeActionDialog = ({
   const finish = useCallback(() => {
     onOpenChange(false);
     if (cleanupResult) {
-      purgeWorktreeProject(project.path);
+      purgeWorktreeProject(project.path, { hostId: project.hostId });
     }
-  }, [cleanupResult, onOpenChange, project.path, purgeWorktreeProject]);
+  }, [
+    cleanupResult,
+    onOpenChange,
+    project.path,
+    purgeWorktreeProject,
+    project.hostId,
+  ]);
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {

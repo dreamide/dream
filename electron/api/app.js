@@ -16,10 +16,17 @@ import {
   BROWSER_MCP_PATH,
   registerBrowserMcpRoutes,
 } from "./browser-mcp-routes.js";
+import { registerBrowserToolCallRoutes } from "./browser-tool-call-routes.js";
+import { registerCatalogRoutes } from "./catalog-routes.js";
 import { registerChatRoutes } from "./chat-routes.js";
 import { registerCheckpointRoutes } from "./checkpoint-routes.js";
 import { registerCodePullRequestRoutes } from "./code-pull-request-routes.js";
+import { registerHostDirectoryRoutes } from "./host-directory-routes.js";
 import { registerHostInfoRoute } from "./host-info-routes.js";
+import {
+  isProxiedHostSocketPath,
+  registerHostProxyRoutes,
+} from "./host-proxy-routes.js";
 import {
   HOST_SOCKET_PATH,
   registerHostSocketRoutes,
@@ -45,6 +52,9 @@ export {
 function createApiApp({
   activity,
   apiToken,
+  catalog,
+  resolveRemoteHost,
+  turns,
   getHostInfo,
   hostSocket,
   terminals,
@@ -58,7 +68,10 @@ function createApiApp({
   guardedApp.use("/api/*", async (c, next) => {
     // The host socket checks a one-time ticket instead (see
     // host-socket-routes.js): a browser WebSocket cannot send this header.
-    if (c.req.path === HOST_SOCKET_PATH) {
+    if (
+      c.req.path === HOST_SOCKET_PATH ||
+      isProxiedHostSocketPath(c.req.path)
+    ) {
       await next();
       return;
     }
@@ -77,15 +90,25 @@ function createApiApp({
   }
 
   registerHostInfoRoute(guardedApp, getHostInfo);
+  registerHostDirectoryRoutes(guardedApp);
+  if (catalog) registerCatalogRoutes(guardedApp, catalog);
+  // Projects on other hosts, through this one (see host-proxy-routes.js).
+  if (resolveRemoteHost) {
+    registerHostProxyRoutes(guardedApp, {
+      resolveHost: resolveRemoteHost,
+      upgradeWebSocket,
+    });
+  }
   registerToolApprovalRoutes(guardedApp);
   registerProviderRoutes(guardedApp);
-  registerChatRoutes(guardedApp);
+  registerChatRoutes(guardedApp, { catalog, turns });
   registerProjectGitRoutes(guardedApp);
   registerCodePullRequestRoutes(guardedApp);
   registerCheckpointRoutes(guardedApp);
   registerMcpServerRoutes(guardedApp);
   registerSkillsRoutes(guardedApp);
   registerBrowserMcpRoutes(guardedApp);
+  registerBrowserToolCallRoutes(guardedApp);
   registerTerminalRoutes(guardedApp, terminals);
   registerHostSocketRoutes(guardedApp, { ...hostSocket, upgradeWebSocket });
 
@@ -96,6 +119,8 @@ function createApiApp({
  * Starts the host's API server on loopback. Resolves with the port it
  * listens on and `close`, which drops socket clients and stops listening.
  *
+ * `catalog` serves the catalog routes (host/catalog.js). `resolveRemoteHost`
+ * enables `/api/hosts/:hostId/*`, forwarded to that host's endpoint.
  * `getHostInfo` answers `GET /api/host-info`. `hostSocket` is
  * `{ socket, tickets }` for the host socket (host-socket-routes.js). `activity`, when given, is told
  * when each request begins and ends (see shared/request-activity.js).
@@ -103,6 +128,9 @@ function createApiApp({
 export function startApiServer({
   activity,
   apiToken,
+  catalog,
+  resolveRemoteHost,
+  turns,
   getHostInfo,
   hostSocket,
   port,
@@ -111,6 +139,9 @@ export function startApiServer({
   const guardedApp = createApiApp({
     activity,
     apiToken,
+    catalog,
+    resolveRemoteHost,
+    turns,
     getHostInfo,
     hostSocket,
     terminals,

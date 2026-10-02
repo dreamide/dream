@@ -9,6 +9,7 @@ import {
   RotateCcw,
   RotateCw,
   Server,
+  ServerCog,
   Settings,
   Sun,
   Trash2,
@@ -86,6 +87,7 @@ import {
   SettingsSwitchRow,
 } from "./settings";
 import { SkillsSettingsSection } from "./skills/skills-settings-section";
+import { SshHostsSettingsSection } from "./ssh/ssh-hosts-settings-section";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
 
 const getAccentColorSwatch = (color: AccentColor) =>
@@ -172,6 +174,7 @@ export const SettingsWorkspace = () => {
   const setSettings = useIdeStore((s) => s.setSettings);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
+  const sshHostsT = useTranslations("sshHosts");
   const toggleProviderModel = useIdeStore((s) => s.toggleProviderModel);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
   const cliLatestVersions = useIdeStore((s) => s.cliLatestVersions);
@@ -605,6 +608,21 @@ export const SettingsWorkspace = () => {
               <span className="flex items-center gap-2">
                 <Server className="size-4" />
                 {settingsT("mcpServers")}
+              </span>
+            </button>
+            <button
+              className={cn(
+                "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
+                settingsSection === "sshHosts"
+                  ? "font-semibold text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setSettingsSection("sshHosts")}
+              type="button"
+            >
+              <span className="flex items-center gap-2">
+                <ServerCog className="size-4" />
+                {sshHostsT("settingsTitle")}
               </span>
             </button>
             <button
@@ -1428,6 +1446,10 @@ export const SettingsWorkspace = () => {
               ) : null}
 
               {settingsSection === "skills" ? <SkillsSettingsSection /> : null}
+
+              {settingsSection === "sshHosts" ? (
+                <SshHostsSettingsSection />
+              ) : null}
 
               {settingsSection === "chats" ? (
                 <div className="space-y-8">

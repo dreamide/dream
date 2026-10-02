@@ -1,4 +1,4 @@
-import { FolderTree, Plus } from "lucide-react";
+import { FolderTree, Plus, Server } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,9 @@ import {
   type SparklesPaletteName,
 } from "@/lib/sparkles-palettes";
 import { useUiStore } from "@/lib/ui-store";
+import { cn } from "@/lib/utils";
 import type { DetectedEditor, ProjectIconInfo } from "@/types/ide";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { useIdeStore } from "../ide-store";
 import {
   moveTabItem,
@@ -101,6 +103,7 @@ const useProjectIconScanner = ({
       .getState()
       .projects.filter((project) => project.icon?.source !== "custom")
       .map((project) => ({
+        hostId: getProjectHostId(project),
         id: project.id,
         path: project.path,
       }));
@@ -109,7 +112,7 @@ const useProjectIconScanner = ({
       void apiClient
         .projectIcon(
           { projectPath: project.path },
-          { signal: abortController.signal },
+          { hostId: project.hostId, signal: abortController.signal },
         )
         // Icon detection is best effort; the tab keeps its current icon.
         .catch(() => null)
@@ -163,6 +166,24 @@ export const ProjectTabs = () => {
   const closeProject = useIdeStore((s) => s.closeProject);
   const updateProject = useIdeStore((s) => s.updateProject);
   const chats = useIdeStore((s) => s.chats);
+  const hosts = useIdeStore((s) => s.hosts);
+  const sshHosts = useIdeStore((s) => s.settings.sshHosts);
+  const hostLabels = useMemo(
+    () => new Map(sshHosts.map((host) => [host.id, host.label])),
+    [sshHosts],
+  );
+  /** The SSH target of a project on an SSH host; null for a local one. */
+  const sshTargetOf = useCallback(
+    (projectId: string) => {
+      const hostId = projects.find(
+        (project) => project.id === projectId,
+      )?.hostId;
+      return hostId
+        ? (sshHosts.find((host) => host.id === hostId)?.target ?? null)
+        : null;
+    },
+    [projects, sshHosts],
+  );
   const awaitingAnswerChatIds = useIdeStore((s) => s.awaitingAnswerChatIds);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
@@ -225,6 +246,7 @@ export const ProjectTabs = () => {
   const handleOpenProjectInEditor = useCallback(
     (
       project: {
+        id: string;
         path: string;
       },
       editorId: string,
@@ -236,9 +258,10 @@ export const ProjectTabs = () => {
       void desktopApi.openInEditor({
         editorId,
         projectPath: project.path,
+        sshTarget: sshTargetOf(project.id) ?? undefined,
       });
     },
-    [desktopApi],
+    [desktopApi, sshTargetOf],
   );
 
   const closeEditDialog = useCallback(() => {
@@ -290,6 +313,19 @@ export const ProjectTabs = () => {
               color="green"
             />
           </span>
+        ) : project.hostId ? (
+          // On an SSH host: the server icon, dimmed unless connected.
+          <span
+            className={cn(
+              "flex size-4 shrink-0 items-center justify-center self-center leading-none",
+              hosts[project.hostId]?.state === "connected"
+                ? "text-muted-foreground"
+                : "text-amber-500",
+            )}
+            key={`${project.id}:host:${project.hostId}`}
+          >
+            <Server className="size-3.5" />
+          </span>
         ) : project.worktree && project.icon?.source !== "custom" ? (
           <span
             className="flex size-4 shrink-0 items-center justify-center self-center leading-none text-muted-foreground"
@@ -303,6 +339,7 @@ export const ProjectTabs = () => {
             key={`${project.id}:${project.icon.path}:${project.icon.mtimeMs}`}
           >
             <ProjectTabIcon
+              hostId={project.hostId}
               icon={project.icon}
               projectName={project.name}
               projectPath={project.path}
@@ -328,7 +365,10 @@ export const ProjectTabs = () => {
           awaitingAnswer,
           completed,
           id: project.id,
-          label: project.name,
+          // A project on an SSH host says which.
+          label: project.hostId
+            ? `${project.name} · ${hostLabels.get(project.hostId) ?? project.hostId}`
+            : project.name,
           leading,
           path: project.path,
           sparklesPalette:
@@ -348,6 +388,8 @@ export const ProjectTabs = () => {
       projectsT,
       projects,
       streamingProjectIds,
+      hosts,
+      hostLabels,
     ],
   );
 
@@ -391,7 +433,13 @@ export const ProjectTabs = () => {
             renderActions={(project) => (
               <ProjectActionsMenu
                 closeProject={closeProject}
-                editors={projectOpenInEditors}
+                editors={
+                  sshTargetOf(project.id)
+                    ? projectOpenInEditors.filter(
+                        (editor) => editor.supportsRemote,
+                      )
+                    : projectOpenInEditors
+                }
                 isMacOs={isMacOs}
                 onOpenInEditor={handleOpenProjectInEditor}
                 open={openProjectMenuId === project.id}

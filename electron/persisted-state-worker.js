@@ -9,6 +9,7 @@
 import { parentPort, workerData } from "node:worker_threads";
 
 import {
+  applyPersistedCatalogChanges,
   closePersistedStateDatabase,
   savePersistedActiveProject,
   savePersistedChatMessages,
@@ -46,6 +47,14 @@ parentPort.on("message", (message) => {
 
     if (type === "save-chat-messages") {
       const result = savePersistedChatMessages(message.payload, {
+        databasePath,
+      });
+      parentPort.postMessage({ id, ok: true, result });
+      return;
+    }
+
+    if (type === "catalog-changes") {
+      const result = applyPersistedCatalogChanges(message.payload, {
         databasePath,
       });
       parentPort.postMessage({ id, ok: true, result });

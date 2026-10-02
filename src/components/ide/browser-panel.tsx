@@ -38,6 +38,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { getDesktopApi } from "@/lib/electron";
+import { fromLoadedUrl, isLoopbackUrl, toLoadableUrl } from "@/lib/host-ports";
 import { cn } from "@/lib/utils";
 import type { BrowserTabState, ProjectConfig } from "@/types/ide";
 import {
@@ -159,12 +160,15 @@ type BrowserWebviewProps = {
     overrides?: Partial<BrowserTabState>,
   ) => void;
   projectId: string;
+  /** The project's SSH host, if any: loopback URLs load through a forward. */
+  hostId?: string;
   tab: BrowserTabState;
 };
 
 const BrowserWebview = memo(
   ({
     active,
+    hostId,
     onError,
     onLoadingChange,
     onRef,
@@ -274,6 +278,32 @@ const BrowserWebview = memo(
       };
     }, [onError, onLoadingChange, onStateChange, tab.id]);
 
+    // What the webview loads: the tab's URL, or (for a project on an SSH
+    // host) its forwarded address while the tab keeps the host's URL.
+    const tabUrl = tab.url || "about:blank";
+    const [src, setSrc] = useState(() =>
+      hostId && isLoopbackUrl(tabUrl) ? "about:blank" : tabUrl,
+    );
+    useEffect(() => {
+      let cancelled = false;
+      void toLoadableUrl(hostId, tabUrl)
+        .then((loadable) => {
+          if (!cancelled) setSrc(loadable);
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            onError(tab.id, {
+              errorCode: -1,
+              errorDescription:
+                error instanceof Error ? error.message : String(error),
+            } as WebviewFailEvent);
+          }
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [hostId, onError, tab.id, tabUrl]);
+
     return (
       <webview
         allowpopups={true}
@@ -282,7 +312,7 @@ const BrowserWebview = memo(
         key={tab.id}
         partition="persist:dream-browser"
         ref={setWebviewRef}
-        src={tab.url || "about:blank"}
+        src={src}
         style={{
           display: active ? "flex" : "none",
         }}
@@ -455,7 +485,8 @@ const BrowserPanelImpl = ({
       webview: ElectronWebviewElement,
       overrides: Partial<BrowserTabState> = {},
     ) => {
-      const url = overrides.url ?? getWebviewUrl(webview);
+      // A forwarded address reads back as the host's own URL.
+      const url = fromLoadedUrl(overrides.url ?? getWebviewUrl(webview));
       const title = overrides.title ?? getWebviewTitle(webview);
       const zoomFactor = overrides.zoomFactor ?? getWebviewZoomFactor(webview);
 
@@ -595,11 +626,11 @@ const BrowserPanelImpl = ({
     }));
     setBrowserUrlDraft(nextUrl);
 
-    try {
-      getActiveWebview()?.loadURL(nextUrl);
-    } catch {
-      setBrowserLoading(activeTab.id, false);
-    }
+    void toLoadableUrl(project.hostId, nextUrl)
+      .then((loadable) => getActiveWebview()?.loadURL(loadable))
+      .catch(() => {
+        setBrowserLoading(activeTab.id, false);
+      });
   }, [
     activeTab,
     browserUrlDraft,
@@ -610,6 +641,7 @@ const BrowserPanelImpl = ({
     setBrowserLoading,
     updateBrowserTab,
     updateProject,
+    project.hostId,
   ]);
 
   const handleRefresh = useCallback(() => {
@@ -1129,6 +1161,7 @@ const BrowserPanelImpl = ({
               onError={handleWebviewError}
               onLoadingChange={handleWebviewLoadingChange}
               onRef={handleWebviewRef(activeTab.id)}
+              hostId={project.hostId}
               onStateChange={handleWebviewStateChange}
               projectId={projectId}
               tab={activeTab}

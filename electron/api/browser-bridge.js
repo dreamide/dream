@@ -28,3 +28,18 @@ export const setBrowserMcpEndpoint = (endpoint) => {
 };
 
 export const getBrowserMcpEndpoint = () => browserMcpEndpoint;
+
+let browserToolRelay = null;
+
+/**
+ * Where browser tools go when this process has no browser of its own (a
+ * host daemon on an SSH host): the host socket's browser channel, which
+ * runs each call in a window that has the project open
+ * (host-socket/browser-relay.js). `{ has(projectId), call(projectId, tool,
+ * args) }`. The bridge wins when both are set.
+ */
+export const setBrowserToolRelay = (relay) => {
+  browserToolRelay = relay ?? null;
+};
+
+export const getBrowserToolRelay = () => browserToolRelay;

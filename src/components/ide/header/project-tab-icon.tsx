@@ -1,9 +1,14 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { fetchApiBlob, getProjectFileRawUrl } from "@/lib/api-client";
+import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { ProjectIconInfo } from "@/types/ide";
 
-const getProjectIconCacheKey = (projectPath: string, icon: ProjectIconInfo) =>
-  `${projectPath}\x00${icon.path}\x00${icon.mtimeMs}`;
+// The same path on two hosts is two folders, with two icons.
+const getProjectIconCacheKey = (
+  hostId: string,
+  projectPath: string,
+  icon: ProjectIconInfo,
+) => `${hostId}\x00${projectPath}\x00${icon.path}\x00${icon.mtimeMs}`;
 
 // Object URLs are cached across mounts so a tab icon that is swapped out for
 // a status dot and back again renders synchronously instead of flashing while
@@ -11,8 +16,12 @@ const getProjectIconCacheKey = (projectPath: string, icon: ProjectIconInfo) =>
 const projectIconObjectUrls = new Map<string, string>();
 const projectIconLoads = new Map<string, Promise<string>>();
 
-const loadProjectIcon = (projectPath: string, icon: ProjectIconInfo) => {
-  const cacheKey = getProjectIconCacheKey(projectPath, icon);
+const loadProjectIcon = (
+  hostId: string,
+  projectPath: string,
+  icon: ProjectIconInfo,
+) => {
+  const cacheKey = getProjectIconCacheKey(hostId, projectPath, icon);
   const cachedUrl = projectIconObjectUrls.get(cacheKey);
   if (cachedUrl) {
     return Promise.resolve(cachedUrl);
@@ -23,7 +32,9 @@ const loadProjectIcon = (projectPath: string, icon: ProjectIconInfo) => {
     return pendingLoad;
   }
 
-  const load = fetchApiBlob(getProjectFileRawUrl(projectPath, icon.path))
+  const load = fetchApiBlob(
+    getProjectFileRawUrl(projectPath, icon.path, hostId),
+  )
     .then((blob) => {
       const objectUrl = URL.createObjectURL(blob);
       projectIconObjectUrls.set(cacheKey, objectUrl);
@@ -40,17 +51,22 @@ const loadProjectIcon = (projectPath: string, icon: ProjectIconInfo) => {
 export function ProjectTabIcon({
   className = "size-4",
   fallback = null,
+  hostId = LOCAL_HOST_ID,
   icon,
   projectName,
   projectPath,
 }: {
   className?: string;
   fallback?: ReactNode;
+  /** The project's host; the local host when absent. */
+  hostId?: string;
   icon: ProjectIconInfo | null;
   projectName: string;
   projectPath: string;
 }) {
-  const cacheKey = icon ? getProjectIconCacheKey(projectPath, icon) : null;
+  const cacheKey = icon
+    ? getProjectIconCacheKey(hostId, projectPath, icon)
+    : null;
   const uploadedSrc =
     icon?.source === "custom" && icon.path.startsWith("data:image/png;base64,")
       ? icon.path
@@ -69,9 +85,9 @@ export function ProjectTabIcon({
     }
 
     let cancelled = false;
-    const key = getProjectIconCacheKey(projectPath, icon);
+    const key = getProjectIconCacheKey(hostId, projectPath, icon);
 
-    void loadProjectIcon(projectPath, icon)
+    void loadProjectIcon(hostId, projectPath, icon)
       .then((src) => {
         if (!cancelled) {
           setLoaded({ key, src });
@@ -86,7 +102,7 @@ export function ProjectTabIcon({
     return () => {
       cancelled = true;
     };
-  }, [cachedSrc, icon, projectPath]);
+  }, [cachedSrc, hostId, icon, projectPath]);
 
   const src =
     cachedSrc ?? (loaded && loaded.key === cacheKey ? loaded.src : null);

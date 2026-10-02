@@ -89,6 +89,7 @@ export const DEFAULT_SETTINGS = {
   openCodeSelectedModels: [],
   showReasoningSummaries: true,
   shellPath: "",
+  sshHosts: [],
 };
 
 /** @type {PanelVisibility} */
@@ -617,6 +618,7 @@ const normalizeProject = (value, settings) => {
   if (!id) {
     return null;
   }
+  const hostId = getProjectHostId(value);
 
   const path = asString(value.path);
   const provider = normalizeProvider(value.provider);
@@ -628,6 +630,8 @@ const normalizeProject = (value, settings) => {
 
   return {
     id,
+    // Only a project on another host says so; absent means the local host.
+    ...(hostId === LOCAL_HOST_ID ? {} : { hostId }),
     icon: normalizeProjectIcon(value.icon),
     lastUsedAt: asTimestamp(value.lastUsedAt),
     name: asString(value.name).trim() || getProjectName(path),
@@ -842,9 +846,37 @@ const normalizeSettings = (value) => {
       DEFAULT_SETTINGS.showReasoningSummaries,
     ),
     shellPath: asString(raw.shellPath),
+    sshHosts: normalizeSshHosts(raw.sshHosts),
   };
 
   return normalizeDefaultModelSettings(settings);
+};
+
+/**
+ * The SSH hosts the user added: each with a unique id and a target; the
+ * local host's id is never one of them.
+ * @param {unknown} value
+ * @returns {AppSettings["sshHosts"]}
+ */
+export const normalizeSshHosts = (value) => {
+  const seen = new Set([LOCAL_HOST_ID]);
+  /** @type {AppSettings["sshHosts"]} */
+  const hosts = [];
+  for (const raw of Array.isArray(value) ? value : []) {
+    if (!isRecord(raw)) continue;
+    const id = asString(raw.id).trim();
+    const target = asString(raw.target).trim();
+    if (!id || !target || seen.has(id)) continue;
+    seen.add(id);
+    hosts.push({
+      // Empty: Dream installs its host runtime there and uses it.
+      hostCommand: asString(raw.hostCommand).trim(),
+      id,
+      label: asString(raw.label).trim() || target,
+      target,
+    });
+  }
+  return hosts;
 };
 
 // ── Invariants shared with the store ──────────────────────────────────
@@ -1025,7 +1057,8 @@ const decodeProjects = (rawOpen, rawClosed, settings) => {
         continue;
       }
 
-      const pathKey = normalizeProjectPathKey(project.path);
+      // A path is unique on its host; two hosts can each have /home/me/app.
+      const pathKey = `${getProjectHostId(project)}\u0000${normalizeProjectPathKey(project.path)}`;
       if (seenIds.has(project.id) || seenPathKeys.has(pathKey)) {
         continue;
       }
@@ -1243,38 +1276,58 @@ export const encodePersistedState = (state) => {
 // blob. The row mappers are deliberately dumb: they move fields between the
 // two shapes and tolerate junk, and leave repair to decodePersistedState.
 
+/** The host id of the machine Dream's window runs on. */
+export const LOCAL_HOST_ID = "local";
+
 /**
- * @typedef {object} ProjectRow
+ * The host a (raw or decoded) project lives on.
+ * @param {unknown} project
+ * @returns {string}
+ */
+export function getProjectHostId(project) {
+  const hostId = isRecord(project) ? project.hostId : null;
+  return typeof hostId === "string" && hostId.trim()
+    ? hostId.trim()
+    : LOCAL_HOST_ID;
+}
+
+/**
+ * A project's catalog row: what its host owns and every client sees.
+ * @typedef {object} ProjectCatalogRow
  * @property {string} id
  * @property {string} path
  * @property {string} normalizedPath
  * @property {string} name
- * @property {"open" | "closed"} status
- * @property {number} sortOrder
  * @property {UnknownRecord} metadata
  */
 
 /**
- * @param {ProjectConfig} project
- * @param {"open" | "closed"} status
- * @param {number} sortOrder
- * @returns {ProjectRow}
+ * A project's workspace row: one client's view of a project on some host.
+ * @typedef {object} ProjectWorkspaceRow
+ * @property {string} hostId
+ * @property {string} projectId
+ * @property {"open" | "closed"} status
+ * @property {number} sortOrder
+ * @property {UnknownRecord} ui
+ * @property {string | null} lastUsedAt
+ * @property {UnknownRecord} snapshot the project's catalog fields, cached
  */
-export const projectToRow = (project, status, sortOrder) => {
+
+/**
+ * @param {ProjectConfig} project
+ * @returns {ProjectCatalogRow}
+ */
+export const projectToCatalogRow = (project) => {
   const path = asString(project.path);
-  const ui = asRecord(project.ui);
 
   return {
     id: project.id,
     path,
     normalizedPath: normalizeProjectPathKey(path),
     name: asString(project.name).trim() || getProjectName(path),
-    status,
-    sortOrder,
     metadata: {
       browser: { url: asString(project.browserUrl) },
       icon: isRecord(project.icon) ? project.icon : null,
-      lastUsedAt: asTimestamp(project.lastUsedAt),
       modelSelection: {
         model: asString(project.model),
         modelSpeed: asString(project.modelSpeed, "standard"),
@@ -1282,46 +1335,77 @@ export const projectToRow = (project, status, sortOrder) => {
         reasoningEffort: asNullableString(project.reasoningEffort),
       },
       runCommand: asString(project.runCommand, "pnpm dev"),
-      ui: {
-        activeChatId: asNullableString(ui.activeChatId),
-        openChatIds: asIdList(ui.openChatIds),
-        chatColumnWidths: normalizeChatColumnWidths(ui.chatColumnWidths),
-        chatHistoryPanelOpen: ui.chatHistoryPanelOpen === true,
-        changesDiffWordWrap: ui.changesDiffWordWrap === true,
-        fileEditorWordWrap: ui.fileEditorWordWrap === true,
-        multiChat: ui.multiChat === true,
-        panelSizes: normalizePanelSizes(ui.panelSizes),
-        rightPanelOpen: asBoolean(
-          ui.rightPanelOpen,
-          asBoolean(
-            asRecord(ui.panelVisibility).right,
-            DEFAULT_PROJECT_UI.rightPanelOpen,
-          ),
-        ),
-        rightPanelView: isRightPanelView(ui.rightPanelView)
-          ? ui.rightPanelView
-          : DEFAULT_PROJECT_UI.rightPanelView,
-        stashItems: Array.isArray(ui.stashItems) ? ui.stashItems : [],
-      },
       worktree: isRecord(project.worktree) ? project.worktree : null,
     },
   };
 };
 
+/** @param {unknown} value */
+const encodeProjectUi = (value) => {
+  const ui = asRecord(value);
+  return {
+    activeChatId: asNullableString(ui.activeChatId),
+    openChatIds: asIdList(ui.openChatIds),
+    chatColumnWidths: normalizeChatColumnWidths(ui.chatColumnWidths),
+    chatHistoryPanelOpen: ui.chatHistoryPanelOpen === true,
+    changesDiffWordWrap: ui.changesDiffWordWrap === true,
+    fileEditorWordWrap: ui.fileEditorWordWrap === true,
+    multiChat: ui.multiChat === true,
+    panelSizes: normalizePanelSizes(ui.panelSizes),
+    rightPanelOpen: asBoolean(
+      ui.rightPanelOpen,
+      asBoolean(
+        asRecord(ui.panelVisibility).right,
+        DEFAULT_PROJECT_UI.rightPanelOpen,
+      ),
+    ),
+    rightPanelView: isRightPanelView(ui.rightPanelView)
+      ? ui.rightPanelView
+      : DEFAULT_PROJECT_UI.rightPanelView,
+    stashItems: Array.isArray(ui.stashItems) ? ui.stashItems : [],
+  };
+};
+
 /**
- * The raw project a row describes, for decodePersistedState.
+ * @param {ProjectConfig} project
+ * @param {"open" | "closed"} status
+ * @param {number} sortOrder
+ * @returns {ProjectWorkspaceRow}
+ */
+export const projectToWorkspaceRow = (project, status, sortOrder) => {
+  const hostId = getProjectHostId(project);
+  const catalog = projectToCatalogRow(project);
+  return {
+    hostId,
+    projectId: project.id,
+    status,
+    sortOrder,
+    ui: encodeProjectUi(project.ui),
+    lastUsedAt: asTimestamp(project.lastUsedAt),
+    snapshot: projectFromRow(catalog),
+  };
+};
+
+/**
+ * The raw project a catalog row describes, for decodePersistedState. The
+ * workspace fields (`ui`, `lastUsedAt`) come from the client's workspace
+ * row when there is one; rows written before the split carry them in
+ * metadata, which is the fallback.
  * @param {{ id: unknown, path: unknown, name: unknown, metadata: unknown }} row
+ * @param {{ ui?: unknown, lastUsedAt?: unknown, hostId?: unknown } | null} [workspace]
  * @returns {UnknownRecord}
  */
-export const projectFromRow = (row) => {
+export const projectFromRow = (row, workspace = null) => {
   const metadata = asRecord(row.metadata);
   const modelSelection = asRecord(metadata.modelSelection);
+  const hostId = getProjectHostId(workspace);
 
   return {
+    ...(hostId === LOCAL_HOST_ID ? {} : { hostId }),
     browserUrl: asRecord(metadata.browser).url,
     icon: metadata.icon,
     id: row.id,
-    lastUsedAt: metadata.lastUsedAt,
+    lastUsedAt: workspace ? workspace.lastUsedAt : metadata.lastUsedAt,
     model: modelSelection.model,
     modelSpeed: modelSelection.modelSpeed,
     name: row.name,
@@ -1329,8 +1413,108 @@ export const projectFromRow = (row) => {
     provider: modelSelection.provider,
     reasoningEffort: modelSelection.reasoningEffort,
     runCommand: metadata.runCommand,
-    ui: metadata.ui,
+    ui: workspace ? workspace.ui : metadata.ui,
     worktree: metadata.worktree,
+  };
+};
+
+/**
+ * A client's workspace and one host's catalog, as one raw state for
+ * decodePersistedState. Catalog projects the workspace has open are open,
+ * in workspace order; every other catalog project is closed (including ones
+ * another client created). Workspace entries of that host whose project the
+ * catalog no longer has are dropped. Each project is stamped with the host.
+ *
+ * Other hosts' entries are not this merge's business, except those of
+ * `snapshotHostIds`: hosts whose catalog has not loaded yet (an SSH host
+ * still connecting). Their projects come from the snapshot their workspace
+ * row cached, as last seen, so their tabs show before the host is back;
+ * its catalog replaces them when it loads. They have no chats until then.
+ * Open projects of every host are in one workspace order.
+ * @param {{
+ *   workspace: UnknownRecord & { workspaceProjects?: unknown },
+ *   catalog: { projects?: unknown, chats?: unknown },
+ *   hostId?: string,
+ *   snapshotHostIds?: string[],
+ * }} parts
+ *   `workspace`: the client's state (config fields, saved prompts) and its
+ *   `workspaceProjects` rows; `catalog.projects` are raw projects (as from
+ *   projectFromRow, without workspace fields) and `catalog.chats` raw chats.
+ * @returns {UnknownRecord}
+ */
+export const mergeWorkspaceAndCatalog = ({
+  workspace,
+  catalog,
+  hostId = LOCAL_HOST_ID,
+  snapshotHostIds = [],
+}) => {
+  const entries = new Map();
+  for (const entry of Array.isArray(workspace.workspaceProjects)
+    ? workspace.workspaceProjects
+    : []) {
+    if (
+      isRecord(entry) &&
+      typeof entry.projectId === "string" &&
+      getProjectHostId(entry) === hostId
+    ) {
+      entries.set(entry.projectId, entry);
+    }
+  }
+
+  /** @type {{ project: UnknownRecord, sortOrder: number }[]} */
+  const open = [];
+  /** @type {{ project: UnknownRecord, sortOrder: number }[]} */
+  const closed = [];
+  for (const raw of Array.isArray(catalog.projects) ? catalog.projects : []) {
+    if (!isRecord(raw) || typeof raw.id !== "string") continue;
+    const entry = entries.get(raw.id);
+    const project = {
+      ...raw,
+      ...(hostId === LOCAL_HOST_ID ? {} : { hostId }),
+      lastUsedAt: entry ? entry.lastUsedAt : raw.lastUsedAt,
+      ui: entry ? entry.ui : raw.ui,
+    };
+    const sortOrder =
+      typeof entry?.sortOrder === "number" ? entry.sortOrder : Infinity;
+    (entry?.status === "open" ? open : closed).push({ project, sortOrder });
+  }
+
+  const snapshotHosts = new Set(
+    snapshotHostIds.filter((id) => id !== hostId && id !== LOCAL_HOST_ID),
+  );
+  for (const entry of Array.isArray(workspace.workspaceProjects)
+    ? workspace.workspaceProjects
+    : []) {
+    if (!isRecord(entry) || typeof entry.projectId !== "string") continue;
+    const entryHostId = getProjectHostId(entry);
+    if (!snapshotHosts.has(entryHostId)) continue;
+    const snapshot = asRecord(entry.snapshot);
+    // A row without a cached path has nothing to show.
+    if (typeof snapshot.path !== "string" || !snapshot.path.trim()) continue;
+    const project = {
+      ...snapshot,
+      hostId: entryHostId,
+      id: entry.projectId,
+      lastUsedAt: entry.lastUsedAt,
+      ui: entry.ui,
+    };
+    const sortOrder =
+      typeof entry.sortOrder === "number" ? entry.sortOrder : Infinity;
+    (entry.status === "open" ? open : closed).push({ project, sortOrder });
+  }
+  /**
+   * @param {{ sortOrder: number }} a
+   * @param {{ sortOrder: number }} b
+   */
+  const bySortOrder = (a, b) => a.sortOrder - b.sortOrder;
+
+  const { workspaceProjects: _entries, ...rest } = workspace;
+  return {
+    ...rest,
+    chats: Array.isArray(catalog.chats) ? catalog.chats : [],
+    closedProjects: closed.sort(bySortOrder).map((item) => item.project),
+    messagesByChatId: {},
+    projects: open.sort(bySortOrder).map((item) => item.project),
   };
 };
 

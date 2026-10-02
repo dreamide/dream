@@ -30,6 +30,11 @@ export const PANEL_TRANSITION = `width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4
 // (e.g. 4K) windows — the surrounding content now reflows once (width snaps)
 // while the panel itself still slides in/out via transform.
 export const SLIDING_PANEL_TRANSITION = `transform ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
+// The main right panel reserves flex layout space. If that slot snaps open
+// while only the inner panel transforms, Windows Chromium tends to paint the
+// chat reflow and panel slide as separate, visibly uneven steps. Animate the
+// reserved width here so open/close follows the same path as manual resizing.
+export const RESERVED_SLIDING_PANEL_TRANSITION = `width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), transform ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
 // Keep the active chat, a small recent set, and every actively streaming chat.
 // Open split-view chats are retained separately by useMountedProjectChats.
 export const CHAT_KEEP_ALIVE_LIMIT = 3;

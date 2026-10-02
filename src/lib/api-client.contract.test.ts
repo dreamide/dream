@@ -6,9 +6,12 @@ import { API_ROUTES } from "./api-client";
 
 test("every client route is registered on the API server", async () => {
   const [
+    { registerBrowserToolCallRoutes },
+    { registerCatalogRoutes },
     { registerChatRoutes },
     { registerCheckpointRoutes },
     { registerCodePullRequestRoutes },
+    { registerHostDirectoryRoutes },
     { registerMcpServerRoutes },
     { registerProjectGitRoutes },
     { registerProviderRoutes },
@@ -17,9 +20,12 @@ test("every client route is registered on the API server", async () => {
     { registerTerminalRoutes },
     { registerToolApprovalRoutes },
   ] = await Promise.all([
+    import("../../electron/api/browser-tool-call-routes.js"),
+    import("../../electron/api/catalog-routes.js"),
     import("../../electron/api/chat-routes.js"),
     import("../../electron/api/checkpoint-routes.js"),
     import("../../electron/api/code-pull-request-routes.js"),
+    import("../../electron/api/host-directory-routes.js"),
     import("../../electron/api/mcp-server-routes.js"),
     import("../../electron/api/project-git-routes.js"),
     import("../../electron/api/provider-routes.js"),
@@ -31,9 +37,11 @@ test("every client route is registered on the API server", async () => {
 
   const app = new Hono();
   for (const register of [
+    registerBrowserToolCallRoutes,
     registerChatRoutes,
     registerCheckpointRoutes,
     registerCodePullRequestRoutes,
+    registerHostDirectoryRoutes,
     registerMcpServerRoutes,
     registerProjectGitRoutes,
     registerProviderRoutes,
@@ -46,6 +54,7 @@ test("every client route is registered on the API server", async () => {
     detectShells: () => [],
     sessions: {} as never,
   });
+  registerCatalogRoutes(app, {} as never);
   registerHostSocketRoutes(app, {
     socket: {} as never,
     tickets: {} as never,

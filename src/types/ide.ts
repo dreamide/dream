@@ -151,6 +151,11 @@ export interface PendingChatSubmit {
 
 export interface ProjectConfig {
   id: string;
+  /**
+   * The host the project lives on (its files, agents, terminals). Absent
+   * for the local host; an SSH host's id otherwise.
+   */
+  hostId?: string;
   icon: ProjectIconInfo | null;
   lastUsedAt: string | null;
   name: string;
@@ -226,6 +231,8 @@ export interface AppSettings {
   mcpServers: McpServerConfig[];
   showReasoningSummaries: boolean;
   shellPath: string;
+  /** SSH hosts projects can live on. */
+  sshHosts: SshHostConfig[];
 }
 
 export interface PanelVisibility {
@@ -265,6 +272,64 @@ export interface ProjectUiState {
   rightPanelOpen: boolean;
   rightPanelView: RightPanelView;
   stashItems: StashItem[];
+}
+
+/** An SSH host the user has added (Settings > SSH hosts). */
+export interface SshHostConfig {
+  /** The app's id for the host; projects and requests are routed by it. */
+  id: string;
+  /** What to call it in the UI. */
+  label: string;
+  /** What you would type after `ssh`: an ~/.ssh/config alias or user@host. */
+  target: string;
+  /** How to run dream-host there; empty: Dream installs and runs its own. */
+  hostCommand: string;
+}
+
+export type HostConnectionState =
+  | "idle"
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "disconnected"
+  | "failed";
+
+export interface HostStatusEvent {
+  hostId: string;
+  state: HostConnectionState;
+  error: string | null;
+  version: string | null;
+}
+
+export interface HostPromptEvent {
+  promptId: number;
+  hostId: string | null;
+  target: string | null;
+  /** `confirm` for yes/no (an unknown host key), `secret` otherwise. */
+  kind: "secret" | "confirm";
+  message: string;
+}
+
+/** One client's workspace row for a project on some host. */
+export interface PersistedWorkspaceProject {
+  hostId: string;
+  projectId: string;
+  status: "open" | "closed";
+  sortOrder: number;
+  ui: unknown;
+  lastUsedAt: string | null;
+  /** The project's catalog fields, cached for while its host is away. */
+  snapshot: Record<string, unknown>;
+}
+
+/**
+ * What the client keeps (the main process's state:load): the top-level
+ * state from config, saved prompts, and its workspace rows. Raw; the
+ * renderer merges it with each host's catalog and decodes the result.
+ */
+export interface PersistedWorkspace {
+  [key: string]: unknown;
+  workspaceProjects: PersistedWorkspaceProject[];
 }
 
 export interface PersistedIdeState {
@@ -788,13 +853,26 @@ export interface DesktopApi {
 
   pickProjectDirectory: () => Promise<string | null>;
 
-  loadState: () => Promise<PersistedIdeState>;
-  loadChatMessages: (chatId: string) => Promise<UIMessage[]>;
+  /** Connects an SSH host (its daemon is started or reused there). */
+  connectHost: (payload: {
+    hostId: string;
+    target: string;
+    hostCommand?: string;
+  }) => Promise<{ hostProtocolVersion: number; version: string | null }>;
+  disconnectHost: (hostId: string) => Promise<boolean>;
+  getHostState: (hostId: string) => Promise<HostConnectionState>;
+  /** Forwards an SSH host's port here; resolves with the local port. */
+  forwardHostPort: (hostId: string, port: number) => Promise<number>;
+  onHostStatus: (listener: (event: HostStatusEvent) => void) => () => void;
+  /** ssh asks something (a password, a 2FA code, an unknown host key). */
+  onHostPrompt: (listener: (event: HostPromptEvent) => void) => () => void;
+  /** Answers a prompt; null declines it. */
+  answerHostPrompt: (promptId: number, answer: string | null) => void;
+
+  /** This client's workspace; the renderer merges it with host catalogs. */
+  loadState: () => Promise<PersistedWorkspace>;
+  /** Saves the workspace part of the state (not catalog rows). */
   saveState: (state: PersistedIdeState) => Promise<boolean>;
-  saveChatMessages: (payload: {
-    chatId: string;
-    messages: UIMessage[];
-  }) => Promise<boolean>;
   saveActiveProject: (payload: {
     activeProjectId: string | null;
     lastUsedAt: string | null;
@@ -833,6 +911,8 @@ export interface DesktopApi {
   openInEditor: (payload: {
     projectPath: string;
     editorId: string;
+    /** The project is on this SSH target: open it in the editor's remote mode. */
+    sshTarget?: string;
   }) => Promise<boolean>;
 
   getUpdateStatus: () => Promise<UpdateStatusEvent>;
@@ -847,4 +927,6 @@ export interface DetectedEditor {
   executable: string;
   isFileExplorer: boolean;
   isTerminal: boolean;
+  /** Can open a folder on an SSH host (VS Code's Remote-SSH, Zed's ssh://). */
+  supportsRemote?: boolean;
 }

@@ -26,7 +26,12 @@
 // name. Tools in a merged AI SDK stream (Claude's) are stamped the same way,
 // so the transcript classifies a tool once, here, whatever produced it.
 
-import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
+import { AsyncLocalStorage } from "node:async_hooks";
+import {
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  readUIMessageStream,
+} from "ai";
 import { formatApprovalId } from "../../shared/agent-turn-contract.js";
 import { getToolKindForName, isToolKind } from "../../shared/tool-call.js";
 import { waitForToolApproval } from "../tool-approvals.js";
@@ -498,6 +503,64 @@ export const createAgentTurn = ({
 };
 
 /**
+ * Who is told about a turn's messages while it runs, whether or not any
+ * client is reading it: the host, which saves the transcript at every step
+ * and at the end. Set around a provider's `stream` call (chat-routes.js);
+ * `streamAgentTurn` reads it, so no provider adapter has to know.
+ * It is told the assistant message being written (continuing the last one
+ * when the turn does).
+ * @type {AsyncLocalStorage<{ onMessage: (message: unknown, options: { final: boolean }) => Promise<unknown> | unknown }>}
+ */
+export const turnObservers = new AsyncLocalStorage();
+
+/**
+ * Follows a copy of the turn's UI-message stream: the assistant message so
+ * far, after every finished step and once at the end (also after an error
+ * or a stop). A turn that continues the last assistant message builds on it.
+ */
+const observeTurn = async (stream, originalMessages, observer) => {
+  const last = Array.isArray(originalMessages) ? originalMessages.at(-1) : null;
+  const continued = last?.role === "assistant";
+  let stepEnded = false;
+  const marked = stream.pipeThrough(
+    new TransformStream({
+      transform(chunk, controller) {
+        if (chunk?.type === "finish-step") stepEnded = true;
+        controller.enqueue(chunk);
+      },
+    }),
+  );
+
+  let latest = continued ? last : null;
+  const report = async (final) => {
+    if (!latest) return;
+    try {
+      await observer.onMessage(latest, { final });
+    } catch (error) {
+      console.warn("[turn] Saving the turn's messages failed.", error);
+    }
+  };
+
+  try {
+    for await (const message of readUIMessageStream({
+      message: continued ? structuredClone(last) : undefined,
+      onError: () => {},
+      stream: marked,
+    })) {
+      latest = message;
+      if (stepEnded) {
+        stepEnded = false;
+        await report(false);
+      }
+    }
+  } catch (error) {
+    console.warn("[turn] Following the turn's messages failed.", error);
+  } finally {
+    await report(true);
+  }
+};
+
+/**
  * Runs `execute(turn)` inside a UI-message stream and returns the HTTP
  * response. The initial request metadata is written before `execute` runs,
  * open parts are closed after it, an error after the client aborted is
@@ -526,5 +589,11 @@ export const streamAgentTurn = ({ execute, messages, ...turnOptions }) => {
     },
   });
 
-  return createUIMessageStreamResponse({ stream });
+  const observer = turnObservers.getStore();
+  if (!observer) {
+    return createUIMessageStreamResponse({ stream });
+  }
+  const [toClient, toObserver] = stream.tee();
+  void observeTurn(toObserver, messages, observer);
+  return createUIMessageStreamResponse({ stream: toClient });
 };

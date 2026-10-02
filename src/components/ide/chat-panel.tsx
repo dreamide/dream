@@ -49,6 +49,7 @@ import {
   dismissChatError,
   respondToToolApproval,
   setChatError,
+  stopChatTurn,
   submitChatPrompt,
   takeChatDraftRestore,
   useChatRuntimeStore,
@@ -64,6 +65,7 @@ import {
 import { useIdeStore } from "./ide-store";
 import { ProjectBranchFooter } from "./project-status-bar";
 import { RunSavedPromptSubmenu } from "./saved-prompts/run-saved-prompt-submenu";
+import { HostAwayNotice, useHostAway } from "./ssh/host-away-notice";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
 
 const CHAT_PANEL_BACKGROUND_STYLE: CSSProperties = {
@@ -387,9 +389,12 @@ export const ChatPanel = ({
     }
   }, [isActive, onActivateChat]);
 
+  // A project on an SSH host that is not there: say so, and wait for it.
+  const hostAway = useHostAway(project);
+
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
-      if (readOnly) return;
+      if (readOnly || hostAway) return;
       handleActivateChat();
 
       // The runtime validates and sends; this panel only owns the draft.
@@ -404,6 +409,7 @@ export const ChatPanel = ({
     [
       chat.id,
       handleActivateChat,
+      hostAway,
       readOnly,
       resetPromptHistory,
       scrollConversationToBottom,
@@ -558,6 +564,8 @@ export const ChatPanel = ({
           <ConversationScrollButton className="z-20" />
         </Conversation>
 
+        {hostAway && !readOnly ? <HostAwayNotice away={hostAway} /> : null}
+
         {localError ? (
           <ChatErrorBanner
             error={localError}
@@ -571,7 +579,7 @@ export const ChatPanel = ({
             contextWindow={contextWindow}
             contextUsage={contextUsage}
             contextUsedTokens={contextUsedTokens}
-            isActive={isProjectActive && messagesLoaded}
+            isActive={isProjectActive && messagesLoaded && !hostAway}
             isProcessing={isProcessing}
             isProviderInstalled={isProviderInstalled}
             modelId={modelId}
@@ -620,7 +628,11 @@ export const ChatPanel = ({
                 sparklesPalette,
               }));
             }}
-            onStop={stop}
+            onStop={() => {
+              // The turn runs on the host: stop it there, then stop following.
+              stopChatTurn(chat.id);
+              void stop();
+            }}
             onSubmit={handleSubmit}
             promptDomId={promptDomId}
             promptInputDomId={promptInputDomId}

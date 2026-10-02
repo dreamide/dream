@@ -10,8 +10,10 @@ import {
   encodePersistedState,
   ensureActiveChatForProject,
   ensureActiveProject,
+  mergeWorkspaceAndCatalog,
   projectFromRow,
-  projectToRow,
+  projectToCatalogRow,
+  projectToWorkspaceRow,
   stateFromConfig,
   stateToConfig,
 } from "./persisted-state-codec.js";
@@ -548,13 +550,18 @@ test("a project survives the row round trip", () => {
     settings: { openAiSelectedModels: ["gpt-5"] },
   }).projects[0];
 
-  const row = projectToRow(project, "closed", 3);
+  // The catalog row holds what the host owns; the workspace row the rest.
+  const row = projectToCatalogRow(project);
   assert.equal(row.normalizedPath, "/home/user/project-one");
-  assert.equal(row.status, "closed");
-  assert.equal(row.sortOrder, 3);
+  assert.equal(Object.hasOwn(row.metadata, "ui"), false);
+  assert.equal(Object.hasOwn(row.metadata, "lastUsedAt"), false);
+  const workspace = projectToWorkspaceRow(project, "closed", 3);
+  assert.equal(workspace.hostId, "local");
+  assert.equal(workspace.status, "closed");
+  assert.equal(workspace.sortOrder, 3);
 
   const decoded = decodePersistedState({
-    projects: [projectFromRow(row)],
+    projects: [projectFromRow(row, workspace)],
     settings: { openAiSelectedModels: ["gpt-5"] },
   }).projects[0];
   // Both decodes give the project a fresh default chat; compare the rest.
@@ -667,4 +674,179 @@ test("ensureActiveChatForProject ignores deleted chats and other projects", () =
     "chat-live",
   );
   assert.equal(ensureActiveChatForProject(chats, "project-three", null), null);
+});
+
+test("merging a workspace with a catalog opens only what this client had open", () => {
+  const catalog = {
+    chats: [],
+    projects: [
+      createRawProject({ id: "a", path: "/a" }),
+      createRawProject({ id: "b", path: "/b" }),
+      createRawProject({ id: "c", path: "/c" }),
+    ],
+  };
+  const workspace = {
+    activeProjectId: "b",
+    workspaceProjects: [
+      { projectId: "b", sortOrder: 0, status: "open", ui: { multiChat: true } },
+      { projectId: "a", sortOrder: 1, status: "open", ui: {} },
+      { projectId: "gone", sortOrder: 2, status: "open", ui: {} },
+    ],
+  };
+
+  const state = decodePersistedState(
+    mergeWorkspaceAndCatalog({ catalog, workspace }),
+  );
+
+  // In workspace order; the project another client added arrives closed;
+  // a project the catalog no longer has is dropped.
+  assert.deepEqual(
+    state.projects.map((project) => project.id),
+    ["b", "a"],
+  );
+  assert.deepEqual(
+    state.closedProjects.map((project) => project.id),
+    ["c"],
+  );
+  assert.equal(state.projects[0].ui.multiChat, true);
+  assert.equal(state.activeProjectId, "b");
+});
+
+test("a host's catalog merges only that host's workspace rows, stamped with the host", () => {
+  const catalog = {
+    chats: [],
+    projects: [createRawProject({ id: "r1", path: "/srv/app" })],
+  };
+  const workspace = {
+    workspaceProjects: [
+      {
+        hostId: "devbox",
+        projectId: "r1",
+        sortOrder: 0,
+        status: "open",
+        ui: {},
+      },
+      {
+        hostId: "local",
+        projectId: "l1",
+        sortOrder: 1,
+        status: "open",
+        ui: {},
+      },
+    ],
+  };
+
+  const state = decodePersistedState(
+    mergeWorkspaceAndCatalog({ catalog, hostId: "devbox", workspace }),
+  );
+
+  assert.deepEqual(
+    state.projects.map((project) => [project.id, project.hostId]),
+    [["r1", "devbox"]],
+  );
+});
+
+test("an SSH host not loaded yet shows its projects from the workspace snapshot, in workspace order", () => {
+  const catalog = {
+    chats: [],
+    projects: [
+      createRawProject({ id: "l1", path: "/local/one" }),
+      createRawProject({ id: "l2", path: "/local/two" }),
+    ],
+  };
+  const remote = projectToWorkspaceRow(
+    decodePersistedState({
+      projects: [
+        createRawProject({
+          hostId: "devbox",
+          id: "r1",
+          name: "App on devbox",
+          path: "/srv/app",
+        }),
+      ],
+    }).projects[0],
+    "open",
+    1,
+  );
+  const workspace = {
+    workspaceProjects: [
+      {
+        hostId: "local",
+        projectId: "l1",
+        sortOrder: 0,
+        status: "open",
+        ui: {},
+      },
+      { ...remote, ui: { multiChat: true } },
+      {
+        hostId: "local",
+        projectId: "l2",
+        sortOrder: 2,
+        status: "open",
+        ui: {},
+      },
+      // A host no longer in Settings is not shown.
+      { ...remote, hostId: "removed", projectId: "x1", sortOrder: 3 },
+      // A row with nothing cached has nothing to show.
+      {
+        hostId: "devbox",
+        projectId: "r2",
+        snapshot: {},
+        sortOrder: 4,
+        status: "open",
+        ui: {},
+      },
+    ],
+  };
+
+  const state = decodePersistedState(
+    mergeWorkspaceAndCatalog({
+      catalog,
+      snapshotHostIds: ["devbox"],
+      workspace,
+    }),
+  );
+
+  assert.deepEqual(
+    state.projects.map((project) => [project.id, project.hostId ?? "local"]),
+    [
+      ["l1", "local"],
+      ["r1", "devbox"],
+      ["l2", "local"],
+    ],
+  );
+  assert.equal(state.projects[1].name, "App on devbox");
+  assert.equal(state.projects[1].path, "/srv/app");
+  assert.equal(state.projects[1].ui.multiChat, true);
+  // No chats of its own until the host's catalog loads: a fresh draft only.
+  assert.deepEqual(
+    state.chats
+      .filter((chat) => chat.projectId === "r1")
+      .map((chat) => chat.messageCount ?? 0),
+    [0],
+  );
+});
+
+test("the same path on two hosts is two projects; a local project names no host", () => {
+  const state = decodePersistedState({
+    projects: [
+      createRawProject({ id: "local-app", path: "/srv/app" }),
+      createRawProject({
+        hostId: "devbox",
+        id: "remote-app",
+        path: "/srv/app",
+      }),
+      createRawProject({ hostId: "devbox", id: "duplicate", path: "/srv/app" }),
+    ],
+  });
+
+  assert.deepEqual(
+    state.projects.map((project) => project.id),
+    ["local-app", "remote-app"],
+  );
+  assert.equal(Object.hasOwn(state.projects[0], "hostId"), false);
+  assert.equal(
+    projectToWorkspaceRow(state.projects[1], "open", 0).hostId,
+    "devbox",
+  );
 });

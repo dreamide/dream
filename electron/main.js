@@ -34,7 +34,6 @@ import { createHost } from "./host/index.js";
 import {
   closePersistedStateDatabase,
   ensurePersistedInstallId,
-  loadPersistedChatMessages,
   loadPersistedState,
   loadPersistedThemePreference,
   resolveStateDatabasePath,
@@ -109,7 +108,18 @@ app.setPath("sessionData", APP_SESSION_DATA_PATH);
 const host = createHost({
   dataDirectory: APP_USER_DATA_PATH,
   diagnosticsEnabled: !app.isPackaged,
+  // The host's catalog writes share the workspace's save queue: one writer
+  // per database file, and a reloaded renderer waits for them (state:load).
+  getStateWriter: () => ({
+    applyCatalogChanges: (changes) =>
+      trackStateWrite(getStateSaveQueue().applyCatalogChanges(changes)),
+    saveChatMessages: (payload) =>
+      trackStateWrite(getStateSaveQueue().saveChatMessages(payload)),
+  }),
   version: app.getVersion(),
+  // Requests for SSH-host projects go through the local API to the host's
+  // forwarded port (api/host-proxy-routes.js).
+  resolveRemoteHost: (hostId) => sshHosts.getEndpoint(hostId),
 });
 
 let mainWindow = null;
@@ -199,21 +209,106 @@ setBrowserBridge(browserAgentBridge);
 
 const processSessionManager = host.processSessions;
 
-// Connections to SSH hosts' daemons. Nothing opens one from the UI yet (the
-// host registry is still to come; `pnpm ssh-host-check` drives it from a
-// terminal), so ssh's prompts are declined: key and agent sign-in works,
-// passwords and 2FA wait for the prompt UI.
+// Connections to SSH hosts' daemons, opened by the renderer (hosts:connect)
+// for its projects on those hosts. ssh's prompts (passwords, 2FA, unknown
+// host keys) are asked in the window and answered back (hosts:prompt).
+const SSH_PROMPT_TIMEOUT_MS = 5 * 60_000;
+const pendingSshPrompts = new Map();
+let nextSshPromptId = 1;
+
 const sshHosts = createSshHostManager({
-  onPrompt: async ({ target }) => {
-    console.warn(`[ssh] ${target}: declined a prompt (no prompt UI yet).`);
-    return null;
-  },
+  onPrompt: ({ hostId, kind, message, target }) =>
+    new Promise((resolve) => {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        resolve(null);
+        return;
+      }
+      const promptId = nextSshPromptId++;
+      const timer = setTimeout(() => {
+        pendingSshPrompts.delete(promptId);
+        resolve(null);
+      }, SSH_PROMPT_TIMEOUT_MS);
+      pendingSshPrompts.set(promptId, (answer) => {
+        clearTimeout(timer);
+        pendingSshPrompts.delete(promptId);
+        resolve(typeof answer === "string" ? answer : null);
+      });
+      sendToRenderer("hosts:prompt", {
+        hostId,
+        kind,
+        message,
+        promptId,
+        target,
+      });
+    }),
   onStatus: (status) => {
     console.log(
-      `[ssh] ${status.target}: ${status.state}${status.error ? ` (${status.error})` : ""}`,
+      `[ssh] ${status.hostId}: ${status.state}${status.error ? ` (${status.error})` : ""}`,
     );
+    sendToRenderer("hosts:status", {
+      error: status.error ?? null,
+      hostId: status.hostId,
+      state: status.state,
+      version: status.endpoint?.version ?? null,
+    });
   },
   stateDirectory: path.join(os.homedir(), ".dream", "ssh"),
+  // A host without its own host command gets this version installed.
+  runtimeVersion: app.getVersion(),
+});
+
+ipcMain.handle(
+  "hosts:connect",
+  async (_event, { hostId, hostCommand, target } = {}) => {
+    if (
+      typeof hostId !== "string" ||
+      typeof target !== "string" ||
+      !target.trim()
+    ) {
+      throw new Error("A host needs an id and an SSH target.");
+    }
+    const endpoint = await sshHosts.connect({
+      hostCommand:
+        typeof hostCommand === "string" && hostCommand.trim()
+          ? hostCommand.trim()
+          : undefined,
+      hostId,
+      target: target.trim(),
+    });
+    // The token stays in this process; the renderer goes through the proxy.
+    return {
+      hostProtocolVersion: endpoint.hostProtocolVersion,
+      version: endpoint.version ?? null,
+    };
+  },
+);
+
+ipcMain.handle("hosts:disconnect", (_event, { hostId } = {}) => {
+  if (typeof hostId === "string") sshHosts.disconnect(hostId);
+  return true;
+});
+
+ipcMain.handle("hosts:state", (_event, { hostId } = {}) =>
+  typeof hostId === "string" ? sshHosts.getState(hostId) : "idle",
+);
+
+// A port on an SSH host (its dev server) forwarded here, for the browser
+// panel; resolves with the local port.
+ipcMain.handle("hosts:forward-port", (_event, { hostId, port } = {}) => {
+  const remotePort = Number(port);
+  if (
+    typeof hostId !== "string" ||
+    !Number.isInteger(remotePort) ||
+    remotePort < 1 ||
+    remotePort > 65_535
+  ) {
+    throw new Error("A host and a port are needed.");
+  }
+  return sshHosts.forwardPort(hostId, remotePort);
+});
+
+ipcMain.on("hosts:prompt-answer", (_event, { answer, promptId } = {}) => {
+  pendingSshPrompts.get(promptId)?.(answer);
 });
 
 let rendererServerManager = null;
@@ -674,9 +769,6 @@ ipcMain.handle("state:load", async () => {
   await Promise.all([...pendingStateWrites]);
   return loadPersistedState();
 });
-ipcMain.handle("state:load-chat-messages", (_event, { chatId } = {}) =>
-  loadPersistedChatMessages(chatId),
-);
 ipcMain.on("api:get-session-token", (event) => {
   const apiSessionToken = rendererServerManager?.getApiSessionToken();
   if (!apiSessionToken) {
@@ -708,9 +800,6 @@ const getStateSaveQueue = () =>
 
 ipcMain.handle("state:save", (_event, state) =>
   trackStateWrite(getStateSaveQueue().save(state)),
-);
-ipcMain.handle("state:save-chat-messages", (_event, payload) =>
-  trackStateWrite(getStateSaveQueue().saveChatMessages(payload)),
 );
 ipcMain.handle("state:save-active-project", (_event, payload) =>
   trackStateWrite(getStateSaveQueue().saveActiveProject(payload)),
@@ -859,9 +948,12 @@ ipcMain.handle("editors:detect", () => {
   return detectAvailableEditors();
 });
 
-ipcMain.handle("editors:open", (_event, { projectPath, editorId }) => {
-  return openProjectInEditor({ editorId, projectPath });
-});
+ipcMain.handle(
+  "editors:open",
+  (_event, { projectPath, editorId, sshTarget }) => {
+    return openProjectInEditor({ editorId, projectPath, sshTarget });
+  },
+);
 
 ipcMain.on("browser:update", (_event, payload) => {
   browserSessionManager.update(payload);

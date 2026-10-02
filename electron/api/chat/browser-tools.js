@@ -2,7 +2,11 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createCustomMcpServer } from "ai-sdk-provider-claude-code";
 import { z } from "zod";
-import { getBrowserBridge, getBrowserMcpEndpoint } from "../browser-bridge.js";
+import {
+  getBrowserBridge,
+  getBrowserMcpEndpoint,
+  getBrowserToolRelay,
+} from "../browser-bridge.js";
 import {
   buildEvaluateScript,
   buildFileInputLookupExpression,
@@ -1151,6 +1155,70 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
   return tools;
 };
 
+/**
+ * Tools that cannot run in another machine's window: they read files from
+ * the project folder, which is on the host, not where the browser is.
+ */
+const HOST_ONLY_BROWSER_TOOLS = new Set(["browser_upload_file"]);
+
+/**
+ * The browser tools of a process without a browser (a host daemon), each
+ * call run in the window that has the project open, through `relay` (the
+ * host socket's browser channel). Same names, descriptions and schemas as
+ * the window's own; with no window, a call answers that the browser is
+ * unavailable.
+ * @param {{
+ *   relay: { has: (projectId: string) => boolean, call: (projectId: string, tool: string, args: object) => Promise<unknown> },
+ *   projectId: string | (() => string | null),
+ * }} options
+ */
+export const createRelayedBrowserToolDefinitions = ({ relay, projectId }) => {
+  const definitions = createBrowserToolDefinitions({ bridge: null, projectId });
+  const resolveProjectId = () =>
+    typeof projectId === "function" ? projectId() : projectId;
+
+  const relayed = {};
+  for (const [name, def] of Object.entries(definitions)) {
+    if (HOST_ONLY_BROWSER_TOOLS.has(name)) continue;
+    relayed[name] = {
+      ...def,
+      handler: async (args) => {
+        const id = resolveProjectId();
+        if (typeof id !== "string" || id.length === 0) {
+          return errorResult(
+            "No Dream project is associated with this agent turn, so its browser cannot be used.",
+          );
+        }
+        // A URL goes out complete ("localhost:3000" is http://localhost:3000),
+        // so the window can tell a loopback address of this host.
+        const sent = { ...(args ?? {}) };
+        if (typeof sent.url === "string") {
+          sent.url = normalizeAgentUrl(sent.url) ?? sent.url;
+        }
+        try {
+          return await relay.call(id, name, sent);
+        } catch (error) {
+          return errorResult(toErrorMessage(error));
+        }
+      },
+    };
+  }
+  return relayed;
+};
+
+/**
+ * The browser tools this process offers for `projectId`: its own browser's
+ * when it has one (the desktop app), otherwise a window's through the relay
+ * (a host daemon); null with neither.
+ */
+export const createAvailableBrowserToolDefinitions = ({ projectId }) => {
+  const bridge = getBrowserBridge();
+  if (bridge) return createBrowserToolDefinitions({ bridge, projectId });
+  const relay = getBrowserToolRelay();
+  if (relay) return createRelayedBrowserToolDefinitions({ projectId, relay });
+  return null;
+};
+
 const isPathInside = (root, candidate) => {
   const relative = path.relative(root, candidate);
   return (
@@ -1182,13 +1250,14 @@ const formatNetworkEntry = (entry) => {
  * tests, or a chat started without a project).
  */
 export const createBrowserMcpServer = ({ projectId }) => {
-  const bridge = getBrowserBridge();
-  if (!bridge || typeof projectId !== "string" || projectId.length === 0) {
+  if (typeof projectId !== "string" || projectId.length === 0) {
     return null;
   }
+  const tools = createAvailableBrowserToolDefinitions({ projectId });
+  if (!tools) return null;
   return createCustomMcpServer({
     name: BROWSER_MCP_SERVER_NAME,
-    tools: createBrowserToolDefinitions({ bridge, projectId }),
+    tools,
     version: "1.0.0",
   });
 };
@@ -1211,7 +1280,7 @@ export const appendBrowserMcpServer = (
 ) => {
   const list = Array.isArray(mcpServers) ? mcpServers : [];
   const endpoint = getBrowserMcpEndpoint();
-  if (!endpoint || !getBrowserBridge()) {
+  if (!endpoint || !(getBrowserBridge() || getBrowserToolRelay())) {
     return list;
   }
   const hasProject = typeof projectId === "string" && projectId.length > 0;

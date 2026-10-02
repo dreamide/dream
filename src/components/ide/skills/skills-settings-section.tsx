@@ -14,11 +14,11 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 import type { AiProvider, ProviderSkill } from "@/types/ide";
 import { fetchProviderSkills } from "../chat/provider-skills";
 import { useIdeStore } from "../ide-store";
+import { useOpenLocalPath } from "../ssh/use-open-local-path";
 import { CreateSkillDialog } from "./create-skill-dialog";
 import {
   readSkillFileRequest,
@@ -66,6 +66,7 @@ export const SkillsSettingsSection = () => {
     projects.find((item) => item.id === activeProjectId) ??
     null;
   const projectPath = project?.path ?? "";
+  const openLocalPath = useOpenLocalPath();
 
   const load = useCallback(
     async (force: boolean) => {
@@ -195,7 +196,8 @@ export const SkillsSettingsSection = () => {
   const openFolder = (skill: ProviderSkill) => {
     const target = skill.directory || skill.path;
     if (target) {
-      void getDesktopApi()?.openPath(target);
+      // A project on an SSH host has its skills there, not here.
+      openLocalPath(target, project?.id ?? null);
     }
   };
 

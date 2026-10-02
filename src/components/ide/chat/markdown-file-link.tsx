@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useIdeStore } from "../ide-store";
 import { MaterialFileIcon } from "../material-file-icon";
+import { useOpenLocalPath } from "../ssh/use-open-local-path";
 
 type MarkdownFileLinkProps = ComponentProps<"a"> & {
   node?: unknown;
@@ -187,7 +188,7 @@ export const MarkdownFileLink = ({
   ...props
 }: MarkdownFileLinkProps) => {
   const openProjectFile = useIdeStore((state) => state.openProjectFile);
-  const openExternalPath = useIdeStore((state) => state.openExternalPath);
+  const openLocalPath = useOpenLocalPath();
   const projectId = useIdeStore((state) => state.activeProjectId);
   const projectFilePath = useMemo(
     () => getProjectFilePathFromHref(href, projectPath),
@@ -217,7 +218,7 @@ export const MarkdownFileLink = ({
         return;
       }
 
-      openExternalPath(filePath);
+      openLocalPath(filePath, projectId);
     }
   };
 

@@ -46,7 +46,13 @@ export const EXIT_NOT_RUNNING = 3;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/* global __DREAM_HOST_VERSION__ */
+// The packaged runtime has its version built in (scripts/build-host-runtime.mjs);
+// from a checkout it comes from package.json.
 const readAppVersion = () => {
+  if (typeof __DREAM_HOST_VERSION__ === "string") {
+    return __DREAM_HOST_VERSION__;
+  }
   try {
     return JSON.parse(
       readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
@@ -265,7 +271,16 @@ async function status({ runDirectory, write }) {
   return 0;
 }
 
-const COMMANDS = { ensure, serve, status, stop };
+/** Prints the runtime's version and protocol (a smoke test after install). */
+async function version({ write }) {
+  write({
+    hostProtocolVersion: HOST_PROTOCOL_VERSION,
+    version: readAppVersion(),
+  });
+  return 0;
+}
+
+const COMMANDS = { ensure, serve, status, stop, version };
 
 /**
  * Runs one command. Resolves with the exit code (`serve` never resolves).
@@ -296,7 +311,7 @@ export async function runDaemonCli(
   const command = COMMANDS[name];
   if (!command) {
     stderr.write(
-      "Usage: dream-host <ensure|serve|status|stop> [--home dir] [--data-dir dir] [--idle-timeout seconds] [--port n]\n",
+      "Usage: dream-host <ensure|serve|status|stop|version> [--home dir] [--data-dir dir] [--idle-timeout seconds] [--port n]\n",
     );
     return 2;
   }

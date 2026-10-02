@@ -10,6 +10,7 @@ import {
   getApiErrorMessage,
 } from "./api-client";
 import { createFakeApiClient, fakeApiError } from "./api-client-fake";
+import { CLIENT_ID, CLIENT_ID_HEADER } from "./client-id";
 
 describe("createApiClient", () => {
   test("each method sends its route's method and path with the request", async () => {
@@ -77,7 +78,12 @@ describe("createHttpTransport", () => {
     });
     expect(fetchImpl).toHaveBeenCalledWith("/api/project-git-branches", {
       body: JSON.stringify({ projectPath: "/p" }),
-      headers: { "Content-Type": "application/json" },
+      // Every request names this window, so a host can stamp its changes.
+      headers: {
+        "Content-Type": "application/json",
+        [CLIENT_ID_HEADER]: CLIENT_ID,
+      },
+      keepalive: undefined,
       method: "POST",
       signal: undefined,
     });

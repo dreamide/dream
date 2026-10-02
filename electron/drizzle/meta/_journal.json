@@ -15,6 +15,13 @@
       "when": 1790306296429,
       "tag": "0001_saved_prompts",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790835417663,
+      "tag": "0002_opposite_wildside",
+      "breakpoints": true
     }
   ]
 }

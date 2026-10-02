@@ -5,6 +5,7 @@
 // `purgeWorktreeProject` drops the app's own record of it (the dialog pauses
 // between the two to show the outcome; the projects panel runs them back to
 // back). The worktree record is built in one place, `createWorktreeRecord`.
+
 import { ApiError, apiClient } from "@/lib/api-client";
 import type {
   ProjectConfig,
@@ -12,6 +13,7 @@ import type {
   ProjectGitWorktreeInfo,
   ProjectWorktreeInfo,
 } from "@/types/ide";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { createBranchedChatConfig } from "../chat-branching";
 import { normalizeProjectPathKey } from "../ide-state";
 import type {
@@ -75,6 +77,15 @@ export const resolveWorktreeParentId = (
   )?.id ??
   null;
 
+/**
+ * The projects on one host: a path names a folder only together with its
+ * machine. `hostId` absent is the local host.
+ */
+const onHost = (projects: ProjectConfig[], hostId: string | undefined) => {
+  const host = getProjectHostId({ hostId });
+  return projects.filter((project) => getProjectHostId(project) === host);
+};
+
 export const createWorktreeActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
@@ -95,11 +106,14 @@ export const createWorktreeActions = (
       throw new Error();
     }
 
-    const payload = await api.gitWorktreeCreate({
-      baseRef: options.baseRef ?? null,
-      branchName: options.branchName,
-      projectPath: parentProject.path,
-    });
+    const payload = await api.gitWorktreeCreate(
+      {
+        baseRef: options.baseRef ?? null,
+        branchName: options.branchName,
+        projectPath: parentProject.path,
+      },
+      { hostId: getProjectHostId(parentProject) },
+    );
     const worktree = createWorktreeRecord({
       baseRef: payload.baseRef,
       branch: payload.branch,
@@ -120,6 +134,8 @@ export const createWorktreeActions = (
         payload.path,
         {
           activate: options.activate,
+          // On the parent's host: the worktree is a folder there.
+          hostId: parentProject.hostId,
           // A new worktree project takes after its parent and opens on its
           // changes, which are what the worktree is for.
           create: (project) => ({
@@ -161,8 +177,10 @@ export const createWorktreeActions = (
 
   attachWorktreeProject: (
     listed: ProjectGitWorktreeInfo,
-    repo: { mainWorktreePath: string; repoRoot: string },
+    repo: { hostId?: string; mainWorktreePath: string; repoRoot: string },
   ) => {
+    // Its main checkout is a project on the same host.
+    const sameHost = onHost(get().projects, repo.hostId);
     // A detached worktree has no branch to record; it opens as a plain
     // folder. Details recorded at creation (base branch) win over these.
     const worktree = listed.branch
@@ -171,14 +189,14 @@ export const createWorktreeActions = (
           branch: listed.branch,
           mainWorktreePath: repo.mainWorktreePath,
           managed: listed.appManaged,
-          parentProjectId: resolveWorktreeParentId(get().projects, {
+          parentProjectId: resolveWorktreeParentId(sameHost, {
             mainWorktreePath: repo.mainWorktreePath,
             parentProjectId: null,
           }),
           repoRoot: repo.repoRoot,
         })
       : undefined;
-    get().addProject(listed.path, { worktree });
+    get().addProject(listed.path, { hostId: repo.hostId, worktree });
   },
 
   completeWorktreeProject: async (projectId, options = {}) => {
@@ -186,15 +204,18 @@ export const createWorktreeActions = (
     if (!project?.worktree) {
       throw new Error("Project is not a worktree.");
     }
-    const result = await api.gitWorktreeMerge({
-      acknowledgeUncommitted: options.acknowledgeUncommitted ?? false,
-      baseRef: project.worktree.baseRef,
-      projectPath: project.path,
-    });
+    const result = await api.gitWorktreeMerge(
+      {
+        acknowledgeUncommitted: options.acknowledgeUncommitted ?? false,
+        baseRef: project.worktree.baseRef,
+        projectPath: project.path,
+      },
+      { hostId: getProjectHostId(project) },
+    );
     if (result.status === "merged") {
       // The main checkout moved: its status is stale.
       const parentId = resolveWorktreeParentId(
-        get().projects,
+        onHost(get().projects, project.hostId),
         project.worktree,
       );
       if (parentId) {
@@ -208,12 +229,13 @@ export const createWorktreeActions = (
     branch,
     deleteBranch = false,
     force = false,
+    hostId,
     mainWorktreePath,
     worktreePath,
   }) => {
     const state = get();
     const project = findProjectByPath(
-      [...state.projects, ...state.closedProjects],
+      onHost([...state.projects, ...state.closedProjects], hostId),
       worktreePath,
     );
     if (project && state.projects.includes(project)) {
@@ -222,13 +244,16 @@ export const createWorktreeActions = (
 
     const knownBranch = branch ?? project?.worktree?.branch ?? null;
     try {
-      return await api.gitWorktreeCleanup({
-        branch: knownBranch,
-        deleteBranch,
-        force,
-        projectPath: mainWorktreePath,
-        worktreePath,
-      });
+      return await api.gitWorktreeCleanup(
+        {
+          branch: knownBranch,
+          deleteBranch,
+          force,
+          projectPath: mainWorktreePath,
+          worktreePath,
+        },
+        { hostId: getProjectHostId({ hostId }) },
+      );
     } catch (error) {
       // Git had already forgotten it: as gone as a removal would leave it.
       if (error instanceof ApiError && error.status === 404) {
@@ -247,12 +272,14 @@ export const createWorktreeActions = (
 
   purgeWorktreeProject: (worktreePath, options = {}) => {
     const worktreePathKey = normalizeProjectPathKey(worktreePath);
-    const openProject = findProjectByPath(get().projects, worktreePath);
+    const hostProjects = onHost(get().projects, options.hostId);
+    const openProject = findProjectByPath(hostProjects, worktreePath);
     const activateProjectId =
       options.activateProjectId ??
       (openProject?.worktree
-        ? resolveWorktreeParentId(get().projects, openProject.worktree)
+        ? resolveWorktreeParentId(hostProjects, openProject.worktree)
         : null);
+    const host = getProjectHostId({ hostId: options.hostId });
     if (openProject) {
       get().closeProject(openProject.id);
     }
@@ -260,7 +287,9 @@ export const createWorktreeActions = (
     set((current) => {
       const removedProjectIds = [...current.projects, ...current.closedProjects]
         .filter(
-          (item) => normalizeProjectPathKey(item.path) === worktreePathKey,
+          (item) =>
+            normalizeProjectPathKey(item.path) === worktreePathKey &&
+            getProjectHostId(item) === host,
         )
         .map((item) => item.id);
       if (removedProjectIds.length === 0) {

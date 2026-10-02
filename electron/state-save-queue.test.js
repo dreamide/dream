@@ -5,6 +5,7 @@ import path from "node:path";
 import { test } from "vitest";
 import {
   closePersistedStateDatabase,
+  loadPersistedCatalog,
   loadPersistedState,
 } from "./persisted-state.js";
 import { createStateSaveQueue } from "./state-save-queue.js";
@@ -78,8 +79,9 @@ test("state save queue preserves the latest active-project update", async () => 
     const updated = loadPersistedState({ databasePath });
     assert.equal(updated.activeProjectId, "project-two");
     assert.equal(
-      updated.projects.find((project) => project.id === "project-two")
-        ?.lastUsedAt,
+      updated.workspaceProjects.find(
+        (entry) => entry.projectId === "project-two",
+      )?.lastUsedAt,
       secondLastUsedAt,
     );
   } finally {
@@ -89,7 +91,7 @@ test("state save queue preserves the latest active-project update", async () => 
   }
 });
 
-test("state save queue writes and coalesces one dirty transcript", async () => {
+test("state save queue lands catalog changes before the transcript, and coalesces it", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "dream-queue-test-"));
   const databasePath = path.join(directory, "state.db");
   const queue = createStateSaveQueue({ databasePath });
@@ -129,6 +131,11 @@ test("state save queue writes and coalesces one dirty transcript", async () => {
       projects: [project],
       settings: {},
     });
+    // The chat reaches the catalog first; its transcript after.
+    const catalogChanges = queue.applyCatalogChanges({
+      chats: [chat],
+      projects: [project],
+    });
     const firstMessages = queue.saveChatMessages({
       chatId: chat.id,
       messages: [{ id: "message-one", parts: [], role: "user" }],
@@ -141,11 +148,17 @@ test("state save queue writes and coalesces one dirty transcript", async () => {
       ],
     });
 
-    await Promise.all([metadataSave, firstMessages, latestMessages]);
+    const results = await Promise.all([
+      metadataSave,
+      catalogChanges,
+      firstMessages,
+      latestMessages,
+    ]);
     await queue.flushAndClose();
 
-    const updated = loadPersistedState({ databasePath });
-    assert.equal(updated.chats[0]?.messageCount, 2);
+    assert.deepEqual(results[1].chatIds, [chat.id]);
+    const catalog = loadPersistedCatalog({ databasePath });
+    assert.equal(catalog.chats[0]?.messageCount, 2);
   } finally {
     await queue.flushAndClose();
     closePersistedStateDatabase();

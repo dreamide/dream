@@ -152,11 +152,7 @@ contextBridge.exposeInMainWorld("dream", {
   pickProjectDirectory: () => ipcRenderer.invoke("projects:pick-directory"),
 
   loadState: () => ipcRenderer.invoke("state:load"),
-  loadChatMessages: (chatId) =>
-    ipcRenderer.invoke("state:load-chat-messages", { chatId }),
   saveState: (state) => ipcRenderer.invoke("state:save", state),
-  saveChatMessages: (payload) =>
-    ipcRenderer.invoke("state:save-chat-messages", payload),
   saveActiveProject: (payload) =>
     ipcRenderer.invoke("state:save-active-project", payload),
   getThemePreferences: () => ipcRenderer.invoke("theme:get-preferences"),
@@ -167,6 +163,18 @@ contextBridge.exposeInMainWorld("dream", {
     ipcRenderer.invoke("theme:set-accent-color", { accentColor }),
 
   // Terminals are served by the host (src/lib/terminal-client.ts), not IPC.
+
+  // SSH hosts: connecting, their state, and ssh's prompts.
+  connectHost: (payload) => ipcRenderer.invoke("hosts:connect", payload),
+  disconnectHost: (hostId) =>
+    ipcRenderer.invoke("hosts:disconnect", { hostId }),
+  getHostState: (hostId) => ipcRenderer.invoke("hosts:state", { hostId }),
+  forwardHostPort: (hostId, port) =>
+    ipcRenderer.invoke("hosts:forward-port", { hostId, port }),
+  onHostStatus: (listener) => subscribe("hosts:status", listener),
+  onHostPrompt: (listener) => subscribe("hosts:prompt", listener),
+  answerHostPrompt: (promptId, answer) =>
+    ipcRenderer.send("hosts:prompt-answer", { answer, promptId }),
 
   updateBrowser: (payload) => ipcRenderer.send("browser:update", payload),
   captureBrowserPage: (payload) =>

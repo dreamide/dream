@@ -492,3 +492,22 @@ test("attachWorktreeProject opens a detached worktree as a plain folder", () => 
     null,
   );
 });
+
+test("attachWorktreeProject opens a worktree listed on an SSH host on that host", () => {
+  const { parent, store } = createTestStore();
+  const listedPath = "/workspace/worktrees/source-listed";
+
+  store.getState().attachWorktreeProject(listedWorktree(listedPath), {
+    hostId: "devbox",
+    mainWorktreePath: parent.path,
+    repoRoot: parent.path,
+  });
+
+  const opened = store
+    .getState()
+    .projects.find((project) => project.path === listedPath);
+  assert.equal(opened?.hostId, "devbox");
+  // The local project at the same path is not its parent: that is another
+  // machine's folder.
+  assert.equal(opened?.worktree?.parentProjectId, null);
+});

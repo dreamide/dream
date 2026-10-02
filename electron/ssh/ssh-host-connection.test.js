@@ -191,3 +191,69 @@ test("a host speaking an unsupported protocol is refused", async () => {
     message: expect.stringContaining("protocol 99"),
   });
 });
+
+test("a port of the host is forwarded here (direct shape, real traffic)", {
+  timeout: 60_000,
+}, async () => {
+  const http = await import("node:http");
+  // The host's dev server (the fake ssh's host is this machine).
+  const devServer = http.createServer((_request, response) =>
+    response.end("hello from the host"),
+  );
+  await new Promise((resolve) => devServer.listen(0, "127.0.0.1", resolve));
+  const remotePort = devServer.address().port;
+  const connection = fakeSshConnection();
+
+  try {
+    await connection.connect();
+    const localPort = await connection.forwardPort(remotePort);
+    const body = await (await fetch(`http://127.0.0.1:${localPort}/`)).text();
+
+    expect(body).toBe("hello from the host");
+    expect(await connection.forwardPort(remotePort)).toBe(localPort);
+  } finally {
+    connection.disconnect();
+    devServer.close();
+  }
+});
+
+test("multiplexed: a forwarded port is re-added after a reconnect, same local port", async () => {
+  let localPorts = [5555, 6001, 7777];
+  const { calls, spawnProcess } = createScriptedSpawn((args) => {
+    if (args.includes("-M")) return null;
+    if (args.includes("check")) return { code: 0 };
+    if (args.includes("forward")) return { code: 0 };
+    return {
+      stdout: `${JSON.stringify({ hostProtocolVersion: 1, pid: 9, port: 7000, token: "t" })}\n`,
+    };
+  });
+  const connection = createSshHostConnection({
+    controlPath: "/cm/%C",
+    fetchImpl: async () => new Response(JSON.stringify({ pid: 9 })),
+    getLocalPort: async () => localPorts.shift(),
+    setTimer: (callback) => setTimeout(callback, 0),
+    spawnProcess,
+    target: "devbox",
+  });
+  const forwards = () =>
+    calls
+      .filter(({ args }) => args.includes("forward"))
+      .map(({ args }) => args[args.indexOf("-L") + 1]);
+
+  await connection.connect();
+  expect(await connection.forwardPort(3000)).toBe(6001);
+
+  // The master drops; the reconnect re-adds the API forward and this one.
+  calls.find(({ args }) => args.includes("-M")).child.kill();
+  await waitFor(() => connection.getState() === "connected");
+  await waitFor(() => forwards().length === 4);
+  localPorts = [];
+
+  expect(forwards()).toEqual([
+    "127.0.0.1:5555:127.0.0.1:7000",
+    "127.0.0.1:6001:127.0.0.1:3000",
+    "127.0.0.1:7777:127.0.0.1:7000",
+    "127.0.0.1:6001:127.0.0.1:3000",
+  ]);
+  connection.disconnect();
+});

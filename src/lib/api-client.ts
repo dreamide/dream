@@ -18,6 +18,7 @@
  * Callers that want a client other than the app's pass one in (store action
  * creators take `api`); everything else uses `apiClient`.
  */
+import type { UIMessage } from "ai";
 import type { z } from "zod";
 import type { ProviderModelsResponse } from "@/components/ide/ide-types";
 import type {
@@ -47,7 +48,15 @@ import type {
   TerminalOutputDiagnostics,
   TerminalShellOption,
 } from "@/types/ide";
+import type { browserToolCallRequestSchema } from "../../electron/api/browser-tool-call-routes.js";
+import type {
+  catalogChangesRequestSchema,
+  catalogListRequestSchema,
+  catalogTranscriptRequestSchema,
+  catalogTranscriptSaveRequestSchema,
+} from "../../electron/api/catalog-routes.js";
 import type { chatTitleRequestBodySchema } from "../../electron/api/chat/schema.js";
+import type { chatStopRequestSchema } from "../../electron/api/chat-routes.js";
 import type {
   checkpointChangesRequestSchema,
   checkpointDeleteChatsRequestSchema,
@@ -55,6 +64,7 @@ import type {
   checkpointRestoreRequestSchema,
 } from "../../electron/api/checkpoints/schemas.js";
 import type { codePullRequestRequestSchema } from "../../electron/api/code-pull-request-schemas.js";
+import type { hostDirectoriesRequestSchema } from "../../electron/api/host-directory-routes.js";
 import type { hostSocketTicketRequestSchema } from "../../electron/api/host-socket-routes.js";
 import type { mcpImportCandidatesRequestSchema } from "../../electron/api/mcp-servers/schemas.js";
 import type {
@@ -102,6 +112,8 @@ import type {
 } from "../../electron/api/terminals/schemas.js";
 import type { toolApprovalResponseSchema } from "../../electron/api/tool-approvals.js";
 import { API_SESSION_TOKEN_HEADER, getApiSessionToken } from "./api-session";
+import { CLIENT_ID, CLIENT_ID_HEADER } from "./client-id";
+import { hostApiPath, resolveRequestHost } from "./host-routing";
 
 // ── Responses the renderer declares ─────────────────────────────────────
 
@@ -115,6 +127,29 @@ export interface ProjectDirectoryEntry {
 export interface ProjectDirectoryResponse {
   directory: string;
   entries: ProjectDirectoryEntry[];
+}
+
+/** One folder in a host's folder listing. */
+export interface HostDirectoryEntry {
+  name: string;
+  path: string;
+  /** Its name starts with a dot. */
+  hidden: boolean;
+}
+
+/** The folders in one folder of a host (`/api/host-directories`). */
+export interface HostDirectoriesResponse {
+  /** The folder listed, absolute on the host. */
+  path: string;
+  /** Its parent, or null at the root. */
+  parent: string | null;
+  /** The home folder of the user the host runs as. */
+  home: string;
+  /** The host's path separator. */
+  separator: string;
+  directories: HostDirectoryEntry[];
+  /** More folders than were listed. */
+  truncated: boolean;
 }
 
 export interface ProjectFilesResponse {
@@ -224,6 +259,23 @@ export interface TerminalStartResponse {
   pid?: number;
   transport?: "pty" | "pipe";
   shell?: string;
+}
+
+/** The host catalog, raw: decode it (merged with the workspace) to use it. */
+export interface CatalogResponse {
+  projects: Record<string, unknown>[];
+  chats: Record<string, unknown>[];
+  /** Chats with a turn running on the host now. */
+  runningChatIds?: string[];
+}
+
+export interface CatalogChangesResponse {
+  projectIds: string[];
+  chatIds: string[];
+  removedProjectIds: string[];
+  removedChatIds: string[];
+  /** Projects refused because another project already has that path. */
+  conflicts: { id: string; existingId: string; path: string }[];
 }
 
 export interface ToolApprovalResolution {
@@ -416,10 +468,43 @@ export const API_ROUTES = {
   chatTitle: post<Input<typeof chatTitleRequestBodySchema>, ChatTitleResponse>(
     "/api/chat-title",
   ),
+  /** Stops the chat's running turn (dropping the request does not). */
+  stopChatTurn: post<Input<typeof chatStopRequestSchema>, { stopped: boolean }>(
+    "/api/chat/stop",
+  ),
   toolApprovalResponse: post<
     Input<typeof toolApprovalResponseSchema>,
     ToolApprovalResolution
   >("/api/tool-approval-response"),
+
+  // The host catalog (projects, chats, transcripts)
+  catalog: post<Input<typeof catalogListRequestSchema>, CatalogResponse>(
+    "/api/catalog",
+  ),
+  catalogChanges: post<
+    Input<typeof catalogChangesRequestSchema>,
+    CatalogChangesResponse
+  >("/api/catalog/changes"),
+  catalogTranscript: post<
+    Input<typeof catalogTranscriptRequestSchema>,
+    UIMessage[]
+  >("/api/catalog/transcript"),
+  saveCatalogTranscript: put<
+    Input<typeof catalogTranscriptSaveRequestSchema>,
+    { saved: boolean }
+  >("/api/catalog/transcript"),
+
+  // A browser tool call from an SSH host's agent, run on this window's
+  // browser (the local host's API; the result is the tool's MCP content)
+  callBrowserTool: post<Input<typeof browserToolCallRequestSchema>, unknown>(
+    "/api/browser-tools/call",
+  ),
+
+  // A host's folders, for picking a project folder on it
+  hostDirectories: post<
+    Input<typeof hostDirectoriesRequestSchema>,
+    HostDirectoriesResponse
+  >("/api/host-directories"),
 
   // The host socket (live traffic: terminals, catalog events)
   hostSocketTicket: post<
@@ -477,6 +562,11 @@ export interface ApiCallOptions {
   signal?: AbortSignal;
   /** Let the request outlive the page (for calls made while unloading). */
   keepalive?: boolean;
+  /**
+   * The host to send it to. When absent, the host of the project the body
+   * names (host-routing.ts), or the local host.
+   */
+  hostId?: string;
 }
 
 export type ApiClient = {
@@ -538,6 +628,7 @@ export interface ApiTransportRequest {
   path: string;
   signal?: AbortSignal;
   keepalive?: boolean;
+  hostId?: string;
 }
 
 /** Sends one request; resolves with the JSON body or throws `ApiError`. */
@@ -545,7 +636,8 @@ export type ApiTransport = (request: ApiTransportRequest) => Promise<unknown>;
 
 export const createHttpTransport =
   (fetchImpl: typeof fetch = (...args) => fetch(...args)): ApiTransport =>
-  async ({ body, keepalive, method, path, signal }) => {
+  async ({ body, hostId, keepalive, method, path: route, signal }) => {
+    const path = hostApiPath(hostId ?? resolveRequestHost(body), route);
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -553,6 +645,7 @@ export const createHttpTransport =
     if (token) {
       headers[API_SESSION_TOKEN_HEADER] = token;
     }
+    headers[CLIENT_ID_HEADER] = CLIENT_ID;
 
     const response = await fetchImpl(path, {
       body: JSON.stringify(body ?? {}),
@@ -578,6 +671,7 @@ export const createApiClient = (transport: ApiTransport): ApiClient => {
     client[name] = (request, options) =>
       transport({
         body: request,
+        hostId: options?.hostId,
         keepalive: options?.keepalive,
         method,
         name,
@@ -593,16 +687,30 @@ export const apiClient = createApiClient(createHttpTransport());
 
 // ── Raw file URLs ───────────────────────────────────────────────────────
 
+/**
+ * A raw route for the project at `projectPath`, on `hostId` when given,
+ * otherwise on the host of the open project at that path.
+ */
+const rawRouteUrl = (
+  route: string,
+  projectPath: string,
+  filePath: string,
+  hostId?: string,
+) =>
+  `${hostApiPath(hostId ?? resolveRequestHost({ projectPath }), route)}?projectPath=${encodeURIComponent(projectPath)}&filePath=${encodeURIComponent(filePath)}`;
+
 /** A project file's bytes, for `<img src>` and blob loads. */
-export const getProjectFileRawUrl = (projectPath: string, filePath: string) =>
-  `/api/project-file-raw?projectPath=${encodeURIComponent(projectPath)}&filePath=${encodeURIComponent(filePath)}`;
+export const getProjectFileRawUrl = (
+  projectPath: string,
+  filePath: string,
+  hostId?: string,
+) => rawRouteUrl("/api/project-file-raw", projectPath, filePath, hostId);
 
 /** A file's bytes as committed at HEAD. */
 export const getProjectGitFileAtHeadRawUrl = (
   projectPath: string,
   filePath: string,
-) =>
-  `/api/project-git-file-at-head-raw?projectPath=${encodeURIComponent(projectPath)}&filePath=${encodeURIComponent(filePath)}`;
+) => rawRouteUrl("/api/project-git-file-at-head-raw", projectPath, filePath);
 
 /**
  * Loads one of the raw file URLs above as a blob, failing with `ApiError`

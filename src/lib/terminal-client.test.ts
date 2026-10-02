@@ -117,3 +117,54 @@ test("stop-all can outlive the page", async () => {
   await client.stopAll({ keepalive: true });
   expect(api.terminalStopAll).toHaveBeenCalledWith({}, { keepalive: true });
 });
+
+test("terminals on several hosts: calls go to the session's host, listeners hear all", async () => {
+  const { setHostResolver } = await import("./host-routing");
+  const { createMultiHostTerminalClient } = await import("./terminal-client");
+  const started: Array<[string, string]> = [];
+  const listeners = new Map<
+    string,
+    (event: { sessionId: string; chunk: string }) => void
+  >();
+  const client = createMultiHostTerminalClient(
+    (hostId) =>
+      ({
+        acknowledge: () => {},
+        detectShells: async () => [],
+        getDiagnostics: async () => [],
+        onData: (
+          listener: (event: { sessionId: string; chunk: string }) => void,
+        ) => {
+          listeners.set(hostId, listener);
+          return () => listeners.delete(hostId);
+        },
+        onStatus: () => () => {},
+        resize: () => {},
+        sendInput: () => {},
+        start: async (payload: { sessionId: string }) => {
+          started.push([hostId, payload.sessionId]);
+          return { status: "running" };
+        },
+        stop: async () => true,
+        stopAll: async () => true,
+      }) as never,
+  );
+  setHostResolver((hint) =>
+    String(hint.sessionId).includes("remote-project") ? "devbox" : "local",
+  );
+  const chunks: string[] = [];
+  client.onData((event) => chunks.push(event.chunk));
+
+  await client.start({
+    cwd: "/srv/app",
+    sessionId: "__project_terminal__:remote-project:1",
+  });
+  listeners.get("devbox")?.({ chunk: "remote", sessionId: "s" });
+  listeners.get("local")?.({ chunk: "local", sessionId: "s" });
+
+  expect(started).toEqual([
+    ["devbox", "__project_terminal__:remote-project:1"],
+  ]);
+  expect(chunks).toEqual(["remote", "local"]);
+  setHostResolver(() => "local");
+});

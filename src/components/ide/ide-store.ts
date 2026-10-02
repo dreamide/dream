@@ -1,17 +1,24 @@
 import { create } from "zustand";
+import { LOCAL_HOST_ID, setHostResolver } from "@/lib/host-routing";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
 import {
   encodePersistedState,
   ensureActiveProject,
+  getProjectHostId,
+  normalizeProjectPathKey,
 } from "../../../electron/shared/persisted-state-codec.js";
 import { getChatsForProject } from "./ide-state";
 import { createBrowserActions } from "./store/browser-actions";
+import { createCatalogActions } from "./store/catalog-actions";
 import { createChatActions } from "./store/chat-actions";
 import {
   getBrowserTabsForProject,
   resolveActiveBrowserTab,
 } from "./store/helpers";
+import { createHostActions } from "./store/host-actions";
 import {
+  getLoadedRunningChatIds,
+  getLoadedWorkspace,
   loadPersistedIdeState,
   savePersistedIdeState,
 } from "./store/ide-store-persistence";
@@ -51,6 +58,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   // ── Runtime state ───────────────────────────────────────────────────
   streamingChatIds: {},
+  hostRunningChatIds: {},
+  hosts: {},
   awaitingAnswerChatIds: {},
   completedChatIds: {},
   titleGeneratingChatIds: {},
@@ -190,12 +199,32 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       draftChatIdByProject,
       settings: loaded.settings,
       chatSort: loaded.chatSort,
+      hostRunningChatIds: Object.fromEntries(
+        getLoadedRunningChatIds().map((chatId) => [chatId, true as const]),
+      ),
       stateHydrated: true,
     });
     transcriptCache.markHydrated(loaded.messagesByChatId);
+
+    // SSH hosts with projects open last time reconnect; their projects
+    // join as their catalogs load.
+    const reopenHostIds = new Set(
+      getLoadedWorkspace()
+        .workspaceProjects.filter(
+          (entry) => entry.status === "open" && entry.hostId !== LOCAL_HOST_ID,
+        )
+        .map((entry) => entry.hostId),
+    );
+    for (const hostId of reopenHostIds) {
+      if (loaded.settings.sshHosts.some((host) => host.id === hostId)) {
+        void get().connectHost(hostId);
+      }
+    }
   },
 
   ...transcriptCache.actions,
+  ...createCatalogActions(set, get),
+  ...createHostActions(set, get),
 
   persist: () => {
     const {
@@ -229,8 +258,50 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       settings,
     });
 
-    savePersistedIdeState(nextState);
+    savePersistedIdeState(nextState, { chats, closedProjects, projects });
   },
 }));
 
 useIdeStore.subscribe(transcriptCache.observe);
+
+// Which host a request is for (host-routing.ts): the host of the project the
+// request names, by id, by one of its chats or terminals, or by path.
+const TERMINAL_SESSION_PROJECT = /^__(?:project|browser)_terminal__:([^:]+)/;
+setHostResolver((hint) => {
+  const state = useIdeStore.getState();
+  const projects = [...state.projects, ...state.closedProjects];
+  const hostOf = (projectId: unknown) => {
+    const project =
+      typeof projectId === "string"
+        ? projects.find((item) => item.id === projectId)
+        : undefined;
+    return project ? getProjectHostId(project) : null;
+  };
+
+  const byProject = hostOf(hint.projectId);
+  if (byProject) return byProject;
+  if (typeof hint.chatId === "string") {
+    const chat = state.chats.find((item) => item.id === hint.chatId);
+    const byChat = hostOf(chat?.projectId);
+    if (byChat) return byChat;
+  }
+  if (typeof hint.sessionId === "string") {
+    const bySession = hostOf(
+      TERMINAL_SESSION_PROJECT.exec(hint.sessionId)?.[1],
+    );
+    if (bySession) return bySession;
+  }
+  if (typeof hint.projectPath === "string") {
+    // The same path can exist on two hosts: the active project's first.
+    const key = normalizeProjectPathKey(hint.projectPath);
+    const matches = projects.filter(
+      (project) => normalizeProjectPathKey(project.path) === key,
+    );
+    const active = matches.find(
+      (project) => project.id === state.activeProjectId,
+    );
+    const match = active ?? matches[0];
+    if (match) return getProjectHostId(match);
+  }
+  return LOCAL_HOST_ID;
+});

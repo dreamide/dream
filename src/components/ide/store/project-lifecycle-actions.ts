@@ -52,12 +52,17 @@ export const createProjectLifecycleActions = (
 
   addProject: (
     path: string,
-    options?: { activate?: boolean; worktree?: ProjectWorktreeInfo },
+    options?: {
+      activate?: boolean;
+      hostId?: string;
+      worktree?: ProjectWorktreeInfo;
+    },
   ) => {
     set(
       (state) =>
         workspace.openProject(state, state.settings, path, {
           activate: options?.activate,
+          hostId: options?.hostId,
           worktree: options?.worktree,
         }).doc,
     );

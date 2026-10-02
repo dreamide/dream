@@ -1,8 +1,9 @@
 // Coalescing queue in front of the persisted-state save worker.
 //
-// Metadata saves, dirty-chat transcripts, and lightweight active-project
-// updates share one worker so their ordering is deterministic. Adjacent
-// operations of the same kind are coalesced to the latest value.
+// Workspace saves, transcripts, active-project updates and host catalog
+// changes share one worker so their ordering is deterministic. Adjacent
+// operations of the same kind are coalesced to the latest value, except
+// catalog changes, which are deltas.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
@@ -222,6 +223,23 @@ export function createStateSaveQueue({ databasePath }) {
     });
   };
 
+  // A catalog change set is a delta, so it is never coalesced: each one is
+  // applied, in order with every other write.
+  const applyCatalogChanges = (payload) => {
+    if (closed) {
+      return Promise.reject(new Error("State save queue is closed."));
+    }
+
+    return new Promise((resolve, reject) => {
+      pending.push({
+        type: "catalog-changes",
+        payload,
+        resolvers: [{ resolve, reject }],
+      });
+      drain();
+    });
+  };
+
   const flushAndClose = async () => {
     if (closed) {
       return;
@@ -251,5 +269,11 @@ export function createStateSaveQueue({ databasePath }) {
     }
   };
 
-  return { save, saveActiveProject, saveChatMessages, flushAndClose };
+  return {
+    save,
+    saveActiveProject,
+    saveChatMessages,
+    applyCatalogChanges,
+    flushAndClose,
+  };
 }

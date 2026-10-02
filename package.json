@@ -102,6 +102,7 @@
     "drizzle-kit": "^0.31.11",
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
     "lucide-react": "^1.47.0",
     "material-icon-theme": "^5.38.1",
     "motion": "^13.4.3",

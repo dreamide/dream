@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { apiClient } from "@/lib/api-client";
 import type { ProjectConfig, ProjectIconInfo } from "@/types/ide";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { normalizeProjectIconResponse } from "./project-icon";
 import { ProjectTabIcon } from "./project-tab-icon";
 export type ProjectEditTarget = {
@@ -58,9 +59,10 @@ export const ProjectEditDialog = ({
         onSubmit(selectedIcon);
         return;
       }
-      const payload = await apiClient.projectIcon({
-        projectPath: project.path,
-      });
+      const payload = await apiClient.projectIcon(
+        { projectPath: project.path },
+        { hostId: getProjectHostId(project) },
+      );
       onSubmit(normalizeProjectIconResponse(payload.icon));
     } catch {
       setError(projectsT("iconSaveFailed"));
@@ -73,9 +75,10 @@ export const ProjectEditDialog = ({
     setUploading(true);
     setError(null);
     try {
-      const payload = await apiClient.projectIcon({
-        projectPath: project.path,
-      });
+      const payload = await apiClient.projectIcon(
+        { projectPath: project.path },
+        { hostId: getProjectHostId(project) },
+      );
       setAutomaticIcon(normalizeProjectIconResponse(payload.icon));
       setSelectedIcon(null);
     } catch {
@@ -174,6 +177,7 @@ export const ProjectEditDialog = ({
                   <Spinner className="size-5" />
                 ) : project ? (
                   <ProjectTabIcon
+                    hostId={project.hostId}
                     className="size-8"
                     icon={selectedIcon ?? automaticIcon}
                     projectName={project.name}

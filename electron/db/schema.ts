@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  primaryKey,
   sqliteTable,
   text,
   uniqueIndex,
@@ -101,4 +102,37 @@ export const savedPrompts = sqliteTable(
     updatedAt: text("updated_at").notNull(),
   },
   (table) => [index("idx_saved_prompts_order").on(table.sortOrder)],
+);
+
+/**
+ * One client's workspace entry for a project on some host: whether it is
+ * open (and where in the tab strip), its per-project UI, and when it was last
+ * used. The project itself belongs to that host's catalog (`projects` on the
+ * host); `snapshot` caches its catalog fields so the project can be shown
+ * while the host is unreachable.
+ */
+export const workspaceProjects = sqliteTable(
+  "workspace_projects",
+  {
+    hostId: text("host_id").notNull(),
+    projectId: text("project_id").notNull(),
+    status: text("status").notNull().default("open"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    ui: text("ui").notNull().default("{}"),
+    lastUsedAt: text("last_used_at"),
+    snapshot: text("snapshot").notNull().default("{}"),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.hostId, table.projectId] }),
+    check("workspace_projects_ui_json", sql`json_valid(${table.ui})`),
+    check(
+      "workspace_projects_snapshot_json",
+      sql`json_valid(${table.snapshot})`,
+    ),
+    index("idx_workspace_projects_status_order").on(
+      table.status,
+      table.sortOrder,
+    ),
+  ],
 );

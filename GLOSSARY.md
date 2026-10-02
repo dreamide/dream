@@ -80,6 +80,21 @@ The machine whose filesystem, agent CLIs and terminals a project uses. The
 another machine Dream reaches over SSH. Not to be confused with a provider
 session, which lives on the provider's side whatever the host.
 
+## Host socket
+
+The one live connection between a client and a host, carrying every kind
+of traffic as channels: terminal output and input, host catalog changes,
+and its own resume. A client that reconnects says where each channel
+stopped and gets only what it missed.
+
+## Host runtime
+
+What an SSH host runs as Dream's host, needing nothing installed there: the
+host bundled with its own Node and terminal support, one archive per
+platform, installed per version on the host. A **managed** SSH host gets
+the runtime of the app's version installed by Dream; otherwise its host
+command says how to run one.
+
 ## Host catalog
 
 What exists on one host, owned by that host and the same for every client

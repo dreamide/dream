@@ -26,6 +26,8 @@ import type {
 import {
   ensureActiveChatForProject,
   ensureActiveProject,
+  getProjectHostId,
+  LOCAL_HOST_ID,
   normalizeProjectPathKey,
   sanitizeProjectUiForChats,
 } from "../../../../electron/shared/persisted-state-codec.js";
@@ -57,10 +59,17 @@ export interface SeededChat {
 const isLiveChatOf = (chat: ChatConfig, projectId: string) =>
   chat.projectId === projectId && chat.deletedAt === null;
 
-const findByPath = (projects: ProjectConfig[], path: string) => {
+/** The project at `path` on `hostId` (paths are unique per host). */
+const findByPath = (
+  projects: ProjectConfig[],
+  path: string,
+  hostId: string = LOCAL_HOST_ID,
+) => {
   const pathKey = normalizeProjectPathKey(path);
   return projects.find(
-    (project) => normalizeProjectPathKey(project.path) === pathKey,
+    (project) =>
+      getProjectHostId(project) === hostId &&
+      normalizeProjectPathKey(project.path) === pathKey,
   );
 };
 
@@ -179,6 +188,8 @@ export const settle = (
 export interface OpenProjectOptions {
   /** `false` opens the project without switching to it. */
   activate?: boolean;
+  /** The host the path is on; the local host when absent. */
+  hostId?: string;
   /** Shapes a project that did not exist yet (name, model, initial view). */
   create?: (project: ProjectConfig) => ProjectConfig;
   /** A chat to seed into the project and show alone (a branched chat). */
@@ -215,22 +226,27 @@ export const openProject = (
   let closedProjects = doc.closedProjects;
   let draftChatIdByProject = doc.draftChatIdByProject;
 
-  const openProject = findByPath(doc.projects, path);
+  const hostId = options.hostId ?? LOCAL_HOST_ID;
+  const openProject = findByPath(doc.projects, path, hostId);
   if (openProject) {
     project = withWorktree({ ...openProject, lastUsedAt });
     projects = replaceProject(doc.projects, project);
   } else {
-    const closedProject = findByPath(doc.closedProjects, path);
+    const closedProject = findByPath(doc.closedProjects, path, hostId);
     if (closedProject) {
       project = withWorktree({ ...closedProject, lastUsedAt, path });
       const pathKey = normalizeProjectPathKey(path);
       closedProjects = doc.closedProjects.filter(
         (item) =>
           item.id !== closedProject.id &&
-          normalizeProjectPathKey(item.path) !== pathKey,
+          !(
+            getProjectHostId(item) === hostId &&
+            normalizeProjectPathKey(item.path) === pathKey
+          ),
       );
     } else {
       project = withWorktree(createProjectConfig(path, settings));
+      if (hostId !== LOCAL_HOST_ID) project = { ...project, hostId };
       project = options.create?.(project) ?? project;
       draftChatIdByProject = { ...draftChatIdByProject, [project.id]: null };
     }

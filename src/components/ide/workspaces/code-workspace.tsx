@@ -18,7 +18,7 @@ import {
   GIT_LOG_PANEL_DEFAULT_WIDTH_PX,
   PANEL_EDGE_PADDING_PX,
   PANEL_RESIZE_HANDLE_SIZE_PX,
-  SLIDING_PANEL_TRANSITION,
+  RESERVED_SLIDING_PANEL_TRANSITION,
   WORKSPACE_SIDE_NAV_WIDTH_PX,
 } from "../workspace";
 import { WorkspaceChatStack } from "../workspace/chat-stack";
@@ -153,7 +153,7 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
     Boolean(activeBrowserTab?.url) && !browserPanelVisible;
   const rightPanelTransitionEnabledRef = useRef(false);
   const rightPanelTransition = rightPanelTransitionEnabledRef.current
-    ? SLIDING_PANEL_TRANSITION
+    ? RESERVED_SLIDING_PANEL_TRANSITION
     : "none";
   const savedHistoryPanelWidth = clampChatHistoryPanelWidth(
     projectPanelSizes.chatHistoryPanelWidth ??

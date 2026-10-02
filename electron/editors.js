@@ -61,6 +61,8 @@ const KNOWN_EDITORS = [
     ],
     linux: ["code"],
     args: (p) => [p],
+    // A folder on an SSH host opens through the editor's own Remote-SSH.
+    remoteArgs: (target, p) => ["--remote", `ssh-remote+${target}`, p],
   },
   {
     id: "cursor",
@@ -69,6 +71,8 @@ const KNOWN_EDITORS = [
     mac: ["/Applications/Cursor.app/Contents/Resources/app/bin/cursor"],
     linux: ["cursor"],
     args: (p) => [p],
+    // A folder on an SSH host opens through the editor's own Remote-SSH.
+    remoteArgs: (target, p) => ["--remote", `ssh-remote+${target}`, p],
   },
   {
     id: "windsurf",
@@ -77,6 +81,8 @@ const KNOWN_EDITORS = [
     mac: ["/Applications/Windsurf.app/Contents/Resources/app/bin/windsurf"],
     linux: ["windsurf"],
     args: (p) => [p],
+    // A folder on an SSH host opens through the editor's own Remote-SSH.
+    remoteArgs: (target, p) => ["--remote", `ssh-remote+${target}`, p],
   },
   {
     id: "zed",
@@ -85,6 +91,10 @@ const KNOWN_EDITORS = [
     mac: ["/Applications/Zed.app/Contents/MacOS/cli"],
     linux: ["zed"],
     args: (p) => [p],
+    // Zed opens a remote folder as an ssh:// URL.
+    remoteArgs: (target, p) => [
+      `ssh://${target}${p.startsWith("/") ? "" : "/"}${p}`,
+    ],
   },
   {
     id: "webstorm",
@@ -258,6 +268,7 @@ export function detectAvailableEditors() {
         executable: resolved,
         isFileExplorer: true,
         isTerminal: false,
+        supportsRemote: false,
       });
       continue;
     }
@@ -271,6 +282,7 @@ export function detectAvailableEditors() {
           executable: resolved,
           isFileExplorer: editor.isFileExplorer || false,
           isTerminal: editor.isTerminal || false,
+          supportsRemote: typeof editor.remoteArgs === "function",
         });
         break;
       }
@@ -309,9 +321,31 @@ function resolveKnownEditor(editorId) {
   return null;
 }
 
-export function openProjectInEditor({ editorId, projectPath }) {
+/**
+ * Opens a project in an editor. A project on an SSH host (`sshTarget` set)
+ * opens through the editor's remote support; an editor without it refuses
+ * rather than opening the host's path on this machine.
+ */
+export function openProjectInEditor({ editorId, projectPath, sshTarget }) {
   if (!projectPath || typeof projectPath !== "string") {
     return false;
+  }
+
+  if (typeof sshTarget === "string" && sshTarget.trim()) {
+    const editorDef = KNOWN_EDITORS.find((e) => e.id === editorId);
+    const editor = resolveKnownEditor(editorId);
+    if (!editorDef?.remoteArgs || !editor) {
+      return false;
+    }
+    const requiresShell =
+      process.platform === "win32" &&
+      [".bat", ".cmd"].includes(path.extname(editor.executable).toLowerCase());
+    spawnProcess(
+      editor.executable,
+      editorDef.remoteArgs(sshTarget.trim(), projectPath),
+      { detached: true, shell: requiresShell, stdio: "ignore" },
+    ).unref();
+    return true;
   }
 
   const editor = resolveKnownEditor(editorId);

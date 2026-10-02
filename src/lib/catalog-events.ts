@@ -9,7 +9,9 @@
  * JSON routes; events after that apply on top. An event from an epoch the
  * client has not been reset into is treated as a reset too.
  */
+import { LOCAL_HOST_ID } from "./host-routing";
 import {
+  getHostSocketClient,
   type HostSocketClient,
   type HostSocketMessage,
   hostSocketClient,
@@ -92,3 +94,18 @@ export const createCatalogEventsClient = ({
     getCursor: () => cursor,
   };
 };
+
+const catalogEventsClients = new Map<string, CatalogEventsClient>();
+
+/** The app's catalog events from `hostId`, created on first use. */
+export const getCatalogEventsClient = (hostId: string = LOCAL_HOST_ID) => {
+  let client = catalogEventsClients.get(hostId);
+  if (!client) {
+    client = createCatalogEventsClient({ socket: getHostSocketClient(hostId) });
+    catalogEventsClients.set(hostId, client);
+  }
+  return client;
+};
+
+/** The app's catalog events, from the local host. */
+export const catalogEventsClient = getCatalogEventsClient(LOCAL_HOST_ID);

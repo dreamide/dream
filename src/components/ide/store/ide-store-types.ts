@@ -8,6 +8,8 @@ import type {
   BrowserTabState,
   ChatConfig,
   ChatSortOrder,
+  HostConnectionState,
+  HostStatusEvent,
   PanelSizes,
   PanelVisibility,
   PendingChatSubmit,
@@ -56,6 +58,13 @@ export interface CloseProjectTerminalOptions {
   keepRightPanelOpen?: boolean;
 }
 
+export interface HostRuntimeState {
+  state: HostConnectionState;
+  error: string | null;
+  /** Its catalog is in the store. */
+  loaded: boolean;
+}
+
 export interface IdeState {
   // Persisted state
   projects: ProjectConfig[];
@@ -71,6 +80,13 @@ export interface IdeState {
 
   // Runtime state
   streamingChatIds: Record<string, boolean>;
+  /**
+   * Chats with a turn running on their host, whoever started it. A session
+   * for one resumes the turn's stream (chat-runtime.ts).
+   */
+  hostRunningChatIds: Record<string, true>;
+  /** SSH hosts' connection state (the local host is always there). */
+  hosts: Record<string, HostRuntimeState>;
   awaitingAnswerChatIds: Record<string, boolean>;
   completedChatIds: Record<string, boolean>;
   titleGeneratingChatIds: Record<string, boolean>;
@@ -131,6 +147,8 @@ export interface IdeState {
     path: string,
     options?: {
       activate?: boolean;
+      /** The host the folder is on; the local host when absent. */
+      hostId?: string;
       /**
        * Marks the project as a Git worktree. Only fills in projects that do
        * not already carry worktree info, so details recorded at creation
@@ -154,7 +172,12 @@ export interface IdeState {
    */
   attachWorktreeProject: (
     worktree: ProjectGitWorktreeInfo,
-    repo: { mainWorktreePath: string; repoRoot: string },
+    repo: {
+      /** The host of the project it was listed from; local when absent. */
+      hostId?: string;
+      mainWorktreePath: string;
+      repoRoot: string;
+    },
   ) => void;
   /**
    * Merges the worktree's branch into its base in the main checkout, and
@@ -174,6 +197,8 @@ export interface IdeState {
     branch?: string | null;
     deleteBranch?: boolean;
     force?: boolean;
+    /** The host the worktree is on; the local host when absent. */
+    hostId?: string;
     mainWorktreePath: string;
     worktreePath: string;
   }) => Promise<ProjectGitWorktreeCleanupResponse>;
@@ -184,7 +209,11 @@ export interface IdeState {
    */
   purgeWorktreeProject: (
     worktreePath: string,
-    options?: { activateProjectId?: string | null },
+    options?: {
+      activateProjectId?: string | null;
+      /** The host the worktree is on; the local host when absent. */
+      hostId?: string;
+    },
   ) => void;
   closeProject: (projectId: string) => void;
   stopProjectTerminals: (projectId: string) => void;
@@ -370,6 +399,41 @@ export interface IdeState {
 
   // Actions - hydration & persistence
   hydrate: () => Promise<void>;
+  /**
+   * Applies host catalog changes made elsewhere (another client, the host
+   * itself): upserted and removed projects and chats. Raw values; they are
+   * repaired with the codec.
+   */
+  applyCatalogChanges: (
+    changes: {
+      projects?: unknown[];
+      removedProjectIds?: string[];
+      chats?: unknown[];
+      removedChatIds?: string[];
+    },
+    hostId?: string,
+  ) => void;
+  /** A transcript changed on the host; reloads it if this window has it. */
+  applyCatalogTranscript: (chatId: string) => Promise<void>;
+  /** Re-reads a host's whole catalog (after its host socket says to). */
+  reloadCatalog: (hostId?: string) => Promise<void>;
+  /** Loads a just-connected host's catalog into the store. */
+  loadHostCatalog: (hostId: string) => Promise<void>;
+  /** Connects an SSH host from settings and loads its catalog. */
+  connectHost: (hostId: string) => Promise<boolean>;
+  /** Disconnects an SSH host; its work keeps running there. */
+  disconnectHost: (hostId: string) => Promise<void>;
+  /** Main reported a host's connection state. */
+  setHostStatus: (event: HostStatusEvent) => void;
+  /**
+   * Forgets an SSH host: disconnects it, takes its projects out of this
+   * window (the host keeps them) and removes it from settings.
+   */
+  removeSshHost: (hostId: string) => Promise<void>;
+  /** Opens the folder at `path` on an SSH host as a project. */
+  openProjectOnHost: (hostId: string, path: string) => Promise<boolean>;
+  /** A turn started or ended on the host. */
+  setHostTurnRunning: (chatId: string, running: boolean) => void;
   persist: () => void;
 }
 

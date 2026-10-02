@@ -16,14 +16,26 @@
 // Electron-free: the process spawner, port picker, fetch and timers are
 // injected, so it runs under plain Node and in tests.
 import { spawn as spawnChildProcess } from "node:child_process";
+import { createReadStream } from "node:fs";
+import net from "node:net";
 import { API_SESSION_TOKEN_HEADER } from "../api/shared/session-token.js";
 import { SUPPORTED_HOST_PROTOCOLS } from "../host/protocol.js";
+import {
+  buildInstallScript,
+  buildPlatformScript,
+  downloadRuntimeArchive,
+  INSTALL_EXIT,
+  managedHostCommand,
+  parsePlatform,
+} from "./host-install.js";
 import {
   buildDirectForwardArgs,
   buildEnsureArgs,
   buildMasterArgs,
   buildMasterCheckArgs,
   buildMasterForwardArgs,
+  buildScriptArgs,
+  buildUploadArgs,
 } from "./ssh-args.js";
 
 const RETRY_DELAYS_MS = [2_000, 4_000, 8_000, 16_000, 30_000, 60_000];
@@ -71,17 +83,28 @@ const lastLine = (text) =>
  *   clearTimer?: (timer: unknown) => void,
  *   now?: () => number,
  *   random?: () => number,
+ *   isLocalPortOpen?: (port: number) => Promise<boolean>,
+ *   runtimeVersion?: string | null,
+ *   runtimeBaseUrl?: string,
+ *   runtimeCacheDirectory?: string | null,
  * }} options
  *   `target`: what the user would type after `ssh` (an alias from
  *   ~/.ssh/config, or user@host).
- *   `hostCommand`: how to run dream-host on the host.
+ *   `hostCommand`: how to run dream-host on the host. Without one, the
+ *   host runtime of `runtimeVersion` is installed there and used (managed);
+ *   without either, `dream-host` on the host's PATH.
+ *   `runtimeCacheDirectory`: where this machine keeps archives it uploads
+ *   to hosts that cannot download them.
  *   `controlPath`: a ControlMaster socket path to multiplex through; null
  *   where the client cannot (Windows).
  *   `env`: the ssh processes' environment (askpass variables included).
  */
 export function createSshHostConnection({
   target,
-  hostCommand = "dream-host",
+  hostCommand: configuredHostCommand = null,
+  runtimeVersion = null,
+  runtimeBaseUrl,
+  runtimeCacheDirectory = null,
   sshPath = "ssh",
   controlPath = null,
   env = process.env,
@@ -93,7 +116,23 @@ export function createSshHostConnection({
   clearTimer = (timer) => clearTimeout(timer),
   now = () => Date.now(),
   random = Math.random,
+  isLocalPortOpen = (port) =>
+    new Promise((resolve) => {
+      const socket = net.connect(port, "127.0.0.1");
+      socket.once("connect", () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.once("error", () => resolve(false));
+    }),
 }) {
+  /**
+   * Ports of the host forwarded to this machine (a dev server, for the
+   * browser panel): remote port -> { localPort, held, active }. A forward
+   * keeps its local port across reconnects, so a page loaded through it
+   * comes back at the same address.
+   */
+  const portForwards = new Map();
   let state = "idle";
   let endpoint = null;
   let session = null; // the ssh process whose exit means the link is gone
@@ -116,9 +155,26 @@ export function createSshHostConnection({
       windowsHide: true,
     });
 
-  const runSsh = (args) =>
+  // Managed: the runtime of this app's version, installed by Dream.
+  const managed = !configuredHostCommand && Boolean(runtimeVersion);
+  const hostCommand =
+    configuredHostCommand ||
+    (managed ? managedHostCommand(runtimeVersion) : "dream-host");
+
+  const runSsh = (args, { input = null } = {}) =>
     new Promise((resolve) => {
-      const child = spawnSsh(args);
+      const child = input
+        ? spawnProcess(sshPath, args, {
+            env,
+            stdio: ["pipe", "pipe", "pipe"],
+            windowsHide: true,
+          })
+        : spawnSsh(args);
+      if (input) {
+        const source = createReadStream(input);
+        source.on("error", () => child.stdin?.destroy());
+        source.pipe(child.stdin);
+      }
       let stdout = "";
       let stderr = "";
       child.stdout?.setEncoding("utf8");
@@ -178,6 +234,77 @@ export function createSshHostConnection({
       };
       void poll();
     });
+
+  /** Installs the managed runtime on the host if it is not there yet. */
+  const installRuntime = async () => {
+    const install = (uploaded = null) =>
+      runSsh(
+        buildScriptArgs({
+          controlPath,
+          script: buildInstallScript({
+            baseUrl: runtimeBaseUrl,
+            uploaded,
+            version: runtimeVersion,
+          }),
+          target,
+        }),
+      );
+    let result = await install();
+
+    if (result.code === INSTALL_EXIT.download && runtimeCacheDirectory) {
+      // The host could not download it: this machine does, and uploads it.
+      const platform = parsePlatform(
+        (
+          await runSsh(
+            buildScriptArgs({
+              controlPath,
+              script: buildPlatformScript(),
+              target,
+            }),
+          )
+        ).stdout,
+      );
+      if (platform) {
+        const { archivePath, name, sumsPath } = await downloadRuntimeArchive({
+          arch: platform.arch,
+          baseUrl: runtimeBaseUrl,
+          cacheDirectory: runtimeCacheDirectory,
+          fetchImpl,
+          os: platform.os,
+          version: runtimeVersion,
+        });
+        const remotePath = `.dream/host/upload/${name}`;
+        for (const [file, destination] of [
+          [archivePath, remotePath],
+          [sumsPath, `${remotePath}.sums`],
+        ]) {
+          const uploaded = await runSsh(
+            buildUploadArgs({ controlPath, remotePath: destination, target }),
+            { input: file },
+          );
+          if (uploaded.code !== 0) {
+            throw sshFailure("Could not upload Dream's host", uploaded.stderr);
+          }
+        }
+        result = await install(remotePath);
+      }
+    }
+
+    if (result.code !== 0) {
+      if (result.code === 255) throw sshFailure("SSH failed", result.stderr);
+      throw new SshHostError(
+        `Could not install Dream's host on ${target}: ${lastLine(result.stderr) || `exit ${result.code}`}`,
+        {
+          detail: result.stderr,
+          fatal: [
+            INSTALL_EXIT.broken,
+            INSTALL_EXIT.checksum,
+            INSTALL_EXIT.unsupported,
+          ].includes(result.code),
+        },
+      );
+    }
+  };
 
   const runEnsure = async () => {
     const { code, stdout, stderr } = await runSsh(
@@ -245,6 +372,7 @@ export function createSshHostConnection({
         );
       }
 
+      if (managed) await installRuntime();
       const daemon = await runEnsure();
       const localPort = await getLocalPort();
       const ports = { localPort, remotePort: daemon.port };
@@ -293,6 +421,64 @@ export function createSshHostConnection({
     }
   };
 
+  /** Opens one port forward over the current link. */
+  const openPortForward = async (remotePort, localPort) => {
+    if (controlPath) {
+      // Through the master: it lives (and dies) with the link.
+      const forwarded = await runSsh(
+        buildMasterForwardArgs({ controlPath, localPort, remotePort, target }),
+      );
+      if (forwarded.code !== 0) {
+        throw sshFailure(
+          `Could not forward port ${remotePort}`,
+          forwarded.stderr,
+        );
+      }
+      return null;
+    }
+    // Without a master: an ssh that holds just this forward.
+    return startHeldSession(
+      buildDirectForwardArgs({ localPort, remotePort, target }),
+      () => isLocalPortOpen(localPort),
+      VERIFY_TIMEOUT_MS,
+    );
+  };
+
+  const forwardPort = async (remotePort) => {
+    const existing = portForwards.get(remotePort);
+    if (existing?.active) return existing.localPort;
+    const localPort = existing?.localPort ?? (await getLocalPort());
+    const held = await openPortForward(remotePort, localPort);
+    const entry = { active: true, held, localPort };
+    portForwards.set(remotePort, entry);
+    held?.once("exit", () => {
+      entry.active = false;
+    });
+    return localPort;
+  };
+
+  /** After a reconnect: the forwards the old link carried, again. */
+  const restorePortForwards = async () => {
+    for (const [remotePort, entry] of portForwards) {
+      if (entry.active) continue;
+      try {
+        await forwardPort(remotePort);
+      } catch (error) {
+        console.warn(
+          `[ssh] ${target}: port ${remotePort} not restored.`,
+          error,
+        );
+      }
+    }
+  };
+
+  const closePortForwards = () => {
+    for (const entry of portForwards.values()) {
+      entry.active = false;
+      entry.held?.kill();
+    }
+  };
+
   const adopt = (attempt, { endpoint: next, session: held }) => {
     if (attempt !== generation) {
       held.kill();
@@ -301,10 +487,14 @@ export function createSshHostConnection({
     endpoint = next;
     session = held;
     connectedAt = now();
+    void restorePortForwards();
     held.once("exit", () => {
       if (session !== held) return;
       session = null;
       endpoint = null;
+      // Forwards through the master went with it; held ones are closed so
+      // the reconnect opens them all again on the new link.
+      closePortForwards();
       if (attempt !== generation) return;
       if (now() - connectedAt >= STABLE_AFTER_MS) retryIndex = 0;
       setState("reconnecting");
@@ -341,6 +531,18 @@ export function createSshHostConnection({
     /** `{ baseUrl, token, ... }` while connected, else null. */
     getEndpoint: () => endpoint,
 
+    /**
+     * Forwards the host's `remotePort` (on its loopback) to this machine;
+     * resolves with the local port. Kept across reconnects.
+     * @param {number} remotePort
+     */
+    async forwardPort(remotePort) {
+      if (state !== "connected") {
+        throw new SshHostError("The host is not connected.");
+      }
+      return forwardPort(remotePort);
+    },
+
     async connect() {
       if (state === "connecting" || state === "connected") {
         throw new SshHostError(`Already ${state}.`);
@@ -371,6 +573,8 @@ export function createSshHostConnection({
       const held = session;
       session = null;
       endpoint = null;
+      closePortForwards();
+      portForwards.clear();
       held?.kill();
       if (state !== "idle") setState("disconnected");
     },

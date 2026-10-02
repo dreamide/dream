@@ -2,6 +2,7 @@ import { lazy, Suspense, useDeferredValue, useEffect } from "react";
 import { AppLoadingScreen } from "@/components/dream-loading-screen";
 import { Toaster } from "@/components/ui/sonner";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
+import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import {
   getConnectedProviders,
   getDefaultModelForProvider,
@@ -21,6 +22,9 @@ import { areProjectListsEqualExceptLastUsedAt } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import { dedupeModels } from "./ide-types";
 import { ProjectWorkspace } from "./project-workspace";
+import { SshPromptDialog } from "./ssh/ssh-prompt-dialog";
+import { watchHostBrowser } from "./store/host-browser-watch";
+import { watchHostCatalog } from "./store/host-catalog-watch";
 import { savePersistedActiveProject } from "./store/ide-store-persistence";
 import {
   hasTerminalScrollback,
@@ -284,6 +288,56 @@ export const IdeShell = () => {
     return () => {
       window.removeEventListener("pagehide", stopActiveSessions);
       window.removeEventListener("beforeunload", stopActiveSessions);
+    };
+  }, []);
+
+  // Each host's catalog changes made elsewhere (another window, the host
+  // itself): the local host's always, an SSH host's once it is loaded.
+  useEffect(() => {
+    if (!getDesktopApi()) return;
+
+    const watching = new Map<string, () => void>();
+    const follow = (
+      hosts: ReturnType<typeof useIdeStore.getState>["hosts"],
+    ) => {
+      const wanted = new Set([
+        LOCAL_HOST_ID,
+        ...Object.entries(hosts)
+          .filter(([, host]) => host.loaded)
+          .map(([hostId]) => hostId),
+      ]);
+      for (const hostId of wanted) {
+        if (watching.has(hostId)) continue;
+        const stopCatalog = watchHostCatalog(hostId);
+        // An SSH host's agents use this window's browser.
+        const stopBrowser =
+          hostId === LOCAL_HOST_ID ? null : watchHostBrowser(hostId);
+        watching.set(hostId, () => {
+          stopCatalog();
+          stopBrowser?.();
+        });
+      }
+      for (const [hostId, stop] of watching) {
+        if (!wanted.has(hostId)) {
+          stop();
+          watching.delete(hostId);
+        }
+      }
+    };
+    follow(useIdeStore.getState().hosts);
+    const unsubscribe = useIdeStore.subscribe((state, previous) => {
+      if (state.hosts !== previous.hosts) follow(state.hosts);
+    });
+
+    // What main says about SSH hosts' connections.
+    const removeHostStatus = getDesktopApi()?.onHostStatus((event) =>
+      useIdeStore.getState().setHostStatus(event),
+    );
+
+    return () => {
+      unsubscribe();
+      removeHostStatus?.();
+      for (const stop of watching.values()) stop();
     };
   }, []);
 
@@ -587,6 +641,7 @@ export const IdeShell = () => {
       ) : null}
 
       <AppScreenshotToast />
+      <SshPromptDialog />
       <Toaster />
     </div>
   );

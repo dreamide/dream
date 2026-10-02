@@ -5,6 +5,7 @@ import {
   FolderTree,
   History,
   Plug,
+  ServerCog,
   Settings,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -26,6 +27,7 @@ import { getConnectedProviders } from "@/lib/ide-defaults";
 import { ProjectTabIcon } from "./header/project-tab-icon";
 import { useIdeStore } from "./ide-store";
 import { ALL_PROVIDERS, getProviderLabel } from "./ide-types";
+import { OpenOnHostDialog } from "./ssh/open-on-host-dialog";
 
 const RECENT_PROJECT_LIMIT = 20;
 const RECENT_PROJECT_VISIBLE_COUNT = 6;
@@ -172,6 +174,9 @@ export const EmptyProjectWorkspace = () => {
     );
   }, [recentProjectQuery, recentProjects]);
 
+  const sshHostsT = useTranslations("sshHosts");
+  const [openOnHostOpen, setOpenOnHostOpen] = useState(false);
+
   const handleOpenFolder = useCallback(async () => {
     const desktopApi = getDesktopApi();
     if (!desktopApi) {
@@ -243,10 +248,24 @@ export const EmptyProjectWorkspace = () => {
       </EmptyHeader>
 
       <EmptyContent className="max-w-xl gap-10">
-        <Button onClick={() => void handleOpenFolder()} size="lg">
-          <FolderOpen className="size-4" />
-          {emptyT("openFolder")}
-        </Button>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <Button onClick={() => void handleOpenFolder()} size="lg">
+            <FolderOpen className="size-4" />
+            {emptyT("openFolder")}
+          </Button>
+          <Button
+            onClick={() => setOpenOnHostOpen(true)}
+            size="lg"
+            variant="outline"
+          >
+            <ServerCog className="size-4" />
+            {sshHostsT("openOnHost")}
+          </Button>
+        </div>
+        <OpenOnHostDialog
+          onOpenChange={setOpenOnHostOpen}
+          open={openOnHostOpen}
+        />
 
         {recentProjects.length > 0 ? (
           <div className="flex w-full flex-col items-stretch gap-2">
@@ -302,6 +321,7 @@ export const EmptyProjectWorkspace = () => {
                           <FolderTree className="size-4" />
                         ) : project.icon ? (
                           <ProjectTabIcon
+                            hostId={project.hostId}
                             fallback={<Folder className="size-4" />}
                             icon={project.icon}
                             projectName={project.name}

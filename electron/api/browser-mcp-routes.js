@@ -1,10 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { getBrowserBridge } from "./browser-bridge.js";
 import { getActiveBrowserTurnProjectId } from "./chat/active-browser-turns.js";
 import {
   BROWSER_MCP_SERVER_NAME,
-  createBrowserToolDefinitions,
+  createAvailableBrowserToolDefinitions,
 } from "./chat/browser-tools.js";
 
 /**
@@ -22,18 +21,14 @@ import {
 
 export const BROWSER_MCP_PATH = "/api/mcp/browser";
 
-export const createBrowserMcpRequestHandler = ({
-  bridge,
-  projectId,
-  projectResolver,
-}) => {
+/**
+ * @param {{ tools: Record<string, any> }} options the browser tool
+ *   definitions to serve (createAvailableBrowserToolDefinitions).
+ */
+export const createBrowserMcpRequestHandler = ({ tools }) => {
   const server = new McpServer({
     name: BROWSER_MCP_SERVER_NAME,
     version: "1.0.0",
-  });
-  const tools = createBrowserToolDefinitions({
-    bridge,
-    projectId: projectId ?? projectResolver,
   });
   for (const [name, def] of Object.entries(tools)) {
     server.registerTool(
@@ -64,22 +59,23 @@ export const createBrowserMcpRequestHandler = ({
 
 export const registerBrowserMcpRoutes = (app) => {
   const handle = async (c) => {
-    const bridge = getBrowserBridge();
-    if (!bridge) {
+    // This process's browser (the desktop app), or a window's through the
+    // host socket (a host daemon on an SSH host).
+    const projectId = c.req.param("projectId") || null;
+    const tools = createAvailableBrowserToolDefinitions({
+      projectId:
+        projectId ??
+        (() =>
+          getActiveBrowserTurnProjectId({ provider: "openai" }) ??
+          getActiveBrowserTurnProjectId()),
+    });
+    if (!tools) {
       return c.json(
         { error: "The Dream browser bridge is not available." },
         503,
       );
     }
-    const projectId = c.req.param("projectId") || null;
-    const handler = createBrowserMcpRequestHandler({
-      bridge,
-      projectId,
-      projectResolver: () =>
-        getActiveBrowserTurnProjectId({ provider: "openai" }) ??
-        getActiveBrowserTurnProjectId(),
-    });
-    return handler(c.req.raw);
+    return createBrowserMcpRequestHandler({ tools })(c.req.raw);
   };
 
   app.all(`${BROWSER_MCP_PATH}/:projectId`, handle);

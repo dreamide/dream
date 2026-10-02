@@ -185,13 +185,22 @@ export const ProjectSidebar = ({
       // Open it as a worktree project, so it gets the worktree footer and the
       // Complete worktree action, rather than as a plain folder.
       if (repoPaths) {
-        attachWorktreeProject(worktree, repoPaths);
+        attachWorktreeProject(worktree, {
+          ...repoPaths,
+          hostId: project.hostId,
+        });
       } else {
-        addProject(worktree.path);
+        addProject(worktree.path, { hostId: project.hostId });
       }
       onChatSelect?.();
     },
-    [addProject, attachWorktreeProject, onChatSelect, repoPaths],
+    [
+      addProject,
+      attachWorktreeProject,
+      onChatSelect,
+      project.hostId,
+      repoPaths,
+    ],
   );
 
   const handleRemoveWorktree = useCallback(async () => {
@@ -204,10 +213,13 @@ export const ProjectSidebar = ({
     try {
       await forgetWorktree({
         branch: pendingRemoveWorktree.branch,
+        hostId: project.hostId,
         mainWorktreePath: project.path,
         worktreePath: pendingRemoveWorktree.path,
       });
-      purgeWorktreeProject(pendingRemoveWorktree.path);
+      purgeWorktreeProject(pendingRemoveWorktree.path, {
+        hostId: project.hostId,
+      });
       setPendingRemoveWorktree(null);
     } catch (error) {
       setWorktreeError(
@@ -225,6 +237,7 @@ export const ProjectSidebar = ({
     project.path,
     purgeWorktreeProject,
     worktreeT,
+    project.hostId,
   ]);
 
   const activeProjectPathKey = normalizeProjectPathKey(project.path);

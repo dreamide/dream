@@ -13,6 +13,7 @@ import { Chat } from "@ai-sdk/react";
 import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai";
 import { create } from "zustand";
 import { apiClient } from "@/lib/api-client";
+import { hostApiPath, resolveRequestHost } from "@/lib/host-routing";
 import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
 import { resolveEffectiveMcpServers } from "@/lib/mcp-servers";
 import type {
@@ -34,6 +35,7 @@ import {
   flushProjectPanelRefresh,
   scheduleProjectPanelRefresh,
 } from "../project-panel-refresh";
+import { isHostAway } from "../ssh/host-away";
 import {
   addAskUserQuestionAnswerToMessages,
   preserveAskUserQuestionAnswers,
@@ -170,8 +172,26 @@ interface InternalChatSession extends ChatSession {
 const sessions = new Map<string, InternalChatSession>();
 const draining = new Set<string>();
 
+/** A session's `Chat` id is `chat:<chatId>`; the host knows the chat id. */
+const CHAT_ID_PREFIX = "chat:";
+const toHostChatId = (sessionId: string) =>
+  sessionId.startsWith(CHAT_ID_PREFIX)
+    ? sessionId.slice(CHAT_ID_PREFIX.length)
+    : sessionId;
+
 const transport = new DefaultChatTransport<UIMessage>({
   api: "/api/chat",
+  // A turn runs on the host, detached from the request: reconnecting asks
+  // for the running turn's stream from its start (204 when none runs).
+  prepareReconnectToStreamRequest: ({ id }) => {
+    const chatId = toHostChatId(id);
+    return {
+      api: hostApiPath(
+        resolveRequestHost({ chatId }),
+        `/api/chat/${encodeURIComponent(chatId)}/stream`,
+      ),
+    };
+  },
   prepareSendMessagesRequest: ({
     body,
     id,
@@ -179,6 +199,11 @@ const transport = new DefaultChatTransport<UIMessage>({
     messages: requestMessages,
     trigger,
   }) => ({
+    // To the host of the chat's project.
+    api: hostApiPath(
+      resolveRequestHost({ chatId: toHostChatId(id) }),
+      "/api/chat",
+    ),
     body: {
       ...body,
       id,
@@ -438,7 +463,34 @@ export const getChatSession = (chatId: string): ChatSession => {
   sessions.set(chatId, session);
   // A session nobody ends up watching (e.g. an abandoned render) is dropped.
   scheduleEviction(session);
+  // A turn already running on the host (started by another window, or by
+  // this one before a reload) is followed from where it is.
+  resumeHostTurn(session);
   return session;
+};
+
+/**
+ * Follows the host's running turn in this session's chat, unless this
+ * session is already the one streaming it.
+ */
+const resumeHostTurn = (session: InternalChatSession) => {
+  if (
+    !useIdeStore.getState().hostRunningChatIds[session.chatId] ||
+    isChatProcessing(session.chat)
+  ) {
+    return;
+  }
+  void session.chat.resumeStream();
+};
+
+/**
+ * Stops the chat's running turn on the host. Dropping the request (the AI
+ * SDK's `stop`) only stops this window following it.
+ */
+export const stopChatTurn = (chatId: string) => {
+  void apiClient.stopChatTurn({ chatId }).catch((error: unknown) => {
+    console.warn(`Unable to stop the turn in chat ${chatId}.`, error);
+  });
 };
 
 /**
@@ -616,6 +668,14 @@ export const submitChatPrompt = (
     state.activeProjectId !== submittedProject.id
   ) {
     const message = chatT("notInActiveProject");
+    setChatError(chatId, message);
+    throw new Error(message);
+  }
+
+  // Its host is not there to run the turn.
+  const away = isHostAway(state, submittedProject);
+  if (away) {
+    const message = chatT("hostNotConnected", { host: away.label });
     setChatError(chatId, message);
     throw new Error(message);
   }
@@ -903,6 +963,17 @@ export const startChatRuntime = () => {
   }
 
   const unsubscribe = useIdeStore.subscribe((state, previous) => {
+    if (state.hostRunningChatIds !== previous.hostRunningChatIds) {
+      for (const session of sessions.values()) {
+        if (
+          state.hostRunningChatIds[session.chatId] &&
+          !previous.hostRunningChatIds[session.chatId]
+        ) {
+          resumeHostTurn(session);
+        }
+      }
+    }
+
     if (state.messagesByChatId !== previous.messagesByChatId) {
       for (const session of sessions.values()) {
         const storeMessages = state.messagesByChatId[session.chatId];

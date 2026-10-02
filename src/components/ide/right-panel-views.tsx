@@ -4,6 +4,7 @@ import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type { ProjectConfig } from "@/types/ide";
 import type { RightPanelView } from "./ide-types";
+import { useHostAway } from "./ssh/host-away-notice";
 
 const PullRequestsPanel = lazy(() =>
   import("./pull-requests/panel").then((module) => ({
@@ -76,6 +77,9 @@ const RightPanelViewSlot = ({
 );
 
 export const RightPanelViews = (props: RightPanelViewsProps) => {
+  // The file tree loads once; when the project's host comes back it loads
+  // again from scratch (what it tried while the host was away failed).
+  const hostAway = useHostAway(props.project) !== null;
   const baseColor = useUiStore((state) => state.baseColor);
   const rightPanelView = props.rightPanelView;
   // Every visited view stays mounted. Terminals in particular must not be
@@ -132,6 +136,7 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
             {visitedPersistentViews.has("explorer") ? (
               <RightPanelViewSlot active={rightPanelView === "explorer"}>
                 <FileExplorerPanel
+                  key={hostAway ? "host-away" : "host-here"}
                   active={
                     props.active && props.open && rightPanelView === "explorer"
                   }

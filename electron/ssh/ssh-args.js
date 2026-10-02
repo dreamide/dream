@@ -90,6 +90,42 @@ export const buildEnsureArgs = ({
   buildEnsureCommand(hostCommand),
 ];
 
+/** Runs a POSIX shell script on the host (through the master if any). */
+export const buildScriptArgs = ({
+  target,
+  controlPath,
+  script,
+  ...options
+}) => [
+  ...baseOptions(options),
+  ...(controlPath ? controlOptions(controlPath) : []),
+  "-T",
+  target,
+  `sh -c ${quoteShellWord(script)}`,
+];
+
+/**
+ * Writes stdin to `remotePath` (relative to the host's home; plain file
+ * name characters only) on the host.
+ */
+export const buildUploadArgs = ({
+  target,
+  controlPath,
+  remotePath,
+  ...options
+}) => {
+  if (!/^[\w./-]+$/.test(remotePath) || remotePath.includes("..")) {
+    throw new Error(`Unsafe upload path: ${remotePath}`);
+  }
+  const directory = remotePath.split("/").slice(0, -1).join("/");
+  return buildScriptArgs({
+    ...options,
+    controlPath,
+    script: `mkdir -p "$HOME/${directory}" && cat > "$HOME/${remotePath}"`,
+    target,
+  });
+};
+
 const forwardSpec = ({ localPort, remotePort }) =>
   `127.0.0.1:${localPort}:127.0.0.1:${remotePort}`;
 

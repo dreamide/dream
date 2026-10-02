@@ -11,6 +11,7 @@
  * outbox and go out after the resume.
  */
 import { type ApiClient, apiClient } from "./api-client";
+import { hostApiPath, LOCAL_HOST_ID } from "./host-routing";
 
 export const HOST_SOCKET_PATH = "/api/host-socket";
 
@@ -57,6 +58,8 @@ export interface HostSocketClient {
 }
 
 export interface HostSocketClientOptions {
+  /** The host this socket is to; the local host when absent. */
+  hostId?: string;
   api?: Pick<ApiClient, "hostSocketTicket">;
   /** Opens the socket for a ticket; the browser's WebSocket by default. */
   openSocket?: (ticket: string) => HostSocketTransport;
@@ -64,16 +67,19 @@ export interface HostSocketClientOptions {
   clearTimer?: (timer: unknown) => void;
 }
 
-const defaultOpenSocket = (ticket: string): HostSocketTransport => {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return new WebSocket(
-    `${protocol}//${window.location.host}${HOST_SOCKET_PATH}?ticket=${encodeURIComponent(ticket)}`,
-  ) as unknown as HostSocketTransport;
-};
+const openSocketTo =
+  (hostId: string) =>
+  (ticket: string): HostSocketTransport => {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return new WebSocket(
+      `${protocol}//${window.location.host}${hostApiPath(hostId, HOST_SOCKET_PATH)}?ticket=${encodeURIComponent(ticket)}`,
+    ) as unknown as HostSocketTransport;
+  };
 
 export const createHostSocketClient = ({
+  hostId = LOCAL_HOST_ID,
   api = apiClient,
-  openSocket = defaultOpenSocket,
+  openSocket = openSocketTo(hostId),
   setTimer = (callback, ms) => setTimeout(callback, ms),
   clearTimer = (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
 }: HostSocketClientOptions = {}): HostSocketClient => {
@@ -111,7 +117,7 @@ export const createHostSocketClient = ({
   const open = async () => {
     let next: HostSocketTransport;
     try {
-      const { ticket } = await api.hostSocketTicket({});
+      const { ticket } = await api.hostSocketTicket({}, { hostId });
       next = openSocket(ticket);
     } catch {
       connecting = false;
@@ -186,5 +192,17 @@ export const createHostSocketClient = ({
   };
 };
 
+const hostSocketClients = new Map<string, HostSocketClient>();
+
+/** The app's host socket to `hostId`, created on first use. */
+export const getHostSocketClient = (hostId: string = LOCAL_HOST_ID) => {
+  let client = hostSocketClients.get(hostId);
+  if (!client) {
+    client = createHostSocketClient({ hostId });
+    hostSocketClients.set(hostId, client);
+  }
+  return client;
+};
+
 /** The app's host socket, to the local host. */
-export const hostSocketClient = createHostSocketClient();
+export const hostSocketClient = getHostSocketClient(LOCAL_HOST_ID);
