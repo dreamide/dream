@@ -1,9 +1,7 @@
 {
   "app": {
     "loadingDream": "Loading Dream",
-    "videoUnavailable": "Video unavailable",
     "working": "Working",
-    "subwaySurfing": "Subway surfing",
     "workspaceLoadFailed": "Dream couldn't load your workspace, so nothing is being saved. Your settings and projects are safe on disk.",
     "reload": "Reload"
   },
@@ -98,7 +96,6 @@
     "closePanel": "Close panel",
     "copy": "Copy",
     "description": "Description",
-    "dreamLogoDescription": "Dream logo — a moon and star with falling stars in the night sky",
     "edit": "Edit",
     "enterName": "Enter a name",
     "loading": "Loading",
@@ -386,7 +383,6 @@
     "mcpUrlInvalid": "Enter a valid http(s) URL.",
     "mcpEnabled": "Enabled",
     "mcpDeleteConfirm": "Confirm delete",
-    "mcpSecretsNote": "Values are stored unencrypted in Dream's local database.",
     "changeCheckpoints": "Change checkpoints",
     "changeCheckpointsDescription": "Snapshot project files before each reply so you can inspect and restore changes"
   },

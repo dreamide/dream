@@ -1,9 +1,7 @@
 {
   "app": {
     "loadingDream": "Dream wird geladen",
-    "videoUnavailable": "Video nicht verfügbar",
     "working": "In Bearbeitung",
-    "subwaySurfing": "Subway-Surfen",
     "workspaceLoadFailed": "Dream konnte deinen Arbeitsbereich nicht laden, daher wird nichts gespeichert. Deine Einstellungen und Projekte sind sicher gespeichert.",
     "reload": "Neu laden"
   },
@@ -98,7 +96,6 @@
     "closePanel": "Bedienfeld schließen",
     "copy": "Kopieren",
     "description": "Beschreibung",
-    "dreamLogoDescription": "Dream-Logo – ein Mond und ein Stern mit Sternschnuppen am Nachthimmel",
     "edit": "Bearbeiten",
     "enterName": "Geben Sie einen Namen ein",
     "loading": "Wird geladen",
@@ -386,7 +383,6 @@
     "mcpUrlInvalid": "Gültige http(s)-URL eingeben.",
     "mcpEnabled": "Aktiviert",
     "mcpDeleteConfirm": "Löschen bestätigen",
-    "mcpSecretsNote": "Werte werden unverschlüsselt in der lokalen Datenbank von Dream gespeichert.",
     "changeCheckpoints": "Änderungs-Checkpoints",
     "changeCheckpointsDescription": "Projektdateien vor jeder Antwort sichern, um Änderungen zu prüfen und wiederherzustellen"
   },

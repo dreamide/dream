@@ -124,9 +124,6 @@ export const getCatalogSync = (hostId: string = LOCAL_HOST_ID) => {
   return sync;
 };
 
-/** The local host's link (kept for callers that predate SSH hosts). */
-export const catalogSync = getCatalogSync(LOCAL_HOST_ID);
-
 /** `hostId`'s catalog, raw. */
 export const loadCatalog = (
   hostId: string = LOCAL_HOST_ID,

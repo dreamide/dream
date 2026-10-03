@@ -19,14 +19,6 @@ export const SKILL_TARGETS: SkillTarget[] = [
   "user-claude",
 ];
 
-/** Which targets each provider actually reads. */
-export const SKILL_TARGET_PROVIDERS: Record<SkillTarget, AiProvider[]> = {
-  "project-agents": ["openai", "opencode", "cursor"],
-  "project-claude": ["anthropic", "opencode", "cursor"],
-  "user-agents": ["openai", "opencode", "cursor"],
-  "user-claude": ["anthropic", "opencode", "cursor"],
-};
-
 export const SKILL_TOGGLE_PROVIDERS: AiProvider[] = ["anthropic", "openai"];
 
 /** A failed skill request, with the server's reason or `fallback`. */

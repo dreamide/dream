@@ -1,9 +1,7 @@
 {
   "app": {
     "loadingDream": "Dream を読み込み中",
-    "videoUnavailable": "動画を利用できません",
     "working": "処理中",
-    "subwaySurfing": "地下鉄サーフィン中",
     "workspaceLoadFailed": "Dream はワークスペースを読み込めなかったため、何も保存していません。設定とプロジェクトはディスク上に残っています。",
     "reload": "再読み込み"
   },
@@ -98,7 +96,6 @@
     "closePanel": "パネルを閉じる",
     "copy": "コピー",
     "description": "説明",
-    "dreamLogoDescription": "Dream のロゴ — 夜空の月と星、流れ星",
     "edit": "編集",
     "enterName": "名前を入力してください",
     "loading": "読み込み中",
@@ -386,7 +383,6 @@
     "mcpUrlInvalid": "有効な http(s) URL を入力してください。",
     "mcpEnabled": "有効",
     "mcpDeleteConfirm": "削除を確認",
-    "mcpSecretsNote": "値は Dream のローカルデータベースに暗号化されずに保存されます。",
     "changeCheckpoints": "変更チェックポイント",
     "changeCheckpointsDescription": "各返答の前にプロジェクトファイルのスナップショットを取り、変更の確認と復元を可能にします"
   },

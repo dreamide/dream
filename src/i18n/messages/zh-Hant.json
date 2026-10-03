@@ -1,9 +1,7 @@
 {
   "app": {
     "loadingDream": "正在載入 Dream",
-    "videoUnavailable": "影片無法使用",
     "working": "正在處理",
-    "subwaySurfing": "地鐵跑酷中",
     "workspaceLoadFailed": "Dream 無法載入你的工作區，因此不會儲存任何內容。你的設定和專案仍安全地保存在磁碟上。",
     "reload": "重新載入"
   },
@@ -98,7 +96,6 @@
     "closePanel": "關閉面板",
     "copy": "複製",
     "description": "說明",
-    "dreamLogoDescription": "Dream 標誌 — 夜空中的月亮、星星和流星",
     "edit": "編輯",
     "enterName": "輸入名稱",
     "loading": "載入中",
@@ -386,7 +383,6 @@
     "mcpUrlInvalid": "請輸入有效的 http(s) URL。",
     "mcpEnabled": "已啟用",
     "mcpDeleteConfirm": "確認刪除",
-    "mcpSecretsNote": "這些值會以未加密方式儲存在 Dream 的本機資料庫中。",
     "changeCheckpoints": "變更檢查點",
     "changeCheckpointsDescription": "在每次回覆前為專案檔案建立快照，以便檢視和還原變更"
   },

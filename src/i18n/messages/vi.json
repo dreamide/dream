@@ -1,9 +1,7 @@
 {
   "app": {
     "loadingDream": "Đang tải Dream",
-    "videoUnavailable": "Video không khả dụng",
     "working": "Đang xử lý",
-    "subwaySurfing": "Đang lướt tàu điện ngầm",
     "workspaceLoadFailed": "Dream không thể tải không gian làm việc của bạn nên sẽ không lưu gì. Cài đặt và dự án của bạn vẫn an toàn trên đĩa.",
     "reload": "Tải lại"
   },
@@ -98,7 +96,6 @@
     "closePanel": "Đóng bảng điều khiển",
     "copy": "Sao chép",
     "description": "Mô tả",
-    "dreamLogoDescription": "Logo Dream — mặt trăng và ngôi sao cùng những ngôi sao băng trên bầu trời đêm",
     "edit": "Chỉnh sửa",
     "enterName": "Nhập tên",
     "loading": "Đang tải",
@@ -386,7 +383,6 @@
     "mcpUrlInvalid": "Nhập URL http(s) hợp lệ.",
     "mcpEnabled": "Bật",
     "mcpDeleteConfirm": "Xác nhận xóa",
-    "mcpSecretsNote": "Giá trị được lưu không mã hóa trong cơ sở dữ liệu cục bộ của Dream.",
     "changeCheckpoints": "Checkpoint thay đổi",
     "changeCheckpointsDescription": "Chụp nhanh tệp dự án trước mỗi phản hồi để xem và khôi phục thay đổi"
   },

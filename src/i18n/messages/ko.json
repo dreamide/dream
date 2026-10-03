@@ -1,9 +1,7 @@
 {
   "app": {
     "loadingDream": "Dream 로드 중",
-    "videoUnavailable": "동영상을 사용할 수 없습니다",
     "working": "처리 중",
-    "subwaySurfing": "지하철 서핑 중",
     "workspaceLoadFailed": "Dream이 작업 공간을 불러오지 못해 아무것도 저장하지 않습니다. 설정과 프로젝트는 디스크에 안전하게 남아 있습니다.",
     "reload": "다시 불러오기"
   },
@@ -98,7 +96,6 @@
     "closePanel": "패널 닫기",
     "copy": "복사",
     "description": "설명",
-    "dreamLogoDescription": "Dream 로고 — 밤하늘의 달과 별, 별똥별",
     "edit": "편집",
     "enterName": "이름을 입력하세요",
     "loading": "로드 중",
@@ -386,7 +383,6 @@
     "mcpUrlInvalid": "올바른 http(s) URL을 입력하세요.",
     "mcpEnabled": "사용",
     "mcpDeleteConfirm": "삭제 확인",
-    "mcpSecretsNote": "값은 Dream 로컬 데이터베이스에 암호화되지 않은 상태로 저장됩니다.",
     "changeCheckpoints": "변경 체크포인트",
     "changeCheckpointsDescription": "각 답변 전에 프로젝트 파일을 스냅샷하여 변경 사항을 확인하고 복원할 수 있습니다"
   },
