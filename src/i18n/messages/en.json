@@ -330,7 +330,7 @@
     "archiveInactiveChats": "Archive inactive chats",
     "archiveInactiveChatsDescription": "Archive chats that have not been updated for this many days.",
     "archivedChatCount": "{count, plural, one {# archived chat} other {# archived chats}}",
-    "archivedChats": "Archived Chats",
+    "archivedChats": "Archived chats",
     "autoCompactContext": "Auto compact context",
     "autoCompactContextDescription": "Summarize older messages before the chat runs out of context",
     "chatMessages": "Chat messages",
