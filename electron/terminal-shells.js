@@ -140,20 +140,7 @@ function getWindowsShells() {
 }
 
 function getUnixShellLabel(executable) {
-  const name = path.basename(executable).toLowerCase();
-  if (name === "zsh") {
-    return "Zsh";
-  }
-  if (name === "bash") {
-    return "Bash";
-  }
-  if (name === "fish") {
-    return "Fish";
-  }
-  if (name === "sh") {
-    return "sh";
-  }
-  return path.basename(executable);
+  return path.basename(executable).toLowerCase();
 }
 
 function getUnixShells() {

@@ -274,7 +274,14 @@ export const EmptyProjectWorkspace = () => {
             {emptyT("openFolder")}
           </Button>
           <Button
-            onClick={() => setOpenOnHostOpen(true)}
+            onClick={() => {
+              if (sshHosts.length === 0) {
+                setSettingsSection("sshHosts");
+                setSettingsOpen(true);
+                return;
+              }
+              setOpenOnHostOpen(true);
+            }}
             size="lg"
             variant="outline"
           >

@@ -1,5 +1,6 @@
 import { apiClient } from "@/lib/api-client";
 import { extractCliVersion, isCliUpdateAvailable } from "@/lib/cli-version";
+import { isProviderEnabled } from "@/lib/ide-defaults";
 import type { AiProvider } from "@/types/ide";
 import { ALL_PROVIDERS, type CliUpgradeResult } from "../ide-types";
 import type {
@@ -168,9 +169,11 @@ export const createSettingsActions = (
 
   // The server caches release lookups, so this is cheap to call often.
   checkCliUpdates: async ({ force = false, provider } = {}) => {
-    const { providerModels } = get();
+    const { providerModels, settings } = get();
     const providers = (provider ? [provider] : ALL_PROVIDERS).filter(
-      (candidate) => providerModels[candidate].installed,
+      (candidate) =>
+        providerModels[candidate].installed &&
+        isProviderEnabled(candidate, settings),
     );
     if (providers.length === 0) {
       return;
