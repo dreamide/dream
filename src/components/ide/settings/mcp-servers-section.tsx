@@ -15,24 +15,14 @@ import {
 import { createMcpServer, type McpServerInput } from "@/lib/mcp-servers";
 import type { McpServerConfig } from "@/types/ide";
 import { useIdeStore } from "../ide-store";
-import { McpImportPanel } from "./mcp-import-panel";
-import { McpServerForm, type McpServerFormTarget } from "./mcp-server-form";
+import { McpImportDialog } from "./mcp-import-panel";
+import { McpServerDialog, type McpServerFormTarget } from "./mcp-server-form";
 
-export type McpView =
-  | { kind: "list" }
+type McpDialog =
   | { kind: "form"; target: McpServerFormTarget }
   | { kind: "import" };
 
-export const MCP_LIST_VIEW: McpView = { kind: "list" };
-const LIST_VIEW = MCP_LIST_VIEW;
-
-export const McpServersSection = ({
-  setView,
-  view,
-}: {
-  setView: (view: McpView) => void;
-  view: McpView;
-}) => {
+export const McpServersSection = () => {
   const settingsT = useTranslations("settings");
   const commonT = useTranslations("common");
   const servers = useIdeStore((s) => s.settings.mcpServers);
@@ -43,6 +33,8 @@ export const McpServersSection = ({
       null,
   );
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<McpDialog | null>(null);
+  const closeDialog = () => setDialog(null);
 
   const existingNames = servers.map((server) => server.name);
 
@@ -64,7 +56,7 @@ export const McpServersSection = ({
     } else {
       updateServers((current) => [...current, createMcpServer(input)]);
     }
-    setView(LIST_VIEW);
+    closeDialog();
   };
 
   const handleImport = (inputs: McpServerInput[]) => {
@@ -75,7 +67,7 @@ export const McpServersSection = ({
         .map((input) => createMcpServer(input));
       return [...current, ...added];
     });
-    setView(LIST_VIEW);
+    closeDialog();
   };
 
   const handleDelete = (server: McpServerConfig) => {
@@ -89,33 +81,6 @@ export const McpServersSection = ({
     setPendingDeleteId(null);
   };
 
-  if (view.kind === "form") {
-    return (
-      <div className="rounded-lg p-3">
-        <McpServerForm
-          existingNames={existingNames}
-          key={view.target === "new" ? "new" : view.target.id}
-          onCancel={() => setView(LIST_VIEW)}
-          onSubmit={(input) => handleSubmit(view.target, input)}
-          target={view.target}
-        />
-      </div>
-    );
-  }
-
-  if (view.kind === "import") {
-    return (
-      <div className="rounded-lg p-3">
-        <McpImportPanel
-          existingNames={existingNames}
-          onCancel={() => setView(LIST_VIEW)}
-          onImport={handleImport}
-          projectPath={activeProjectPath}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -127,7 +92,7 @@ export const McpServersSection = ({
         </div>
         <div className="flex items-center gap-2">
           <Button
-            onClick={() => setView({ kind: "import" })}
+            onClick={() => setDialog({ kind: "import" })}
             size="sm"
             type="button"
             variant="outline"
@@ -136,7 +101,7 @@ export const McpServersSection = ({
             {settingsT("mcpImport")}
           </Button>
           <Button
-            onClick={() => setView({ kind: "form", target: "new" })}
+            onClick={() => setDialog({ kind: "form", target: "new" })}
             size="sm"
             type="button"
           >
@@ -196,7 +161,7 @@ export const McpServersSection = ({
                         aria-label={commonT("edit")}
                         className="text-muted-foreground hover:text-foreground"
                         onClick={() =>
-                          setView({ kind: "form", target: server })
+                          setDialog({ kind: "form", target: server })
                         }
                         size="icon-sm"
                         type="button"
@@ -239,6 +204,24 @@ export const McpServersSection = ({
           </Table>
         </div>
       )}
+
+      {dialog?.kind === "form" ? (
+        <McpServerDialog
+          existingNames={existingNames}
+          key={dialog.target === "new" ? "new" : dialog.target.id}
+          onCancel={closeDialog}
+          onSubmit={(input) => handleSubmit(dialog.target, input)}
+          target={dialog.target}
+        />
+      ) : null}
+      {dialog?.kind === "import" ? (
+        <McpImportDialog
+          existingNames={existingNames}
+          onCancel={closeDialog}
+          onImport={handleImport}
+          projectPath={activeProjectPath}
+        />
+      ) : null}
     </div>
   );
 };

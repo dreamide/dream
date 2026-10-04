@@ -158,6 +158,15 @@
     "disableMultiChat": "멀티 채팅 비활성화",
     "enableMultiChat": "멀티 채팅 활성화",
     "newChat": "새 채팅",
+    "searchChats": "채팅 검색",
+    "searchChatsPlaceholder": "모든 채팅 검색...",
+    "searchChatsHint": "모든 프로젝트의 채팅 제목과 메시지를 검색합니다.",
+    "searchChatsEmpty": "일치하는 채팅이 없습니다.",
+    "searchChatsTruncated": "가장 최근 결과를 표시합니다. 이전 결과를 보려면 검색어를 구체화하세요.",
+    "searchChatsFailed": "일부 호스트를 검색할 수 없습니다.",
+    "notificationFinished": "{project}에서 완료됨",
+    "notificationFailed": "{project}에서 실패함",
+    "notificationWaiting": "{project}에서 입력이 필요함",
     "workspaceCode": "코드",
     "workspaceCodeDescription": "프로젝트에서 에이전트와 채팅하고 코드를 편집",
     "workspaces": "워크스페이스"
@@ -344,7 +353,6 @@
     "showReasoningSummariesDescription": "모델 추론 요약을 표시합니다",
     "speed": "속도",
     "terminalDescription": "터미널 세션에 사용할 shell을 설정합니다.",
-    "mcpBack": "뒤로",
     "mcpServers": "MCP 서버",
     "mcpServersDescription": "Claude Code, Codex, OpenCode, Grok에서 사용할 수 있는 Model Context Protocol 서버입니다. Cursor는 지원되지 않습니다.",
     "mcpAddServer": "서버 추가",
@@ -384,7 +392,11 @@
     "mcpEnabled": "사용",
     "mcpDeleteConfirm": "삭제 확인",
     "changeCheckpoints": "변경 체크포인트",
-    "changeCheckpointsDescription": "각 답변 전에 프로젝트 파일을 스냅샷하여 변경 사항을 확인하고 복원할 수 있습니다"
+    "changeCheckpointsDescription": "각 답변 전에 프로젝트 파일을 스냅샷하여 변경 사항을 확인하고 복원할 수 있습니다",
+    "chatNotifications": "데스크톱 알림",
+    "chatNotificationsDescription": "앱이 백그라운드에 있을 때 채팅이 완료되거나 실패하거나 입력이 필요하면 알립니다",
+    "chatNotificationSound": "알림음",
+    "chatNotificationSoundDescription": "채팅이 완료되거나 실패하거나 입력이 필요할 때 소리를 재생합니다"
   },
   "models": {
     "fast": "빠름",
@@ -958,6 +970,7 @@
     "localMachine": "로컬",
     "runsHere": "이 컴퓨터에서 실행",
     "runsOn": "{host}({target})에서 실행",
-    "edit": "편집"
+    "edit": "편집",
+    "editHost": "SSH 호스트 편집"
   }
 }

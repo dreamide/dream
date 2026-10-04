@@ -158,6 +158,15 @@
     "disableMultiChat": "Disattiva multichat",
     "enableMultiChat": "Attiva multichat",
     "newChat": "Nuova chat",
+    "searchChats": "Cerca nelle chat",
+    "searchChatsPlaceholder": "Cerca in tutte le chat...",
+    "searchChatsHint": "Cerca nei titoli e nei messaggi delle chat di tutti i progetti.",
+    "searchChatsEmpty": "Nessuna chat corrisponde.",
+    "searchChatsTruncated": "Sono mostrate le corrispondenze più recenti. Affina la ricerca per vedere le precedenti.",
+    "searchChatsFailed": "Non è stato possibile cercare in alcuni host.",
+    "notificationFinished": "Completato in {project}",
+    "notificationFailed": "Non riuscito in {project}",
+    "notificationWaiting": "Serve una tua risposta in {project}",
     "workspaceCode": "Codice",
     "workspaceCodeDescription": "Chatta con gli agenti e modifica il codice nei tuoi progetti",
     "workspaces": "Aree di lavoro"
@@ -344,7 +353,6 @@
     "showReasoningSummariesDescription": "Mostra riepiloghi di ragionamento del modello",
     "speed": "Velocità",
     "terminalDescription": "Imposta la shell usata per le sessioni del terminale.",
-    "mcpBack": "Indietro",
     "mcpServers": "Server MCP",
     "mcpServersDescription": "Server Model Context Protocol disponibili per Claude Code, Codex, OpenCode e Grok. Cursor non è supportato.",
     "mcpAddServer": "Aggiungi server",
@@ -384,7 +392,11 @@
     "mcpEnabled": "Attivo",
     "mcpDeleteConfirm": "Conferma eliminazione",
     "changeCheckpoints": "Checkpoint delle modifiche",
-    "changeCheckpointsDescription": "Acquisisci i file del progetto prima di ogni risposta per esaminare e ripristinare le modifiche"
+    "changeCheckpointsDescription": "Acquisisci i file del progetto prima di ogni risposta per esaminare e ripristinare le modifiche",
+    "chatNotifications": "Notifiche desktop",
+    "chatNotificationsDescription": "Avvisa quando una chat termina, non riesce o richiede una tua risposta mentre l'app è in background",
+    "chatNotificationSound": "Suono di notifica",
+    "chatNotificationSoundDescription": "Riproduci un suono quando una chat termina, non riesce o richiede una tua risposta"
   },
   "models": {
     "fast": "Veloce",
@@ -958,6 +970,7 @@
     "localMachine": "Locale",
     "runsHere": "Viene eseguito su questo computer",
     "runsOn": "Viene eseguito su {host} ({target})",
-    "edit": "Modifica"
+    "edit": "Modifica",
+    "editHost": "Modifica host SSH"
   }
 }

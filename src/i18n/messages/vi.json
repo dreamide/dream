@@ -158,6 +158,15 @@
     "disableMultiChat": "Tắt đa chat",
     "enableMultiChat": "Bật đa chat",
     "newChat": "Chat mới",
+    "searchChats": "Tìm kiếm cuộc trò chuyện",
+    "searchChatsPlaceholder": "Tìm trong tất cả cuộc trò chuyện...",
+    "searchChatsHint": "Tìm tiêu đề và tin nhắn của các cuộc trò chuyện trong mọi dự án.",
+    "searchChatsEmpty": "Không có cuộc trò chuyện nào khớp.",
+    "searchChatsTruncated": "Đang hiển thị các kết quả gần đây nhất. Hãy thu hẹp tìm kiếm để xem kết quả cũ hơn.",
+    "searchChatsFailed": "Không thể tìm kiếm trên một số máy chủ.",
+    "notificationFinished": "Đã hoàn tất trong {project}",
+    "notificationFailed": "Đã thất bại trong {project}",
+    "notificationWaiting": "Cần bạn phản hồi trong {project}",
     "workspaceCode": "Mã",
     "workspaceCodeDescription": "Trò chuyện với agent và sửa mã trong dự án của bạn",
     "workspaces": "Không gian làm việc"
@@ -344,7 +353,6 @@
     "showReasoningSummariesDescription": "Hiển thị tóm tắt suy luận của mô hình",
     "speed": "Tốc độ",
     "terminalDescription": "Đặt shell dùng cho phiên terminal.",
-    "mcpBack": "Quay lại",
     "mcpServers": "Máy chủ MCP",
     "mcpServersDescription": "Máy chủ Model Context Protocol dùng cho Claude Code, Codex, OpenCode và Grok. Không hỗ trợ Cursor.",
     "mcpAddServer": "Thêm máy chủ",
@@ -384,7 +392,11 @@
     "mcpEnabled": "Bật",
     "mcpDeleteConfirm": "Xác nhận xóa",
     "changeCheckpoints": "Checkpoint thay đổi",
-    "changeCheckpointsDescription": "Chụp nhanh tệp dự án trước mỗi phản hồi để xem và khôi phục thay đổi"
+    "changeCheckpointsDescription": "Chụp nhanh tệp dự án trước mỗi phản hồi để xem và khôi phục thay đổi",
+    "chatNotifications": "Thông báo trên màn hình",
+    "chatNotificationsDescription": "Thông báo khi một cuộc trò chuyện hoàn tất, thất bại hoặc cần bạn phản hồi trong lúc ứng dụng chạy nền",
+    "chatNotificationSound": "Âm thanh thông báo",
+    "chatNotificationSoundDescription": "Phát âm thanh khi một cuộc trò chuyện hoàn tất, thất bại hoặc cần bạn phản hồi"
   },
   "models": {
     "fast": "Nhanh",
@@ -958,6 +970,7 @@
     "localMachine": "Cục bộ",
     "runsHere": "Chạy trên máy tính này",
     "runsOn": "Chạy trên {host} ({target})",
-    "edit": "Chỉnh sửa"
+    "edit": "Chỉnh sửa",
+    "editHost": "Sửa máy chủ SSH"
   }
 }

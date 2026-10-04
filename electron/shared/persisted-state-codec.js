@@ -79,6 +79,8 @@ export const DEFAULT_SETTINGS = {
   defaultReasoningEffort: null,
   disabledProviders: [],
   changeCheckpoints: true,
+  chatNotifications: true,
+  chatNotificationSound: false,
   expandToolCalls: false,
   groupToolCalls: false,
   cursorSelectedModels: [],
@@ -820,6 +822,14 @@ const normalizeSettings = (value) => {
     changeCheckpoints: asBoolean(
       raw.changeCheckpoints,
       DEFAULT_SETTINGS.changeCheckpoints,
+    ),
+    chatNotifications: asBoolean(
+      raw.chatNotifications,
+      DEFAULT_SETTINGS.chatNotifications,
+    ),
+    chatNotificationSound: asBoolean(
+      raw.chatNotificationSound,
+      DEFAULT_SETTINGS.chatNotificationSound,
     ),
     expandToolCalls:
       typeof raw.expandToolCalls === "boolean"

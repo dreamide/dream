@@ -314,3 +314,111 @@ export function loadChatMessages(database, chatId) {
       return isRecord(payload) ? [payload] : [];
     });
 }
+
+// ── Transcript search ─────────────────────────────────────────────────
+
+const SEARCH_SNIPPET_BEFORE = 48;
+const SEARCH_SNIPPET_AFTER = 160;
+/** Rows read for one search; the newest chats come first. */
+const SEARCH_ROW_LIMIT = 2000;
+
+/** `value` as it appears inside a JSON string, for a LIKE pattern. */
+const likePatternFor = (value) =>
+  `%${JSON.stringify(value)
+    .slice(1, -1)
+    .replace(/[\\%_]/g, "\\$&")}%`;
+
+/** The prose of a message: its text parts, not reasoning or tool traffic. */
+const messageTexts = (message) =>
+  (Array.isArray(message.parts) ? message.parts : []).flatMap((part) =>
+    isRecord(part) && part.type === "text" && typeof part.text === "string"
+      ? [part.text]
+      : [],
+  );
+
+const collapse = (text) => text.replace(/\s+/g, " ");
+
+/** The match with some of the text around it, or null without a match. */
+const snippetOf = (text, needle) => {
+  const index = text.toLowerCase().indexOf(needle);
+  if (index < 0) return null;
+  const start = Math.max(0, index - SEARCH_SNIPPET_BEFORE);
+  const matchEnd = index + needle.length;
+  const end = Math.min(text.length, matchEnd + SEARCH_SNIPPET_AFTER);
+  return {
+    after: `${collapse(text.slice(matchEnd, end)).trimEnd()}${end < text.length ? "…" : ""}`,
+    before: `${start > 0 ? "…" : ""}${collapse(text.slice(start, index)).trimStart()}`,
+    match: text.slice(index, matchEnd),
+  };
+};
+
+/**
+ * The chats whose transcript says `query` (case-insensitively, in a user or
+ * assistant message's text), most recently updated first. Each carries its
+ * latest matching message as a snippet and how many of its messages match.
+ * `truncated` says the search stopped early, so older matches may be missing.
+ * @param {import("node:sqlite").DatabaseSync} database
+ * @param {string} query
+ * @param {{ limit?: number }} [options] `limit`: the most chats to return
+ * @returns {{
+ *   results: {
+ *     chatId: string,
+ *     matchCount: number,
+ *     messageId: string | null,
+ *     role: string,
+ *     snippet: { before: string, match: string, after: string },
+ *   }[],
+ *   truncated: boolean,
+ * }}
+ */
+export function searchChatMessages(database, query, { limit = 50 } = {}) {
+  const needle = typeof query === "string" ? query.trim().toLowerCase() : "";
+  if (!needle) return { results: [], truncated: false };
+
+  // The payload is JSON, so LIKE only narrows the rows (it also matches tool
+  // output and keys); the text parts decide.
+  const rows = database
+    .prepare(
+      `
+        SELECT chat_messages.chat_id AS chat_id, chat_messages.payload AS payload
+        FROM chat_messages
+        INNER JOIN chats ON chats.id = chat_messages.chat_id
+        WHERE chat_messages.payload LIKE ? ESCAPE '\\'
+        ORDER BY chats.updated_at DESC, chats.id, chat_messages.sort_order DESC
+        LIMIT ?
+      `,
+    )
+    .all(likePatternFor(needle), SEARCH_ROW_LIMIT + 1);
+
+  let truncated = rows.length > SEARCH_ROW_LIMIT;
+  /** @type {Map<string, any>} */
+  const byChat = new Map();
+  for (const row of rows.slice(0, SEARCH_ROW_LIMIT)) {
+    const message = parseJson(row.payload, null);
+    if (!isRecord(message)) continue;
+    let snippet = null;
+    for (const text of messageTexts(message)) {
+      snippet = snippetOf(text, needle);
+      if (snippet) break;
+    }
+    if (!snippet) continue;
+
+    const found = byChat.get(row.chat_id);
+    if (found) {
+      found.matchCount += 1;
+      continue;
+    }
+    if (byChat.size >= limit) {
+      truncated = true;
+      break;
+    }
+    byChat.set(row.chat_id, {
+      chatId: row.chat_id,
+      matchCount: 1,
+      messageId: typeof message.id === "string" ? message.id : null,
+      role: typeof message.role === "string" ? message.role : "",
+      snippet,
+    });
+  }
+  return { results: [...byChat.values()], truncated };
+}

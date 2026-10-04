@@ -1,6 +1,13 @@
 import { useTranslations } from "next-intl";
 import { type FormEvent, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -71,26 +78,11 @@ const isValidUrl = (value: string) => {
   }
 };
 
-export const McpSubviewHeader = ({
-  description,
-  title,
-}: {
-  description?: string;
-  title: string;
-}) => (
-  <div className="min-w-0 space-y-1">
-    <h3 className="font-medium text-base">{title}</h3>
-    {description ? (
-      <p className="text-muted-foreground text-sm">{description}</p>
-    ) : null}
-  </div>
-);
-
 /**
- * Inline add/edit form rendered in place of the server list. The parent
- * remounts it (via `key`) whenever the target changes.
+ * Add/edit dialog for one MCP server. Mount it only while open, keyed by the
+ * target, so the form state initialises from `target` without effects.
  */
-export const McpServerForm = ({
+export const McpServerDialog = ({
   existingNames,
   onCancel,
   onSubmit,
@@ -174,152 +166,165 @@ export const McpServerForm = ({
   );
 
   return (
-    <form className="max-w-2xl space-y-4" onSubmit={handleSubmit}>
-      <McpSubviewHeader
-        title={
-          target === "new"
-            ? settingsT("mcpAddServer")
-            : settingsT("mcpEditServer")
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) {
+          onCancel();
         }
-      />
+      }}
+      open
+    >
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl">
+        <form className="space-y-4" onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle className="text-base leading-6">
+              {target === "new"
+                ? settingsT("mcpAddServer")
+                : settingsT("mcpEditServer")}
+            </DialogTitle>
+          </DialogHeader>
 
-      <div className="grid gap-4 sm:grid-cols-[1fr_12rem]">
-        <div className="space-y-2">
-          <Label htmlFor="mcp-server-name">{settingsT("mcpName")}</Label>
-          <Input
-            aria-invalid={nameInvalid || nameDuplicate}
-            autoFocus
-            id="mcp-server-name"
-            onChange={(event) => update("name", event.target.value)}
-            placeholder="github"
-            value={form.name}
-          />
-          {nameInvalid ? (
-            <p className="text-destructive text-xs">
-              {settingsT("mcpNameInvalid")}
-            </p>
-          ) : nameDuplicate ? (
-            <p className="text-destructive text-xs">
-              {settingsT("mcpNameDuplicate")}
-            </p>
-          ) : null}
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="mcp-server-transport">
-            {settingsT("mcpTransport")}
-          </Label>
-          <Select
-            onValueChange={(value) =>
-              update("transport", value as McpServerTransport)
-            }
-            value={form.transport}
-          >
-            <SelectTrigger className="w-full" id="mcp-server-transport">
-              <SelectValue>{transportLabels[form.transport]}</SelectValue>
-            </SelectTrigger>
-            <SelectContent align="end" alignItemWithTrigger={false}>
-              {TRANSPORTS.map((transport) => (
-                <SelectItem key={transport} value={transport}>
-                  {transportLabels[transport]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+          <div className="grid gap-4 sm:grid-cols-[1fr_12rem]">
+            <div className="space-y-2">
+              <Label htmlFor="mcp-server-name">{settingsT("mcpName")}</Label>
+              <Input
+                aria-invalid={nameInvalid || nameDuplicate}
+                autoFocus
+                id="mcp-server-name"
+                onChange={(event) => update("name", event.target.value)}
+                placeholder="github"
+                value={form.name}
+              />
+              {nameInvalid ? (
+                <p className="text-destructive text-xs">
+                  {settingsT("mcpNameInvalid")}
+                </p>
+              ) : nameDuplicate ? (
+                <p className="text-destructive text-xs">
+                  {settingsT("mcpNameDuplicate")}
+                </p>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mcp-server-transport">
+                {settingsT("mcpTransport")}
+              </Label>
+              <Select
+                onValueChange={(value) =>
+                  update("transport", value as McpServerTransport)
+                }
+                value={form.transport}
+              >
+                <SelectTrigger className="w-full" id="mcp-server-transport">
+                  <SelectValue>{transportLabels[form.transport]}</SelectValue>
+                </SelectTrigger>
+                <SelectContent align="end" alignItemWithTrigger={false}>
+                  {TRANSPORTS.map((transport) => (
+                    <SelectItem key={transport} value={transport}>
+                      {transportLabels[transport]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-      {isStdio ? (
-        <>
-          <div className="space-y-2">
-            <Label htmlFor="mcp-server-command">
-              {settingsT("mcpCommand")}
+          {isStdio ? (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="mcp-server-command">
+                  {settingsT("mcpCommand")}
+                </Label>
+                <Input
+                  className="font-mono"
+                  id="mcp-server-command"
+                  onChange={(event) => update("command", event.target.value)}
+                  placeholder="npx"
+                  value={form.command}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mcp-server-args">{settingsT("mcpArgs")}</Label>
+                <Textarea
+                  className="min-h-20 font-mono text-xs"
+                  id="mcp-server-args"
+                  onChange={(event) => update("args", event.target.value)}
+                  placeholder={"-y\n@modelcontextprotocol/server-github"}
+                  value={form.args}
+                />
+                <p className="text-muted-foreground text-xs">
+                  {settingsT("mcpArgsHint")}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mcp-server-env">{settingsT("mcpEnv")}</Label>
+                <Textarea
+                  aria-invalid={envResult.errors.length > 0}
+                  className="min-h-20 font-mono text-xs"
+                  id="mcp-server-env"
+                  onChange={(event) => update("env", event.target.value)}
+                  placeholder="GITHUB_TOKEN=ghp_..."
+                  value={form.env}
+                />
+                {keyValueMessage}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="mcp-server-url">{settingsT("mcpUrl")}</Label>
+                <Input
+                  aria-invalid={form.url.trim().length > 0 && urlInvalid}
+                  className="font-mono"
+                  id="mcp-server-url"
+                  onChange={(event) => update("url", event.target.value)}
+                  placeholder="https://example.com/mcp"
+                  value={form.url}
+                />
+                {form.url.trim().length > 0 && urlInvalid ? (
+                  <p className="text-destructive text-xs">
+                    {settingsT("mcpUrlInvalid")}
+                  </p>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="mcp-server-headers">
+                  {settingsT("mcpHeaders")}
+                </Label>
+                <Textarea
+                  aria-invalid={headersResult.errors.length > 0}
+                  className="min-h-20 font-mono text-xs"
+                  id="mcp-server-headers"
+                  onChange={(event) => update("headers", event.target.value)}
+                  placeholder="Authorization=Bearer ..."
+                  value={form.headers}
+                />
+                {keyValueMessage}
+              </div>
+            </>
+          )}
+
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="mcp-server-enabled">
+              {settingsT("mcpEnabled")}
             </Label>
-            <Input
-              className="font-mono"
-              id="mcp-server-command"
-              onChange={(event) => update("command", event.target.value)}
-              placeholder="npx"
-              value={form.command}
+            <Switch
+              checked={form.enabled}
+              id="mcp-server-enabled"
+              onCheckedChange={(checked) => update("enabled", checked)}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="mcp-server-args">{settingsT("mcpArgs")}</Label>
-            <Textarea
-              className="min-h-20 font-mono text-xs"
-              id="mcp-server-args"
-              onChange={(event) => update("args", event.target.value)}
-              placeholder={"-y\n@modelcontextprotocol/server-github"}
-              value={form.args}
-            />
-            <p className="text-muted-foreground text-xs">
-              {settingsT("mcpArgsHint")}
-            </p>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="mcp-server-env">{settingsT("mcpEnv")}</Label>
-            <Textarea
-              aria-invalid={envResult.errors.length > 0}
-              className="min-h-20 font-mono text-xs"
-              id="mcp-server-env"
-              onChange={(event) => update("env", event.target.value)}
-              placeholder="GITHUB_TOKEN=ghp_..."
-              value={form.env}
-            />
-            {keyValueMessage}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="space-y-2">
-            <Label htmlFor="mcp-server-url">{settingsT("mcpUrl")}</Label>
-            <Input
-              aria-invalid={form.url.trim().length > 0 && urlInvalid}
-              className="font-mono"
-              id="mcp-server-url"
-              onChange={(event) => update("url", event.target.value)}
-              placeholder="https://example.com/mcp"
-              value={form.url}
-            />
-            {form.url.trim().length > 0 && urlInvalid ? (
-              <p className="text-destructive text-xs">
-                {settingsT("mcpUrlInvalid")}
-              </p>
-            ) : null}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="mcp-server-headers">
-              {settingsT("mcpHeaders")}
-            </Label>
-            <Textarea
-              aria-invalid={headersResult.errors.length > 0}
-              className="min-h-20 font-mono text-xs"
-              id="mcp-server-headers"
-              onChange={(event) => update("headers", event.target.value)}
-              placeholder="Authorization=Bearer ..."
-              value={form.headers}
-            />
-            {keyValueMessage}
-          </div>
-        </>
-      )}
 
-      <div className="flex items-center justify-between gap-3">
-        <Label htmlFor="mcp-server-enabled">{settingsT("mcpEnabled")}</Label>
-        <Switch
-          checked={form.enabled}
-          id="mcp-server-enabled"
-          onCheckedChange={(checked) => update("enabled", checked)}
-        />
-      </div>
-
-      <div className="flex justify-end gap-2">
-        <Button onClick={onCancel} type="button" variant="outline">
-          {commonT("cancel")}
-        </Button>
-        <Button disabled={!canSubmit} type="submit">
-          {commonT("save")}
-        </Button>
-      </div>
-    </form>
+          <DialogFooter>
+            <Button onClick={onCancel} type="button" variant="outline">
+              {commonT("cancel")}
+            </Button>
+            <Button disabled={!canSubmit} type="submit">
+              {commonT("save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 };

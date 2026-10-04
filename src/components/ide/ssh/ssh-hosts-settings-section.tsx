@@ -2,6 +2,13 @@ import { Pencil, Plug, PlugZap, Plus, Server, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { HostConnectionState, SshHostConfig } from "@/types/ide";
@@ -36,15 +43,18 @@ type HostFormValues = Pick<SshHostConfig, "label" | "target" | "hostCommand">;
 
 const EMPTY_FORM: HostFormValues = { hostCommand: "", label: "", target: "" };
 
-/** How to reach a host: adding one, or editing one in place. */
-const SshHostForm = ({
-  idPrefix,
+/**
+ * How to reach a host: adding one, or editing an existing one. Mount it only
+ * while open, keyed by the host, so the form initialises from `initial`.
+ */
+const SshHostDialog = ({
   initial,
+  isNew,
   onCancel,
   onSave,
 }: {
-  idPrefix: string;
   initial: HostFormValues;
+  isNew: boolean;
   onCancel: () => void;
   onSave: (values: HostFormValues) => void;
 }) => {
@@ -54,59 +64,75 @@ const SshHostForm = ({
   const [hostCommand, setHostCommand] = useState(initial.hostCommand);
 
   return (
-    <form
-      className="grid gap-3 px-4 py-3"
-      onSubmit={(event) => {
-        event.preventDefault();
-        const trimmedTarget = target.trim();
-        if (!trimmedTarget) return;
-        onSave({
-          hostCommand: hostCommand.trim(),
-          label: label.trim() || trimmedTarget,
-          target: trimmedTarget,
-        });
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) {
+          onCancel();
+        }
       }}
+      open
     >
-      <div className="grid gap-1.5">
-        <Label htmlFor={`${idPrefix}-target`}>{t("target")}</Label>
-        <Input
-          autoFocus
-          id={`${idPrefix}-target`}
-          onChange={(event) => setTarget(event.target.value)}
-          placeholder={t("targetPlaceholder")}
-          value={target}
-        />
-      </div>
-      <div className="grid gap-1.5">
-        <Label htmlFor={`${idPrefix}-label`}>{t("name")}</Label>
-        <Input
-          id={`${idPrefix}-label`}
-          onChange={(event) => setLabel(event.target.value)}
-          placeholder={target.trim() || t("targetPlaceholder")}
-          value={label}
-        />
-      </div>
-      <div className="grid gap-1.5">
-        <Label htmlFor={`${idPrefix}-command`}>{t("hostCommand")}</Label>
-        <Input
-          id={`${idPrefix}-command`}
-          onChange={(event) => setHostCommand(event.target.value)}
-          placeholder={t("hostCommandPlaceholder")}
-          value={hostCommand}
-        />
-        <span className="text-muted-foreground text-xs">
-          {t("hostCommandHint")}
-        </span>
-      </div>
-      <div className="flex justify-end gap-2">
-        <Button onClick={onCancel} type="button" variant="ghost">
-          {t("cancel")}
-        </Button>
-        <Button disabled={!target.trim()} type="submit">
-          {t("save")}
-        </Button>
-      </div>
-    </form>
+      <DialogContent className="sm:max-w-lg">
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const trimmedTarget = target.trim();
+            if (!trimmedTarget) return;
+            onSave({
+              hostCommand: hostCommand.trim(),
+              label: label.trim() || trimmedTarget,
+              target: trimmedTarget,
+            });
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-base leading-6">
+              {isNew ? t("add") : t("editHost")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="ssh-host-target">{t("target")}</Label>
+            <Input
+              autoFocus
+              id="ssh-host-target"
+              onChange={(event) => setTarget(event.target.value)}
+              placeholder={t("targetPlaceholder")}
+              value={target}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ssh-host-label">{t("name")}</Label>
+            <Input
+              id="ssh-host-label"
+              onChange={(event) => setLabel(event.target.value)}
+              placeholder={target.trim() || t("targetPlaceholder")}
+              value={label}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ssh-host-command">{t("hostCommand")}</Label>
+            <Input
+              id="ssh-host-command"
+              onChange={(event) => setHostCommand(event.target.value)}
+              placeholder={t("hostCommandPlaceholder")}
+              value={hostCommand}
+            />
+            <p className="text-muted-foreground text-xs">
+              {t("hostCommandHint")}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button onClick={onCancel} type="button" variant="outline">
+              {t("cancel")}
+            </Button>
+            <Button disabled={!target.trim()} type="submit">
+              {t("save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -129,7 +155,10 @@ export const SshHostsSettingsSection = () => {
 
   // "new" while adding, a host's id while editing it, or null.
   const [editing, setEditing] = useState<string | null>(null);
-  const adding = editing === "new";
+  const editingHost =
+    editing && editing !== "new"
+      ? sshHosts.find((host) => host.id === editing)
+      : undefined;
 
   const addHost = (values: HostFormValues) => {
     const host: SshHostConfig = { ...values, id: crypto.randomUUID() };
@@ -149,37 +178,18 @@ export const SshHostsSettingsSection = () => {
             {t("settingsDescription")}
           </p>
         </div>
-        <Button
-          disabled={editing !== null}
-          onClick={() => setEditing("new")}
-          size="sm"
-          type="button"
-        >
+        <Button onClick={() => setEditing("new")} size="sm" type="button">
           <Plus className="size-4" />
           {t("add")}
         </Button>
       </div>
       <SettingsGroup>
-        {sshHosts.length === 0 && !adding ? (
+        {sshHosts.length === 0 ? (
           <div className="px-4 py-3 text-muted-foreground text-sm">
             {t("noHosts")}
           </div>
         ) : null}
         {sshHosts.map((host) => {
-          if (editing === host.id) {
-            return (
-              <SshHostForm
-                idPrefix={`ssh-host-${host.id}`}
-                initial={host}
-                key={host.id}
-                onCancel={() => setEditing(null)}
-                onSave={(values) => {
-                  setEditing(null);
-                  void updateSshHost(host.id, values);
-                }}
-              />
-            );
-          }
           const runtime = hosts[host.id];
           const connected =
             runtime?.state === "connected" || runtime?.state === "reconnecting";
@@ -220,7 +230,6 @@ export const SshHostsSettingsSection = () => {
               )}
               <Button
                 aria-label={t("edit")}
-                disabled={editing !== null}
                 onClick={() => setEditing(host.id)}
                 size="icon-sm"
                 title={t("edit")}
@@ -240,15 +249,27 @@ export const SshHostsSettingsSection = () => {
             </div>
           );
         })}
-        {adding ? (
-          <SshHostForm
-            idPrefix="ssh-host-new"
-            initial={EMPTY_FORM}
-            onCancel={() => setEditing(null)}
-            onSave={addHost}
-          />
-        ) : null}
       </SettingsGroup>
+      {editing === "new" ? (
+        <SshHostDialog
+          initial={EMPTY_FORM}
+          isNew
+          key="new"
+          onCancel={() => setEditing(null)}
+          onSave={addHost}
+        />
+      ) : editingHost ? (
+        <SshHostDialog
+          initial={editingHost}
+          isNew={false}
+          key={editingHost.id}
+          onCancel={() => setEditing(null)}
+          onSave={(values) => {
+            setEditing(null);
+            void updateSshHost(editingHost.id, values);
+          }}
+        />
+      ) : null}
     </div>
   );
 };

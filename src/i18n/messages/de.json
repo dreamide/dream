@@ -158,6 +158,15 @@
     "disableMultiChat": "Multi-Chat deaktivieren",
     "enableMultiChat": "Multi-Chat aktivieren",
     "newChat": "Neuer Chat",
+    "searchChats": "Chats durchsuchen",
+    "searchChatsPlaceholder": "Alle Chats durchsuchen...",
+    "searchChatsHint": "Durchsuche Chat-Titel und Nachrichten in allen Projekten.",
+    "searchChatsEmpty": "Keine passenden Chats.",
+    "searchChatsTruncated": "Die neuesten Treffer werden angezeigt. Verfeinere die Suche, um ältere zu sehen.",
+    "searchChatsFailed": "Einige Hosts konnten nicht durchsucht werden.",
+    "notificationFinished": "Abgeschlossen in {project}",
+    "notificationFailed": "Fehlgeschlagen in {project}",
+    "notificationWaiting": "Benötigt deine Eingabe in {project}",
     "workspaceCode": "Code",
     "workspaceCodeDescription": "Mit Agenten in deinen Projekten chatten und Code bearbeiten",
     "workspaces": "Arbeitsbereiche"
@@ -344,7 +353,6 @@
     "showReasoningSummariesDescription": "Reasoning-Zusammenfassungen des Modells anzeigen",
     "speed": "Geschwindigkeit",
     "terminalDescription": "Legt die Shell für Terminalsitzungen fest.",
-    "mcpBack": "Zurück",
     "mcpServers": "MCP-Server",
     "mcpServersDescription": "Model-Context-Protocol-Server für Claude Code, Codex, OpenCode und Grok. Cursor wird nicht unterstützt.",
     "mcpAddServer": "Server hinzufügen",
@@ -384,7 +392,11 @@
     "mcpEnabled": "Aktiviert",
     "mcpDeleteConfirm": "Löschen bestätigen",
     "changeCheckpoints": "Änderungs-Checkpoints",
-    "changeCheckpointsDescription": "Projektdateien vor jeder Antwort sichern, um Änderungen zu prüfen und wiederherzustellen"
+    "changeCheckpointsDescription": "Projektdateien vor jeder Antwort sichern, um Änderungen zu prüfen und wiederherzustellen",
+    "chatNotifications": "Desktop-Benachrichtigungen",
+    "chatNotificationsDescription": "Benachrichtigen, wenn ein Chat fertig ist, fehlschlägt oder deine Eingabe benötigt, während die App im Hintergrund ist",
+    "chatNotificationSound": "Benachrichtigungston",
+    "chatNotificationSoundDescription": "Einen Ton abspielen, wenn ein Chat fertig ist, fehlschlägt oder deine Eingabe benötigt"
   },
   "models": {
     "fast": "Schnell",
@@ -958,6 +970,7 @@
     "localMachine": "Lokal",
     "runsHere": "Läuft auf diesem Computer",
     "runsOn": "Läuft auf {host} ({target})",
-    "edit": "Bearbeiten"
+    "edit": "Bearbeiten",
+    "editHost": "SSH-Host bearbeiten"
   }
 }

@@ -12,6 +12,7 @@ import {
   loadPersistedCatalog,
   loadPersistedChat,
   loadPersistedChatMessages,
+  searchPersistedChatMessages,
 } from "../persisted-state.js";
 import {
   chatFromRow,
@@ -103,6 +104,13 @@ export function createHostCatalog({
 
     /** @param {string} chatId */
     getTranscript: (chatId) => loadPersistedChatMessages(chatId),
+
+    /**
+     * The chats whose transcript says `query`, newest first.
+     * @param {string} query
+     * @param {{ limit?: number }} [options]
+     */
+    search: (query, options) => searchPersistedChatMessages(query, options),
 
     /**
      * Replaces a chat's transcript; false when the chat does not exist.

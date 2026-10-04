@@ -16,8 +16,10 @@ import {
 import { terminalClient } from "@/lib/terminal-client";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
+import { startActivityNotifications } from "./activity-notifications";
 import { AppScreenshotToast } from "./app-screenshot-toast";
 import { ChatRuntimeHost } from "./chat/chat-runtime-host";
+import { ChatSearchDialog } from "./chat-search-dialog";
 import { EmptyProjectWorkspace } from "./empty-project-workspace";
 import { IdeHeader } from "./ide-header";
 import { areProjectListsEqualExceptLastUsedAt } from "./ide-state";
@@ -98,6 +100,24 @@ export const IdeShell = () => {
 
   // Agent browser tools (main process) ask the renderer to open/show tabs.
   useBrowserAgentCommands();
+
+  // Desktop notifications for chats that finish, fail or wait in the
+  // background.
+  const workspaceT = useTranslations("workspace");
+  useEffect(
+    () =>
+      startActivityNotifications((kind, values) =>
+        workspaceT(
+          kind === "finished"
+            ? "notificationFinished"
+            : kind === "failed"
+              ? "notificationFailed"
+              : "notificationWaiting",
+          values,
+        ),
+      ),
+    [workspaceT],
+  );
 
   // Detect macOS and Electron
   useEffect(() => {
@@ -669,6 +689,7 @@ export const IdeShell = () => {
 
       <PersistenceBlockedBanner />
       <AppScreenshotToast />
+      {stateHydrated ? <ChatSearchDialog /> : null}
       <SshPromptDialog />
       <Toaster />
     </div>

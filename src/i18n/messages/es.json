@@ -158,6 +158,15 @@
     "disableMultiChat": "Desactivar multichat",
     "enableMultiChat": "Activar multichat",
     "newChat": "Nuevo chat",
+    "searchChats": "Buscar chats",
+    "searchChatsPlaceholder": "Buscar en todos los chats...",
+    "searchChatsHint": "Busca títulos y mensajes de chats en todos los proyectos.",
+    "searchChatsEmpty": "Ningún chat coincide.",
+    "searchChatsTruncated": "Se muestran las coincidencias más recientes. Afina la búsqueda para ver las anteriores.",
+    "searchChatsFailed": "No se pudo buscar en algunos hosts.",
+    "notificationFinished": "Terminado en {project}",
+    "notificationFailed": "Falló en {project}",
+    "notificationWaiting": "Necesita tu respuesta en {project}",
     "workspaceCode": "Código",
     "workspaceCodeDescription": "Chatea con agentes y edita código en tus proyectos",
     "workspaces": "Espacios de trabajo"
@@ -344,7 +353,6 @@
     "showReasoningSummariesDescription": "Muestra resúmenes de razonamiento del modelo",
     "speed": "Velocidad",
     "terminalDescription": "Define el shell usado para las sesiones de terminal.",
-    "mcpBack": "Atrás",
     "mcpServers": "Servidores MCP",
     "mcpServersDescription": "Servidores Model Context Protocol disponibles para Claude Code, Codex, OpenCode y Grok. Cursor no es compatible.",
     "mcpAddServer": "Añadir servidor",
@@ -384,7 +392,11 @@
     "mcpEnabled": "Activado",
     "mcpDeleteConfirm": "Confirmar eliminación",
     "changeCheckpoints": "Checkpoints de cambios",
-    "changeCheckpointsDescription": "Captura los archivos del proyecto antes de cada respuesta para revisar y restaurar cambios"
+    "changeCheckpointsDescription": "Captura los archivos del proyecto antes de cada respuesta para revisar y restaurar cambios",
+    "chatNotifications": "Notificaciones de escritorio",
+    "chatNotificationsDescription": "Avisar cuando un chat termine, falle o necesite tu respuesta mientras la aplicación está en segundo plano",
+    "chatNotificationSound": "Sonido de notificación",
+    "chatNotificationSoundDescription": "Reproducir un sonido cuando un chat termine, falle o necesite tu respuesta"
   },
   "models": {
     "fast": "Rápido",
@@ -958,6 +970,7 @@
     "localMachine": "Local",
     "runsHere": "Se ejecuta en este equipo",
     "runsOn": "Se ejecuta en {host} ({target})",
-    "edit": "Editar"
+    "edit": "Editar",
+    "editHost": "Editar host SSH"
   }
 }

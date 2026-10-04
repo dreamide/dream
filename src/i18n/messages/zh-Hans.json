@@ -158,6 +158,15 @@
     "disableMultiChat": "停用多聊天",
     "enableMultiChat": "启用多聊天",
     "newChat": "新建聊天",
+    "searchChats": "搜索聊天",
+    "searchChatsPlaceholder": "搜索所有聊天...",
+    "searchChatsHint": "搜索所有项目中的聊天标题和消息。",
+    "searchChatsEmpty": "没有匹配的聊天。",
+    "searchChatsTruncated": "显示的是最近的匹配结果。请细化搜索以查看更早的结果。",
+    "searchChatsFailed": "部分主机无法搜索。",
+    "notificationFinished": "已在 {project} 中完成",
+    "notificationFailed": "在 {project} 中失败",
+    "notificationWaiting": "{project} 中需要你的输入",
     "workspaceCode": "代码",
     "workspaceCodeDescription": "在项目中与智能体聊天并编辑代码",
     "workspaces": "工作区"
@@ -344,7 +353,6 @@
     "showReasoningSummariesDescription": "显示模型推理摘要",
     "speed": "速度",
     "terminalDescription": "设置终端会话使用的 shell。",
-    "mcpBack": "返回",
     "mcpServers": "MCP 服务器",
     "mcpServersDescription": "可供 Claude Code、Codex、OpenCode 和 Grok 使用的 Model Context Protocol 服务器。不支持 Cursor。",
     "mcpAddServer": "添加服务器",
@@ -384,7 +392,11 @@
     "mcpEnabled": "已启用",
     "mcpDeleteConfirm": "确认删除",
     "changeCheckpoints": "更改检查点",
-    "changeCheckpointsDescription": "在每次回复前为项目文件创建快照，以便查看和恢复更改"
+    "changeCheckpointsDescription": "在每次回复前为项目文件创建快照，以便查看和恢复更改",
+    "chatNotifications": "桌面通知",
+    "chatNotificationsDescription": "当应用处于后台时，在聊天完成、失败或需要你的输入时发出通知",
+    "chatNotificationSound": "通知提示音",
+    "chatNotificationSoundDescription": "在聊天完成、失败或需要你的输入时播放提示音"
   },
   "models": {
     "fast": "快速",
@@ -958,6 +970,7 @@
     "localMachine": "本地",
     "runsHere": "在此计算机上运行",
     "runsOn": "在 {host}（{target}）上运行",
-    "edit": "编辑"
+    "edit": "编辑",
+    "editHost": "编辑 SSH 主机"
   }
 }

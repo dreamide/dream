@@ -11,6 +11,7 @@ import {
   clipboard,
   dialog,
   ipcMain,
+  Notification,
   nativeTheme,
   shell,
   WebContentsView,
@@ -863,6 +864,46 @@ ipcMain.handle("window:maximize", () => {
 });
 ipcMain.handle("window:close", () => {
   mainWindow?.close();
+});
+
+// Desktop notifications for chat activity. Shown ones are held until they
+// close: a collected notification never delivers its click.
+const shownNotifications = new Set();
+ipcMain.handle("notifications:show", (_event, payload = {}) => {
+  const { body, chatId, silent, title } = payload;
+  if (
+    typeof title !== "string" ||
+    !title.trim() ||
+    !Notification.isSupported()
+  ) {
+    return false;
+  }
+
+  const notification = new Notification({
+    body: typeof body === "string" ? body.slice(0, 500) : "",
+    silent: silent === true,
+    title: title.slice(0, 200),
+  });
+  const release = () => shownNotifications.delete(notification);
+  notification.on("click", () => {
+    release();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
+    if (typeof chatId === "string" && chatId) {
+      sendToRenderer("notifications:clicked", { chatId });
+    }
+  });
+  notification.on("close", release);
+  notification.on("failed", release);
+  shownNotifications.add(notification);
+  notification.show();
+  return true;
 });
 
 ipcMain.handle("shell:open-external", (_event, { url }) => {

@@ -158,6 +158,15 @@
     "disableMultiChat": "Disable multi-chat",
     "enableMultiChat": "Enable multi-chat",
     "newChat": "New chat",
+    "searchChats": "Search chats",
+    "searchChatsPlaceholder": "Search all chats...",
+    "searchChatsHint": "Search chat titles and messages across every project.",
+    "searchChatsEmpty": "No chats match.",
+    "searchChatsTruncated": "Showing the most recent matches. Refine your search to see older ones.",
+    "searchChatsFailed": "Some hosts couldn't be searched.",
+    "notificationFinished": "Finished in {project}",
+    "notificationFailed": "Failed in {project}",
+    "notificationWaiting": "Needs your input in {project}",
     "workspaceCode": "Code",
     "workspaceCodeDescription": "Chat with agents and edit code in your projects",
     "workspaces": "Workspaces"
@@ -344,7 +353,6 @@
     "showReasoningSummariesDescription": "Display model reasoning summaries",
     "speed": "Speed",
     "terminalDescription": "Sets the shell used for terminal sessions.",
-    "mcpBack": "Back",
     "mcpServers": "MCP servers",
     "mcpServersDescription": "Model Context Protocol servers available to Claude Code, Codex, OpenCode and Grok. Cursor is not supported.",
     "mcpAddServer": "Add server",
@@ -384,7 +392,11 @@
     "mcpEnabled": "Enabled",
     "mcpDeleteConfirm": "Confirm delete",
     "changeCheckpoints": "Change checkpoints",
-    "changeCheckpointsDescription": "Snapshot project files before each reply so you can inspect and restore changes"
+    "changeCheckpointsDescription": "Snapshot project files before each reply so you can inspect and restore changes",
+    "chatNotifications": "Desktop notifications",
+    "chatNotificationsDescription": "Notify when a chat finishes, fails or needs your input while the app is in the background",
+    "chatNotificationSound": "Notification sound",
+    "chatNotificationSoundDescription": "Play a sound when a chat finishes, fails or needs your input"
   },
   "models": {
     "fast": "Fast",
@@ -958,6 +970,7 @@
     "localMachine": "Local",
     "runsHere": "Runs on this computer",
     "runsOn": "Runs on {host} ({target})",
-    "edit": "Edit"
+    "edit": "Edit",
+    "editHost": "Edit SSH host"
   }
 }

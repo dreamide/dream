@@ -220,6 +220,16 @@ export interface AppSettings {
    */
   disabledProviders: AiProvider[];
   changeCheckpoints: boolean;
+  /**
+   * Desktop notifications when a chat finishes, fails or needs an answer
+   * while the window is in the background.
+   */
+  chatNotifications: boolean;
+  /**
+   * A sound when a chat finishes, fails or needs an answer, whether or not
+   * the window is focused.
+   */
+  chatNotificationSound: boolean;
   expandToolCalls: boolean;
   groupToolCalls: boolean;
   openAiSelectedModels: string[];
@@ -846,6 +856,19 @@ export interface DesktopApi {
   captureAppScreenshot: () => Promise<AppScreenshotResult>;
   showScreenshotInFolder: (path: string) => Promise<boolean>;
   onAppScreenshotRequested: (listener: () => void) => () => void;
+
+  /** A desktop notification; clicking it focuses the window. */
+  showNotification: (payload: {
+    body: string;
+    /** Sent back with the click, to open that chat. */
+    chatId: string;
+    /** Without the system's sound. */
+    silent?: boolean;
+    title: string;
+  }) => Promise<boolean>;
+  onNotificationClicked: (
+    listener: (event: { chatId: string }) => void,
+  ) => () => void;
 
   windowMinimize: () => Promise<void>;
   windowMaximize: () => Promise<void>;

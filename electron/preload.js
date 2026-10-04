@@ -145,6 +145,11 @@ contextBridge.exposeInMainWorld("dream", {
   onAppScreenshotRequested: (listener) =>
     subscribe("app:screenshot-requested", listener),
 
+  showNotification: (payload) =>
+    ipcRenderer.invoke("notifications:show", payload),
+  onNotificationClicked: (listener) =>
+    subscribe("notifications:clicked", listener),
+
   windowMinimize: () => ipcRenderer.invoke("window:minimize"),
   windowMaximize: () => ipcRenderer.invoke("window:maximize"),
   windowClose: () => ipcRenderer.invoke("window:close"),

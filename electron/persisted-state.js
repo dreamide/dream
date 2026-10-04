@@ -23,6 +23,7 @@ import {
   loadChat,
   loadChatMessages,
   saveChatMessages,
+  searchChatMessages,
 } from "./host/catalog-store.js";
 import { requireHostDataDirectory } from "./host/host-paths.js";
 import {
@@ -746,6 +747,14 @@ export function loadPersistedState({ databasePath } = {}) {
 
 export function loadPersistedChatMessages(chatId, { databasePath } = {}) {
   return loadChatMessages(getStateDatabase(databasePath), chatId);
+}
+
+/** The chats whose transcript says `query`; see host/catalog-store.js. */
+export function searchPersistedChatMessages(
+  query,
+  { databasePath, limit } = {},
+) {
+  return searchChatMessages(getStateDatabase(databasePath), query, { limit });
 }
 
 export function ensurePersistedInstallId({ databasePath } = {}) {

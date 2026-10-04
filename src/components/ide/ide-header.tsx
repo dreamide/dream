@@ -1,7 +1,8 @@
-import { Settings } from "lucide-react";
+import { Search, Settings } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useChatSearchStore } from "./chat-search";
 import { HistoryNavButtons } from "./header/history-nav-buttons";
 import { ProjectTabs } from "./header/project-tabs";
 import { HeaderUpdateButton } from "./header/update-button";
@@ -11,6 +12,8 @@ import { useIdeStore } from "./ide-store";
 
 export const IdeHeader = () => {
   const t = useTranslations("common");
+  const workspaceT = useTranslations("workspace");
+  const openChatSearch = useChatSearchStore((s) => s.setOpen);
   const appReady = useIdeStore((s) => s.appReady);
   const isMacOs = useIdeStore((s) => s.isMacOs);
   const isElectron = useIdeStore((s) => s.isElectron);
@@ -42,6 +45,17 @@ export const IdeHeader = () => {
         <ProjectTabs />
 
         <HeaderUpdateButton />
+
+        <Button
+          aria-label={workspaceT("searchChats")}
+          className="size-8 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
+          onClick={() => openChatSearch(true)}
+          size="icon"
+          title={workspaceT("searchChats")}
+          variant="ghost"
+        >
+          <Search className="size-4" />
+        </Button>
 
         <Button
           aria-label={t("settings")}

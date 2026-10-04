@@ -3,13 +3,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { apiClient, type McpImportCandidate } from "@/lib/api-client";
 import {
   describeMcpServerTarget,
   type McpServerInput,
 } from "@/lib/mcp-servers";
-import { McpSubviewHeader } from "./mcp-server-form";
 
 const describeCandidate = (candidate: McpImportCandidate) =>
   describeMcpServerTarget({
@@ -20,9 +27,10 @@ const describeCandidate = (candidate: McpImportCandidate) =>
   });
 
 /**
- * Inline import view rendered in place of the server list.
+ * Dialog that imports MCP servers already configured for other tools. Mount it
+ * only while open; it fetches candidates on mount.
  */
-export const McpImportPanel = ({
+export const McpImportDialog = ({
   existingNames,
   onCancel,
   onImport,
@@ -112,117 +120,130 @@ export const McpImportPanel = ({
   };
 
   return (
-    <div className="min-w-0 max-w-2xl space-y-4 overflow-hidden">
-      <McpSubviewHeader
-        description={settingsT("mcpImportDescription")}
-        title={settingsT("mcpImportTitle")}
-      />
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) {
+          onCancel();
+        }
+      }}
+      open
+    >
+      <DialogContent className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-4 overflow-hidden sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-base leading-6">
+            {settingsT("mcpImportTitle")}
+          </DialogTitle>
+          <DialogDescription>
+            {settingsT("mcpImportDescription")}
+          </DialogDescription>
+        </DialogHeader>
 
-      {loading ? (
-        <div className="flex min-h-40 items-center justify-center">
-          <Spinner />
-        </div>
-      ) : error ? (
-        <p className="text-destructive text-sm">{error}</p>
-      ) : candidates.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
-          {settingsT("mcpImportEmpty")}
-        </p>
-      ) : (
-        <div className="min-w-0 space-y-2 overflow-hidden">
-          <label
-            className="flex items-center gap-2 text-sm"
-            htmlFor="mcp-import-select-all"
-          >
-            <Checkbox
-              checked={allSelected}
-              id="mcp-import-select-all"
-              indeterminate={selected.size > 0 && !allSelected}
-              onCheckedChange={(checked) =>
-                setSelected(
-                  checked
-                    ? new Set(candidates.map((candidate) => candidate.name))
-                    : new Set(),
-                )
-              }
-            />
-            {settingsT("mcpSelectAll")}
-          </label>
-          <div className="min-w-0 space-y-1 overflow-hidden rounded-md border p-1">
-            {candidates.map((candidate) => {
-              const exists = existingNames.includes(candidate.name);
-              const checkboxId = `mcp-import-${candidate.name}`;
-              const target = describeCandidate(candidate);
-              return (
-                <label
-                  className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-muted"
-                  htmlFor={checkboxId}
-                  key={candidate.name}
-                >
-                  <Checkbox
-                    checked={selected.has(candidate.name)}
-                    className="mt-0.5"
-                    id={checkboxId}
-                    onCheckedChange={(checked) =>
-                      toggle(candidate.name, checked)
-                    }
-                  />
-                  <div className="min-w-0 flex-1 space-y-1 overflow-hidden">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium font-mono text-sm">
-                        {candidate.name}
-                      </span>
-                      <Badge variant="outline">{candidate.transport}</Badge>
-                      {exists ? (
-                        <Badge variant="secondary">
-                          {settingsT("mcpAlreadyExists")}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    <p
-                      className="truncate font-mono text-muted-foreground text-xs"
-                      title={target}
-                    >
-                      {target}
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {candidate.sources.map((source) => (
-                        <Badge
-                          key={`${source.kind}:${source.path}`}
-                          title={source.path}
-                          variant="ghost"
-                        >
-                          {settingsT(`mcpImportSource.${source.kind}`)}
-                        </Badge>
+        {loading ? (
+          <div className="flex min-h-40 items-center justify-center">
+            <Spinner />
+          </div>
+        ) : error ? (
+          <p className="text-destructive text-sm">{error}</p>
+        ) : candidates.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            {settingsT("mcpImportEmpty")}
+          </p>
+        ) : (
+          <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden">
+            <label
+              className="flex items-center gap-2 text-sm"
+              htmlFor="mcp-import-select-all"
+            >
+              <Checkbox
+                checked={allSelected}
+                id="mcp-import-select-all"
+                indeterminate={selected.size > 0 && !allSelected}
+                onCheckedChange={(checked) =>
+                  setSelected(
+                    checked
+                      ? new Set(candidates.map((candidate) => candidate.name))
+                      : new Set(),
+                  )
+                }
+              />
+              {settingsT("mcpSelectAll")}
+            </label>
+            <div className="min-h-0 min-w-0 space-y-1 overflow-y-auto rounded-md border p-1">
+              {candidates.map((candidate) => {
+                const exists = existingNames.includes(candidate.name);
+                const checkboxId = `mcp-import-${candidate.name}`;
+                const target = describeCandidate(candidate);
+                return (
+                  <label
+                    className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-muted"
+                    htmlFor={checkboxId}
+                    key={candidate.name}
+                  >
+                    <Checkbox
+                      checked={selected.has(candidate.name)}
+                      className="mt-0.5"
+                      id={checkboxId}
+                      onCheckedChange={(checked) =>
+                        toggle(candidate.name, checked)
+                      }
+                    />
+                    <div className="min-w-0 flex-1 space-y-1 overflow-hidden">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium font-mono text-sm">
+                          {candidate.name}
+                        </span>
+                        <Badge variant="outline">{candidate.transport}</Badge>
+                        {exists ? (
+                          <Badge variant="secondary">
+                            {settingsT("mcpAlreadyExists")}
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <p
+                        className="truncate font-mono text-muted-foreground text-xs"
+                        title={target}
+                      >
+                        {target}
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {candidate.sources.map((source) => (
+                          <Badge
+                            key={`${source.kind}:${source.path}`}
+                            title={source.path}
+                            variant="ghost"
+                          >
+                            {settingsT(`mcpImportSource.${source.kind}`)}
+                          </Badge>
+                        ))}
+                      </div>
+                      {candidate.warnings.map((warning) => (
+                        <p className="text-amber-600 text-xs" key={warning}>
+                          {warning}
+                        </p>
                       ))}
                     </div>
-                    {candidate.warnings.map((warning) => (
-                      <p className="text-amber-600 text-xs" key={warning}>
-                        {warning}
-                      </p>
-                    ))}
-                  </div>
-                </label>
-              );
-            })}
+                  </label>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="flex justify-end gap-2">
-        <Button onClick={onCancel} type="button" variant="outline">
-          {commonT("cancel")}
-        </Button>
-        <Button
-          disabled={loading || selectedCandidates.length === 0}
-          onClick={handleImport}
-          type="button"
-        >
-          {settingsT("mcpImportSelected", {
-            count: selectedCandidates.length,
-          })}
-        </Button>
-      </div>
-    </div>
+        <DialogFooter>
+          <Button onClick={onCancel} type="button" variant="outline">
+            {commonT("cancel")}
+          </Button>
+          <Button
+            disabled={loading || selectedCandidates.length === 0}
+            onClick={handleImport}
+            type="button"
+          >
+            {settingsT("mcpImportSelected", {
+              count: selectedCandidates.length,
+            })}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };

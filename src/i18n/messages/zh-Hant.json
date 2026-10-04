@@ -158,6 +158,15 @@
     "disableMultiChat": "停用多聊天",
     "enableMultiChat": "啟用多聊天",
     "newChat": "新增聊天",
+    "searchChats": "搜尋聊天",
+    "searchChatsPlaceholder": "搜尋所有聊天...",
+    "searchChatsHint": "搜尋所有專案中的聊天標題和訊息。",
+    "searchChatsEmpty": "沒有相符的聊天。",
+    "searchChatsTruncated": "顯示的是最近的相符結果。請縮小搜尋範圍以查看較早的結果。",
+    "searchChatsFailed": "部分主機無法搜尋。",
+    "notificationFinished": "已在 {project} 中完成",
+    "notificationFailed": "在 {project} 中失敗",
+    "notificationWaiting": "{project} 中需要你的輸入",
     "workspaceCode": "程式碼",
     "workspaceCodeDescription": "在專案中與代理聊天並編輯程式碼",
     "workspaces": "工作區"
@@ -344,7 +353,6 @@
     "showReasoningSummariesDescription": "顯示模型推理摘要",
     "speed": "速度",
     "terminalDescription": "設定終端機工作階段使用的 shell。",
-    "mcpBack": "返回",
     "mcpServers": "MCP 伺服器",
     "mcpServersDescription": "可供 Claude Code、Codex、OpenCode 和 Grok 使用的 Model Context Protocol 伺服器。不支援 Cursor。",
     "mcpAddServer": "新增伺服器",
@@ -384,7 +392,11 @@
     "mcpEnabled": "已啟用",
     "mcpDeleteConfirm": "確認刪除",
     "changeCheckpoints": "變更檢查點",
-    "changeCheckpointsDescription": "在每次回覆前為專案檔案建立快照，以便檢視和還原變更"
+    "changeCheckpointsDescription": "在每次回覆前為專案檔案建立快照，以便檢視和還原變更",
+    "chatNotifications": "桌面通知",
+    "chatNotificationsDescription": "當應用程式在背景執行時，於聊天完成、失敗或需要你的輸入時發出通知",
+    "chatNotificationSound": "通知提示音",
+    "chatNotificationSoundDescription": "在聊天完成、失敗或需要你的輸入時播放提示音"
   },
   "models": {
     "fast": "快速",
@@ -958,6 +970,7 @@
     "localMachine": "本機",
     "runsHere": "在這台電腦上執行",
     "runsOn": "在 {host}（{target}）上執行",
-    "edit": "編輯"
+    "edit": "編輯",
+    "editHost": "編輯 SSH 主機"
   }
 }

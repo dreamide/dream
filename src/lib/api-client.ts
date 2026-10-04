@@ -52,6 +52,7 @@ import type { browserToolCallRequestSchema } from "../../electron/api/browser-to
 import type {
   catalogChangesRequestSchema,
   catalogListRequestSchema,
+  catalogSearchRequestSchema,
   catalogTranscriptRequestSchema,
   catalogTranscriptSaveRequestSchema,
 } from "../../electron/api/catalog-routes.js";
@@ -278,6 +279,22 @@ export interface CatalogChangesResponse {
   conflicts: { id: string; existingId: string; path: string }[];
 }
 
+/** One chat whose transcript matched a search, with its latest match. */
+export interface CatalogSearchResult {
+  chatId: string;
+  /** How many of the chat's messages match. */
+  matchCount: number;
+  messageId: string | null;
+  role: string;
+  snippet: { before: string; match: string; after: string };
+}
+
+export interface CatalogSearchResponse {
+  results: CatalogSearchResult[];
+  /** The search stopped early; older matches may be missing. */
+  truncated: boolean;
+}
+
 export interface ToolApprovalResolution {
   handled: boolean;
   provider?: AiProvider;
@@ -489,6 +506,10 @@ export const API_ROUTES = {
     Input<typeof catalogTranscriptRequestSchema>,
     UIMessage[]
   >("/api/catalog/transcript"),
+  catalogSearch: post<
+    Input<typeof catalogSearchRequestSchema>,
+    CatalogSearchResponse
+  >("/api/catalog/search"),
   saveCatalogTranscript: put<
     Input<typeof catalogTranscriptSaveRequestSchema>,
     { saved: boolean }

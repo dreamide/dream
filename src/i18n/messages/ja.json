@@ -158,6 +158,15 @@
     "disableMultiChat": "マルチチャットを無効化",
     "enableMultiChat": "マルチチャットを有効化",
     "newChat": "新しいチャット",
+    "searchChats": "チャットを検索",
+    "searchChatsPlaceholder": "すべてのチャットを検索...",
+    "searchChatsHint": "すべてのプロジェクトのチャットのタイトルとメッセージを検索します。",
+    "searchChatsEmpty": "一致するチャットはありません。",
+    "searchChatsTruncated": "最新の一致を表示しています。古いものを見るには検索を絞り込んでください。",
+    "searchChatsFailed": "一部のホストを検索できませんでした。",
+    "notificationFinished": "{project} で完了しました",
+    "notificationFailed": "{project} で失敗しました",
+    "notificationWaiting": "{project} で入力が必要です",
     "workspaceCode": "コード",
     "workspaceCodeDescription": "プロジェクトでエージェントとチャットしてコードを編集",
     "workspaces": "ワークスペース"
@@ -344,7 +353,6 @@
     "showReasoningSummariesDescription": "モデルの推論要約を表示します",
     "speed": "速度",
     "terminalDescription": "ターミナルセッションで使用する shell を設定します。",
-    "mcpBack": "戻る",
     "mcpServers": "MCP サーバー",
     "mcpServersDescription": "Claude Code、Codex、OpenCode、Grok で利用できる Model Context Protocol サーバー。Cursor には対応していません。",
     "mcpAddServer": "サーバーを追加",
@@ -384,7 +392,11 @@
     "mcpEnabled": "有効",
     "mcpDeleteConfirm": "削除を確認",
     "changeCheckpoints": "変更チェックポイント",
-    "changeCheckpointsDescription": "各返答の前にプロジェクトファイルのスナップショットを取り、変更の確認と復元を可能にします"
+    "changeCheckpointsDescription": "各返答の前にプロジェクトファイルのスナップショットを取り、変更の確認と復元を可能にします",
+    "chatNotifications": "デスクトップ通知",
+    "chatNotificationsDescription": "アプリがバックグラウンドにあるとき、チャットの完了、失敗、入力待ちを通知します",
+    "chatNotificationSound": "通知音",
+    "chatNotificationSoundDescription": "チャットの完了、失敗、入力待ちのときに音を鳴らします"
   },
   "models": {
     "fast": "高速",
@@ -958,6 +970,7 @@
     "localMachine": "ローカル",
     "runsHere": "このコンピュータで実行",
     "runsOn": "{host} ({target}) で実行",
-    "edit": "編集"
+    "edit": "編集",
+    "editHost": "SSH ホストを編集"
   }
 }

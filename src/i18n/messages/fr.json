@@ -158,6 +158,15 @@
     "disableMultiChat": "Désactiver le multichat",
     "enableMultiChat": "Activer le multichat",
     "newChat": "Nouveau chat",
+    "searchChats": "Rechercher dans les chats",
+    "searchChatsPlaceholder": "Rechercher dans tous les chats...",
+    "searchChatsHint": "Recherchez dans les titres et les messages des chats de tous les projets.",
+    "searchChatsEmpty": "Aucun chat ne correspond.",
+    "searchChatsTruncated": "Les correspondances les plus récentes sont affichées. Affinez la recherche pour voir les plus anciennes.",
+    "searchChatsFailed": "Certains hôtes n'ont pas pu être interrogés.",
+    "notificationFinished": "Terminé dans {project}",
+    "notificationFailed": "Échec dans {project}",
+    "notificationWaiting": "Votre réponse est attendue dans {project}",
     "workspaceCode": "Code",
     "workspaceCodeDescription": "Discutez avec des agents et modifiez le code de vos projets",
     "workspaces": "Espaces de travail"
@@ -344,7 +353,6 @@
     "showReasoningSummariesDescription": "Affiche les résumés de raisonnement du modèle",
     "speed": "Vitesse",
     "terminalDescription": "Définit le shell utilisé pour les sessions de terminal.",
-    "mcpBack": "Retour",
     "mcpServers": "Serveurs MCP",
     "mcpServersDescription": "Serveurs Model Context Protocol disponibles pour Claude Code, Codex, OpenCode et Grok. Cursor n'est pas pris en charge.",
     "mcpAddServer": "Ajouter un serveur",
@@ -384,7 +392,11 @@
     "mcpEnabled": "Activé",
     "mcpDeleteConfirm": "Confirmer la suppression",
     "changeCheckpoints": "Checkpoints de modifications",
-    "changeCheckpointsDescription": "Capturer les fichiers du projet avant chaque réponse pour examiner et restaurer les modifications"
+    "changeCheckpointsDescription": "Capturer les fichiers du projet avant chaque réponse pour examiner et restaurer les modifications",
+    "chatNotifications": "Notifications de bureau",
+    "chatNotificationsDescription": "Notifier lorsqu'un chat se termine, échoue ou attend votre réponse pendant que l'application est en arrière-plan",
+    "chatNotificationSound": "Son de notification",
+    "chatNotificationSoundDescription": "Jouer un son lorsqu'un chat se termine, échoue ou attend votre réponse"
   },
   "models": {
     "fast": "Rapide",
@@ -958,6 +970,7 @@
     "localMachine": "Local",
     "runsHere": "S'exécute sur cet ordinateur",
     "runsOn": "S'exécute sur {host} ({target})",
-    "edit": "Modifier"
+    "edit": "Modifier",
+    "editHost": "Modifier l’hôte SSH"
   }
 }

@@ -821,6 +821,8 @@ const FULL_SETTINGS = {
   defaultReasoningEffort: "high",
   disabledProviders: ["cursor"],
   changeCheckpoints: false,
+  chatNotifications: false,
+  chatNotificationSound: true,
   expandToolCalls: true,
   groupToolCalls: true,
   cursorSelectedModels: ["cursor-composer"],

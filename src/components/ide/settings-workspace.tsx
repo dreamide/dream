@@ -73,13 +73,12 @@ import { PERMISSION_MODE_OPTIONS } from "./chat/permission-selector";
 import { WindowControls } from "./header/window-controls";
 import { useIdeStore } from "./ide-store";
 import { ALL_PROVIDERS } from "./ide-types";
+import { playNotificationSound } from "./notification-sound";
 import { SavedPromptsSettingsSection } from "./saved-prompts/saved-prompts-settings-section";
 import {
   formatDeletedDate,
-  MCP_LIST_VIEW,
   McpIcon,
   McpServersSection,
-  type McpView,
   ModelSelectionControl,
   ProviderStatusCard,
   SettingsControlRow,
@@ -190,7 +189,6 @@ export const SettingsWorkspace = () => {
   const setBaseColor = useUiStore((s) => s.setBaseColor);
   const { setTheme, theme } = useTheme();
   const [themeMounted, setThemeMounted] = useState(false);
-  const [mcpView, setMcpView] = useState<McpView>(MCP_LIST_VIEW);
   const workspaceRef = useRef<HTMLElement>(null);
 
   // Escape exits settings, unless it was meant for a nested overlay (dialogs,
@@ -216,11 +214,6 @@ export const SettingsWorkspace = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [setSettingsOpen]);
 
-  useEffect(() => {
-    if (!settingsOpen || settingsSection !== "mcp") {
-      setMcpView(MCP_LIST_VIEW);
-    }
-  }, [settingsOpen, settingsSection]);
   const [terminalShellOptions, setTerminalShellOptions] = useState<
     TerminalShellOption[]
   >([]);
@@ -657,18 +650,6 @@ export const SettingsWorkspace = () => {
           />
           <div className="h-full overflow-y-auto">
             <div className="mx-auto w-full max-w-5xl space-y-4 p-3 pt-6 pb-12">
-              {settingsSection === "mcp" && mcpView.kind !== "list" ? (
-                <button
-                  className="-ml-3 rounded-md border border-transparent px-3 py-2 text-left font-medium text-muted-foreground text-sm outline-none transition-colors hover:text-foreground focus-visible:border-ring"
-                  onClick={() => setMcpView(MCP_LIST_VIEW)}
-                  type="button"
-                >
-                  <span className="flex items-center gap-2">
-                    <ArrowLeft className="size-4" />
-                    {settingsT("mcpBack")}
-                  </span>
-                </button>
-              ) : null}
               {settingsSection === "appearance" ? (
                 <div className="space-y-8">
                   <SettingsGroup label={settingsT("models")}>
@@ -975,6 +956,32 @@ export const SettingsWorkspace = () => {
                           changeCheckpoints: checked,
                         }))
                       }
+                    />
+                    <SettingsSwitchRow
+                      checked={settings.chatNotifications}
+                      description={settingsT("chatNotificationsDescription")}
+                      label={settingsT("chatNotifications")}
+                      onCheckedChange={(checked) =>
+                        setSettings((previous) => ({
+                          ...previous,
+                          chatNotifications: checked,
+                        }))
+                      }
+                    />
+                    <SettingsSwitchRow
+                      checked={settings.chatNotificationSound}
+                      description={settingsT(
+                        "chatNotificationSoundDescription",
+                      )}
+                      label={settingsT("chatNotificationSound")}
+                      onCheckedChange={(checked) => {
+                        // Switching it on plays the sound it will make.
+                        if (checked) playNotificationSound();
+                        setSettings((previous) => ({
+                          ...previous,
+                          chatNotificationSound: checked,
+                        }));
+                      }}
                     />
                     <SettingsSwitchRow
                       checked={settings.expandToolCalls}
@@ -1437,9 +1444,7 @@ export const SettingsWorkspace = () => {
                 </div>
               ) : null}
 
-              {settingsSection === "mcp" ? (
-                <McpServersSection setView={setMcpView} view={mcpView} />
-              ) : null}
+              {settingsSection === "mcp" ? <McpServersSection /> : null}
 
               {settingsSection === "prompts" ? (
                 <SavedPromptsSettingsSection />

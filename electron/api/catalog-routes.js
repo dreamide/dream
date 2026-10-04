@@ -35,6 +35,11 @@ export const catalogTranscriptSaveRequestSchema = z.object({
   messages: objects,
 });
 
+export const catalogSearchRequestSchema = z.object({
+  limit: z.number().int().min(1).max(200).optional(),
+  query: z.string().trim().min(1).max(200),
+});
+
 /**
  * @param {import("hono").Hono} app
  * @param {ReturnType<typeof import("../host/catalog.js").createHostCatalog>} catalog
@@ -60,6 +65,12 @@ export function registerCatalogRoutes(app, catalog) {
   app.post("/api/catalog/transcript", (c) =>
     handleJsonRoute(c, catalogTranscriptRequestSchema, ({ chatId }) =>
       catalog.getTranscript(chatId),
+    ),
+  );
+
+  app.post("/api/catalog/search", (c) =>
+    handleJsonRoute(c, catalogSearchRequestSchema, ({ limit, query }) =>
+      catalog.search(query, { limit }),
     ),
   );
 
