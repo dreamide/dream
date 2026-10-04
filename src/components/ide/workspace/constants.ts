@@ -23,7 +23,6 @@ export const GIT_LOG_PANEL_MIN_WIDTH_PX = 260;
 
 /** Duration (ms) for panel slide animations. */
 export const PANEL_TRANSITION_MS = 200;
-export const PANEL_TRANSITION = `width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), min-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), max-width ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1), padding ${PANEL_TRANSITION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`;
 // Intentionally animates only compositor-friendly properties (transform,
 // opacity). Animating `width` here forces a relayout + repaint of the entire
 // workspace on every animation frame, which is visibly janky on large

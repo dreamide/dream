@@ -188,5 +188,3 @@ export const createCatalogSync = ({
       enqueue(() => api.saveCatalogTranscript({ chatId, messages })),
   };
 };
-
-export type CatalogSync = ReturnType<typeof createCatalogSync>;

@@ -1,9 +1,7 @@
 {
   "app": {
     "loadingDream": "Caricamento di Dream",
-    "videoUnavailable": "Video non disponibile",
     "working": "Elaborazione in corso",
-    "subwaySurfing": "Surf in metropolitana",
     "workspaceLoadFailed": "Dream non è riuscito a caricare il tuo spazio di lavoro, quindi non viene salvato nulla. Impostazioni e progetti sono al sicuro sul disco.",
     "reload": "Ricarica"
   },
@@ -50,10 +48,8 @@
     "fileCount": "{count, plural, one {# file} other {# file}}",
     "find": "Cerca",
     "modelSelector": "Selettore del modello",
-    "nextResult": "Risultato successivo",
     "noMessagesYet": "Ancora nessun messaggio",
     "noActiveProjectSelected": "Nessun progetto attivo selezionato.",
-    "previousResult": "Risultato precedente",
     "promptPlaceholder": "Cosa vorresti sapere?",
     "question": "Domanda",
     "requestFailed": "Richiesta non riuscita.",
@@ -100,7 +96,6 @@
     "closePanel": "Chiudi il pannello",
     "copy": "Copia",
     "description": "Descrizione",
-    "dreamLogoDescription": "Logo Dream: una luna e una stella con stelle cadenti nel cielo notturno",
     "edit": "Modifica",
     "enterName": "Inserisci un nome",
     "loading": "Caricamento in corso",
@@ -128,15 +123,13 @@
     "newWorktree": "Nuovo worktree",
     "noLocalBranches": "Nessun branch locale trovato.",
     "noMatchingBranches": "Nessun branch corrispondente.",
-    "refreshBranches": "Aggiorna branch",
     "searchBranches": "Cerca branch",
     "switchBranch": "Cambia branch Git"
   },
   "locale": {
     "description": "Controlla la lingua dell’interfaccia.",
     "english": "Inglese",
-    "system": "Sistema",
-    "traditionalChinese": "Cinese tradizionale"
+    "system": "Sistema"
   },
   "time": {
     "justNow": "Adesso",
@@ -182,21 +175,14 @@
     "plan": "Pianifica",
     "askPermissions": "Chiedi",
     "acceptEdits": "Accetta modifiche",
-    "standardPermissions": "Standard",
     "back": "Indietro",
-    "branchingUnavailableWhileProcessing": "Attendi il completamento della risposta corrente prima di creare un ramo.",
     "continueFromMessage": "Continua da questo messaggio…",
     "continueInNewChat": "Continua in una nuova chat",
-    "continueInNewChatDescription": "Copia la conversazione fino al messaggio selezionato per continuare in modo indipendente.",
     "continueInWorktree": "Continua nell’albero di lavoro",
     "unableToCreateBranch": "Impossibile creare il ramo.",
-    "uncommittedChangesWarning": "Comprendo che le modifiche non confermate non verranno copiate nel nuovo albero di lavoro.",
     "useNewWorktree": "Nuovo albero di lavoro",
-    "useNewWorktreeDescription": "Continua in un albero di lavoro Git separato creato da un riferimento di base.",
     "useThisWorkspace": "Questo spazio di lavoro",
-    "useThisWorkspaceDescription": "Continua in una nuova chat senza modificare i file del progetto.",
     "worktreeRequiresGit": "Gli alberi di lavoro richiedono un repository Git.",
-    "worktreeSnapshotLimitation": "Il nuovo albero di lavoro rappresenta un riferimento Git, non lo stato esatto del file system al momento di questo messaggio.",
     "selectedLines": "Discuti delle righe selezionate",
     "message": "Messaggio",
     "sendMessage": "Invia messaggio",
@@ -271,8 +257,6 @@
     "enableWordWrap": "Abilita ritorno a capo",
     "expand": "Espandi file",
     "fileActions": "Azioni file",
-    "refreshChanges": "Aggiorna modifiche",
-    "refreshFiles": "Aggiorna file",
     "revertAllChanges": "Annulla tutte le modifiche",
     "searchFiles": "Cerca file",
     "splitDiff": "Diff diviso",
@@ -332,7 +316,6 @@
     "archivedChatCount": "{count, plural, one {# chat archiviata} other {# chat archiviate}}",
     "archivedChats": "Chat archiviate",
     "autoCompactContext": "Compatta automaticamente il contesto",
-    "autoCompactContextDescription": "Riassume i messaggi più vecchi prima che la chat esaurisca il contesto",
     "chatMessages": "Messaggi chat",
     "defaultModelForCommits": "Modello di generazione del testo",
     "defaultModelForCommitsDescription": "Usato per redigere messaggi di commit e testo PR.",
@@ -364,7 +347,6 @@
     "mcpBack": "Indietro",
     "mcpServers": "Server MCP",
     "mcpServersDescription": "Server Model Context Protocol disponibili per Claude Code, Codex, OpenCode e Grok. Cursor non è supportato.",
-    "mcpCursorUnsupported": "Non supportato per Cursor",
     "mcpAddServer": "Aggiungi server",
     "mcpEditServer": "Modifica server",
     "mcpImport": "Importa…",
@@ -400,22 +382,18 @@
     "mcpUrl": "URL",
     "mcpUrlInvalid": "Inserisci un URL http(s) valido.",
     "mcpEnabled": "Attivo",
-    "mcpTarget": "Destinazione",
     "mcpDeleteConfirm": "Conferma eliminazione",
-    "mcpSecretsNote": "I valori vengono salvati in chiaro nel database locale di Dream.",
     "changeCheckpoints": "Checkpoint delle modifiche",
     "changeCheckpointsDescription": "Acquisisci i file del progetto prima di ogni risposta per esaminare e ripristinare le modifiche"
   },
   "models": {
     "fast": "Veloce",
-    "fastDescription": "Velocità 1,5x, uso aumentato.",
     "high": "Alto",
     "low": "Basso",
     "max": "Max",
     "medium": "Medio",
     "reasoning": "Ragionamento",
     "standard": "Standard",
-    "standardDescription": "Velocità predefinita, uso normale.",
     "xhigh": "Molto alto"
   },
   "provider": {
@@ -519,9 +497,6 @@
     "argumentsLabel": "Argomenti",
     "openFolder": "Apri cartella",
     "usageHint": "Usala in chat con {mention}.",
-    "claudeToggleNote": "Disattivare una skill scrive skillOverrides in ~/.claude/settings.json, la stessa impostazione usata da /skills in Claude Code.",
-    "codexToggleNote": "La disattivazione viene salvata tramite l'app-server Codex in ~/.codex/config.toml.",
-    "noToggleNote": "Questo agente non ha un interruttore per skill. Rimuovi o sposta la cartella per non caricarla più.",
     "updateFailed": "Impossibile aggiornare la skill.",
     "createTitle": "Nuova skill",
     "nameLabel": "Nome",
@@ -549,8 +524,7 @@
     "scopePlugin": "Plugin",
     "scopeAdmin": "Gestito",
     "command": "Comando",
-    "userInvocationOnly": "Solo manuale",
-    "skillsMenuLabel": "Skill"
+    "userInvocationOnly": "Solo manuale"
   },
   "savedPrompts": {
     "title": "Prompt",
@@ -598,8 +572,6 @@
     "empty": "Nessuna chat nello stash."
   },
   "projects": {
-    "mcpServersMenu": "Server MCP",
-    "mcpManageServers": "Gestisci server…",
     "addProject": "Aggiungi progetto",
     "archiveChat": "Archivia la chat",
     "pinChat": "Fissa chat",
@@ -615,9 +587,7 @@
     "iconUpload": "Icona del progetto",
     "changeIcon": "Cambia icona",
     "resetIcon": "Ripristina",
-    "iconUploadHint": "Carica un’immagine (massimo 5 MB). Senza icona personalizzata, la ricerca è automatica.",
     "iconSaveFailed": "Impossibile caricare l’icona. Scegli un’immagine valida fino a 5 MB.",
-    "removeIcon": "Rimuovi icona",
     "noChatsForProject": "Nessuna chat ancora per questo progetto.",
     "noMatchingChats": "Nessuna chat corrispondente trovata.",
     "projectActions": "azioni di {name}",
@@ -639,7 +609,6 @@
     "unableToCreate": "Impossibile creare l'albero di lavoro.",
     "unableToRemove": "Impossibile rimuovere l'albero di lavoro.",
     "worktree": "albero di lavoro",
-    "worktreeLabel": "Albero di lavoro {branch}",
     "worktrees": "Alberi di lavoro",
     "andMoreFiles": "e altri {count}",
     "baseBranch": "Branch di base",
@@ -760,12 +729,10 @@
     "terminalTabs": "Schede del terminale"
   },
   "usage": {
-    "messagesShort": "{count} msg",
     "percentUsed": "{percent}% utilizzato",
     "planUsage": "Utilizzo del piano",
     "resetUnavailable": "Orario di ripristino non disponibile",
     "resetsIn": "Si ripristina tra {duration}",
-    "topModels": "Modelli di punta",
     "unableToFetch": "Impossibile recuperare i limiti di utilizzo.",
     "unavailable": "I limiti di utilizzo non sono disponibili.",
     "usageStats": "Statistiche di utilizzo"
@@ -967,7 +934,6 @@
     "folderPath": "Percorso della cartella",
     "folderPlaceholder": "/home/io/progetto",
     "open": "Apri",
-    "addHostFirst": "Aggiungi prima un host SSH nelle Impostazioni.",
     "promptTitle": "{host} chiede",
     "promptConfirmTitle": "Fidarsi di questo host?",
     "promptAnswer": "Risposta",

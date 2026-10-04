@@ -55,7 +55,10 @@ export const ProviderStatusCard = ({
   const uiT = useTranslations("ui");
   const displayVersion = extractCliVersion(version);
   const updateVersion =
-    installed && latestVersion && isCliUpdateAvailable(version, latestVersion)
+    enabled &&
+    installed &&
+    latestVersion &&
+    isCliUpdateAvailable(version, latestVersion)
       ? latestVersion
       : null;
   const statusMessage =

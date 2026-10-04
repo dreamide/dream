@@ -1,7 +1,6 @@
 import type { ModelOption } from "@/lib/models";
 import type {
   AiProvider,
-  AppSettings,
   ModelSpeed,
   ReasoningEffort,
   RightPanelView,
@@ -28,9 +27,6 @@ export type SettingsSection =
   | "skills"
   | "sshHosts"
   | "chats";
-
-export type TerminalStatus = "running" | "stopped";
-export type TerminalTransport = "pty" | "pipe";
 export type { RightPanelView };
 export const PROJECT_TERMINAL_SESSION_PREFIX = "__project_terminal__:";
 export const createProjectTerminalSessionId = (projectId: string): string =>
@@ -94,46 +90,4 @@ export const getProviderLabel = (provider: AiProvider): string => {
   if (provider === "cursor") return "Cursor";
   if (provider === "grok") return "Grok Build";
   return "Anthropic";
-};
-
-export const getProviderDescription = (provider: AiProvider): string => {
-  if (provider === "openai") {
-    return "Uses the local Codex CLI for OpenAI models.";
-  }
-  if (provider === "opencode") {
-    return "Uses the local OpenCode CLI and its configured providers.";
-  }
-  if (provider === "cursor") {
-    return "Uses the local Cursor Agent CLI.";
-  }
-  if (provider === "grok") {
-    return "Uses the local Grok Build CLI through ACP.";
-  }
-  return "Uses the local Claude Code CLI for Claude models.";
-};
-
-export const getEnabledProviders = (settings: AppSettings): AiProvider[] => {
-  const providers: AiProvider[] = [];
-
-  if (settings.openAiSelectedModels.length > 0) {
-    providers.push("openai");
-  }
-
-  if (settings.anthropicSelectedModels.length > 0) {
-    providers.push("anthropic");
-  }
-
-  if (settings.openCodeSelectedModels.length > 0) {
-    providers.push("opencode");
-  }
-
-  if (settings.cursorSelectedModels.length > 0) {
-    providers.push("cursor");
-  }
-
-  if (settings.grokSelectedModels.length > 0) {
-    providers.push("grok");
-  }
-
-  return providers;
 };

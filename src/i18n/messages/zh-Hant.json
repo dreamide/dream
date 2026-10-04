@@ -1,9 +1,7 @@
 {
   "app": {
     "loadingDream": "正在載入 Dream",
-    "videoUnavailable": "影片無法使用",
     "working": "正在處理",
-    "subwaySurfing": "地鐵跑酷中",
     "workspaceLoadFailed": "Dream 無法載入你的工作區，因此不會儲存任何內容。你的設定和專案仍安全地保存在磁碟上。",
     "reload": "重新載入"
   },
@@ -50,10 +48,8 @@
     "fileCount": "{count} 個檔案",
     "find": "尋找",
     "modelSelector": "模型選擇器",
-    "nextResult": "下一個結果",
     "noMessagesYet": "尚無訊息",
     "noActiveProjectSelected": "未選取作用中的專案。",
-    "previousResult": "上一個結果",
     "promptPlaceholder": "你想瞭解什麼？",
     "question": "問題",
     "requestFailed": "要求失敗。",
@@ -100,7 +96,6 @@
     "closePanel": "關閉面板",
     "copy": "複製",
     "description": "說明",
-    "dreamLogoDescription": "Dream 標誌 — 夜空中的月亮、星星和流星",
     "edit": "編輯",
     "enterName": "輸入名稱",
     "loading": "載入中",
@@ -128,15 +123,13 @@
     "newWorktree": "新增工作樹",
     "noLocalBranches": "找不到本機分支。",
     "noMatchingBranches": "沒有相符的分支。",
-    "refreshBranches": "重新整理分支",
     "searchBranches": "搜尋分支",
     "switchBranch": "切換 Git 分支"
   },
   "locale": {
     "description": "控制介面顯示語言。",
     "english": "英文",
-    "system": "跟隨系統",
-    "traditionalChinese": "繁體中文"
+    "system": "跟隨系統"
   },
   "time": {
     "justNow": "剛剛",
@@ -182,21 +175,14 @@
     "plan": "規劃",
     "askPermissions": "詢問",
     "acceptEdits": "接受編輯",
-    "standardPermissions": "標準",
     "back": "返回",
-    "branchingUnavailableWhileProcessing": "請等待目前回覆完成後再建立分支。",
     "continueFromMessage": "從此訊息繼續…",
     "continueInNewChat": "在新聊天中繼續",
-    "continueInNewChatDescription": "複製到所選訊息為止的對話，然後獨立繼續。",
     "continueInWorktree": "在工作樹中繼續",
     "unableToCreateBranch": "無法建立分支。",
-    "uncommittedChangesWarning": "我瞭解未提交的變更不會複製到新工作樹。",
     "useNewWorktree": "新工作樹",
-    "useNewWorktreeDescription": "在從基礎參照建立的獨立 Git 工作樹中繼續。",
     "useThisWorkspace": "此工作區",
-    "useThisWorkspaceDescription": "在不變更專案檔案的情況下，在新聊天中繼續。",
     "worktreeRequiresGit": "工作樹需要 Git 儲存庫。",
-    "worktreeSnapshotLimitation": "新工作樹表示一個 Git 參照，而不是此訊息時的確切檔案系統狀態。",
     "selectedLines": "討論所選行",
     "message": "訊息",
     "sendMessage": "傳送訊息",
@@ -268,8 +254,6 @@
     "changesActions": "變更操作",
     "enableWordWrap": "啟用自動換行",
     "fileActions": "檔案操作",
-    "refreshChanges": "重新整理變更",
-    "refreshFiles": "重新整理檔案",
     "revertAllChanges": "還原所有變更",
     "splitDiff": "並排差異",
     "unifiedDiff": "統一差異",
@@ -332,7 +316,6 @@
     "archivedChatCount": "{count, plural, one {# 個已封存聊天} other {# 個已封存聊天}}",
     "archivedChats": "已封存聊天",
     "autoCompactContext": "自動壓縮上下文",
-    "autoCompactContextDescription": "在聊天耗盡上下文前摘要較舊的訊息",
     "chatMessages": "聊天訊息",
     "defaultModelForCommits": "文字生成模型",
     "defaultModelForCommitsDescription": "用於草擬提交訊息與 PR 文字。",
@@ -364,7 +347,6 @@
     "mcpBack": "返回",
     "mcpServers": "MCP 伺服器",
     "mcpServersDescription": "可供 Claude Code、Codex、OpenCode 和 Grok 使用的 Model Context Protocol 伺服器。不支援 Cursor。",
-    "mcpCursorUnsupported": "Cursor 不支援",
     "mcpAddServer": "新增伺服器",
     "mcpEditServer": "編輯伺服器",
     "mcpImport": "匯入…",
@@ -400,22 +382,18 @@
     "mcpUrl": "URL",
     "mcpUrlInvalid": "請輸入有效的 http(s) URL。",
     "mcpEnabled": "已啟用",
-    "mcpTarget": "目標",
     "mcpDeleteConfirm": "確認刪除",
-    "mcpSecretsNote": "這些值會以未加密方式儲存在 Dream 的本機資料庫中。",
     "changeCheckpoints": "變更檢查點",
     "changeCheckpointsDescription": "在每次回覆前為專案檔案建立快照，以便檢視和還原變更"
   },
   "models": {
     "fast": "快速",
-    "fastDescription": "1.5 倍速度，用量較高。",
     "high": "高",
     "low": "低",
     "max": "最大",
     "medium": "中",
     "reasoning": "推理",
     "standard": "標準",
-    "standardDescription": "預設速度，一般用量。",
     "xhigh": "極高"
   },
   "provider": {
@@ -519,9 +497,6 @@
     "argumentsLabel": "參數",
     "openFolder": "開啟資料夾",
     "usageHint": "在聊天中輸入 {mention} 使用。",
-    "claudeToggleNote": "停用技能會把 skillOverrides 寫入 ~/.claude/settings.json，與 Claude Code 的 /skills 使用相同設定。",
-    "codexToggleNote": "停用會透過 Codex app-server 儲存到 ~/.codex/config.toml。",
-    "noToggleNote": "此代理程式沒有逐技能的開關。刪除或移動資料夾即可停止載入。",
     "updateFailed": "無法更新技能。",
     "createTitle": "新增技能",
     "nameLabel": "名稱",
@@ -549,8 +524,7 @@
     "scopePlugin": "外掛",
     "scopeAdmin": "受管理",
     "command": "命令",
-    "userInvocationOnly": "僅手動",
-    "skillsMenuLabel": "技能"
+    "userInvocationOnly": "僅手動"
   },
   "savedPrompts": {
     "title": "提示詞",
@@ -598,8 +572,6 @@
     "empty": "還沒有暫存的聊天。"
   },
   "projects": {
-    "mcpServersMenu": "MCP 伺服器",
-    "mcpManageServers": "管理伺服器…",
     "addProject": "新增專案",
     "archiveChat": "封存聊天",
     "pinChat": "置頂聊天",
@@ -615,9 +587,7 @@
     "iconUpload": "專案圖示",
     "changeIcon": "變更圖示",
     "resetIcon": "重設",
-    "iconUploadHint": "上傳圖片（最大 5 MB）。未設定自訂圖示時自動掃描。",
     "iconSaveFailed": "無法載入圖示。請選擇不超過 5 MB 的有效圖片檔案。",
-    "removeIcon": "移除圖示",
     "noChatsForProject": "此專案還沒有聊天記錄。",
     "noMatchingChats": "找不到符合的聊天記錄。",
     "projectActions": "{name} 操作",
@@ -639,7 +609,6 @@
     "unableToCreate": "無法建立工作樹。",
     "unableToRemove": "無法刪除工作樹。",
     "worktree": "工作樹",
-    "worktreeLabel": "工作樹 {branch}",
     "worktrees": "工作樹",
     "andMoreFiles": "及另外 {count} 個",
     "baseBranch": "基礎分支",
@@ -760,12 +729,10 @@
     "terminalTabs": "終端機分頁"
   },
   "usage": {
-    "messagesShort": "{count} 則訊息",
     "percentUsed": "已使用 {percent}%",
     "planUsage": "方案用量",
     "resetUnavailable": "重置時間不可用",
     "resetsIn": "在 {duration} 內重置",
-    "topModels": "最常用模型",
     "unableToFetch": "無法取得使用限制。",
     "unavailable": "使用限制不可用。",
     "usageStats": "使用統計"
@@ -967,7 +934,6 @@
     "folderPath": "資料夾路徑",
     "folderPlaceholder": "/home/me/project",
     "open": "開啟",
-    "addHostFirst": "請先在設定中新增一個 SSH 主機。",
     "promptTitle": "{host} 詢問",
     "promptConfirmTitle": "信任這台主機？",
     "promptAnswer": "回答",

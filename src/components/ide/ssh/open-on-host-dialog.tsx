@@ -35,8 +35,6 @@ export const OpenOnHostDialog = ({
   const sshHosts = useIdeStore((state) => state.settings.sshHosts);
   const hosts = useIdeStore((state) => state.hosts);
   const openProjectOnHost = useIdeStore((state) => state.openProjectOnHost);
-  const setSettingsOpen = useIdeStore((state) => state.setSettingsOpen);
-  const setSettingsSection = useIdeStore((state) => state.setSettingsSection);
 
   const [hostId, setHostId] = useState("");
   const [path, setPath] = useState("");
@@ -63,83 +61,69 @@ export const OpenOnHostDialog = ({
     }
   };
 
+  if (sshHosts.length === 0) return null;
+
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("openTitle")}</DialogTitle>
         </DialogHeader>
-        {sshHosts.length === 0 ? (
-          <div className="grid gap-3 text-sm">
-            <p className="text-muted-foreground">{t("addHostFirst")}</p>
-            <Button
-              onClick={() => {
-                onOpenChange(false);
-                setSettingsSection("sshHosts");
-                setSettingsOpen(true);
+        <form
+          className="grid gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleOpen();
+          }}
+        >
+          <div className="grid gap-1.5">
+            <Label htmlFor="open-on-host-host">{t("host")}</Label>
+            <NativeSelect
+              className="w-full"
+              id="open-on-host-host"
+              onChange={(event) => {
+                setHostId(event.target.value);
+                setPath("");
               }}
-              variant="outline"
+              value={hostId}
             >
-              {t("add")}
-            </Button>
+              {sshHosts.map((host) => (
+                <NativeSelectOption key={host.id} value={host.id}>
+                  {host.label}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <span className="break-words text-muted-foreground text-xs">
+              {stateLabel(runtime?.state)}
+              {runtime?.error ? ` — ${runtime.error}` : ""}
+            </span>
           </div>
-        ) : (
-          <form
-            className="grid gap-3"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void handleOpen();
-            }}
-          >
-            <div className="grid gap-1.5">
-              <Label htmlFor="open-on-host-host">{t("host")}</Label>
-              <NativeSelect
-                className="w-full"
-                id="open-on-host-host"
-                onChange={(event) => {
-                  setHostId(event.target.value);
-                  setPath("");
-                }}
-                value={hostId}
-              >
-                {sshHosts.map((host) => (
-                  <NativeSelectOption key={host.id} value={host.id}>
-                    {host.label}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-              <span className="break-words text-muted-foreground text-xs">
-                {stateLabel(runtime?.state)}
-                {runtime?.error ? ` — ${runtime.error}` : ""}
-              </span>
-            </div>
-            {hostId ? (
-              <HostFolderBrowser hostId={hostId} onPathChange={setPath} />
-            ) : null}
-            <div className="grid gap-1.5">
-              <Label htmlFor="open-on-host-path">{t("folderPath")}</Label>
-              <Input
-                autoFocus
-                id="open-on-host-path"
-                onChange={(event) => setPath(event.target.value)}
-                placeholder={t("folderPlaceholder")}
-                value={path}
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                onClick={() => onOpenChange(false)}
-                type="button"
-                variant="ghost"
-              >
-                {t("cancel")}
-              </Button>
-              <Button disabled={opening || !path.trim()} type="submit">
-                {opening ? stateLabel("connecting") : t("open")}
-              </Button>
-            </DialogFooter>
-          </form>
-        )}
+          {hostId ? (
+            <HostFolderBrowser hostId={hostId} onPathChange={setPath} />
+          ) : null}
+          <div className="grid gap-1.5">
+            <Label htmlFor="open-on-host-path">{t("folderPath")}</Label>
+            <Input
+              autoFocus
+              id="open-on-host-path"
+              onChange={(event) => setPath(event.target.value)}
+              placeholder={t("folderPlaceholder")}
+              value={path}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => onOpenChange(false)}
+              type="button"
+              variant="ghost"
+            >
+              {t("cancel")}
+            </Button>
+            <Button disabled={opening || !path.trim()} type="submit">
+              {opening ? stateLabel("connecting") : t("open")}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

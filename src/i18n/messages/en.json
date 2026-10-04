@@ -1,9 +1,7 @@
 {
   "app": {
     "loadingDream": "Loading Dream",
-    "videoUnavailable": "Video unavailable",
     "working": "Working",
-    "subwaySurfing": "Subway surfing",
     "workspaceLoadFailed": "Dream couldn't load your workspace, so nothing is being saved. Your settings and projects are safe on disk.",
     "reload": "Reload"
   },
@@ -50,10 +48,8 @@
     "fileCount": "{count, plural, one {# file} other {# files}}",
     "find": "Find",
     "modelSelector": "Model selector",
-    "nextResult": "Next result",
     "noMessagesYet": "No messages yet",
     "noActiveProjectSelected": "No active project is selected.",
-    "previousResult": "Previous result",
     "promptPlaceholder": "What would you like to know?",
     "question": "Question",
     "requestFailed": "Request failed.",
@@ -100,7 +96,6 @@
     "closePanel": "Close panel",
     "copy": "Copy",
     "description": "Description",
-    "dreamLogoDescription": "Dream logo — a moon and star with falling stars in the night sky",
     "edit": "Edit",
     "enterName": "Enter a name",
     "loading": "Loading",
@@ -128,15 +123,13 @@
     "newWorktree": "New worktree",
     "noLocalBranches": "No local branches found.",
     "noMatchingBranches": "No matching branches.",
-    "refreshBranches": "Refresh branches",
     "searchBranches": "Search branches",
     "switchBranch": "Switch Git branch"
   },
   "locale": {
     "description": "Controls the interface language.",
     "english": "English",
-    "system": "System",
-    "traditionalChinese": "Traditional Chinese"
+    "system": "System"
   },
   "time": {
     "justNow": "Just now",
@@ -182,21 +175,14 @@
     "plan": "Plan",
     "askPermissions": "Ask",
     "acceptEdits": "Accept edits",
-    "standardPermissions": "Standard",
     "back": "Back",
-    "branchingUnavailableWhileProcessing": "Wait for the current response to finish before branching.",
     "continueFromMessage": "Continue from this message…",
     "continueInNewChat": "Branch chat",
-    "continueInNewChatDescription": "Copy this conversation through the selected message and continue independently.",
     "continueInWorktree": "Continue in worktree",
     "unableToCreateBranch": "Unable to create branch.",
-    "uncommittedChangesWarning": "I understand that uncommitted changes will not be copied to the new worktree.",
     "useNewWorktree": "New worktree",
-    "useNewWorktreeDescription": "Continue in a separate Git worktree created from a base ref.",
     "useThisWorkspace": "This workspace",
-    "useThisWorkspaceDescription": "Continue in a new chat without changing project files.",
     "worktreeRequiresGit": "Worktrees require a Git repository.",
-    "worktreeSnapshotLimitation": "The new worktree represents a Git ref, not the exact filesystem state at this message.",
     "selectedLines": "Chat about selected lines",
     "message": "Message",
     "sendMessage": "Send message",
@@ -271,8 +257,6 @@
     "enableWordWrap": "Enable word wrap",
     "expand": "Expand files",
     "fileActions": "File actions",
-    "refreshChanges": "Refresh changes",
-    "refreshFiles": "Refresh files",
     "revertAllChanges": "Revert all changes",
     "searchFiles": "Search files",
     "splitDiff": "Split diff",
@@ -332,7 +316,6 @@
     "archivedChatCount": "{count, plural, one {# archived chat} other {# archived chats}}",
     "archivedChats": "Archived chats",
     "autoCompactContext": "Auto compact context",
-    "autoCompactContextDescription": "Summarize older messages before the chat runs out of context",
     "chatMessages": "Chat messages",
     "defaultModelForCommits": "Text generation model",
     "defaultModelForCommitsDescription": "Used to draft commit messages and PR text.",
@@ -364,7 +347,6 @@
     "mcpBack": "Back",
     "mcpServers": "MCP servers",
     "mcpServersDescription": "Model Context Protocol servers available to Claude Code, Codex, OpenCode and Grok. Cursor is not supported.",
-    "mcpCursorUnsupported": "Not supported for Cursor",
     "mcpAddServer": "Add server",
     "mcpEditServer": "Edit server",
     "mcpImport": "Import…",
@@ -400,22 +382,18 @@
     "mcpUrl": "URL",
     "mcpUrlInvalid": "Enter a valid http(s) URL.",
     "mcpEnabled": "Enabled",
-    "mcpTarget": "Target",
     "mcpDeleteConfirm": "Confirm delete",
-    "mcpSecretsNote": "Values are stored unencrypted in Dream's local database.",
     "changeCheckpoints": "Change checkpoints",
     "changeCheckpointsDescription": "Snapshot project files before each reply so you can inspect and restore changes"
   },
   "models": {
     "fast": "Fast",
-    "fastDescription": "1.5x speed, increased usage.",
     "high": "High",
     "low": "Low",
     "max": "Max",
     "medium": "Medium",
     "reasoning": "Reasoning",
     "standard": "Standard",
-    "standardDescription": "Default speed, normal usage.",
     "xhigh": "Extra High"
   },
   "provider": {
@@ -519,9 +497,6 @@
     "argumentsLabel": "Arguments",
     "openFolder": "Open folder",
     "usageHint": "Use it in chat with {mention}.",
-    "claudeToggleNote": "Turning a skill off writes skillOverrides to ~/.claude/settings.json, the same setting Claude Code's /skills menu uses.",
-    "codexToggleNote": "Turning a skill off is saved through the Codex app-server into ~/.codex/config.toml.",
-    "noToggleNote": "This agent has no per-skill switch. Remove or move the folder to stop loading a skill.",
     "updateFailed": "The skill could not be updated.",
     "createTitle": "New skill",
     "nameLabel": "Name",
@@ -549,8 +524,7 @@
     "scopePlugin": "Plugin",
     "scopeAdmin": "Managed",
     "command": "Command",
-    "userInvocationOnly": "Manual only",
-    "skillsMenuLabel": "Skills"
+    "userInvocationOnly": "Manual only"
   },
   "savedPrompts": {
     "title": "Prompts",
@@ -598,8 +572,6 @@
     "empty": "No stashed chats yet."
   },
   "projects": {
-    "mcpServersMenu": "MCP servers",
-    "mcpManageServers": "Manage servers…",
     "addProject": "Add project",
     "archiveChat": "Archive chat",
     "pinChat": "Pin chat",
@@ -615,9 +587,7 @@
     "iconUpload": "Project icon",
     "changeIcon": "Change icon",
     "resetIcon": "Reset",
-    "iconUploadHint": "Upload an image (up to 5 MB). Without a custom icon, the project is scanned automatically.",
     "iconSaveFailed": "Could not load the icon. Choose a valid image file up to 5 MB.",
-    "removeIcon": "Remove icon",
     "noChatsForProject": "No chats yet for this project.",
     "noMatchingChats": "No matching chats found.",
     "projectActions": "{name} actions",
@@ -639,7 +609,6 @@
     "unableToCreate": "Unable to create worktree.",
     "unableToRemove": "Unable to remove worktree.",
     "worktree": "worktree",
-    "worktreeLabel": "Worktree {branch}",
     "worktrees": "Worktrees",
     "andMoreFiles": "and {count} more",
     "baseBranch": "Base branch",
@@ -760,12 +729,10 @@
     "terminalTabs": "Terminal tabs"
   },
   "usage": {
-    "messagesShort": "{count} msgs",
     "percentUsed": "{percent}% used",
     "planUsage": "Plan usage",
     "resetUnavailable": "Reset time unavailable",
     "resetsIn": "Resets in {duration}",
-    "topModels": "Top models",
     "unableToFetch": "Unable to fetch usage limits.",
     "unavailable": "Usage limits are unavailable.",
     "usageStats": "Usage stats"
@@ -967,7 +934,6 @@
     "folderPath": "Folder path",
     "folderPlaceholder": "/home/me/project",
     "open": "Open",
-    "addHostFirst": "Add an SSH host in Settings first.",
     "promptTitle": "{host} asks",
     "promptConfirmTitle": "Trust this host?",
     "promptAnswer": "Answer",
