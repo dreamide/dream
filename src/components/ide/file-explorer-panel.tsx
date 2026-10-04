@@ -1495,6 +1495,7 @@ const FileExplorerPanelImpl = ({
                 items={fileTabItems}
                 onActivate={handleActivateTab}
                 onClose={handleCloseTab}
+                onDoubleClick={(item) => handlePinFile(item.id)}
                 onReorder={handleReorderTabs}
               />
               {selectedFilePath &&
