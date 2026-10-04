@@ -73,62 +73,21 @@ export const registerProviderRoutes = (app) => {
 
     const force = parsed.data?.force ?? false;
     const provider = parsed.data?.provider;
-    const [openai, anthropic, opencode, cursor, grok, amp] =
-      provider === "openai"
-        ? [await fetchOpenAiModels({ force }), null, null, null, null, null]
-        : provider === "anthropic"
-          ? [
-              null,
-              await fetchAnthropicModels({ force }),
-              null,
-              null,
-              null,
-              null,
-            ]
-          : provider === "opencode"
-            ? [
-                null,
-                null,
-                await fetchOpenCodeModels({ force }),
-                null,
-                null,
-                null,
-              ]
-            : provider === "cursor"
-              ? [
-                  null,
-                  null,
-                  null,
-                  await fetchCursorModels({ force }),
-                  null,
-                  null,
-                ]
-              : provider === "grok"
-                ? [
-                    null,
-                    null,
-                    null,
-                    null,
-                    await fetchGrokModels({ force }),
-                    null,
-                  ]
-                : provider === "amp"
-                  ? [
-                      null,
-                      null,
-                      null,
-                      null,
-                      null,
-                      await fetchAmpModels({ force }),
-                    ]
-                  : await Promise.all([
-                      fetchOpenAiModels({ force }),
-                      fetchAnthropicModels({ force }),
-                      fetchOpenCodeModels({ force }),
-                      fetchCursorModels({ force }),
-                      fetchGrokModels({ force }),
-                      fetchAmpModels({ force }),
-                    ]);
+    const fetchers = {
+      amp: () => fetchAmpModels({ force }),
+      anthropic: () => fetchAnthropicModels({ force }),
+      cursor: () => fetchCursorModels({ force }),
+      grok: () => fetchGrokModels({ force }),
+      openai: () => fetchOpenAiModels({ force }),
+      opencode: () => fetchOpenCodeModels({ force }),
+    };
+    const requestedProviders = provider ? [provider] : Object.keys(fetchers);
+    const modelsByProvider = Object.fromEntries(
+      await Promise.all(
+        requestedProviders.map(async (key) => [key, await fetchers[key]()]),
+      ),
+    );
+    const { openai, anthropic, opencode, cursor, grok, amp } = modelsByProvider;
 
     return c.json({
       ...(anthropic ? { anthropic } : {}),
