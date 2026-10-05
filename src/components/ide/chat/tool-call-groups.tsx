@@ -16,7 +16,7 @@ import {
   WrenchIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { Messages } from "@/i18n/messages";
 import { cn } from "@/lib/utils";
 import {
@@ -57,8 +57,13 @@ type ToolChipItem = {
 
 type ToolChipRenderContext = {
   addToolApprovalResponse: ToolApprovalResponder;
+  /**
+   * The message's command parts at their indexes, null elsewhere, where a
+   * write chip looks for its diff. Kept the same array while those parts
+   * hold, so a streaming message does not redraw every write chip.
+   */
+  commandParts: readonly (UIMessage["parts"][number] | null)[];
   expandToolCalls: boolean;
-  messageParts: UIMessage["parts"];
   messageId: string;
   projectPath: string;
 };
@@ -140,119 +145,132 @@ const TOOL_GROUP_META: Record<
   },
 };
 
+/**
+ * One tool call's chip. Memoized: a chip redraws when its own part changes,
+ * not each time the message around it streams.
+ */
+const ToolChip = memo(
+  ({
+    addToolApprovalResponse,
+    commandParts,
+    expandToolCalls,
+    index,
+    part,
+    projectPath,
+  }: {
+    addToolApprovalResponse: ToolApprovalResponder;
+    /** Only for a write chip; see ToolChipRenderContext. */
+    commandParts?: ToolChipRenderContext["commandParts"];
+    expandToolCalls: boolean;
+    index: number;
+    part: UIMessage["parts"][number];
+    projectPath: string;
+  }) => {
+    const chipPart = part as ToolLikePart;
+    const chipToolKind = getChipToolKind(chipPart);
+
+    if (chipToolKind === "command") {
+      return (
+        <RunCommandChip
+          defaultExpanded={expandToolCalls}
+          onToolApproval={addToolApprovalResponse}
+          part={chipPart}
+        />
+      );
+    }
+    if (chipToolKind === "agent") {
+      return <AgentChip defaultExpanded={expandToolCalls} part={chipPart} />;
+    }
+    if (chipToolKind === "read") {
+      return (
+        <ReadFileChip
+          defaultExpanded={expandToolCalls}
+          part={chipPart}
+          projectPath={projectPath}
+        />
+      );
+    }
+    if (chipToolKind === "list") {
+      return (
+        <ListFilesChip
+          defaultExpanded={expandToolCalls}
+          part={chipPart}
+          projectPath={projectPath}
+        />
+      );
+    }
+    if (chipToolKind === "write") {
+      return (
+        <WriteFileChip
+          defaultExpanded={expandToolCalls}
+          messageParts={commandParts}
+          onToolApproval={addToolApprovalResponse}
+          part={chipPart}
+          partIndex={index}
+          projectPath={projectPath}
+        />
+      );
+    }
+    if (chipToolKind === "mcp") {
+      return (
+        <McpToolChip
+          defaultExpanded={expandToolCalls}
+          onToolApproval={addToolApprovalResponse}
+          part={chipPart}
+        />
+      );
+    }
+    if (chipToolKind === "taskOutput") {
+      return (
+        <TaskOutputChip defaultExpanded={expandToolCalls} part={chipPart} />
+      );
+    }
+    if (chipToolKind === "toolSearch") {
+      return (
+        <SearchInFilesChip defaultExpanded={expandToolCalls} part={chipPart} />
+      );
+    }
+    if (chipToolKind === "webFetch") {
+      return (
+        <WebFetchChip
+          defaultExpanded={expandToolCalls}
+          onToolApproval={addToolApprovalResponse}
+          part={chipPart}
+        />
+      );
+    }
+
+    return (
+      <SearchInFilesChip defaultExpanded={expandToolCalls} part={chipPart} />
+    );
+  },
+);
+ToolChip.displayName = "ToolChip";
+
 const renderToolChip = (
   { index, part }: ToolChipItem,
   {
     addToolApprovalResponse,
+    commandParts,
     expandToolCalls,
-    messageParts,
     messageId,
     projectPath,
   }: ToolChipRenderContext,
-) => {
-  const key = getMessagePartKey(
-    messageId,
-    part as Record<string, unknown>,
-    index,
-  );
-  const chipPart = part as ToolLikePart;
-  const chipToolKind = getChipToolKind(chipPart);
-
-  if (chipToolKind === "command") {
-    return (
-      <RunCommandChip
-        defaultExpanded={expandToolCalls}
-        key={key}
-        onToolApproval={addToolApprovalResponse}
-        part={chipPart}
-      />
-    );
-  }
-  if (chipToolKind === "agent") {
-    return (
-      <AgentChip defaultExpanded={expandToolCalls} key={key} part={chipPart} />
-    );
-  }
-  if (chipToolKind === "read") {
-    return (
-      <ReadFileChip
-        defaultExpanded={expandToolCalls}
-        key={key}
-        part={chipPart}
-        projectPath={projectPath}
-      />
-    );
-  }
-  if (chipToolKind === "list") {
-    return (
-      <ListFilesChip
-        defaultExpanded={expandToolCalls}
-        key={key}
-        part={chipPart}
-        projectPath={projectPath}
-      />
-    );
-  }
-  if (chipToolKind === "write") {
-    return (
-      <WriteFileChip
-        defaultExpanded={expandToolCalls}
-        key={key}
-        messageParts={messageParts}
-        onToolApproval={addToolApprovalResponse}
-        part={chipPart}
-        partIndex={index}
-        projectPath={projectPath}
-      />
-    );
-  }
-  if (chipToolKind === "mcp") {
-    return (
-      <McpToolChip
-        defaultExpanded={expandToolCalls}
-        key={key}
-        onToolApproval={addToolApprovalResponse}
-        part={chipPart}
-      />
-    );
-  }
-  if (chipToolKind === "taskOutput") {
-    return (
-      <TaskOutputChip
-        defaultExpanded={expandToolCalls}
-        key={key}
-        part={chipPart}
-      />
-    );
-  }
-  if (chipToolKind === "toolSearch") {
-    return (
-      <SearchInFilesChip
-        defaultExpanded={expandToolCalls}
-        key={key}
-        part={chipPart}
-      />
-    );
-  }
-  if (chipToolKind === "webFetch") {
-    return (
-      <WebFetchChip
-        defaultExpanded={expandToolCalls}
-        key={key}
-        onToolApproval={addToolApprovalResponse}
-        part={chipPart}
-      />
-    );
-  }
-
-  return (
-    <SearchInFilesChip
-      defaultExpanded={expandToolCalls}
-      key={key}
-      part={chipPart}
-    />
-  );
-};
+) => (
+  <ToolChip
+    addToolApprovalResponse={addToolApprovalResponse}
+    commandParts={
+      getChipToolKind(part as ToolLikePart) === "write"
+        ? commandParts
+        : undefined
+    }
+    expandToolCalls={expandToolCalls}
+    index={index}
+    key={getMessagePartKey(messageId, part as Record<string, unknown>, index)}
+    part={part}
+    projectPath={projectPath}
+  />
+);
 
 export const ToolChipRow = ({
   context,

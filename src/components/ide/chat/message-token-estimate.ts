@@ -113,3 +113,30 @@ export const estimateMessages = (messages: UIMessage[]) => {
 
   return total;
 };
+
+const partEstimateCache = new WeakMap<object, number>();
+
+/**
+ * `estimateMessages` for messages whose parts are never changed in place
+ * (what `stabilizeMessages` returns): every part, the live message's
+ * included, is estimated once, so a running turn costs only its new parts.
+ */
+export const estimateStableMessages = (messages: UIMessage[]) => {
+  const live = messages.at(-1);
+  let total = 0;
+  for (const message of messages) {
+    if (message !== live) {
+      total += estimateMessage(message);
+      continue;
+    }
+    for (const part of message.parts) {
+      let estimate = partEstimateCache.get(part);
+      if (estimate === undefined) {
+        estimate = estimatePart(part as Record<string, unknown>);
+        partEstimateCache.set(part, estimate);
+      }
+      total += estimate;
+    }
+  }
+  return total;
+};

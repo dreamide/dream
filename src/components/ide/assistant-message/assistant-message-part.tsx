@@ -5,7 +5,7 @@ import {
   WrenchIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlock,
@@ -626,7 +626,7 @@ const GenericToolChip = ({
   );
 };
 
-export const AssistantMessagePart = ({
+const AssistantMessagePartView = ({
   part,
   isStreaming = false,
   onToolApproval,
@@ -709,3 +709,11 @@ export const AssistantMessagePart = ({
     </pre>
   );
 };
+
+/**
+ * One assistant message part. Memoized: a live turn's finished parts keep
+ * their identity across stream updates (chat/stable-messages.ts), so only
+ * the part being written redraws.
+ */
+export const AssistantMessagePart = memo(AssistantMessagePartView);
+AssistantMessagePart.displayName = "AssistantMessagePart";

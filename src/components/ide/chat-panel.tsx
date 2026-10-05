@@ -56,7 +56,8 @@ import {
 } from "./chat/chat-runtime";
 import type { ContinueChatPopoverContext } from "./chat/continue-chat-popover";
 import { EditChatDialog } from "./chat/edit-chat-dialog";
-import { estimateMessages } from "./chat/message-token-estimate";
+import { estimateStableMessages } from "./chat/message-token-estimate";
+import { useStableMessages } from "./chat/stable-messages";
 import { getLatestChatTodoSummary } from "./chat/todo-list";
 import {
   CHAT_TRANSCRIPT_WINDOW_SIZE,
@@ -238,10 +239,17 @@ export const ChatPanel = ({
   }, [chat.id, draftRestore]);
 
   const sessionChat = useChatSession({ chatId: chat.id, isActive });
-  const { messages, status, stop } = useChat({
+  const {
+    messages: streamedMessages,
+    status,
+    stop,
+  } = useChat({
     chat: sessionChat,
     experimental_throttle: CHAT_STREAM_UPDATE_THROTTLE_MS,
   });
+  // Unchanged messages and parts keep their identity across stream updates,
+  // so only what the live turn changed is rendered or scanned again.
+  const messages = useStableMessages(streamedMessages);
 
   const addToolApprovalResponse = useCallback<ToolApprovalResponder>(
     (response) => respondToToolApproval(chat.id, response),
@@ -262,7 +270,7 @@ export const ChatPanel = ({
     getModelContextWindow(selectedModel);
   const contextUsage = latestAssistantContextMetadata?.usage;
   const fallbackEstimatedTokens = useMemo(
-    () => (contextUsage ? 0 : estimateMessages(messages)),
+    () => (contextUsage ? 0 : estimateStableMessages(messages)),
     [contextUsage, messages],
   );
   const contextUsedTokens =

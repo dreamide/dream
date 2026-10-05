@@ -459,37 +459,73 @@ const applyTaskUpdate = (todos: ChatTodoItem[], update: TaskUpdate) => {
   });
 };
 
+/** Where the todo list stands after some of a transcript's parts. */
+type TodoFold = {
+  latestTodos: ChatTodoItem[];
+  taskCreateIndex: number;
+  taskCreateTodos: ChatTodoItem[];
+};
+
+const EMPTY_TODO_FOLD: TodoFold = {
+  latestTodos: [],
+  taskCreateIndex: 0,
+  taskCreateTodos: [],
+};
+
+const foldMessageTodos = (fold: TodoFold, message: UIMessage): TodoFold => {
+  let { latestTodos, taskCreateIndex, taskCreateTodos } = fold;
+  for (const part of message.parts) {
+    const taskCreateTodo = getTaskCreateItemFromPart(part, taskCreateIndex);
+    if (taskCreateTodo) {
+      taskCreateTodos = upsertTodo(taskCreateTodos, taskCreateTodo);
+      latestTodos = taskCreateTodos;
+      taskCreateIndex += 1;
+      continue;
+    }
+
+    const taskUpdate = getTaskUpdateFromPart(part);
+    if (taskUpdate) {
+      taskCreateTodos = applyTaskUpdate(taskCreateTodos, taskUpdate);
+      latestTodos = taskCreateTodos;
+      continue;
+    }
+
+    const todos = getTodosFromPart(part);
+    if (todos) {
+      latestTodos = todos;
+      taskCreateTodos = [];
+    }
+  }
+  return { latestTodos, taskCreateIndex, taskCreateTodos };
+};
+
+// A message's fold, remembered with the fold it started from: the same
+// message after the same history folds the same way.
+const messageTodoFolds = new WeakMap<
+  UIMessage,
+  { after: TodoFold; before: TodoFold }
+>();
+
 export const getLatestChatTodoSummary = (
   messages: UIMessage[],
 ): ChatTodoSummary => {
-  let latestTodos: ChatTodoItem[] = [];
-  let taskCreateTodos: ChatTodoItem[] = [];
-  let taskCreateIndex = 0;
-
-  for (const message of messages) {
-    for (const part of message.parts) {
-      const taskCreateTodo = getTaskCreateItemFromPart(part, taskCreateIndex);
-      if (taskCreateTodo) {
-        taskCreateTodos = upsertTodo(taskCreateTodos, taskCreateTodo);
-        latestTodos = taskCreateTodos;
-        taskCreateIndex += 1;
-        continue;
-      }
-
-      const taskUpdate = getTaskUpdateFromPart(part);
-      if (taskUpdate) {
-        taskCreateTodos = applyTaskUpdate(taskCreateTodos, taskUpdate);
-        latestTodos = taskCreateTodos;
-        continue;
-      }
-
-      const todos = getTodosFromPart(part);
-      if (todos) {
-        latestTodos = todos;
-        taskCreateTodos = [];
-      }
+  let fold = EMPTY_TODO_FOLD;
+  messages.forEach((message, index) => {
+    // The last message may be the one a turn is still writing: never cached.
+    if (index === messages.length - 1) {
+      fold = foldMessageTodos(fold, message);
+      return;
     }
-  }
+    const cached = messageTodoFolds.get(message);
+    if (cached?.before === fold) {
+      fold = cached.after;
+      return;
+    }
+    const after = foldMessageTodos(fold, message);
+    messageTodoFolds.set(message, { after, before: fold });
+    fold = after;
+  });
+  const { latestTodos } = fold;
 
   const completedCount = latestTodos.filter(
     (todo) => todo.status === "completed",

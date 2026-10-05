@@ -172,7 +172,7 @@ const findSiblingCommandDiff = ({
   projectRelativeFilePath,
 }: {
   filePath: string | null;
-  messageParts?: MessagePart[];
+  messageParts?: readonly (MessagePart | null)[];
   partIndex?: number;
   projectRelativeFilePath: string | null;
 }): string | null => {
@@ -184,7 +184,7 @@ const findSiblingCommandDiff = ({
   const precedingParts = messageParts.slice(0, partIndex).reverse();
 
   for (const part of [...followingParts, ...precedingParts]) {
-    if (getChipToolKind(part) !== "command") {
+    if (!part || getChipToolKind(part) !== "command") {
       continue;
     }
 
@@ -275,7 +275,12 @@ export const WriteFileChip = ({
   onToolApproval,
 }: {
   defaultExpanded?: boolean;
-  messageParts?: MessagePart[];
+  /**
+   * The message's parts, at their indexes, where a command's output may
+   * hold this write's diff. Only the command parts need be there; any other
+   * may be null.
+   */
+  messageParts?: readonly (MessagePart | null)[];
   part: ToolLikePart;
   partIndex?: number;
   projectPath?: string | null;

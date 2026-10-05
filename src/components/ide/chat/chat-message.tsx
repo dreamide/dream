@@ -1,6 +1,6 @@
 import type { UIMessage } from "ai";
 import { useTranslations } from "next-intl";
-import { memo, type ReactNode } from "react";
+import { memo, type ReactNode, useRef } from "react";
 import { Message, MessageContent } from "@/components/ai-elements/message";
 import {
   Source,
@@ -11,6 +11,7 @@ import {
 import { AssistantMessagePart } from "../assistant-message";
 import { ChipAnimateProvider } from "../assistant-message/shared";
 import {
+  getChipToolKind,
   isChipToolPart,
   isRedundantDirectWebToolSearchPart,
 } from "../assistant-message-tools";
@@ -22,6 +23,7 @@ import {
 import type { ContinueChatPopoverContext } from "./continue-chat-popover";
 import { UserMessageContent } from "./message-content";
 import { MessageHoverFooter } from "./message-footer";
+import { reuseIfSameItems } from "./stable-messages";
 import { isTodoListPart } from "./todo-list";
 import {
   getMessagePartKey,
@@ -61,8 +63,8 @@ type ToolChipItem = {
 
 type ToolChipRenderContext = {
   addToolApprovalResponse: ToolApprovalResponder;
+  commandParts: readonly (UIMessage["parts"][number] | null)[];
   expandToolCalls: boolean;
-  messageParts: UIMessage["parts"];
   messageId: string;
   projectPath: string;
 };
@@ -92,6 +94,7 @@ export const ChatMessage = memo(
     showReasoningSummaries,
   }: ChatMessageProps) => {
     const uiT = useTranslations("ui");
+    const commandPartsRef = useRef<(UIMessage["parts"][number] | null)[]>(null);
 
     if (message.role === "user") {
       return (
@@ -114,6 +117,15 @@ export const ChatMessage = memo(
     );
 
     const isActivelyStreaming = isStreaming && isLastMessage;
+    // Write chips read command output for their diff; this view changes
+    // only when a command part does, not with every streamed chunk.
+    const commandParts = reuseIfSameItems(
+      commandPartsRef.current,
+      nonSourceParts.map((part) =>
+        getChipToolKind(part) === "command" ? part : null,
+      ),
+    );
+    commandPartsRef.current = commandParts;
 
     return (
       <ChipAnimateProvider value={isActivelyStreaming}>
@@ -152,8 +164,8 @@ export const ChatMessage = memo(
               const elements: ReactNode[] = [];
               const toolChipContext: ToolChipRenderContext = {
                 addToolApprovalResponse,
+                commandParts,
                 expandToolCalls,
-                messageParts: nonSourceParts,
                 messageId: message.id,
                 projectPath,
               };
