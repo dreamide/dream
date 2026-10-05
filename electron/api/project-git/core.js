@@ -3,27 +3,19 @@ import path from "node:path";
 import { parsePatchFiles } from "@pierre/diffs";
 import { execFileAsync } from "../shared/cli.js";
 import { hashContent, normalizePath, resolveProjectPath } from "./files.js";
+import {
+  createGitRepositoryContext,
+  getGitCommandErrorMessage,
+} from "./repository-context.js";
+
+export { getGitCommandErrorMessage };
 
 const EMPTY_GIT_TREE_HASH = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const GIT_EXEC_MAX_BUFFER = 16 * 1024 * 1024;
 const GH_EXEC_MAX_BUFFER = 8 * 1024 * 1024;
 
-export const getGitCommandErrorMessage = (error) => {
-  if (error?.code === "ENOENT") {
-    return "Git is not available on PATH.";
-  }
-
-  const stderr = typeof error?.stderr === "string" ? error.stderr.trim() : "";
-  const stdout = typeof error?.stdout === "string" ? error.stdout.trim() : "";
-
-  return stderr || stdout || "Git command failed.";
-};
-
-export const runGitCommand = async (
-  cwd,
-  args,
-  { allowFailure = false } = {},
-) => {
+/** Starts one git process: the context's runner (repository-context.js). */
+const execGitCommand = async (cwd, args, { allowFailure = false } = {}) => {
   try {
     const result = await execFileAsync("git", args, {
       cwd,
@@ -49,6 +41,18 @@ export const runGitCommand = async (
     throw new Error(getGitCommandErrorMessage(error));
   }
 };
+
+/** The host's Git repositories: remembered facts and shared reads. */
+export const gitRepositories = createGitRepositoryContext({
+  run: execGitCommand,
+});
+
+/**
+ * Runs one git command. A command that may write makes the host forget
+ * what it remembered about every repository (repository-context.js).
+ */
+export const runGitCommand = (cwd, args, options) =>
+  gitRepositories.run(cwd, args, options);
 
 const getGhCommandErrorMessage = (error) => {
   if (error?.code === "ENOENT") {
@@ -92,18 +96,6 @@ export const runGhCommand = async (
   }
 };
 
-const isGitRepositoryError = (result) => {
-  if (result.ok) {
-    return false;
-  }
-
-  const message = `${result.stderr}\n${result.stdout}`.toLowerCase();
-  return (
-    message.includes("not a git repository") ||
-    message.includes("outside repository")
-  );
-};
-
 const isChangedGitStatusCode = (value) =>
   typeof value === "string" && value !== "" && value !== "." && value !== " ";
 
@@ -124,25 +116,8 @@ const mapGitChangeState = (xy, untracked = false) => {
   };
 };
 
-const getPreferredGitRemote = async (repoRoot) => {
-  const remoteResult = await runGitCommand(repoRoot, ["remote"], {
-    allowFailure: true,
-  });
-  if (!remoteResult.ok) {
-    return null;
-  }
-
-  const remotes = remoteResult.stdout
-    .split(/\r?\n/)
-    .map((remote) => remote.trim())
-    .filter(Boolean);
-
-  if (remotes.length === 0) {
-    return null;
-  }
-
-  return remotes.includes("origin") ? "origin" : remotes[0];
-};
+const getPreferredGitRemote = (repoRoot) =>
+  gitRepositories.remoteName(repoRoot);
 
 export const gitRefExists = async (repoRoot, ref) => {
   const result = await runGitCommand(
@@ -154,39 +129,8 @@ export const gitRefExists = async (repoRoot, ref) => {
   return result.ok;
 };
 
-const getGitDefaultBranch = async (repoRoot, remoteName) => {
-  if (remoteName) {
-    const remoteHeadResult = await runGitCommand(
-      repoRoot,
-      ["symbolic-ref", "--quiet", "--short", `refs/remotes/${remoteName}/HEAD`],
-      { allowFailure: true },
-    );
-    if (remoteHeadResult.ok) {
-      const remoteHead = remoteHeadResult.stdout.trim();
-      if (remoteHead.startsWith(`${remoteName}/`)) {
-        return remoteHead.slice(remoteName.length + 1);
-      }
-      if (remoteHead) {
-        return remoteHead;
-      }
-    }
-  }
-
-  for (const branchName of ["main", "master"]) {
-    if (await gitRefExists(repoRoot, `refs/heads/${branchName}`)) {
-      return branchName;
-    }
-
-    if (
-      remoteName &&
-      (await gitRefExists(repoRoot, `refs/remotes/${remoteName}/${branchName}`))
-    ) {
-      return branchName;
-    }
-  }
-
-  return null;
-};
+const getGitDefaultBranch = (repoRoot, remoteName) =>
+  gitRepositories.defaultBranch(repoRoot, remoteName);
 
 /**
  * The upstream of the checked-out branch, or of `branch` when given, as
@@ -270,24 +214,30 @@ export const getGitAheadBehindCounts = async (
 /**
  * Remote, upstream and ahead/behind counts for the checked-out branch, or,
  * with `named`, for `branch` itself whether or not it is checked out.
+ * `tracking` is the checked-out branch's upstream and counts when the
+ * caller already has them (`git status --branch` reports both).
  */
 export const getProjectGitMetadata = async (
   repoRoot,
   branch,
-  { named = false } = {},
+  { named = false, tracking = null } = {},
 ) => {
   const remoteName = await getPreferredGitRemote(repoRoot);
   const [baseBranch, upstreamBranch] = await Promise.all([
     getGitDefaultBranch(repoRoot, remoteName),
-    branch?.startsWith("HEAD ")
-      ? Promise.resolve(null)
-      : getCurrentGitUpstream(repoRoot, named ? branch : null),
+    tracking
+      ? tracking.upstreamBranch
+      : branch?.startsWith("HEAD ")
+        ? Promise.resolve(null)
+        : getCurrentGitUpstream(repoRoot, named ? branch : null),
   ]);
-  const { aheadCount, behindCount } = await getGitAheadBehindCounts(
-    repoRoot,
-    upstreamBranch,
-    named ? `refs/heads/${branch}` : "HEAD",
-  );
+  const { aheadCount, behindCount } =
+    tracking ??
+    (await getGitAheadBehindCounts(
+      repoRoot,
+      upstreamBranch,
+      named ? `refs/heads/${branch}` : "HEAD",
+    ));
 
   return {
     aheadCount,
@@ -350,47 +300,42 @@ const toProjectRelativeGitPath = (projectPath, repoRoot, gitPath) => {
   return normalizePath(relativePath);
 };
 
-export const getGitRepositoryInfo = async (projectPath) => {
-  const repoResult = await runGitCommand(
-    projectPath,
-    ["rev-parse", "--show-toplevel"],
+/** The repository's top folder, or null when the project is in none. */
+const getGitRepositoryRoot = (projectPath) =>
+  gitRepositories.repositoryRoot(projectPath);
+
+/** A detached HEAD's name, `HEAD <short revision>`, or null. */
+const getDetachedHeadName = async (repoRoot) => {
+  const detachedHeadResult = await runGitCommand(
+    repoRoot,
+    ["rev-parse", "--short", "HEAD"],
     { allowFailure: true },
   );
+  const revision = detachedHeadResult.ok
+    ? detachedHeadResult.stdout.trim()
+    : "";
+  return revision ? `HEAD ${revision}` : null;
+};
 
-  if (!repoResult.ok) {
-    if (isGitRepositoryError(repoResult)) {
-      return {
-        branch: null,
-        isRepo: false,
-        repoRoot: null,
-      };
-    }
-
-    throw new Error(getGitCommandErrorMessage(repoResult.error));
+export const getGitRepositoryInfo = async (projectPath) => {
+  const repoRoot = await getGitRepositoryRoot(projectPath);
+  if (!repoRoot) {
+    return {
+      branch: null,
+      isRepo: false,
+      repoRoot: null,
+    };
   }
 
-  const repoRoot = repoResult.stdout.trim();
   const branchResult = await runGitCommand(
     repoRoot,
     ["branch", "--show-current"],
     { allowFailure: true },
   );
-  let branch = branchResult.ok ? branchResult.stdout.trim() : "";
-
-  if (!branch) {
-    const detachedHeadResult = await runGitCommand(
-      repoRoot,
-      ["rev-parse", "--short", "HEAD"],
-      { allowFailure: true },
-    );
-    if (detachedHeadResult.ok) {
-      const revision = detachedHeadResult.stdout.trim();
-      branch = revision ? `HEAD ${revision}` : "";
-    }
-  }
+  const branch = branchResult.ok ? branchResult.stdout.trim() : "";
 
   return {
-    branch: branch || null,
+    branch: branch || (await getDetachedHeadName(repoRoot)),
     isRepo: true,
     repoRoot,
   };
@@ -420,17 +365,115 @@ const mapGitChangeStatus = (xy, fallbackCode = "") => {
   return "modified";
 };
 
-export const listProjectGitChanges = async (
+/**
+ * The `# branch.*` lines of `git status --porcelain=v2 --branch`: the branch
+ * (or that HEAD is detached), HEAD's commit (null before the first commit),
+ * and, when git counted them, the upstream with ahead/behind counts.
+ */
+export const parseGitStatusBranchHeaders = (entries) => {
+  const headers = new Map();
+  for (const entry of entries) {
+    if (!entry.startsWith("# branch.")) continue;
+    const separator = entry.indexOf(" ", 2);
+    if (separator === -1) continue;
+    headers.set(entry.slice(2, separator), entry.slice(separator + 1));
+  }
+
+  const branchHead = headers.get("branch.head") ?? "";
+  const oid = headers.get("branch.oid") ?? "";
+  const upstreamBranch = headers.get("branch.upstream") || null;
+  const counts = /^\+(\d+) -(\d+)$/.exec(headers.get("branch.ab") ?? "");
+  return {
+    branch: branchHead === "(detached)" ? "" : branchHead,
+    detached: branchHead === "(detached)",
+    oid: /^[0-9a-f]{4,}$/i.test(oid) ? oid : null,
+    tracking:
+      upstreamBranch && counts
+        ? {
+            aheadCount: Number.parseInt(counts[1], 10),
+            behindCount: Number.parseInt(counts[2], 10),
+            upstreamBranch,
+          }
+        : null,
+  };
+};
+
+const FULL_STATUS = {
+  includeMetadata: true,
+  includeStats: true,
+  includeUntracked: true,
+};
+
+const statusReadKey = (projectPath, options) =>
+  `status\0${path.resolve(projectPath)}\0${[
+    options.includeMetadata,
+    options.includeStats,
+    options.includeUntracked,
+  ]
+    .map(Number)
+    .join("")}`;
+
+/** `status` as a read with less detail would have reported it. */
+const narrowProjectGitStatus = (status, options) => {
+  if (!status.isRepo) return status;
+  const changes = status.changes
+    .filter(
+      (change) => options.includeUntracked || change.status !== "untracked",
+    )
+    .map((change) =>
+      options.includeStats
+        ? change
+        : { ...change, addedLines: 0, removedLines: 0 },
+    );
+  return {
+    ...status,
+    ...(options.includeMetadata
+      ? {}
+      : {
+          aheadCount: 0,
+          baseBranch: null,
+          behindCount: 0,
+          remoteName: null,
+          upstreamBranch: null,
+        }),
+    changes,
+    ...summarizeProjectGitChanges(changes),
+  };
+};
+
+/**
+ * The project's changes, branch and (in full) line counts and upstream. A
+ * read made while an identical one has just started shares it, and a less
+ * detailed read is answered from a full one (repository-context.js).
+ */
+export const listProjectGitChanges = (projectPath, options = {}) => {
+  const detail = { ...FULL_STATUS, ...options };
+  const isFull =
+    detail.includeMetadata && detail.includeStats && detail.includeUntracked;
+  if (!isFull) {
+    const fullRead = gitRepositories.joinable(
+      statusReadKey(projectPath, FULL_STATUS),
+    );
+    if (fullRead) {
+      return fullRead.then((status) => narrowProjectGitStatus(status, detail));
+    }
+  }
+  return gitRepositories.share(statusReadKey(projectPath, detail), () =>
+    readProjectGitChanges(projectPath, detail),
+  );
+};
+
+const readProjectGitChanges = async (
   projectPath,
-  { includeMetadata = true, includeStats = true, includeUntracked = true } = {},
+  { includeMetadata, includeStats, includeUntracked },
 ) => {
-  const repoInfo = await getGitRepositoryInfo(projectPath);
-  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+  const repoRoot = await getGitRepositoryRoot(projectPath);
+  if (!repoRoot) {
     return {
       addedLines: 0,
       aheadCount: 0,
       baseBranch: null,
-      branch: repoInfo.branch,
+      branch: null,
       changes: [],
       behindCount: 0,
       fileCount: 0,
@@ -446,13 +489,24 @@ export const listProjectGitChanges = async (
     };
   }
 
-  const statusResult = await runGitCommand(repoInfo.repoRoot, [
+  // `--branch` reports the branch, HEAD and the upstream counts in this one
+  // call, in place of a git process for each.
+  const statusResult = await runGitCommand(repoRoot, [
     "status",
     "--porcelain=v2",
+    "--branch",
+    ...(includeMetadata ? [] : ["--no-ahead-behind"]),
     "-z",
     includeUntracked ? "--untracked-files=all" : "--untracked-files=no",
   ]);
   const entries = statusResult.stdout.split("\0").filter(Boolean);
+  const head = parseGitStatusBranchHeaders(entries);
+  const repoInfo = {
+    branch: head.detached
+      ? await getDetachedHeadName(repoRoot)
+      : head.branch || null,
+    repoRoot,
+  };
   const changes = [];
 
   for (let index = 0; index < entries.length; index++) {
@@ -531,9 +585,25 @@ export const listProjectGitChanges = async (
   }
 
   changes.sort((left, right) => left.path.localeCompare(right.path));
-  const statsByPath = includeStats
-    ? await getProjectGitChangeStats(projectPath, repoInfo.repoRoot, changes)
-    : new Map();
+  // Line counts and the remote are independent: read them together.
+  const [statsByPath, metadata] = await Promise.all([
+    includeStats
+      ? getProjectGitChangeStats(projectPath, repoRoot, changes, {
+          baseRef: head.oid ?? EMPTY_GIT_TREE_HASH,
+        })
+      : new Map(),
+    includeMetadata
+      ? getProjectGitMetadata(repoRoot, repoInfo.branch, {
+          tracking: head.tracking,
+        })
+      : {
+          aheadCount: 0,
+          baseBranch: null,
+          behindCount: 0,
+          remoteName: null,
+          upstreamBranch: null,
+        },
+  ]);
 
   const enrichedChanges = changes.map((change) => {
     const stats = statsByPath.get(change.path) ?? {
@@ -547,16 +617,6 @@ export const listProjectGitChanges = async (
       removedLines: stats.removedLines,
     };
   });
-  const metadata = includeMetadata
-    ? await getProjectGitMetadata(repoInfo.repoRoot, repoInfo.branch)
-    : {
-        aheadCount: 0,
-        baseBranch: null,
-        behindCount: 0,
-        remoteName: null,
-        upstreamBranch: null,
-      };
-
   return {
     ...metadata,
     branch: repoInfo.branch,
@@ -567,7 +627,13 @@ export const listProjectGitChanges = async (
   };
 };
 
-export const listProjectGitBranches = async (projectPath) => {
+/** The project's local branches, current first; shared like a status read. */
+export const listProjectGitBranches = (projectPath) =>
+  gitRepositories.share(`branches\0${path.resolve(projectPath)}`, () =>
+    readProjectGitBranches(projectPath),
+  );
+
+const readProjectGitBranches = async (projectPath) => {
   const repoInfo = await getGitRepositoryInfo(projectPath);
   if (!repoInfo.isRepo || !repoInfo.repoRoot) {
     return {
@@ -706,7 +772,12 @@ const parseNumstatValue = (value) => {
   return value === "-" ? 0 : Number.parseInt(value, 10) || 0;
 };
 
-const getProjectGitChangeStats = async (projectPath, repoRoot, changes) => {
+const getProjectGitChangeStats = async (
+  projectPath,
+  repoRoot,
+  changes,
+  { baseRef: knownBaseRef = null } = {},
+) => {
   const statsByPath = new Map();
   const trackedPaths = changes
     .filter((change) => change.status !== "untracked")
@@ -717,7 +788,7 @@ const getProjectGitChangeStats = async (projectPath, repoRoot, changes) => {
     );
 
   if (trackedPaths.length > 0) {
-    const baseRef = await getGitDiffBaseRef(repoRoot);
+    const baseRef = knownBaseRef ?? (await getGitDiffBaseRef(repoRoot));
     const diffResult = await runGitCommand(repoRoot, [
       "diff",
       "--numstat",

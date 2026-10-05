@@ -26,6 +26,7 @@ import {
   getGitRepositoryInfo,
   getProjectGitMetadata,
   gitRefExists,
+  gitRepositories,
   listProjectGitChanges,
   parseSingleFileDiff,
   runGhCommand,
@@ -177,7 +178,13 @@ export const removeEmptyAppWorktreeParent = async (worktreePath) => {
   }
 };
 
-export const listProjectGitWorktrees = async (projectPath) => {
+/** The repository's worktrees; shared like a status read. */
+export const listProjectGitWorktrees = (projectPath) =>
+  gitRepositories.share(`worktrees\0${path.resolve(projectPath)}`, () =>
+    readProjectGitWorktrees(projectPath),
+  );
+
+const readProjectGitWorktrees = async (projectPath) => {
   const repoInfo = await getGitRepositoryInfo(projectPath);
   if (!repoInfo.isRepo || !repoInfo.repoRoot) {
     return {

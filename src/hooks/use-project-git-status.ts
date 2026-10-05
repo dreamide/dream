@@ -50,6 +50,82 @@ const getProjectPathCacheKey = (projectPath: string | null | undefined) =>
 
 export type ProjectGitStatusDetail = "full" | "summary";
 
+const getGitStatusCacheKey = (
+  projectPath: string | null | undefined,
+  detail: ProjectGitStatusDetail,
+  hostId: string,
+) => {
+  const projectPathCacheKey = getProjectPathCacheKey(projectPath);
+  return projectPathCacheKey
+    ? `${hostId}\0${projectPathCacheKey}\0${detail}`
+    : "";
+};
+
+/**
+ * A project's Git status at `refreshToken`, read once for every caller that
+ * asks for it at that token: from the cache, from a read already under way,
+ * or from the host. `force` reads again regardless.
+ */
+export const readProjectGitStatus = ({
+  describeError,
+  detail = "full",
+  force = false,
+  hostId = LOCAL_HOST_ID,
+  projectPath,
+  refreshToken,
+}: {
+  describeError: (error: unknown) => string;
+  detail?: ProjectGitStatusDetail;
+  force?: boolean;
+  hostId?: string;
+  projectPath: string;
+  refreshToken: number;
+}): Promise<ProjectGitStatusCacheEntry> => {
+  const cacheKey = getGitStatusCacheKey(projectPath, detail, hostId);
+  const cached = gitStatusCache.get(cacheKey);
+  if (!force && cached?.refreshToken === refreshToken) {
+    return Promise.resolve(cached);
+  }
+
+  const inflightKey = `${cacheKey}:${refreshToken}`;
+  const inflight = gitStatusInflightRequests.get(inflightKey);
+  if (inflight && !force) {
+    return inflight;
+  }
+
+  const request = (async () => {
+    try {
+      const entry: ProjectGitStatusCacheEntry = {
+        error: null,
+        refreshToken,
+        status: await apiClient.gitStatus({ detail, projectPath }, { hostId }),
+      };
+      gitStatusCache.set(cacheKey, entry);
+      notifyGitStatusCacheListeners(cacheKey);
+      return entry;
+    } catch (error) {
+      const entry: ProjectGitStatusCacheEntry = {
+        error: describeError(error),
+        refreshToken,
+        status: null,
+      };
+      gitStatusCache.set(cacheKey, entry);
+      notifyGitStatusCacheListeners(cacheKey);
+      return entry;
+    } finally {
+      // Only an unforced read is shared, so only one can be in the map.
+      if (!force) {
+        gitStatusInflightRequests.delete(inflightKey);
+      }
+    }
+  })();
+
+  if (!force) {
+    gitStatusInflightRequests.set(inflightKey, request);
+  }
+  return request;
+};
+
 export const useProjectGitStatus = (
   projectPath: string | null | undefined,
   refreshKey?: number,
@@ -66,10 +142,7 @@ export const useProjectGitStatus = (
   const detail = options.detail ?? "full";
   const hostId = options.hostId ?? LOCAL_HOST_ID;
   const refreshToken = refreshKey ?? 0;
-  const projectPathCacheKey = getProjectPathCacheKey(projectPath);
-  const cacheKey = projectPathCacheKey
-    ? `${hostId}\0${projectPathCacheKey}\0${detail}`
-    : "";
+  const cacheKey = getGitStatusCacheKey(projectPath, detail, hostId);
   const cachedEntry = cacheKey ? gitStatusCache.get(cacheKey) : null;
   const [status, setStatus] = useState<ProjectGitStatusResponse | null>(
     cachedEntry?.refreshToken === refreshToken
@@ -110,47 +183,17 @@ export const useProjectGitStatus = (
       setStatusRefreshToken(null);
 
       try {
-        const inflightKey = `${cacheKey}:${refreshToken}`;
-        let request = gitStatusInflightRequests.get(inflightKey);
-
-        if (!request || force) {
-          request = (async () => {
-            try {
-              const entry: ProjectGitStatusCacheEntry = {
-                error: null,
-                refreshToken,
-                status: await apiClient.gitStatus(
-                  { detail, projectPath },
-                  { hostId },
-                ),
-              };
-              gitStatusCache.set(cacheKey, entry);
-              notifyGitStatusCacheListeners(cacheKey);
-              return entry;
-            } catch (error) {
-              const entry: ProjectGitStatusCacheEntry = {
-                error: getApiErrorMessage(
-                  error,
-                  uiT("failedToReadGitStatus"),
-                  (status) => uiT("requestFailedStatus", { status }),
-                ),
-                refreshToken,
-                status: null,
-              };
-              gitStatusCache.set(cacheKey, entry);
-              notifyGitStatusCacheListeners(cacheKey);
-              return entry;
-            } finally {
-              gitStatusInflightRequests.delete(inflightKey);
-            }
-          })();
-
-          if (!force) {
-            gitStatusInflightRequests.set(inflightKey, request);
-          }
-        }
-
-        const entry = await request;
+        const entry = await readProjectGitStatus({
+          describeError: (error) =>
+            getApiErrorMessage(error, uiT("failedToReadGitStatus"), (status) =>
+              uiT("requestFailedStatus", { status }),
+            ),
+          detail,
+          force,
+          hostId,
+          projectPath,
+          refreshToken,
+        });
         if (signal?.aborted) {
           return;
         }

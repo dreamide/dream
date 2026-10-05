@@ -1,3 +1,4 @@
+import { readProjectGitStatus } from "@/hooks/use-project-git-status";
 import { apiClient } from "@/lib/api-client";
 import type {
   AiProvider,
@@ -24,6 +25,8 @@ type CommitMessageCacheParams = {
 type GenerateCommitMessageParams = CommitMessageCacheParams;
 
 type WarmCommitMessageParams = {
+  /** The project's host (absent: the local host). */
+  hostId?: string;
   includeUnstaged?: boolean;
   model: string;
   modelSpeed: ModelSpeed;
@@ -171,6 +174,7 @@ export const warmProjectCommitMessageForStatus = async ({
 };
 
 export const warmProjectCommitMessage = async ({
+  hostId,
   includeUnstaged = true,
   model,
   modelSpeed,
@@ -188,7 +192,16 @@ export const warmProjectCommitMessage = async ({
       provider,
       reasoningEffort,
       refreshToken,
-      status: await apiClient.gitStatus({ projectPath }),
+      // The full read the changes panel makes at this same refresh, so the
+      // two are one request when the panel is open.
+      status: (
+        await readProjectGitStatus({
+          describeError: () => "",
+          hostId,
+          projectPath,
+          refreshToken,
+        })
+      ).status,
     });
   } catch {
     return "";

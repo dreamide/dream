@@ -108,6 +108,19 @@ is stored (`saveChatMessages` in `electron/host/catalog-store.js`), so
 saving a transcript again costs what changed in it. Contrast the workspace,
 which is one client's view of it.
 
+## Repository context
+
+What a host knows about the Git repositories its projects are in, and the
+one way it runs git (`electron/api/project-git/repository-context.js`).
+**Stable facts** (a project's repository root, the remote, the default
+branch) are read once and remembered for a while. **Volatile reads**
+(status, branches, worktrees) are shared between callers that ask at the
+same moment, as every panel does on a refresh, and a summary status is
+answered from a full one. Any git command not known to only read makes the
+host forget all of it, so nothing read before a write is handed out after
+it. Changes made outside the host's git (an agent's shell) show in the next
+volatile read; remembered facts catch up when they expire.
+
 ## Terminal session
 
 A shell process attached to a project (`__project_terminal__:<projectId>:…`)

@@ -3,6 +3,7 @@
 // reasoning parts use item ids and end when their item completes.
 import {
   getProjectGitDiff,
+  gitRepositories,
   listProjectGitChanges,
 } from "../project-git/core.js";
 import { beginBrowserTurn } from "./active-browser-turns.js";
@@ -289,6 +290,8 @@ const buildFileChangeOutput = async ({ item, projectPath }) => {
   }
 
   try {
+    // Codex just changed files outside git: read past anything remembered.
+    gitRepositories.forget();
     const gitStatus = await listProjectGitChanges(projectPath);
     const enrichedChanges = await Promise.all(
       changes.map(async (change) => {

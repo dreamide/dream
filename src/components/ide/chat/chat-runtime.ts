@@ -765,6 +765,7 @@ export const submitChatPrompt = (
     useIdeStore.getState().setChatStreaming(chatId, false);
     flushProjectPanelRefresh(submittedProject.id);
     void warmProjectCommitMessage({
+      hostId: submittedProject.hostId,
       model: gitGenerationModelSelection.model,
       modelSpeed: gitGenerationModelSelection.modelSpeed,
       projectPath: submittedProjectPath,
