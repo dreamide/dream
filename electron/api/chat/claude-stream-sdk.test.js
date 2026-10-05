@@ -150,3 +150,50 @@ test("resumes with only the latest turn and preserves image file inputs", async 
   assert.equal(image.mediaType, "image/png");
   assert.ok(image.data);
 });
+
+test("stopping the turn aborts the Claude query and ends the stream cleanly", async () => {
+  // A model that never finishes on its own, like an agent mid-task: only an
+  // abort ends it (the real provider interrupts its query the same way).
+  claudeCode.mockReturnValue({
+    specificationVersion: "v4",
+    provider: "claude-code",
+    modelId: "haiku",
+    supportedUrls: {},
+    doStream: async (options) => {
+      calls.push(options);
+      return {
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: "stream-start", warnings: [] });
+            controller.enqueue({ type: "text-start", id: "text-1" });
+            controller.enqueue({
+              type: "text-delta",
+              id: "text-1",
+              delta: "Working",
+            });
+            const abort = () => controller.error(options.abortSignal.reason);
+            if (options.abortSignal?.aborted) abort();
+            else options.abortSignal?.addEventListener("abort", abort);
+          },
+        }),
+      };
+    },
+  });
+
+  const stop = new AbortController();
+  const response = await streamClaudeResponse({
+    ...request,
+    abortSignal: stop.signal,
+  });
+  const reading = readChunks(response);
+  await vi.waitFor(() => assert.equal(calls.length, 1));
+  stop.abort();
+
+  const chunks = await reading;
+  assert.ok(calls[0].abortSignal, "the model received an abort signal");
+  assert.equal(calls[0].abortSignal.aborted, true);
+  assert.equal(
+    chunks.some((part) => part.type === "error"),
+    false,
+  );
+});

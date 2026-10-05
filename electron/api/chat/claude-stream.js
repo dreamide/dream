@@ -425,6 +425,7 @@ const parseAskUserQuestionApproval = (reason) => {
 };
 
 export const streamClaudeResponse = async ({
+  abortSignal,
   permissionMode,
   mcpServers = [],
   messages,
@@ -585,6 +586,7 @@ export const streamClaudeResponse = async ({
   }
 
   return streamAgentTurn({
+    abortSignal,
     label: "Claude Code",
     messages,
     model,
@@ -595,6 +597,9 @@ export const streamClaudeResponse = async ({
     execute: (turn) => {
       turn.session(resumeSessionId, { emit: false });
       const textResult = streamText({
+        // The turn's own signal (turn-registry.js): Stop aborts the Claude
+        // query; a client disconnecting does not.
+        abortSignal,
         messages: modelMessages,
         model: providerFactory(model, turn),
         stopWhen: isStepCount(
