@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, test } from "vitest";
 import {
   applyPersistedCatalogChanges,
@@ -12,6 +13,7 @@ import {
   savePersistedChatMessages,
   searchPersistedChatMessages,
 } from "../persisted-state.js";
+import { saveChatMessages } from "./catalog-store.js";
 
 let directory = null;
 afterEach(async () => {
@@ -27,8 +29,12 @@ const open = async () => {
     apply: (changes) => applyPersistedCatalogChanges(changes, { databasePath }),
     catalog: () => loadPersistedCatalog({ databasePath }),
     messages: (chatId) => loadPersistedChatMessages(chatId, { databasePath }),
-    saveMessages: (chatId, messages) =>
-      savePersistedChatMessages({ chatId, messages }, { databasePath }),
+    databasePath,
+    saveMessages: (chatId, messages, fromIndex) =>
+      savePersistedChatMessages(
+        { chatId, fromIndex, messages },
+        { databasePath },
+      ),
     search: (query, options) =>
       searchPersistedChatMessages(query, { ...options, databasePath }),
   };
@@ -134,6 +140,91 @@ test("a transcript is saved only for a chat the catalog has", async () => {
   );
   assert.equal(db.saveMessages("missing", []), false);
   assert.equal(db.catalog().chats[0].messageCount, 2);
+});
+
+test("saving a transcript again writes only the rows that changed", async () => {
+  const db = await open();
+  db.apply({ chats: [chat("c1", "a")], projects: [project("a")] });
+  const first = [
+    { id: "m1", parts: [{ text: "Go", type: "text" }], role: "user" },
+    { id: "m2", parts: [{ text: "On", type: "text" }], role: "assistant" },
+    { id: "m3", parts: [{ text: "More", type: "text" }], role: "user" },
+  ];
+  db.saveMessages("c1", first);
+  closePersistedStateDatabase();
+
+  // The same store function on a handle that counts what it writes.
+  const database = new DatabaseSync(db.databasePath);
+  const writes = [];
+  const counting = {
+    prepare: (sql) => {
+      const statement = database.prepare(sql);
+      return {
+        all: (...values) => statement.all(...values),
+        get: (...values) => statement.get(...values),
+        run: (...values) => {
+          writes.push(sql.trim().split(/\s+/)[0]);
+          return statement.run(...values);
+        },
+      };
+    },
+  };
+  try {
+    const next = [
+      first[0],
+      first[1],
+      { ...first[2], parts: [{ text: "More, please", type: "text" }] },
+      { id: "m4", parts: [], role: "assistant" },
+    ];
+    saveChatMessages(counting, "c1", next, new Date().toISOString());
+    assert.deepEqual(writes, ["INSERT", "INSERT"]);
+
+    writes.length = 0;
+    saveChatMessages(counting, "c1", next, new Date().toISOString());
+    assert.deepEqual(writes, []);
+  } finally {
+    database.close();
+  }
+
+  assert.deepEqual(
+    db.messages("c1").map((item) => item.id),
+    ["m1", "m2", "m3", "m4"],
+  );
+  assert.equal(db.messages("c1")[2].parts[0].text, "More, please");
+});
+
+test("a transcript saved from an index keeps what came before it", async () => {
+  const db = await open();
+  db.apply({ chats: [chat("c1", "a")], projects: [project("a")] });
+  db.saveMessages("c1", [
+    { id: "m1", parts: [], role: "user" },
+    { id: "m2", parts: [], role: "assistant" },
+    { id: "m3", parts: [], role: "user" },
+  ]);
+
+  // The message at 1 is replaced, and what followed it goes.
+  db.saveMessages("c1", [{ id: "m2b", parts: [], role: "assistant" }], 1);
+  assert.deepEqual(
+    db.messages("c1").map((item) => item.id),
+    ["m1", "m2b"],
+  );
+
+  // Written again in place, then extended.
+  db.saveMessages(
+    "c1",
+    [
+      { id: "m2b", parts: [{ text: "Done", type: "text" }], role: "assistant" },
+      { id: "m3b", parts: [], role: "user" },
+    ],
+    1,
+  );
+  const saved = db.messages("c1");
+  assert.deepEqual(
+    saved.map((item) => item.id),
+    ["m1", "m2b", "m3b"],
+  );
+  assert.equal(saved[1].parts[0].text, "Done");
+  assert.equal(db.catalog().chats[0].messageCount, 3);
 });
 
 const message = (id, role, text, extraParts = []) => ({

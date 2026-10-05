@@ -47,7 +47,7 @@ const catalogChat = (chat) => {
  *   events: { publish: (event: object) => void },
  *   getWriter: () => {
  *     applyCatalogChanges: (changes: object) => Promise<any>,
- *     saveChatMessages: (payload: { chatId: string, messages: unknown[] }) => Promise<unknown>,
+ *     saveChatMessages: (payload: { chatId: string, fromIndex?: number, messages: unknown[] }) => Promise<unknown>,
  *   },
  *   getRunningChatIds?: () => string[],
  * }} options
@@ -113,19 +113,29 @@ export function createHostCatalog({
     search: (query, options) => searchPersistedChatMessages(query, options),
 
     /**
-     * Replaces a chat's transcript; false when the chat does not exist.
+     * Replaces a chat's transcript, from `fromIndex` on when given (the
+     * messages before it stay as they are); false when the chat does not
+     * exist.
      * @param {string} chatId
      * @param {unknown[]} messages
-     * @param {{ origin?: string | null }} [options]
+     * @param {{ fromIndex?: number, origin?: string | null }} [options]
      */
-    async saveTranscript(chatId, messages, { origin = null } = {}) {
+    async saveTranscript(
+      chatId,
+      messages,
+      { fromIndex = 0, origin = null } = {},
+    ) {
       const saved =
-        (await getWriter().saveChatMessages({ chatId, messages })) === true;
+        (await getWriter().saveChatMessages({
+          chatId,
+          fromIndex,
+          messages,
+        })) === true;
       if (saved) {
         events.publish({
           chatId,
           kind: "transcript",
-          messageCount: messages.length,
+          messageCount: fromIndex + messages.length,
           origin,
         });
       }

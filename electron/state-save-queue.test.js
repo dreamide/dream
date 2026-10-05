@@ -8,7 +8,10 @@ import {
   loadPersistedCatalog,
   loadPersistedState,
 } from "./persisted-state.js";
-import { createStateSaveQueue } from "./state-save-queue.js";
+import {
+  createStateSaveQueue,
+  mergeChatMessageSaves,
+} from "./state-save-queue.js";
 
 const createProject = (id, lastUsedAt) => ({
   browserUrl: "",
@@ -164,4 +167,50 @@ test("state save queue lands catalog changes before the transcript, and coalesce
     closePersistedStateDatabase();
     await rm(directory, { force: true, recursive: true });
   }
+});
+
+test("queued transcript saves of one chat become one save", () => {
+  const user = { id: "u1", parts: [], role: "user" };
+  const early = { id: "a1", parts: [], role: "assistant" };
+  const late = { id: "a1", parts: [{ text: "Done", type: "text" }] };
+  const whole = { chatId: "c1", messages: [user, early] };
+
+  // A later save of the tail keeps the queued messages before it.
+  assert.deepEqual(
+    mergeChatMessageSaves(whole, {
+      chatId: "c1",
+      fromIndex: 1,
+      messages: [late],
+    }),
+    { chatId: "c1", fromIndex: 0, messages: [user, late] },
+  );
+  // Two saves of the same tail: the later one.
+  assert.deepEqual(
+    mergeChatMessageSaves(
+      { chatId: "c1", fromIndex: 1, messages: [early] },
+      { chatId: "c1", fromIndex: 1, messages: [late] },
+    ),
+    { chatId: "c1", fromIndex: 1, messages: [late] },
+  );
+  // A later whole transcript replaces a queued tail.
+  assert.deepEqual(
+    mergeChatMessageSaves(
+      { chatId: "c1", fromIndex: 1, messages: [early] },
+      whole,
+    ),
+    whole,
+  );
+  // Not one save: a gap between them, or another chat.
+  assert.equal(
+    mergeChatMessageSaves(whole, {
+      chatId: "c1",
+      fromIndex: 3,
+      messages: [late],
+    }),
+    null,
+  );
+  assert.equal(
+    mergeChatMessageSaves(whole, { chatId: "c2", messages: [user] }),
+    null,
+  );
 });

@@ -42,6 +42,38 @@ const mergeActiveProjectIntoState = (state, payload) => {
   };
 };
 
+const saveStartIndex = (payload) =>
+  Number.isInteger(payload?.fromIndex) && payload.fromIndex > 0
+    ? payload.fromIndex
+    : 0;
+
+/**
+ * One transcript save standing for `queued` followed by `next`, or null when
+ * they cannot be one (different chats, or `next` starts past where `queued`
+ * ends). A save replaces its chat's transcript from `fromIndex` on, so the
+ * later one wins from its own start and the queued one keeps what it said
+ * before that.
+ */
+export const mergeChatMessageSaves = (queued, next) => {
+  if (
+    queued?.chatId !== next?.chatId ||
+    !Array.isArray(queued?.messages) ||
+    !Array.isArray(next?.messages)
+  ) {
+    return null;
+  }
+  const queuedStart = saveStartIndex(queued);
+  const nextStart = saveStartIndex(next);
+  if (nextStart <= queuedStart) return next;
+  const kept = nextStart - queuedStart;
+  if (kept > queued.messages.length) return null;
+  return {
+    ...next,
+    fromIndex: queuedStart,
+    messages: [...queued.messages.slice(0, kept), ...next.messages],
+  };
+};
+
 export function createStateSaveQueue({ databasePath }) {
   /** @type {Worker | null} */
   let worker = null;
@@ -206,11 +238,12 @@ export function createStateSaveQueue({ databasePath }) {
 
     return new Promise((resolve, reject) => {
       const latest = pending.at(-1);
-      if (
-        latest?.type === "save-chat-messages" &&
-        latest.payload?.chatId === payload?.chatId
-      ) {
-        latest.payload = payload;
+      const merged =
+        latest?.type === "save-chat-messages"
+          ? mergeChatMessageSaves(latest.payload, payload)
+          : null;
+      if (merged) {
+        latest.payload = merged;
         latest.resolvers.push({ resolve, reject });
       } else {
         pending.push({

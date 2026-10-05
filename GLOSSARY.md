@@ -101,8 +101,12 @@ What exists on one host, owned by that host and the same for every client
 that connects to it: its projects (directories on that machine, identified
 by the host), their chats and chat metadata, transcripts, provider sessions
 and checkpoints. A turn is written into the host catalog as it runs, whether
-or not any client is watching. Contrast the workspace, which is one
-client's view of it.
+or not any client is watching: the request's messages once, then only the
+assistant message being written. A transcript save replaces the chat's
+transcript from an index on and writes only the rows that differ from what
+is stored (`saveChatMessages` in `electron/host/catalog-store.js`), so
+saving a transcript again costs what changed in it. Contrast the workspace,
+which is one client's view of it.
 
 ## Terminal session
 

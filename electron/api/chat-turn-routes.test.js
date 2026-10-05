@@ -8,7 +8,7 @@ import path from "node:path";
 import { Hono } from "hono";
 import { afterEach, test, vi } from "vitest";
 
-const gate = vi.hoisted(() => ({ release: null, signal: null }));
+const gate = vi.hoisted(() => ({ release: null, signal: null, steps: null }));
 
 vi.mock("./providers/registry.js", async () => {
   const { streamAgentTurn } = await import("./chat/agent-turn.js");
@@ -21,6 +21,30 @@ vi.mock("./providers/registry.js", async () => {
           abortSignal,
           execute: async (turn) => {
             gate.signal = abortSignal;
+            if (gate.steps) {
+              // A provider whose turn runs in steps (as Claude's does).
+              const steps = gate.steps;
+              turn.merge(
+                new ReadableStream({
+                  start(controller) {
+                    steps.forEach((text, index) => {
+                      const id = `s${index}`;
+                      controller.enqueue({ type: "start-step" });
+                      controller.enqueue({ id, type: "text-start" });
+                      controller.enqueue({
+                        delta: text,
+                        id,
+                        type: "text-delta",
+                      });
+                      controller.enqueue({ id, type: "text-end" });
+                      controller.enqueue({ type: "finish-step" });
+                    });
+                    controller.close();
+                  },
+                }),
+              );
+              return;
+            }
             turn.text("Working", "t1");
             turn.endText("t1");
             await new Promise((resolve) => {
@@ -52,6 +76,7 @@ afterEach(async () => {
   gate.release?.();
   gate.release = null;
   gate.signal = null;
+  gate.steps = null;
   persisted.closePersistedStateDatabase();
   if (directory) await rm(directory, { force: true, recursive: true });
   directory = null;
@@ -61,13 +86,16 @@ const setup = async () => {
   directory = await mkdtemp(path.join(tmpdir(), "dream-turns-"));
   configureHostDataDirectory(directory);
   const events = [];
+  const saves = [];
   const catalog = createHostCatalog({
     events: { publish: (event) => events.push(event) },
     getWriter: () => ({
       applyCatalogChanges: async (changes) =>
         persisted.applyPersistedCatalogChanges(changes),
-      saveChatMessages: async (payload) =>
-        persisted.savePersistedChatMessages(payload),
+      saveChatMessages: async (payload) => {
+        saves.push(payload);
+        return persisted.savePersistedChatMessages(payload);
+      },
     }),
   });
   await catalog.applyChanges({
@@ -78,14 +106,16 @@ const setup = async () => {
   const app = new Hono();
   registerChatRoutes(app, { catalog, turns });
 
-  const startTurn = () =>
+  const startTurn = (
+    messages = [
+      { id: "u1", parts: [{ text: "Go", type: "text" }], role: "user" },
+    ],
+  ) =>
     app.request("/api/chat", {
       body: JSON.stringify({
         chatId: "c1",
         checkpointsEnabled: false,
-        messages: [
-          { id: "u1", parts: [{ text: "Go", type: "text" }], role: "user" },
-        ],
+        messages,
         model: "m",
         projectPath: directory,
         provider: "openai",
@@ -93,7 +123,7 @@ const setup = async () => {
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
-  return { app, catalog, events, startTurn, turns };
+  return { app, catalog, events, saves, startTurn, turns };
 };
 
 const waitFor = async (check) => {
@@ -178,4 +208,55 @@ test("only the stop route ends a turn early", async () => {
   assert.deepEqual(await stopped.json(), { stopped: true });
   assert.equal(gate.signal.aborted, true);
   await waitFor(() => !turns.isRunning("c1"));
+});
+
+test("a turn saves the request once, then only the message it is writing", async () => {
+  const { catalog, events, saves, startTurn, turns } = await setup();
+  gate.steps = ["One.", " Two.", " Three."];
+  const request = [
+    { id: "u1", parts: [{ text: "Hi", type: "text" }], role: "user" },
+    { id: "a1", parts: [{ text: "Hello", type: "text" }], role: "assistant" },
+    { id: "u2", parts: [{ text: "Go", type: "text" }], role: "user" },
+  ];
+
+  const response = await startTurn(request);
+  await response.text();
+  await waitFor(() => !turns.isRunning("c1"));
+  await waitFor(() => {
+    const text = catalog
+      .getTranscript("c1")
+      .at(-1)
+      ?.parts.filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("");
+    return text === "One. Two. Three.";
+  });
+
+  // More than one save, and only the first carries the request.
+  assert.ok(saves.length > 1);
+  const [first, ...rest] = saves;
+  assert.equal(first.fromIndex ?? 0, 0);
+  assert.deepEqual(
+    first.messages.map((message) => message.role),
+    ["user", "assistant", "user", "assistant"],
+  );
+  for (const save of rest) {
+    assert.equal(save.fromIndex, 3);
+    assert.equal(save.messages.length, 1);
+    assert.equal(save.messages[0].role, "assistant");
+  }
+
+  assert.deepEqual(
+    catalog
+      .getTranscript("c1")
+      .map((message) => message.id)
+      .slice(0, 3),
+    ["u1", "a1", "u2"],
+  );
+  // Clients are told the whole transcript's length either way.
+  assert.ok(
+    events
+      .filter((event) => event.kind === "transcript")
+      .every((event) => event.messageCount === 4),
+  );
 });

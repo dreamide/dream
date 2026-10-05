@@ -229,13 +229,25 @@ export function applyCatalogChanges(database, changes, now) {
 }
 
 /**
- * Replaces one chat's transcript. False when the chat does not exist.
+ * Replaces one chat's transcript from `fromIndex` on (all of it by default):
+ * `messages[0]` becomes the message at `fromIndex`, and whatever the chat
+ * held past the last of them goes. Messages before `fromIndex` are not
+ * read or touched. Only rows that differ from what is stored are written,
+ * so saving a transcript again costs what changed in it. False when the
+ * chat does not exist.
  * @param {import("node:sqlite").DatabaseSync} database
  * @param {string} chatId
  * @param {unknown[]} messages
  * @param {string} now
+ * @param {{ fromIndex?: number }} [options]
  */
-export function saveChatMessages(database, chatId, messages, now) {
+export function saveChatMessages(
+  database,
+  chatId,
+  messages,
+  now,
+  { fromIndex = 0 } = {},
+) {
   if (
     typeof chatId !== "string" ||
     !chatId.trim() ||
@@ -248,6 +260,17 @@ export function saveChatMessages(database, chatId, messages, now) {
   ) {
     return false;
   }
+
+  const start = Number.isInteger(fromIndex) && fromIndex > 0 ? fromIndex : 0;
+  /** @type {Map<string, string>} stored row id → payload, from `start` on */
+  const stored = new Map(
+    database
+      .prepare(
+        "SELECT id, payload FROM chat_messages WHERE chat_id = ? AND sort_order >= ?",
+      )
+      .all(chatId, start)
+      .map((row) => [row.id, row.payload]),
+  );
 
   const upsertMessage = database.prepare(
     `
@@ -263,36 +286,38 @@ export function saveChatMessages(database, chatId, messages, now) {
         metadata = excluded.metadata
     `,
   );
-  const persistedMessageIds = [];
-  messages.forEach((message, index) => {
+  messages.forEach((message, offset) => {
     if (!isRecord(message)) return;
+    const index = start + offset;
     const messageId =
       typeof message.id === "string" && message.id.trim()
         ? message.id
         : `message-${index}`;
+    // The row id names the chat and the position, and the payload carries
+    // the role, so an equal payload under the same id is the same row.
     const persistedMessageId = `${chatId}:${index}:${messageId}`;
-    persistedMessageIds.push(persistedMessageId);
+    const payload = toJson(message);
+    const unchanged = stored.get(persistedMessageId) === payload;
+    stored.delete(persistedMessageId);
+    if (unchanged) return;
     upsertMessage.run(
       persistedMessageId,
       chatId,
       typeof message.role === "string" ? message.role : "",
       index,
-      toJson(message),
+      payload,
       toJson({}),
       now,
     );
   });
 
-  // Remove only this chat's stale rows.
-  if (persistedMessageIds.length === 0) {
-    database.prepare("DELETE FROM chat_messages WHERE chat_id = ?").run(chatId);
-  } else {
-    database
-      .prepare(
-        `DELETE FROM chat_messages
-         WHERE chat_id = ? AND id NOT IN (${placeholders(persistedMessageIds)})`,
-      )
-      .run(chatId, ...persistedMessageIds);
+  // What is left was stored from `start` on and is no longer in the
+  // transcript.
+  if (stored.size > 0) {
+    const removeMessage = database.prepare(
+      "DELETE FROM chat_messages WHERE id = ?",
+    );
+    for (const staleId of stored.keys()) removeMessage.run(staleId);
   }
   return true;
 }

@@ -39,48 +39,64 @@ export const chatStopRequestSchema = z.object({ chatId: z.string().min(1) });
  * transcript is the client's own request (not what a provider made of it)
  * with the assistant message being written in place of, or after, its last
  * message.
+ *
+ * The request's messages do not change while the turn runs, so they are
+ * saved once, with the first report; every later report saves only the
+ * assistant message, at its place after them.
  */
 const createTurnRecorder = ({
   catalog,
   chatId,
   projectPath,
   requestMessages,
-}) => ({
-  async onMessage(message, { final }) {
-    const continued = requestMessages.at(-1)?.role === "assistant";
-    const messages = [
-      ...(continued ? requestMessages.slice(0, -1) : requestMessages),
-      message,
-    ];
-    await catalog.saveTranscript(chatId, messages, { origin: HOST_ORIGIN });
-    if (!final) return;
+}) => {
+  const continued = requestMessages.at(-1)?.role === "assistant";
+  const before = continued ? requestMessages.slice(0, -1) : requestMessages;
+  let beforeSaved = false;
 
-    const metadata = message?.metadata;
-    const sessionId =
-      typeof metadata?.remoteConversationId === "string"
-        ? metadata.remoteConversationId.trim()
-        : "";
-    const chat = sessionId ? catalog.getChat(chatId) : null;
-    if (!chat || chat.remoteConversationId === sessionId) return;
-    await catalog.applyChanges(
-      {
-        chats: [
-          {
-            ...chat,
-            remoteConversationId: sessionId,
-            remoteConversationModel:
-              metadata.remoteConversationModel ?? chat.model,
-            remoteConversationModelSpeed:
-              metadata.remoteConversationModelSpeed ?? chat.modelSpeed,
-            remoteConversationProjectPath:
-              metadata.remoteConversationProjectPath ?? projectPath,
-          },
-        ],
-      },
-      { origin: HOST_ORIGIN },
-    );
-  },
-});
+  return {
+    async onMessage(message, { final }) {
+      if (beforeSaved) {
+        await catalog.saveTranscript(chatId, [message], {
+          fromIndex: before.length,
+          origin: HOST_ORIGIN,
+        });
+      } else {
+        beforeSaved = await catalog.saveTranscript(
+          chatId,
+          [...before, message],
+          { origin: HOST_ORIGIN },
+        );
+      }
+      if (!final) return;
+
+      const metadata = message?.metadata;
+      const sessionId =
+        typeof metadata?.remoteConversationId === "string"
+          ? metadata.remoteConversationId.trim()
+          : "";
+      const chat = sessionId ? catalog.getChat(chatId) : null;
+      if (!chat || chat.remoteConversationId === sessionId) return;
+      await catalog.applyChanges(
+        {
+          chats: [
+            {
+              ...chat,
+              remoteConversationId: sessionId,
+              remoteConversationModel:
+                metadata.remoteConversationModel ?? chat.model,
+              remoteConversationModelSpeed:
+                metadata.remoteConversationModelSpeed ?? chat.modelSpeed,
+              remoteConversationProjectPath:
+                metadata.remoteConversationProjectPath ?? projectPath,
+            },
+          ],
+        },
+        { origin: HOST_ORIGIN },
+      );
+    },
+  };
+};
 
 const withTimeout = (promise, timeoutMs) =>
   new Promise((resolve, reject) => {

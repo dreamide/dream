@@ -672,12 +672,14 @@ export function savePersistedState(state, { databasePath } = {}) {
 }
 
 export function savePersistedChatMessages(
-  { chatId, messages } = {},
+  { chatId, fromIndex, messages } = {},
   { databasePath } = {},
 ) {
   const database = getStateDatabase(databasePath);
   return runInTransaction(database, () =>
-    saveChatMessages(database, chatId, messages, new Date().toISOString()),
+    saveChatMessages(database, chatId, messages, new Date().toISOString(), {
+      fromIndex,
+    }),
   );
 }
 
