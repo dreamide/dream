@@ -11,9 +11,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useIdeStore } from "../ide-store";
 import { HostFolderBrowser } from "./host-folder-browser";
 import { useHostStateLabel } from "./ssh-hosts-settings-section";
@@ -78,21 +81,27 @@ export const OpenOnHostDialog = ({
         >
           <div className="grid gap-1.5">
             <Label htmlFor="open-on-host-host">{t("host")}</Label>
-            <NativeSelect
-              className="w-full"
-              id="open-on-host-host"
-              onChange={(event) => {
-                setHostId(event.target.value);
+            <Select
+              onValueChange={(value) => {
+                if (value === null) return;
+                setHostId(value);
                 setPath("");
               }}
               value={hostId}
             >
-              {sshHosts.map((host) => (
-                <NativeSelectOption key={host.id} value={host.id}>
-                  {host.label}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
+              <SelectTrigger className="w-full" id="open-on-host-host">
+                <SelectValue>
+                  {sshHosts.find((host) => host.id === hostId)?.label}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="start" alignItemWithTrigger={false}>
+                {sshHosts.map((host) => (
+                  <SelectItem key={host.id} value={host.id}>
+                    {host.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <span className="break-words text-muted-foreground text-xs">
               {stateLabel(runtime?.state)}
               {runtime?.error ? ` — ${runtime.error}` : ""}
