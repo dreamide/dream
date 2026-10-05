@@ -888,6 +888,17 @@
   visibility: hidden;
 }
 
+/* Sonner injects its own stylesheet at runtime with a system font stack.
+   `.toaster` (set in components/ui/sonner.tsx) adds
+   specificity so these win regardless of stylesheet order. */
+[data-sonner-toaster].toaster {
+  font-family: var(--font-sans);
+}
+
+.toaster [data-sonner-toast][data-styled="true"] [data-description] {
+  color: var(--muted-foreground);
+}
+
 /* Streamdown table header: match the app page background (ide-shell: bg-surface-50 dark:bg-surface-900) */
 [data-streamdown="table-header"] {
   background-color: var(--surface-50);

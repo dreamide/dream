@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { getDesktopApi } from "@/lib/electron";
 import type { AppScreenshotResult } from "@/types/ide";
 
@@ -43,18 +44,28 @@ export const AppScreenshotToast = () => {
       }
 
       switch (result.status) {
-        case "saved":
+        case "saved": {
+          const id = crypto.randomUUID();
           lastToastIdRef.current = toast.success(t("saved"), {
-            action: {
-              label: t("showInFolder"),
-              onClick: () => {
-                void desktopApi.showScreenshotInFolder(result.filePath);
-              },
-            },
+            // A React element is rendered as-is, so the toast doesn't dismiss
+            // itself on click the way a { label, onClick } action does.
+            action: (
+              <Button
+                onClick={() => {
+                  toast.dismiss(id);
+                  void desktopApi.showScreenshotInFolder(result.filePath);
+                }}
+                size="sm"
+              >
+                {t("showInFolder")}
+              </Button>
+            ),
             description: getFileName(result.filePath),
             duration: SUCCESS_DURATION_MS,
+            id,
           });
           return;
+        }
         case "cancelled":
           lastToastIdRef.current = toast.success(t("copied"), {
             duration: SUCCESS_DURATION_MS,
