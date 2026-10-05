@@ -149,7 +149,7 @@ export const McpServersSection = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <span className="font-medium font-mono text-sm">
+                      <span className="font-medium text-sm">
                         {server.name}
                       </span>
                       <Badge variant="outline">{server.transport}</Badge>

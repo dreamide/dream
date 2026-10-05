@@ -189,7 +189,7 @@ export const McpImportDialog = ({
                     />
                     <div className="min-w-0 flex-1 space-y-1 overflow-hidden">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium font-mono text-sm">
+                        <span className="font-medium text-sm">
                           {candidate.name}
                         </span>
                         <Badge variant="outline">{candidate.transport}</Badge>
