@@ -27,18 +27,23 @@ const PlaceholderCell = ({
     <div
       className={cn("flex min-h-[1.5em]", fill && "w-max min-w-full")}
       data-kind={line.kind}
+      data-metadata={line.metadata}
     >
       <span
         className="shrink-0 select-none border-r-2 border-transparent pr-[1ch] text-right tabular-nums"
         data-number=""
         style={{ width: numberWidth }}
       >
-        {line.number}
+        {line.metadata ? null : line.number}
       </span>
       <span
         className={cn(
           "min-w-0 flex-1 pl-[1ch]",
-          wordWrap ? "whitespace-pre-wrap break-words" : "whitespace-pre",
+          line.metadata
+            ? "select-none opacity-60"
+            : wordWrap
+              ? "whitespace-pre-wrap break-words"
+              : "whitespace-pre",
         )}
       >
         {line.text}
@@ -80,8 +85,12 @@ export const DiffPlaceholder = ({
     );
     return `calc(${String(largest).length + 3}ch + 2px)`;
   }, [fileDiff]);
-  // Unified rows scroll together, so each row stretches to the longest line.
-  const fill = diffStyle === "unified" && !wordWrap;
+  // Single-column rows scroll together, including added and deleted files.
+  const fill =
+    !wordWrap &&
+    (diffStyle === "unified" ||
+      fileDiff.type === "new" ||
+      fileDiff.type === "deleted");
 
   return (
     // py-2: Pierre leaves 8px above the first row and below the last in every
