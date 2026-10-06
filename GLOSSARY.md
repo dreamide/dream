@@ -163,6 +163,12 @@ interface every provider adapter translates its native events into. The
 writer owns the chunk shapes the client receives; adapters own only the
 translation.
 
+Behind the writer, every turn's output passes one **output stage**
+(`electron/api/chat/turn-output.js`): consecutive deltas of one part are
+joined, waiting at most 50 ms, so how often the client and the host's
+turn observer hear from a turn does not depend on how chatty the provider
+is or how its adapter names parts.
+
 ## Turn contract
 
 The two things in a turn's stream that are Dream's own rather than the AI

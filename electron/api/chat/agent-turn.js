@@ -36,9 +36,9 @@ import { formatApprovalId } from "../../shared/agent-turn-contract.js";
 import { getToolKindForName, isToolKind } from "../../shared/tool-call.js";
 import { waitForToolApproval } from "../tool-approvals.js";
 import { formatStreamError } from "./errors.js";
+import { createDeltaJoiner } from "./turn-output.js";
 
 export const DEFAULT_MAX_TEXT_CHARS = 250_000;
-const TEXT_FLUSH_INTERVAL_MS = 50;
 
 const isRecord = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -187,7 +187,6 @@ export const createAgentTurn = ({
   const activeParts = new Map();
   const closedParts = new Set();
   const autoPartIds = { reasoning: null, text: null };
-  const pending = { id: null, text: "", timer: null, type: null };
   const startedTools = new Set();
   const completedTools = new Set();
 
@@ -246,30 +245,12 @@ export const createAgentTurn = ({
     }
   };
 
-  const flushPending = () => {
-    if (pending.timer !== null) {
-      clearTimeout(pending.timer);
-      pending.timer = null;
-    }
-    if (!pending.text || !pending.type) {
-      return;
-    }
-    const { id, text, type } = pending;
-    pending.text = "";
-    pending.type = null;
-    pending.id = null;
-    writeDeltaNow(type, id, text);
-  };
-
-  // Auto-id prose: consecutive deltas of one kind share a part, switching
-  // kind closes the other kind's part, and deltas are coalesced briefly so
-  // chatty providers do not flood the stream.
-  const queueAutoDelta = (type, delta) => {
+  // Auto-id prose: consecutive deltas of one kind share a part, and
+  // switching kind closes the other kind's part. Deltas are written as they
+  // come; the output stage behind the writer joins them (turn-output.js).
+  const writeAutoDelta = (type, delta) => {
     if (!delta || abortSignal?.aborted) {
       return;
-    }
-    if (pending.type && pending.type !== type) {
-      flushPending();
     }
     const otherType = type === "text" ? "reasoning" : "text";
     if (autoPartIds[otherType]) {
@@ -278,25 +259,18 @@ export const createAgentTurn = ({
     if (!autoPartIds[type]) {
       autoPartIds[type] = `${provider}-${type}-${Date.now()}`;
     }
-    pending.type = type;
-    pending.id = autoPartIds[type];
-    pending.text += delta;
-    if (pending.timer === null) {
-      pending.timer = setTimeout(flushPending, TEXT_FLUSH_INTERVAL_MS);
-    }
+    writeDeltaNow(type, autoPartIds[type], delta);
   };
 
   const prose = (type, delta, id) => {
     if (id) {
-      flushPending();
       writeDeltaNow(type, id, delta);
       return;
     }
-    queueAutoDelta(type, delta);
+    writeAutoDelta(type, delta);
   };
 
   const closeText = () => {
-    flushPending();
     for (const { id, type } of [...activeParts.values()]) {
       closePart(type, id);
     }
@@ -305,7 +279,6 @@ export const createAgentTurn = ({
   // Auto-id prose ends when a tool starts, so the tool renders after the
   // text it interrupts; provider-named parts end when the provider says so.
   const closeAutoParts = () => {
-    flushPending();
     for (const type of ["reasoning", "text"]) {
       if (autoPartIds[type]) {
         closePart(type, autoPartIds[type]);
@@ -398,10 +371,9 @@ export const createAgentTurn = ({
     reasoning: (delta, id) => prose("reasoning", delta, id),
     /** Ends one explicit-id part; auto parts end when the kind switches. */
     endText: (id, type = "text") => {
-      flushPending();
       closePart(type, id);
     },
-    /** Flushes buffered prose and ends every open part. */
+    /** Ends every open part. */
     closeText,
     /** Whether a part has already been written and ended. */
     hasEndedText: (id, type = "text") => closedParts.has(partKey(type, id)),
@@ -442,7 +414,6 @@ export const createAgentTurn = ({
       if (!todos) {
         return false;
       }
-      flushPending();
       write({
         data: {
           explanation: isRecord(payload) ? (payload.explanation ?? null) : null,
@@ -522,14 +493,19 @@ const observeTurn = async (stream, originalMessages, observer) => {
   const last = Array.isArray(originalMessages) ? originalMessages.at(-1) : null;
   const continued = last?.role === "assistant";
   let stepEnded = false;
-  const marked = stream.pipeThrough(
-    new TransformStream({
-      transform(chunk, controller) {
-        if (chunk?.type === "finish-step") stepEnded = true;
-        controller.enqueue(chunk);
-      },
-    }),
-  );
+  // The observer reads the message at step ends only, so its copy of the
+  // stream joins deltas until the next boundary: the AI SDK snapshots the
+  // whole message (tool outputs included) for every chunk it reads.
+  const marked = stream
+    .pipeThrough(createDeltaJoiner({ maxDelayMs: null }))
+    .pipeThrough(
+      new TransformStream({
+        transform(chunk, controller) {
+          if (chunk?.type === "finish-step") stepEnded = true;
+          controller.enqueue(chunk);
+        },
+      }),
+    );
 
   let latest = continued ? last : null;
   const report = async (final) => {
@@ -568,7 +544,7 @@ const observeTurn = async (stream, originalMessages, observer) => {
  */
 export const streamAgentTurn = ({ execute, messages, ...turnOptions }) => {
   const { label = turnOptions.provider, provider } = turnOptions;
-  const stream = createUIMessageStream({
+  const written = createUIMessageStream({
     originalMessages: messages,
     onError: (error) => {
       console.error(`[${provider} stream error]`, error);
@@ -588,6 +564,9 @@ export const streamAgentTurn = ({ execute, messages, ...turnOptions }) => {
       }
     },
   });
+  // Every provider's output passes the same stage (turn-output.js), so no
+  // adapter chooses how often the client hears from it.
+  const stream = written.pipeThrough(createDeltaJoiner());
 
   const observer = turnObservers.getStore();
   if (!observer) {

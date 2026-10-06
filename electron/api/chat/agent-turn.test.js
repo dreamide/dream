@@ -35,37 +35,53 @@ const readChunks = async (response) => {
 
 // ── prose ─────────────────────────────────────────────────────────────
 
-test("auto-id prose coalesces deltas into one part and switches kinds cleanly", () => {
-  vi.useFakeTimers();
-  try {
-    const { chunks, turn } = collect();
-    turn.text("Hel");
-    turn.text("lo");
-    assert.deepEqual(chunks, [], "deltas are buffered briefly");
-    vi.advanceTimersByTime(50);
-    assert.deepEqual(types(chunks), ["text-start", "text-delta"]);
-    assert.equal(chunks[1].delta, "Hello");
+test("auto-id prose shares one part per kind and switches kinds cleanly", () => {
+  const { chunks, turn } = collect();
+  // Written as they come; the output stage joins them (turn-output.js).
+  turn.text("Hel");
+  turn.text("lo");
+  assert.deepEqual(types(chunks), ["text-start", "text-delta", "text-delta"]);
+  assert.equal(chunks[1].id, chunks[2].id);
 
-    turn.reasoning("hmm");
-    vi.advanceTimersByTime(50);
-    assert.deepEqual(types(chunks).slice(2), [
-      "text-end",
-      "reasoning-start",
-      "reasoning-delta",
-    ]);
+  turn.reasoning("hmm");
+  assert.deepEqual(types(chunks).slice(3), [
+    "text-end",
+    "reasoning-start",
+    "reasoning-delta",
+  ]);
 
-    turn.text("again");
-    turn.closeText();
-    assert.deepEqual(types(chunks).slice(5), [
-      "reasoning-end",
-      "text-start",
-      "text-delta",
-      "text-end",
-    ]);
-    assert.notEqual(chunks[0].id, chunks[6].id, "a new part after the switch");
-  } finally {
-    vi.useRealTimers();
-  }
+  turn.text("again");
+  turn.closeText();
+  assert.deepEqual(types(chunks).slice(6), [
+    "reasoning-end",
+    "text-start",
+    "text-delta",
+    "text-end",
+  ]);
+  assert.notEqual(chunks[0].id, chunks[7].id, "a new part after the switch");
+});
+
+test("a streamed turn joins each part's deltas into fewer chunks", async () => {
+  const response = streamAgentTurn({
+    execute: async (turn) => {
+      for (const delta of ["a", "b", "c"]) turn.text(delta, "item-1");
+      turn.toolStart({ input: {}, toolCallId: "t1", toolName: "Bash" });
+      for (const delta of ["d", "e"]) turn.text(delta, "item-2");
+    },
+    label: "Test",
+    messages: [],
+    model: "m",
+    projectPath: "/p",
+    provider: "openai",
+  });
+
+  const deltas = (await readChunks(response))
+    .filter((chunk) => chunk.type === "text-delta")
+    .map((chunk) => [chunk.id, chunk.delta]);
+  assert.deepEqual(deltas, [
+    ["item-1", "abc"],
+    ["item-2", "de"],
+  ]);
 });
 
 test("explicit-id prose writes immediately, ends on request, and stays ended", () => {
