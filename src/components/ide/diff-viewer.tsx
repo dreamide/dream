@@ -3,13 +3,22 @@ import {
   preloadHighlighter,
   type SelectedLineRange,
 } from "@pierre/diffs";
-import { FileDiff, type FileDiffProps } from "@pierre/diffs/react";
+import {
+  FileDiff,
+  type FileDiffProps,
+  WorkerPoolContext,
+} from "@pierre/diffs/react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import {
+  DIFF_HIGHLIGHTER,
+  DIFF_THEMES,
+  useDiffWorkerPool,
+} from "./diff-worker-pool";
 import {
   type DiffFeedbackTarget,
   InlineDiffFeedback,
@@ -130,20 +139,25 @@ export const IdeDiffViewer = ({
           ],
     [fileDiff.lang, fileDiff.name, fileDiff.prevName],
   );
+  const { pool, ready: poolReady } = useDiffWorkerPool(!guarded);
+  // Without a working pool (no Worker support, or the workers failed), Pierre
+  // highlights on the main thread and needs its resources loaded up front.
+  const highlightOnMainThread = poolReady && pool?.isWorkingPool() !== true;
   const [loadedLanguages, setLoadedLanguages] = useState<
     typeof languages | null
   >(null);
   const [highlightError, setHighlightError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (guarded) return;
+    if (guarded || !highlightOnMainThread) return;
     let cancelled = false;
     setHighlightError(null);
     // A cold FileDiff mount can leave an empty <pre> that StrictMode's
     // remount hydrates as finished content. Load resources before mounting.
     void preloadHighlighter({
-      themes: ["github-dark", "github-light"],
+      themes: [DIFF_THEMES.dark, DIFF_THEMES.light],
       langs: languages,
+      preferredHighlighter: DIFF_HIGHLIGHTER,
     }).then(
       () => {
         if (!cancelled) setLoadedLanguages(languages);
@@ -155,7 +169,9 @@ export const IdeDiffViewer = ({
     return () => {
       cancelled = true;
     };
-  }, [guarded, languages]);
+  }, [guarded, highlightOnMainThread, languages]);
+  const highlighterReady =
+    poolReady && (!highlightOnMainThread || loadedLanguages === languages);
   const diffOptions = useMemo<PierreDiffOptions>(
     () => ({
       diffIndicators: "bars",
@@ -164,10 +180,8 @@ export const IdeDiffViewer = ({
       hunkSeparators: "line-info",
       lineDiffType: "none",
       overflow: wordWrap ? "wrap" : "scroll",
-      theme: {
-        dark: "github-dark",
-        light: "github-light",
-      },
+      preferredHighlighter: DIFF_HIGHLIGHTER,
+      theme: DIFF_THEMES,
       themeType: resolvedTheme === "dark" ? "dark" : "light",
       unsafeCSS: DIFF_UNMODIFIED_LINES_CSS,
       ...(onLineComment
@@ -193,7 +207,7 @@ export const IdeDiffViewer = ({
     );
   }
 
-  if (loadedLanguages !== languages) {
+  if (!highlighterReady) {
     return (
       <div className={cn("dream-diff-surface p-4", className)}>
         {highlightError ? (
@@ -208,21 +222,23 @@ export const IdeDiffViewer = ({
   }
 
   return (
-    <div className={cn("dream-diff-surface", className)}>
-      {feedback ? (
-        <InlineDiffFeedback
-          fileDiff={fileDiff}
-          options={diffOptions}
-          target={feedback}
-        />
-      ) : (
-        <FileDiff
-          className="dream-diff-viewer w-full min-w-0"
-          fileDiff={fileDiff}
-          options={diffOptions}
-          selectedLines={selectedLines}
-        />
-      )}
-    </div>
+    <WorkerPoolContext.Provider value={pool}>
+      <div className={cn("dream-diff-surface", className)}>
+        {feedback ? (
+          <InlineDiffFeedback
+            fileDiff={fileDiff}
+            options={diffOptions}
+            target={feedback}
+          />
+        ) : (
+          <FileDiff
+            className="dream-diff-viewer w-full min-w-0"
+            fileDiff={fileDiff}
+            options={diffOptions}
+            selectedLines={selectedLines}
+          />
+        )}
+      </div>
+    </WorkerPoolContext.Provider>
   );
 };

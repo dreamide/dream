@@ -8,11 +8,16 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
 } from "react";
 import type { BundledLanguage, ThemedToken } from "shiki";
 import { normalizeCodeLanguage } from "@/components/ai-elements/code-languages";
+import {
+  createIncrementalTokenizer,
+  type TokenizedCode,
+} from "@/components/ai-elements/incremental-tokens";
 import { Button } from "@/components/ui/button";
 import { getDesktopApi } from "@/lib/electron";
 import {
@@ -262,12 +267,6 @@ type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
   wordWrap?: boolean;
 };
 
-interface TokenizedCode {
-  tokens: ThemedToken[][];
-  fg: string;
-  bg: string;
-}
-
 interface CodeBlockContextType {
   code: string;
 }
@@ -298,13 +297,29 @@ const CodeBlockContext = createContext<CodeBlockContextType>({
   code: "",
 });
 
-// Returns the singleton highlighter with the requested language loaded
-const getHighlighter = async (language: BundledLanguage) => {
+type CodeHighlighter = Awaited<
+  ReturnType<
+    typeof import("@/components/ai-elements/shiki-highlighter").getCodeHighlighter
+  >
+>;
+
+// Shiki's singleton highlighter, once loaded, plus the languages it can
+// tokenize. Lets a remounted block highlight synchronously on first render.
+let loadedHighlighter: CodeHighlighter | null = null;
+const loadedLanguages = new Set<string>();
+
+const loadHighlighter = async (language: BundledLanguage) => {
   const { getCodeHighlighter } = await import(
     "@/components/ai-elements/shiki-highlighter"
   );
-  return getCodeHighlighter(language);
+  const highlighter = await getCodeHighlighter(language);
+  loadedHighlighter = highlighter;
+  loadedLanguages.add(language);
+  return highlighter;
 };
+
+const getLoadedHighlighter = (language: BundledLanguage) =>
+  loadedLanguages.has(language) ? loadedHighlighter : null;
 
 const copyTextToClipboard = async (value: string) => {
   const desktopApi = getDesktopApi();
@@ -359,23 +374,48 @@ const getCodeBlockDownloadFilename = (language: string) => {
   return `file.${extension}`;
 };
 
-// Token cache
+// Finished results, so remounting a block (switching chats, scrolling a
+// virtualized list) does not tokenize it again. Bounded by total source size.
+const TOKENS_CACHE_MAX_CHARS = 2_000_000;
 const tokensCache = new Map<string, TokenizedCode>();
+let tokensCacheChars = 0;
 
-// Subscribers for async token updates
-const subscribers = new Map<string, Set<(result: TokenizedCode) => void>>();
+// Language ids never contain ":", so full-source keys cannot collide.
+const getTokensCacheKey = (code: string, language: string) =>
+  `${language}:${code}`;
 
-const getTokensCacheKey = (code: string, language: BundledLanguage) => {
-  const start = code.slice(0, 100);
-  const end = code.length > 100 ? code.slice(-100) : "";
-  return `${language}:${code.length}:${start}:${end}`;
+const deleteCachedTokens = (key: string) => {
+  if (tokensCache.delete(key)) {
+    tokensCacheChars -= key.length;
+  }
+};
+
+const getCachedTokens = (key: string) => {
+  const cached = tokensCache.get(key);
+  if (cached) {
+    // Refresh recency: Map iteration order is insertion order.
+    tokensCache.delete(key);
+    tokensCache.set(key, cached);
+  }
+  return cached;
+};
+
+const setCachedTokens = (key: string, tokenized: TokenizedCode) => {
+  if (key.length > TOKENS_CACHE_MAX_CHARS) return;
+  deleteCachedTokens(key);
+  tokensCache.set(key, tokenized);
+  tokensCacheChars += key.length;
+  for (const oldestKey of tokensCache.keys()) {
+    if (tokensCacheChars <= TOKENS_CACHE_MAX_CHARS) break;
+    deleteCachedTokens(oldestKey);
+  }
 };
 
 // Create raw tokens for immediate display while highlighting loads
 const createRawTokens = (code: string): TokenizedCode => ({
   bg: "transparent",
   fg: "inherit",
-  tokens: code.split("\n").map((line) =>
+  tokens: code.split(/\n/).map((line) =>
     line === ""
       ? []
       : [
@@ -387,76 +427,77 @@ const createRawTokens = (code: string): TokenizedCode => ({
   ),
 });
 
-// Synchronous highlight with callback for async results
-export const highlightCode = (
+/**
+ * Highlight `code`, re-tokenizing only what changed while it streams in.
+ * Returns null until the highlighter has loaded (or failed to).
+ */
+const useHighlightedTokens = (
   code: string,
   language: BundledLanguage,
-  // oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-callbacks)
-  callback?: (result: TokenizedCode) => void,
 ): TokenizedCode | null => {
-  const tokensCacheKey = getTokensCacheKey(code, language);
+  // Loading only ever adds languages, so reading it during render is stable;
+  // the reducer just re-renders once this block's language has loaded.
+  const highlighter = getLoadedHighlighter(language);
+  const [, onLoaded] = useReducer((count: number) => count + 1, 0);
+  const [failedLanguage, setFailedLanguage] = useState<string | null>(null);
 
-  // Return cached result if available
-  const cached = tokensCache.get(tokensCacheKey);
-  if (cached) {
-    return cached;
-  }
+  useEffect(() => {
+    if (getLoadedHighlighter(language)) return;
+    let cancelled = false;
+    loadHighlighter(language).then(
+      () => {
+        if (!cancelled) onLoaded();
+      },
+      (error: unknown) => {
+        console.error("Failed to highlight code:", error);
+        if (!cancelled) setFailedLanguage(language);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [language]);
 
-  // Subscribe callback if provided
-  if (callback) {
-    if (!subscribers.has(tokensCacheKey)) {
-      subscribers.set(tokensCacheKey, new Set());
-    }
-    subscribers.get(tokensCacheKey)?.add(callback);
-  }
+  // One tokenizer per block and language: it keeps the grammar state of the
+  // lines it has already seen, so a streamed block grows in O(new text).
+  const tokenize = useMemo(
+    () =>
+      highlighter ? createIncrementalTokenizer(highlighter, language) : null,
+    [highlighter, language],
+  );
 
-  // Start highlighting in background - fire-and-forget async pattern
-  getHighlighter(language)
-    // oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-then)
-    .then((highlighter) => {
-      const availableLangs = highlighter.getLoadedLanguages();
-      const langToUse = availableLangs.includes(language) ? language : "text";
-
-      const result = highlighter.codeToTokens(code, {
-        lang: langToUse,
-        themes: {
-          dark: "github-dark",
-          light: "github-light",
-        },
-      });
-
-      const tokenized: TokenizedCode = {
-        bg: result.bg ?? "transparent",
-        fg: result.fg ?? "inherit",
-        tokens: result.tokens,
-      };
-
-      // Cache the result
-      tokensCache.set(tokensCacheKey, tokenized);
-
-      // Notify all subscribers
-      const subs = subscribers.get(tokensCacheKey);
-      if (subs) {
-        for (const sub of subs) {
-          sub(tokenized);
-        }
-        subscribers.delete(tokensCacheKey);
-      }
-    })
-    // oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-then), eslint-plugin-promise(prefer-await-to-callbacks)
-    .catch((error) => {
+  const cacheKey = getTokensCacheKey(code, language);
+  const tokenized = useMemo(() => {
+    const cached = getCachedTokens(cacheKey);
+    if (cached) return cached;
+    if (failedLanguage === language) return createRawTokens(code);
+    if (!tokenize) return null;
+    try {
+      return tokenize(code);
+    } catch (error) {
       console.error("Failed to highlight code:", error);
-      const fallback = createRawTokens(code);
-      const subs = subscribers.get(tokensCacheKey);
-      if (subs) {
-        for (const sub of subs) {
-          sub(fallback);
-        }
-      }
-      subscribers.delete(tokensCacheKey);
-    });
+      return createRawTokens(code);
+    }
+  }, [cacheKey, code, failedLanguage, language, tokenize]);
 
-  return null;
+  // While a block streams, each version extends the last. Replace this
+  // block's previous entry instead of caching every partial version.
+  const cachedKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!tokenize || !tokenized) return;
+    const previousKey = cachedKeyRef.current;
+    if (
+      previousKey &&
+      previousKey !== cacheKey &&
+      cacheKey.startsWith(previousKey)
+    ) {
+      deleteCachedTokens(previousKey);
+    }
+    setCachedTokens(cacheKey, tokenized);
+    cachedKeyRef.current = cacheKey;
+  }, [cacheKey, tokenize, tokenized]);
+
+  return tokenized;
 };
 
 // Keep line numbers as real text so the gutter cannot disappear if counters or
@@ -633,38 +674,17 @@ export const CodeBlockContent = ({
   startingLineNumber?: number;
   wordWrap?: boolean;
 }) => {
-  // Memoized raw tokens for immediate display
-  const rawTokens = useMemo(() => createRawTokens(code), [code]);
   const searchMatches = useMemo(
     () => findCodeSearchMatches(code, searchQuery),
     [code, searchQuery],
   );
-
-  // Try to get cached result synchronously, otherwise optionally defer display.
-  const [tokenized, setTokenized] = useState<TokenizedCode | null>(
-    () =>
-      highlightCode(code, language) ??
-      (deferUntilHighlighted ? null : rawTokens),
+  const highlighted = useHighlightedTokens(code, language);
+  // File previews can avoid flashing unhighlighted text.
+  const rawTokens = useMemo(
+    () => (highlighted || deferUntilHighlighted ? null : createRawTokens(code)),
+    [code, deferUntilHighlighted, highlighted],
   );
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const highlighted = highlightCode(code, language);
-    // Reset on code changes; file previews can avoid flashing unhighlighted text.
-    setTokenized(highlighted ?? (deferUntilHighlighted ? null : rawTokens));
-
-    // Subscribe to async highlighting result
-    highlightCode(code, language, (result) => {
-      if (!cancelled) {
-        setTokenized(result);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [code, deferUntilHighlighted, language, rawTokens]);
+  const tokenized = highlighted ?? rawTokens;
 
   return (
     <div className={cn("relative", wordWrap ? "overflow-x-hidden" : "overflow-auto")}>
