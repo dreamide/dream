@@ -1175,6 +1175,91 @@
   );
 }
 
+/*
+ * Plain stand-in shown while a diff is highlighting (diff-placeholder.tsx).
+ * Mirrors how Pierre paints the variables above: line and gutter tints are
+ * mixed back into the background (its --mix-light/--mix-dark), change bars
+ * are 4px, and separators are 32px. Only the code text differs (muted).
+ */
+.dream-diff-placeholder {
+  --placeholder-line-mix: 88%;
+  --placeholder-number-mix: 91%;
+}
+
+.dark .dream-diff-placeholder {
+  --placeholder-line-mix: 80%;
+  --placeholder-number-mix: 85%;
+}
+
+.dream-diff-placeholder [data-kind="addition"] {
+  --placeholder-line-bg: color-mix(
+    in lab,
+    var(--color-background) var(--placeholder-line-mix),
+    var(--diffs-bg-addition-override)
+  );
+  --placeholder-number-bg: color-mix(
+    in lab,
+    var(--color-background) var(--placeholder-number-mix),
+    var(--diffs-bg-addition-number-override)
+  );
+  --placeholder-accent: var(--diffs-addition-color-override);
+}
+
+.dream-diff-placeholder [data-kind="deletion"] {
+  --placeholder-line-bg: color-mix(
+    in lab,
+    var(--color-background) var(--placeholder-line-mix),
+    var(--diffs-bg-deletion-override)
+  );
+  --placeholder-number-bg: color-mix(
+    in lab,
+    var(--color-background) var(--placeholder-number-mix),
+    var(--diffs-bg-deletion-number-override)
+  );
+  --placeholder-accent: var(--diffs-deletion-color-override);
+}
+
+.dream-diff-placeholder [data-kind] {
+  background-color: var(--placeholder-line-bg, transparent);
+}
+
+.dream-diff-placeholder [data-kind="empty"] {
+  background-color: var(--diffs-bg-buffer-override);
+}
+
+.dream-diff-placeholder [data-number] {
+  position: relative;
+  background-color: var(--placeholder-number-bg, transparent);
+  color: var(--placeholder-accent, var(--color-muted-foreground));
+}
+
+.dream-diff-placeholder [data-kind="addition"] [data-number]::before,
+.dream-diff-placeholder [data-kind="deletion"] [data-number]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 4px;
+}
+
+.dream-diff-placeholder [data-kind="addition"] [data-number]::before {
+  background-color: var(--diffs-addition-color-override);
+}
+
+.dream-diff-placeholder [data-kind="deletion"] [data-number]::before {
+  background-image: linear-gradient(
+    0deg,
+    var(--diffs-bg-deletion-override) 50%,
+    var(--diffs-deletion-color-override) 50%
+  );
+  background-size: 2px 2px;
+}
+
+.dream-diff-placeholder [data-separator] {
+  height: 32px;
+  background-color: var(--color-muted);
+}
+
 .xterm .xterm-scrollable-element > .scrollbar,
 .xterm .xterm-scrollable-element > .shadow {
   display: none;

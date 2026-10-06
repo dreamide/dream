@@ -12,8 +12,9 @@ import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { withDiffCacheKey } from "./diff-cache-key";
+import { DiffPlaceholder } from "./diff-placeholder";
 import {
   DIFF_HIGHLIGHTER,
   DIFF_THEMES,
@@ -139,10 +140,14 @@ export const IdeDiffViewer = ({
           ],
     [fileDiff.lang, fileDiff.name, fileDiff.prevName],
   );
+  // A content-derived cacheKey lets the pool pre-highlight this diff and
+  // reuse the result when the same diff is opened again.
+  const keyedDiff = useMemo(() => withDiffCacheKey(fileDiff), [fileDiff]);
   const { pool, ready: poolReady } = useDiffWorkerPool(!guarded);
+  const poolWorking = poolReady && pool?.isWorkingPool() === true;
   // Without a working pool (no Worker support, or the workers failed), Pierre
   // highlights on the main thread and needs its resources loaded up front.
-  const highlightOnMainThread = poolReady && pool?.isWorkingPool() !== true;
+  const highlightOnMainThread = poolReady && !poolWorking;
   const [loadedLanguages, setLoadedLanguages] = useState<
     typeof languages | null
   >(null);
@@ -170,8 +175,28 @@ export const IdeDiffViewer = ({
       cancelled = true;
     };
   }, [guarded, highlightOnMainThread, languages]);
-  const highlighterReady =
-    poolReady && (!highlightOnMainThread || loadedLanguages === languages);
+
+  // Mount FileDiff only once its highlighted result is in the pool's cache, so
+  // it paints highlighted on its first frame instead of flashing plain text.
+  // After that it stays mounted: Pierre keeps showing the previous highlighted
+  // render while a changed diff is re-highlighted.
+  const [workerHighlighted, setWorkerHighlighted] = useState(false);
+  useEffect(() => {
+    if (guarded || !poolWorking || !pool) return;
+    let cancelled = false;
+    // On failure Pierre falls back to plain or main-thread rendering itself.
+    const reveal = () => {
+      if (!cancelled) setWorkerHighlighted(true);
+    };
+    pool.primeDiffHighlightCache(keyedDiff).then(reveal, reveal);
+    return () => {
+      cancelled = true;
+    };
+  }, [guarded, keyedDiff, pool, poolWorking]);
+
+  const highlighterReady = poolWorking
+    ? workerHighlighted
+    : highlightOnMainThread && loadedLanguages === languages;
   const diffOptions = useMemo<PierreDiffOptions>(
     () => ({
       diffIndicators: "bars",
@@ -207,16 +232,24 @@ export const IdeDiffViewer = ({
     );
   }
 
-  if (!highlighterReady) {
+  if (highlightError) {
     return (
       <div className={cn("dream-diff-surface p-4", className)}>
-        {highlightError ? (
-          <p role="alert" className="text-sm text-destructive">
-            {highlightError}
-          </p>
-        ) : (
-          <Spinner className="size-4 text-muted-foreground" />
-        )}
+        <p role="alert" className="text-sm text-destructive">
+          {highlightError}
+        </p>
+      </div>
+    );
+  }
+
+  if (!highlighterReady) {
+    return (
+      <div className={cn("dream-diff-surface", className)}>
+        <DiffPlaceholder
+          diffStyle={diffStyle}
+          fileDiff={keyedDiff}
+          wordWrap={wordWrap}
+        />
       </div>
     );
   }
@@ -226,14 +259,14 @@ export const IdeDiffViewer = ({
       <div className={cn("dream-diff-surface", className)}>
         {feedback ? (
           <InlineDiffFeedback
-            fileDiff={fileDiff}
+            fileDiff={keyedDiff}
             options={diffOptions}
             target={feedback}
           />
         ) : (
           <FileDiff
             className="dream-diff-viewer w-full min-w-0"
-            fileDiff={fileDiff}
+            fileDiff={keyedDiff}
             options={diffOptions}
             selectedLines={selectedLines}
           />
