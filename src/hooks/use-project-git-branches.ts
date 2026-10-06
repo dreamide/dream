@@ -1,155 +1,70 @@
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import {
+  projectResourceKey,
+  projectResources,
+  useProjectResource,
+} from "@/components/ide/project-resources";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
-import { LOCAL_HOST_ID } from "@/lib/host-routing";
-import type { ProjectGitBranchesResponse } from "@/types/ide";
 
-type ProjectGitBranchesCacheEntry = {
-  error: string | null;
-  refreshToken: number;
-  status: ProjectGitBranchesResponse | null;
-};
-
-const gitBranchesCache = new Map<string, ProjectGitBranchesCacheEntry>();
-const gitBranchesInflightRequests = new Map<
-  string,
-  Promise<ProjectGitBranchesCacheEntry>
->();
-
-const getProjectPathCacheKey = (projectPath: string | null | undefined) =>
-  projectPath?.trim() ?? "";
-
+/**
+ * A project's local branches, from the project resource cache (read again
+ * when the project's git refresh key moves while `active`), and switching
+ * between them.
+ */
 export const useProjectGitBranches = (
   projectPath: string | null | undefined,
-  refreshKey?: number,
-  /** The project's host (absent: the local host). */
-  hostId: string = LOCAL_HOST_ID,
+  {
+    active = true,
+    hostId,
+  }: {
+    /** Whether the reader is being shown (default: yes). */
+    active?: boolean;
+    /** The project's host (absent: the project's own). */
+    hostId?: string;
+  } = {},
 ) => {
   const uiT = useTranslations("ui");
-  const refreshToken = refreshKey ?? 0;
-  // The same path on two hosts is two repositories.
-  const pathKey = getProjectPathCacheKey(projectPath);
-  const cacheKey = pathKey ? `${hostId}\0${pathKey}` : "";
-  const cachedEntry = cacheKey ? gitBranchesCache.get(cacheKey) : null;
-  const [status, setStatus] = useState<ProjectGitBranchesResponse | null>(
-    cachedEntry?.refreshToken === refreshToken
-      ? (cachedEntry.status ?? null)
-      : null,
+  const path = projectPath?.trim() ?? "";
+  const key = useMemo(
+    () => (path ? projectResourceKey("gitBranches", path, { hostId }) : null),
+    [hostId, path],
   );
-  const [loading, setLoading] = useState(false);
+  const resource = useProjectResource(key, { active });
   const [switching, setSwitching] = useState(false);
-  const [error, setError] = useState<string | null>(
-    cachedEntry?.refreshToken === refreshToken
-      ? (cachedEntry.error ?? null)
-      : null,
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  // An error the user dismissed stays dismissed until another one comes.
+  const [dismissedError, setDismissedError] = useState<unknown>(undefined);
+
+  const readError = useMemo(
+    () =>
+      resource.loading ||
+      resource.error === undefined ||
+      resource.error === dismissedError
+        ? null
+        : getApiErrorMessage(
+            resource.error,
+            uiT("failedToReadGitBranches"),
+            (status) => uiT("requestFailedStatus", { status }),
+          ),
+    [dismissedError, resource.error, resource.loading, uiT],
   );
-
-  const refresh = useCallback(
-    async (signal?: AbortSignal, force = false) => {
-      if (!cacheKey || !projectPath) {
-        setStatus(null);
-        setError(null);
-        setLoading(false);
-        return;
-      }
-
-      const cached = gitBranchesCache.get(cacheKey);
-      if (!force && cached?.refreshToken === refreshToken) {
-        setStatus(cached.status);
-        setError(cached.error);
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        const inflightKey = `${cacheKey}:${refreshToken}`;
-        let request = gitBranchesInflightRequests.get(inflightKey);
-
-        if (!request || force) {
-          request = (async () => {
-            try {
-              const entry: ProjectGitBranchesCacheEntry = {
-                error: null,
-                refreshToken,
-                status: await apiClient.gitBranches(
-                  { projectPath },
-                  { hostId },
-                ),
-              };
-              gitBranchesCache.set(cacheKey, entry);
-              return entry;
-            } catch (error) {
-              const entry: ProjectGitBranchesCacheEntry = {
-                error: getApiErrorMessage(
-                  error,
-                  uiT("failedToReadGitBranches"),
-                  (status) => uiT("requestFailedStatus", { status }),
-                ),
-                refreshToken,
-                status: null,
-              };
-              gitBranchesCache.set(cacheKey, entry);
-              return entry;
-            } finally {
-              gitBranchesInflightRequests.delete(inflightKey);
-            }
-          })();
-
-          if (!force) {
-            gitBranchesInflightRequests.set(inflightKey, request);
-          }
-        }
-
-        const entry = await request;
-        if (signal?.aborted) {
-          return;
-        }
-
-        setStatus(entry.status);
-        setError(entry.error);
-      } finally {
-        if (!signal?.aborted) {
-          setLoading(false);
-        }
-      }
-    },
-    [cacheKey, projectPath, refreshToken, uiT, hostId],
-  );
-
-  useEffect(() => {
-    void refreshToken;
-    const controller = new AbortController();
-    void refresh(controller.signal);
-    return () => {
-      controller.abort();
-    };
-  }, [refresh, refreshToken]);
 
   const checkoutBranch = useCallback(
     async (branchName: string, create = false) => {
-      if (!projectPath) {
+      if (!key) {
         throw new Error(uiT("noActiveProjectSelected"));
       }
 
       setSwitching(true);
-      setError(null);
+      setCheckoutError(null);
 
       try {
         const payload = await apiClient.gitCheckout(
-          { branchName, create, projectPath },
-          { hostId },
+          { branchName, create, projectPath: key.projectPath },
+          { hostId: key.hostId },
         );
-        if (cacheKey) {
-          gitBranchesCache.set(cacheKey, {
-            error: null,
-            refreshToken,
-            status: payload,
-          });
-        }
-        setStatus(payload);
+        projectResources.set(key, payload);
         return payload;
       } catch (error) {
         const message = getApiErrorMessage(
@@ -157,39 +72,30 @@ export const useProjectGitBranches = (
           uiT("failedToSwitchGitBranches"),
           (status) => uiT("requestFailedStatus", { status }),
         );
-        setError(message);
+        setCheckoutError(message);
         throw new Error(message);
       } finally {
         setSwitching(false);
       }
     },
-    [cacheKey, projectPath, refreshToken, uiT, hostId],
+    [key, uiT],
   );
 
-  const forceRefresh = useCallback(() => refresh(undefined, true), [refresh]);
-
   const clearError = useCallback(() => {
-    setError(null);
-    if (cacheKey) {
-      const cached = gitBranchesCache.get(cacheKey);
-      if (cached?.refreshToken === refreshToken && cached.error) {
-        gitBranchesCache.set(cacheKey, {
-          ...cached,
-          error: null,
-        });
-      }
-    }
-  }, [cacheKey, refreshToken]);
+    setCheckoutError(null);
+    setDismissedError(resource.error);
+  }, [resource.error]);
 
+  const status = resource.data ?? null;
   return {
     branches: status?.branches ?? [],
     checkoutBranch,
     clearError,
     currentBranch: status?.currentBranch ?? null,
-    error,
+    error: checkoutError ?? readError,
     isRepo: status?.isRepo ?? false,
-    loading,
-    refresh: forceRefresh,
+    loading: resource.loading,
+    refresh: resource.refresh,
     repoRoot: status?.repoRoot ?? null,
     status,
     switching,

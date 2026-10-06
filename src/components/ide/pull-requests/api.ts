@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   type ApiRequestOf,
   apiClient,
   getApiErrorMessage,
 } from "@/lib/api-client";
+import {
+  projectResourceKey,
+  projectResources,
+  useProjectResource,
+} from "../project-resources";
 
 export interface PullRequestSummary {
   number: number;
@@ -133,41 +138,22 @@ export async function prRequest<T>(
   return promise;
 }
 
-export function usePullRequestContext(
-  projectPath: string,
-  refreshKey: number,
-  active = true,
-) {
-  const [result, setResult] = useState<{
-    path: string;
-    data: PullRequestContext | null;
-    error: string | null;
-  }>({ path: projectPath, data: null, error: null });
-  const [revision, setRevision] = useState(0);
+/**
+ * The pull request for the project's current branch, from the project
+ * resources: read while `active`, again when the git refresh key moves
+ * (at most every 15 seconds; a branch switch or push is what changes it)
+ * and at once after a pull request action here.
+ */
+export function usePullRequestContext(projectPath: string, active = true) {
+  const key = useMemo(
+    () => projectResourceKey("pullRequestContext", projectPath),
+    [projectPath],
+  );
+  const resource = useProjectResource(key, { active });
   const refresh = useCallback(() => {
     reads.clear();
-    setRevision((n) => n + 1);
-  }, []);
-  useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
-    void prRequest<PullRequestContext>(projectPath, {
-      action: "context",
-      refreshKey,
-      revision,
-    }).then(
-      (data) => {
-        if (!cancelled) setResult({ path: projectPath, data, error: null });
-      },
-      (error: Error) => {
-        if (!cancelled)
-          setResult({ path: projectPath, data: null, error: error.message });
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [projectPath, refreshKey, revision, active]);
+    projectResources.expire(key);
+  }, [key]);
   useEffect(() => {
     if (!active) return;
     window.addEventListener("dream:code-pr-refresh", refresh);
@@ -175,9 +161,12 @@ export function usePullRequestContext(
       window.removeEventListener("dream:code-pr-refresh", refresh);
     };
   }, [active, refresh]);
+  const failed = resource.error !== undefined && !resource.loading;
   return {
-    data: result.path === projectPath ? result.data : null,
-    error: result.path === projectPath ? result.error : null,
+    data: failed ? null : (resource.data ?? null),
+    error: failed
+      ? getApiErrorMessage(resource.error, "Unable to access GitHub.")
+      : null,
     refresh,
   };
 }

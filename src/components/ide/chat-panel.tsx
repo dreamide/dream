@@ -181,13 +181,12 @@ export const ChatPanel = ({
     (message: string | null) => setChatError(chat.id, message),
     [chat.id],
   );
-  const gitRefreshKey = useIdeStore(
-    (s) => s.projectGitRefreshKeys[project.id] ?? 0,
-  );
   const { branch: currentGitBranch, isRepo } = useProjectGitStatus(
     project.path,
-    gitRefreshKey,
     {
+      // A panel of a project in the background is not refreshed until
+      // its project is shown again.
+      active: isProjectActive,
       detail: "summary",
       hostId: project.hostId,
     },

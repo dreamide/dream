@@ -72,7 +72,6 @@ const WorkspaceRightRailImpl = ({
       </WorkspaceNavButton>
       <PullRequestNavButton
         visible={active}
-        projectId={projectId}
         projectPath={projectPath}
         active={rightVisible && rightPanelView === "pull-requests"}
         onClick={() => onSelectRightPanelView("pull-requests")}

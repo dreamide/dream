@@ -1383,10 +1383,7 @@ export function PullRequestsPanel({
   onClosePanel: () => void;
 }) {
   const t = useTranslations();
-  const refreshKey = useIdeStore(
-    (s) => s.projectGitRefreshKeys[project.id] ?? 0,
-  );
-  const context = usePullRequestContext(project.path, refreshKey, active);
+  const context = usePullRequestContext(project.path, active);
   const [revision, setRevision] = useState(0);
   const [mergeTarget, setMergeTarget] = useState<{
     repository: string;

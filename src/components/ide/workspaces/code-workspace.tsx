@@ -91,14 +91,11 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
   );
   const updateProject = useIdeStore((s) => s.updateProject);
   const openProjectTerminal = useIdeStore((s) => s.openProjectTerminal);
-  const gitRefreshKey = useIdeStore(
-    (s) => s.projectGitRefreshKeys[projectId] ?? 0,
-  );
-  const { status: projectGitStatus } = useProjectGitStatus(
-    project.path,
-    gitRefreshKey,
-    { detail: "summary", hostId: project.hostId },
-  );
+  const { status: projectGitStatus } = useProjectGitStatus(project.path, {
+    active,
+    detail: "summary",
+    hostId: project.hostId,
+  });
 
   // ── Local workspace state ───────────────────────────────────────────
   const [historyPanelWidth, setHistoryPanelWidth] = useState(() =>
@@ -796,7 +793,6 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
         onResizeEnd={handleGitLogResizeEnd}
         open={gitLogOpen}
         panelRef={gitLogPanelRef}
-        projectId={projectId}
         projectPath={project.path}
         width={gitLogPanelWidth}
       />

@@ -1,4 +1,3 @@
-import { readProjectGitStatus } from "@/hooks/use-project-git-status";
 import { apiClient } from "@/lib/api-client";
 import type {
   AiProvider,
@@ -7,6 +6,7 @@ import type {
   ProjectGitStatusResponse,
   ReasoningEffort,
 } from "@/types/ide";
+import { projectResourceKey, readProjectResource } from "./project-resources";
 
 const COMMIT_MESSAGE_CACHE_MAX_ENTRIES = 50;
 const COMMIT_MESSAGE_CACHE_VERSION = 3;
@@ -192,16 +192,14 @@ export const warmProjectCommitMessage = async ({
       provider,
       reasoningEffort,
       refreshToken,
-      // The full read the changes panel makes at this same refresh, so the
-      // two are one request when the panel is open.
-      status: (
-        await readProjectGitStatus({
-          describeError: () => "",
+      // The project's full status at its current refresh, from the project
+      // resources: the changes panel's read when it is open.
+      status: await readProjectResource(
+        projectResourceKey("gitStatus", projectPath, {
           hostId,
-          projectPath,
-          refreshToken,
-        })
-      ).status,
+          params: { detail: "full" },
+        }),
+      ),
     });
   } catch {
     return "";

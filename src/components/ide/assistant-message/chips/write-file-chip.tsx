@@ -32,6 +32,10 @@ import { normalizeProjectPathKey } from "../../ide-state";
 import { useIdeStore } from "../../ide-store";
 import { MaterialFileIcon } from "../../material-file-icon";
 import {
+  projectResourceKey,
+  readProjectResource,
+} from "../../project-resources";
+import {
   ActionApproval,
   ApprovalStatusLabel,
   buildWriteDiff,
@@ -428,10 +432,16 @@ export const WriteFileChip = ({
       setGitDiffLoading(true);
 
       try {
-        const status = await apiClient.gitStatus(
-          { projectPath },
-          { signal: abortController.signal },
+        // The project's full status at its current refresh, shared with
+        // every other chip and panel that asks for it.
+        const status = await readProjectResource(
+          projectResourceKey("gitStatus", projectPath, {
+            params: { detail: "full" },
+          }),
         );
+        if (abortController.signal.aborted) {
+          return;
+        }
         const normalizedTarget = normalizePathForCompare(
           projectRelativeFilePath,
         );

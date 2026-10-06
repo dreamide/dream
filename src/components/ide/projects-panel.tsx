@@ -1,6 +1,6 @@
 import { Archive, FolderTree, FolderX, Pin, PinOff } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,7 +14,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusDot } from "@/components/ui/status-dot";
-import { apiClient, isAbortError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import type {
   ChatConfig,
@@ -24,75 +23,52 @@ import type {
 import { formatLastActiveTime } from "./activity-time";
 import { normalizeProjectPathKey } from "./ide-state";
 import { useIdeStore } from "./ide-store";
+import { projectResourceKey, useProjectResource } from "./project-resources";
 
 type WorktreeRepoPaths = { mainWorktreePath: string; repoRoot: string };
 
-const useAppManagedWorktrees = (projectPath: string, refreshKey: number) => {
-  const [worktrees, setWorktrees] = useState<ProjectGitWorktreeInfo[]>([]);
-  const [repoPaths, setRepoPaths] = useState<WorktreeRepoPaths | null>(null);
-  const [loading, setLoading] = useState(false);
+/** The project's app-managed worktrees, read while the sidebar is shown. */
+const useAppManagedWorktrees = (projectPath: string, visible: boolean) => {
+  const resource = useProjectResource(
+    projectResourceKey("gitWorktrees", projectPath),
+    { active: visible },
+  );
+  const payload = resource.error === undefined ? resource.data : undefined;
+  const repoPaths = useMemo<WorktreeRepoPaths | null>(
+    () =>
+      payload?.repoRoot && payload.mainWorktreePath
+        ? {
+            mainWorktreePath: payload.mainWorktreePath,
+            repoRoot: payload.repoRoot,
+          }
+        : null,
+    [payload],
+  );
+  const worktrees = useMemo<ProjectGitWorktreeInfo[]>(
+    () =>
+      // Not a repository, or git failed: no worktrees to list.
+      (payload?.worktrees ?? [])
+        .filter((worktree) => worktree.appManaged && !worktree.bare)
+        .sort((left, right) =>
+          (left.branch ?? left.path).localeCompare(right.branch ?? right.path),
+        ),
+    [payload],
+  );
 
-  useEffect(() => {
-    const abortController = new AbortController();
-
-    const loadWorktrees = async () => {
-      setLoading(true);
-      try {
-        const payload = await apiClient.gitWorktrees(
-          { projectPath },
-          { signal: abortController.signal },
-        );
-        if (abortController.signal.aborted) {
-          return;
-        }
-
-        setRepoPaths(
-          payload.repoRoot && payload.mainWorktreePath
-            ? {
-                mainWorktreePath: payload.mainWorktreePath,
-                repoRoot: payload.repoRoot,
-              }
-            : null,
-        );
-        setWorktrees(
-          payload.worktrees
-            .filter((worktree) => worktree.appManaged && !worktree.bare)
-            .sort((left, right) =>
-              (left.branch ?? left.path).localeCompare(
-                right.branch ?? right.path,
-              ),
-            ),
-        );
-      } catch (error) {
-        // Not a repository, or git failed: no worktrees to list.
-        if (!isAbortError(error)) {
-          setWorktrees([]);
-          setRepoPaths(null);
-        }
-      } finally {
-        if (!abortController.signal.aborted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void refreshKey;
-    void loadWorktrees();
-
-    return () => abortController.abort();
-  }, [projectPath, refreshKey]);
-
-  return { loading, repoPaths, worktrees };
+  return { loading: resource.loading, repoPaths, worktrees };
 };
 
 export const ProjectSidebar = ({
   className,
   onChatSelect,
   project,
+  visible = true,
 }: {
   className?: string;
   onChatSelect?: () => void;
   project: ProjectConfig;
+  /** Whether the sidebar is on screen; its worktrees are read only then. */
+  visible?: boolean;
 }) => {
   const locale = useLocale();
   const commonT = useTranslations("common");
@@ -121,14 +97,11 @@ export const ProjectSidebar = ({
   const bumpProjectGitRefreshKey = useIdeStore(
     (s) => s.bumpProjectGitRefreshKey,
   );
-  const gitRefreshKey = useIdeStore(
-    (s) => s.projectGitRefreshKeys[project.id] ?? 0,
-  );
   const {
     loading: worktreesLoading,
     repoPaths,
     worktrees,
-  } = useAppManagedWorktrees(project.path, gitRefreshKey);
+  } = useAppManagedWorktrees(project.path, visible);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [removingWorktreePath, setRemovingWorktreePath] = useState<

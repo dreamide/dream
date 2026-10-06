@@ -127,14 +127,10 @@ export const ProjectBranchFooter = ({
   project: ProjectConfig;
 }) => {
   const worktreeT = useTranslations("worktrees");
-  const gitRefreshKey = useIdeStore(
-    (s) => s.projectGitRefreshKeys[project.id] ?? 0,
-  );
-  const { branch, isRepo, loading } = useProjectGitStatus(
-    project.path,
-    gitRefreshKey,
-    { detail: "summary", hostId: project.hostId },
-  );
+  const { branch, isRepo, loading } = useProjectGitStatus(project.path, {
+    detail: "summary",
+    hostId: project.hostId,
+  });
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
 
   // Where the project runs sits on the left, always; the branch on the

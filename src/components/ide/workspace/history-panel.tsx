@@ -53,6 +53,7 @@ const WorkspaceHistoryPanelImpl = ({
           className="h-full"
           onChatSelect={onChatSelect}
           project={project}
+          visible={historyOpen}
         />
       ) : null}
     </WorkspaceSlidingPanel>

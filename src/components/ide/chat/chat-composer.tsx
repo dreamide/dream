@@ -56,7 +56,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Sparkles from "@/components/ui/sparkles";
-import { apiClient, isAbortError } from "@/lib/api-client";
 import {
   createAccentSparklesPalette,
   type SparklesPaletteName,
@@ -67,12 +66,16 @@ import type {
   AiProvider,
   ChatPermissionMode,
   ModelSpeed,
-  ProjectReference,
   ProviderSkill,
   ReasoningEffort,
 } from "@/types/ide";
 import { PromptAttachments } from "../chat";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
+import {
+  projectResourceKey,
+  readProjectResource,
+  useProjectResource,
+} from "../project-resources";
 import { ChatComposerInsertContext } from "./chat-composer-insert-context";
 import {
   type ChatModelSelection,
@@ -105,37 +108,25 @@ export type { ChatPanelModelOption } from "./chat-model-selection";
 
 const PROJECT_REFERENCE_FILE_LIMIT = 2500;
 
-/** The project's files and folders, for the `@` menu. */
-const useProjectReferenceIndex = (projectPath: string) => {
-  const [index, setIndex] = useState<ProjectReference[]>([]);
-
+/**
+ * The project's files and folders, for the `@` menu: read once when the
+ * composer mounts (or taken from a longer list the file explorer already
+ * read), and kept fresh after writes only while a mention is being typed.
+ */
+const useProjectReferenceIndex = (projectPath: string, needed: boolean) => {
+  const key = useMemo(
+    () =>
+      projectResourceKey("projectFiles", projectPath, {
+        params: { maxResults: PROJECT_REFERENCE_FILE_LIMIT },
+      }),
+    [projectPath],
+  );
   useEffect(() => {
-    const abortController = new AbortController();
-
-    const load = async () => {
-      try {
-        const payload = await apiClient.projectFiles(
-          {
-            directory: ".",
-            maxResults: PROJECT_REFERENCE_FILE_LIMIT,
-            projectPath,
-          },
-          { signal: abortController.signal },
-        );
-        setIndex(buildProjectReferenceIndex(payload.files));
-      } catch (error) {
-        if (isAbortError(error)) {
-          return;
-        }
-        setIndex([]);
-      }
-    };
-
-    void load();
-    return () => abortController.abort();
-  }, [projectPath]);
-
-  return index;
+    void readProjectResource(key).catch(() => undefined);
+  }, [key]);
+  const resource = useProjectResource(key, { active: needed });
+  const files = resource.error === undefined ? resource.data?.files : undefined;
+  return useMemo(() => buildProjectReferenceIndex(files ?? []), [files]);
 };
 
 const MENTION_CLASS_NAME =
@@ -373,7 +364,10 @@ export const ChatComposer = ({
     projectPath,
     provider: selectedProvider,
   });
-  const projectReferences = useProjectReferenceIndex(projectPath);
+  const projectReferences = useProjectReferenceIndex(
+    projectPath,
+    draft.token?.kind === "reference",
+  );
   const catalog = useMemo<ComposerCatalog>(
     () => ({ projectReferences, skills, skillsSupported }),
     [projectReferences, skills, skillsSupported],

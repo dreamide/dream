@@ -79,6 +79,7 @@ import {
   toProjectTreePath,
 } from "./project-directory-loader";
 import { ProjectFileSearchIndex } from "./project-file-search-index";
+import { projectResourceKey, readProjectResource } from "./project-resources";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 
@@ -322,12 +323,14 @@ const ProjectFileTree = ({
   const searchIndex = useMemo(
     () =>
       new ProjectFileSearchIndex({
+        // The project's file list from the project resources, shared with
+        // the composer's `@` menu (which takes a prefix of it).
         fetchFiles: async () => {
-          const payload = await apiClient.projectFiles({
-            directory: ".",
-            maxResults: PROJECT_SEARCH_INDEX_LIMIT,
-            projectPath,
-          });
+          const payload = await readProjectResource(
+            projectResourceKey("projectFiles", projectPath, {
+              params: { maxResults: PROJECT_SEARCH_INDEX_LIMIT },
+            }),
+          );
           return payload.files ?? [];
         },
       }),

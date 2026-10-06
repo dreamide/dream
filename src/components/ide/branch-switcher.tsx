@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitBranches } from "@/hooks/use-project-git-branches";
+import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { cn } from "@/lib/utils";
 import { useIdeStore } from "./ide-store";
 
@@ -57,23 +58,33 @@ const BranchSwitcherImpl = ({
   const projectHostId = useIdeStore(
     (s) => s.projects.find((project) => project.id === projectId)?.hostId,
   );
-  const gitRefreshKey = useIdeStore(
-    (s) => s.projectGitRefreshKeys[projectId] ?? 0,
-  );
   const bumpProjectGitRefreshKey = useIdeStore(
     (s) => s.bumpProjectGitRefreshKey,
   );
+  // The button shows the branch from the status every footer shares; the
+  // branch list is read only when the menu opens.
+  const {
+    branch: statusBranch,
+    isRepo,
+    loading: statusLoading,
+  } = useProjectGitStatus(projectPath, {
+    detail: "summary",
+    hostId: projectHostId,
+  });
   const {
     branches,
     checkoutBranch,
     clearError,
-    currentBranch,
+    currentBranch: listedBranch,
     error,
-    isRepo,
     loading,
     refresh,
     switching,
-  } = useProjectGitBranches(projectPath, gitRefreshKey, projectHostId);
+  } = useProjectGitBranches(projectPath, {
+    active: false,
+    hostId: projectHostId,
+  });
+  const currentBranch = statusBranch ?? listedBranch;
 
   const [open, setOpen] = useState(false);
   const [createBranchOpen, setCreateBranchOpen] = useState(false);
@@ -160,7 +171,7 @@ const BranchSwitcherImpl = ({
     }
   }, [canSubmitCreateBranch, handleCheckout, normalizedCreateBranchName]);
 
-  if (!isRepo && !loading) {
+  if (!isRepo && !statusLoading) {
     return null;
   }
 
@@ -172,7 +183,7 @@ const BranchSwitcherImpl = ({
             <Button
               aria-label={branchT("switchBranch")}
               className="h-8 max-w-[220px] gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-              disabled={loading && !currentBranch}
+              disabled={statusLoading && !currentBranch}
               size="sm"
               variant="ghost"
             />
