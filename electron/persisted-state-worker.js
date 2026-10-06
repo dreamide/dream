@@ -11,9 +11,11 @@ import { parentPort, workerData } from "node:worker_threads";
 import {
   applyPersistedCatalogChanges,
   closePersistedStateDatabase,
+  loadPersistedState,
   savePersistedActiveProject,
   savePersistedChatMessages,
   savePersistedState,
+  savePersistedWorkspaceChanges,
 } from "./persisted-state.js";
 
 if (!parentPort) {
@@ -49,6 +51,22 @@ parentPort.on("message", (message) => {
       const result = savePersistedChatMessages(message.payload, {
         databasePath,
       });
+      parentPort.postMessage({ id, ok: true, result });
+      return;
+    }
+
+    if (type === "save-workspace-changes") {
+      const result = savePersistedWorkspaceChanges(message.payload, {
+        databasePath,
+      });
+      parentPort.postMessage({ id, ok: true, result });
+      return;
+    }
+
+    // A read, run here so the main thread never waits on SQLite, and in
+    // turn with the writes queued before it.
+    if (type === "load-workspace") {
+      const result = loadPersistedState({ databasePath });
       parentPort.postMessage({ id, ok: true, result });
       return;
     }

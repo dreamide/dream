@@ -37,18 +37,6 @@ export const areProjectsEqualExceptLastUsedAt = (
   );
 };
 
-export const areProjectListsEqualExceptLastUsedAt = (
-  previous: ProjectConfig[],
-  next: ProjectConfig[],
-) =>
-  previous === next ||
-  (previous.length === next.length &&
-    previous.every(
-      (project, index) =>
-        next[index] !== undefined &&
-        areProjectsEqualExceptLastUsedAt(project, next[index]),
-    ));
-
 export const getChatsForProject = (chats: ChatConfig[], projectId: string) =>
   chats.filter(
     (chat) => chat.projectId === projectId && chat.deletedAt === null,

@@ -22,14 +22,12 @@ import { ChatRuntimeHost } from "./chat/chat-runtime-host";
 import { ChatSearchDialog } from "./chat-search-dialog";
 import { EmptyProjectWorkspace } from "./empty-project-workspace";
 import { IdeHeader } from "./ide-header";
-import { areProjectListsEqualExceptLastUsedAt } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import { dedupeModels } from "./ide-types";
 import { ProjectWorkspace } from "./project-workspace";
 import { SshPromptDialog } from "./ssh/ssh-prompt-dialog";
 import { watchHostBrowser } from "./store/host-browser-watch";
 import { watchHostCatalog } from "./store/host-catalog-watch";
-import { savePersistedActiveProject } from "./store/ide-store-persistence";
 import {
   hasTerminalScrollback,
   publishTerminalOutput,
@@ -167,135 +165,6 @@ export const IdeShell = () => {
     if (!appReady) return;
     document.querySelector(".boot-loading")?.remove();
   }, [appReady]);
-
-  // Subscribe to persisted state changes for auto-persistence (debounced)
-  useEffect(() => {
-    let prev = {
-      activeProjectId: useIdeStore.getState().activeProjectId,
-      activeBrowserTabIdByProject:
-        useIdeStore.getState().activeBrowserTabIdByProject,
-      appView: useIdeStore.getState().appView,
-      savedPrompts: useIdeStore.getState().savedPrompts,
-      browserTabsByProject: useIdeStore.getState().browserTabsByProject,
-      chatSort: useIdeStore.getState().chatSort,
-      chats: useIdeStore.getState().chats,
-      closedProjects: useIdeStore.getState().closedProjects,
-      projects: useIdeStore.getState().projects,
-      settings: useIdeStore.getState().settings,
-    };
-    let persistTimer: ReturnType<typeof setTimeout> | null = null;
-    let persistIdleCallback: number | null = null;
-    let persistPending = false;
-    let observedStateHydrated = useIdeStore.getState().stateHydrated;
-
-    const cancelScheduledPersist = () => {
-      if (persistTimer !== null) {
-        clearTimeout(persistTimer);
-        persistTimer = null;
-      }
-      if (persistIdleCallback !== null) {
-        cancelIdleCallback(persistIdleCallback);
-        persistIdleCallback = null;
-      }
-    };
-    const flushPendingPersist = () => {
-      cancelScheduledPersist();
-      if (persistPending) {
-        persistPending = false;
-        useIdeStore.getState().persist();
-      }
-    };
-
-    // Reload tears down the document without running React effect cleanup.
-    window.addEventListener("beforeunload", flushPendingPersist);
-    window.addEventListener("pagehide", flushPendingPersist);
-
-    const unsub = useIdeStore.subscribe((state) => {
-      const next = {
-        activeProjectId: state.activeProjectId,
-        activeBrowserTabIdByProject: state.activeBrowserTabIdByProject,
-        appView: state.appView,
-        savedPrompts: state.savedPrompts,
-        browserTabsByProject: state.browserTabsByProject,
-        chatSort: state.chatSort,
-        chats: state.chats,
-        closedProjects: state.closedProjects,
-        projects: state.projects,
-        settings: state.settings,
-      };
-
-      if (!observedStateHydrated && state.stateHydrated) {
-        observedStateHydrated = true;
-        prev = next;
-        return;
-      }
-
-      if (
-        next.activeProjectId !== prev.activeProjectId ||
-        next.activeBrowserTabIdByProject !== prev.activeBrowserTabIdByProject ||
-        next.browserTabsByProject !== prev.browserTabsByProject ||
-        next.chats !== prev.chats ||
-        next.closedProjects !== prev.closedProjects ||
-        next.projects !== prev.projects ||
-        next.settings !== prev.settings ||
-        next.chatSort !== prev.chatSort ||
-        next.appView !== prev.appView ||
-        next.savedPrompts !== prev.savedPrompts
-      ) {
-        const isActiveProjectSelectionOnly =
-          next.activeProjectId !== prev.activeProjectId &&
-          next.activeBrowserTabIdByProject ===
-            prev.activeBrowserTabIdByProject &&
-          next.browserTabsByProject === prev.browserTabsByProject &&
-          next.chats === prev.chats &&
-          next.closedProjects === prev.closedProjects &&
-          next.settings === prev.settings &&
-          next.chatSort === prev.chatSort &&
-          next.appView === prev.appView &&
-          next.savedPrompts === prev.savedPrompts &&
-          areProjectListsEqualExceptLastUsedAt(prev.projects, next.projects);
-        prev = next;
-        if (state.stateHydrated) {
-          if (isActiveProjectSelectionOnly) {
-            const lastUsedAt =
-              state.projects.find(
-                (project) => project.id === state.activeProjectId,
-              )?.lastUsedAt ?? null;
-            savePersistedActiveProject(state.activeProjectId, lastUsedAt);
-            return;
-          }
-
-          cancelScheduledPersist();
-          persistPending = true;
-          persistTimer = setTimeout(() => {
-            persistTimer = null;
-            // Serializing the full state for IPC blocks the renderer thread;
-            // run it during an idle period so it never lands in the middle of
-            // a click-driven animation frame. The timeout still guarantees a
-            // save within ~2s even if the thread stays busy.
-            if (typeof requestIdleCallback === "function") {
-              persistIdleCallback = requestIdleCallback(
-                () => {
-                  persistIdleCallback = null;
-                  flushPendingPersist();
-                },
-                { timeout: 2000 },
-              );
-            } else {
-              flushPendingPersist();
-            }
-          }, 300);
-        }
-      }
-    });
-
-    return () => {
-      unsub();
-      window.removeEventListener("beforeunload", flushPendingPersist);
-      window.removeEventListener("pagehide", flushPendingPersist);
-      flushPendingPersist();
-    };
-  }, []);
 
   // Best-effort: ask the host to stop PTYs on page hide/unload. Keyboard
   // reload and in-app navigations are intercepted in the main process so

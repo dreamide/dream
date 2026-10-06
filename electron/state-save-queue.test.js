@@ -214,3 +214,39 @@ test("queued transcript saves of one chat become one save", () => {
     null,
   );
 });
+
+test("a workspace load waits for the changes queued before it, off the main thread", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "dream-state-queue-"));
+  const databasePath = path.join(directory, "state.db");
+  const queue = createStateSaveQueue({ databasePath });
+
+  try {
+    const saved = queue.saveWorkspaceChanges({
+      config: { chatSort: "titleAsc" },
+      upsertRows: [
+        {
+          hostId: "local",
+          lastUsedAt: null,
+          projectId: "p1",
+          snapshot: { id: "p1", path: "/work/p1" },
+          sortOrder: 0,
+          status: "open",
+          ui: {},
+        },
+      ],
+    });
+    // Not awaited: the load is queued behind it and must see it.
+    const loaded = await queue.loadWorkspace();
+
+    assert.equal(await saved, true);
+    assert.equal(loaded.chatSort, "titleAsc");
+    assert.deepEqual(
+      loaded.workspaceProjects.map((row) => row.projectId),
+      ["p1"],
+    );
+  } finally {
+    await queue.flushAndClose();
+    closePersistedStateDatabase();
+    await rm(directory, { force: true, recursive: true });
+  }
+});

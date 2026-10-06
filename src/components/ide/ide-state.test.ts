@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { ProjectConfig } from "@/types/ide";
-import {
-  areProjectListsEqualExceptLastUsedAt,
-  areProjectsEqualExceptLastUsedAt,
-} from "./ide-state";
+import { areProjectsEqualExceptLastUsedAt } from "./ide-state";
 
 const project = {
   id: "project-one",
@@ -21,10 +18,6 @@ test("project comparison ignores recency-only updates", () => {
   };
 
   assert.equal(areProjectsEqualExceptLastUsedAt(project, touchedProject), true);
-  assert.equal(
-    areProjectListsEqualExceptLastUsedAt([project], [touchedProject]),
-    true,
-  );
 });
 
 test("project comparison keeps meaningful workspace changes", () => {

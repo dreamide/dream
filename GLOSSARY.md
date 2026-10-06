@@ -134,6 +134,16 @@ selections. `PersistedIdeState`. Transcripts (message bodies) are persisted
 separately, per chat, and are not part of it. Stored in SQLite by the main
 process; the renderer holds it in the IDE store.
 
+The store saves it through its **save scheduler**
+(`store/save-scheduler.ts`): a change marks its slice dirty (config, saved
+prompts, projects, chats), and a save shortly after sends only what changed
+since the last one (`store/workspace-save.ts`): the config keys, saved
+prompts and workspace rows that differ, to the main process, and, when
+projects or chats changed, the catalog changes to each host. The main
+process's save worker writes them and also answers the workspace load, in
+order after the writes queued before it, so the main thread never touches
+SQLite for the workspace.
+
 ## Persisted-state codec
 
 The one module that owns the shape of persisted state, on both sides of the

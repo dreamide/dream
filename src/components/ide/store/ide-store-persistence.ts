@@ -20,6 +20,14 @@ import {
   type CatalogState,
   createCatalogSync,
 } from "./catalog-sync";
+import {
+  copyWorkspaceRecord,
+  recordLoadedWorkspace,
+  recordWorkspace,
+  restoreUnsent,
+  takeWorkspaceChanges,
+  type WorkspaceRecord,
+} from "./workspace-save";
 
 // Where persisted state lives. The client's workspace (config, saved
 // prompts, which projects are open on which host, their UI) is the main
@@ -82,6 +90,12 @@ export const getLoadedRunningChatIds = () => loadedRunningChatIds;
 /** The workspace as loaded, for merging SSH hosts' catalogs later. */
 let loadedWorkspace: PersistedWorkspace = { workspaceProjects: [] };
 export const getLoadedWorkspace = () => loadedWorkspace;
+
+/**
+ * What the main process holds of the workspace, as of this window's last
+ * save (the load at first): what the next save is compared against.
+ */
+let savedWorkspace: WorkspaceRecord | null = null;
 
 /** Hosts whose catalog this window has loaded (and so saves for). */
 const loadedHostIds = new Set<string>();
@@ -169,6 +183,7 @@ const loadOnce = async (): Promise<PersistedIdeState> => {
       "Timed out loading persisted Dream state.",
     );
     loadedWorkspace = workspace;
+    savedWorkspace = recordLoadedWorkspace(workspace);
     const catalog = await loadCatalog(LOCAL_HOST_ID, STARTUP_LOAD_TIMEOUT_MS);
     loadedRunningChatIds = catalog.runningChatIds ?? [];
     // SSH hosts still in Settings show their projects from the snapshot.
@@ -255,23 +270,44 @@ const emptyCatalogState = (): CatalogState => ({
 });
 
 /**
- * Saves `encoded` (what deserves saving): its workspace part to the main
- * process, describing every loaded host completely, and what changed in
- * each loaded host's catalog to that host. `live` is the store's unencoded
- * state, which decides what was removed. A host not loaded yet (not
- * connected this session) is left alone on both sides.
+ * Saves what changed in the workspace part of `encoded` to the main
+ * process: config keys, saved prompts and, with `rows`, a row per project
+ * (`encoded` must then hold the chats: a project's UI is checked against
+ * them). Rows describe every loaded host completely; a host not loaded yet
+ * (not connected this session) only has its rows moved.
  */
-export const savePersistedIdeState = (
+export const savePersistedWorkspace = (
+  encoded: PersistedIdeState,
+  { rows }: { rows: boolean },
+) => {
+  if (!workspaceLoaded || !savedWorkspace) return;
+  const record = savedWorkspace;
+  const before = copyWorkspaceRecord(record);
+  const changes = takeWorkspaceChanges(
+    record,
+    recordWorkspace(encoded, { rows }),
+    new Set(loadedHostIds),
+  );
+  if (!changes) return;
+  void requireDesktopApi()
+    .saveWorkspaceChanges(changes)
+    .catch((error: unknown) => {
+      console.warn("Unable to save the Dream workspace.", error);
+      // Sent again with the next save.
+      restoreUnsent(record, changes, before);
+    });
+};
+
+/**
+ * Sends what changed in each loaded host's catalog to that host. `live` is
+ * the store's unencoded state, which decides what was removed; `encoded`
+ * what deserves saving. A host not loaded yet is left alone.
+ */
+export const pushPersistedCatalogs = (
   encoded: PersistedIdeState,
   live: CatalogState,
 ) => {
   if (!workspaceLoaded) return;
-  const describedHostIds = [...loadedHostIds];
-  void requireDesktopApi().saveState({
-    ...encoded,
-    describedHostIds,
-  } as PersistedIdeState);
-
   const hostByProjectId = new Map<string, string>();
   for (const project of [
     ...live.projects,
@@ -290,7 +326,7 @@ export const savePersistedIdeState = (
     },
     hostOf,
   );
-  for (const hostId of describedHostIds) {
+  for (const hostId of loadedHostIds) {
     void getCatalogSync(hostId).push(
       liveParts.get(hostId) ?? emptyCatalogState(),
       encodedParts.get(hostId) ?? emptyCatalogState(),
@@ -306,24 +342,4 @@ export const savePersistedChatMessages = async (
     chatId,
     messages,
   );
-};
-
-export const savePersistedActiveProject = (
-  activeProjectId: string | null,
-  lastUsedAt: string | null,
-) => {
-  if (!workspaceLoaded) return;
-  const desktopApi = requireDesktopApi();
-  if (typeof desktopApi.saveActiveProject !== "function") {
-    return;
-  }
-
-  void desktopApi
-    .saveActiveProject({
-      activeProjectId,
-      lastUsedAt,
-    })
-    .catch((error: unknown) => {
-      console.warn("Unable to persist the active Dream project.", error);
-    });
 };

@@ -299,6 +299,112 @@ function writeConfig(database, key, value, updatedAt) {
 }
 
 /**
+ * Writers for `workspace_projects` rows. `upsert` writes a whole row;
+ * `move` only moves a row that exists (status and place: its UI and
+ * snapshot were saved by a window that had its host's chats), and writes a
+ * whole one where there is none yet.
+ */
+function workspaceRowWriters(database, now) {
+  const statement = (onConflict) =>
+    database.prepare(
+      `
+        INSERT INTO workspace_projects (
+          host_id, project_id, status, sort_order, ui, last_used_at,
+          snapshot, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(host_id, project_id) DO UPDATE SET ${onConflict}
+      `,
+    );
+  const upsert = statement(`
+    status = excluded.status,
+    sort_order = excluded.sort_order,
+    ui = excluded.ui,
+    last_used_at = excluded.last_used_at,
+    snapshot = excluded.snapshot,
+    updated_at = excluded.updated_at
+  `);
+  const move = statement(`
+    status = excluded.status,
+    sort_order = excluded.sort_order,
+    updated_at = excluded.updated_at
+  `);
+  const write = (prepared) => (row) =>
+    prepared.run(
+      row.hostId,
+      row.projectId,
+      row.status,
+      row.sortOrder,
+      toJson(row.ui),
+      row.lastUsedAt,
+      toJson(row.snapshot),
+      now,
+    );
+  return { move: write(move), upsert: write(upsert) };
+}
+
+const isWorkspaceRow = (row) =>
+  isRecord(row) &&
+  typeof row.hostId === "string" &&
+  row.hostId.trim() !== "" &&
+  typeof row.projectId === "string" &&
+  row.projectId.trim() !== "" &&
+  (row.status === "open" || row.status === "closed") &&
+  Number.isInteger(row.sortOrder) &&
+  (row.lastUsedAt === null || typeof row.lastUsedAt === "string");
+
+/**
+ * Saves what changed in the client's workspace, as the renderer worked it
+ * out (store/workspace-save.ts): only the config keys, saved prompts and
+ * `workspace_projects` rows that differ from its last save. Rows of a host
+ * the renderer does not describe come as `moveRows`.
+ */
+function saveWorkspaceChangesToRelationalDatabase(database, changes) {
+  if (!isRecord(changes)) {
+    return false;
+  }
+
+  const now = new Date().toISOString();
+
+  return runInTransaction(database, () => {
+    const config = isRecord(changes.config) ? changes.config : {};
+    for (const [key, value] of Object.entries(config)) {
+      writeConfig(database, key, value, now);
+    }
+
+    if (Array.isArray(changes.savedPrompts)) {
+      saveSavedPromptsToRelationalDatabase(database, changes.savedPrompts, now);
+    }
+
+    const { move, upsert } = workspaceRowWriters(database, now);
+    for (const row of Array.isArray(changes.upsertRows)
+      ? changes.upsertRows
+      : []) {
+      if (isWorkspaceRow(row)) upsert(row);
+    }
+    for (const row of Array.isArray(changes.moveRows) ? changes.moveRows : []) {
+      if (isWorkspaceRow(row)) move(row);
+    }
+
+    const remove = database.prepare(
+      "DELETE FROM workspace_projects WHERE host_id = ? AND project_id = ?",
+    );
+    for (const row of Array.isArray(changes.removeRows)
+      ? changes.removeRows
+      : []) {
+      if (
+        isRecord(row) &&
+        typeof row.hostId === "string" &&
+        typeof row.projectId === "string"
+      ) {
+        remove.run(row.hostId, row.projectId);
+      }
+    }
+    return true;
+  });
+}
+
+/**
  * Saves the client's workspace from the renderer's (encoded) state: config,
  * saved prompts, and a workspace row per open and closed project, on
  * whichever host. The catalog rows are the hosts' and are not touched.
@@ -354,62 +460,10 @@ function saveStateToRelationalDatabase(database, state) {
       }
     }
 
-    const upsert = database.prepare(
-      `
-        INSERT INTO workspace_projects (
-          host_id, project_id, status, sort_order, ui, last_used_at,
-          snapshot, updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(host_id, project_id) DO UPDATE SET
-          status = excluded.status,
-          sort_order = excluded.sort_order,
-          ui = excluded.ui,
-          last_used_at = excluded.last_used_at,
-          snapshot = excluded.snapshot,
-          updated_at = excluded.updated_at
-      `,
-    );
-    // A project of a host this save does not describe: a row it already
-    // has only moves (its UI and snapshot were saved by a window that had
-    // the host's chats); a project with no row yet gets one.
-    const move = database.prepare(
-      `
-        INSERT INTO workspace_projects (
-          host_id, project_id, status, sort_order, ui, last_used_at,
-          snapshot, updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(host_id, project_id) DO UPDATE SET
-          status = excluded.status,
-          sort_order = excluded.sort_order,
-          updated_at = excluded.updated_at
-      `,
-    );
+    const { move, upsert } = workspaceRowWriters(database, now);
     for (const row of rows) {
-      if (!described.has(row.hostId)) {
-        move.run(
-          row.hostId,
-          row.projectId,
-          row.status,
-          row.sortOrder,
-          toJson(row.ui),
-          row.lastUsedAt,
-          toJson(row.snapshot),
-          now,
-        );
-        continue;
-      }
-      upsert.run(
-        row.hostId,
-        row.projectId,
-        row.status,
-        row.sortOrder,
-        toJson(row.ui),
-        row.lastUsedAt,
-        toJson(row.snapshot),
-        now,
-      );
+      if (described.has(row.hostId)) upsert(row);
+      else move(row);
     }
 
     // This save describes the projects of these hosts completely; a host it
@@ -669,6 +723,12 @@ export function getPersistedStateDatabase({ databasePath } = {}) {
 export function savePersistedState(state, { databasePath } = {}) {
   const database = getStateDatabase(databasePath);
   return saveStateToRelationalDatabase(database, state);
+}
+
+/** Saves what changed in the workspace; see the function it calls. */
+export function savePersistedWorkspaceChanges(changes, { databasePath } = {}) {
+  const database = getStateDatabase(databasePath);
+  return saveWorkspaceChangesToRelationalDatabase(database, changes);
 }
 
 export function savePersistedChatMessages(

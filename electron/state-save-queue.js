@@ -256,22 +256,30 @@ export function createStateSaveQueue({ databasePath }) {
     });
   };
 
-  // A catalog change set is a delta, so it is never coalesced: each one is
-  // applied, in order with every other write.
-  const applyCatalogChanges = (payload) => {
+  /** Queues one operation that is never coalesced with another. */
+  const enqueue = (type, payload) => {
     if (closed) {
       return Promise.reject(new Error("State save queue is closed."));
     }
 
     return new Promise((resolve, reject) => {
-      pending.push({
-        type: "catalog-changes",
-        payload,
-        resolvers: [{ resolve, reject }],
-      });
+      pending.push({ type, payload, resolvers: [{ resolve, reject }] });
       drain();
     });
   };
+
+  // A catalog change set is a delta, so it is never coalesced: each one is
+  // applied, in order with every other write.
+  const applyCatalogChanges = (payload) => enqueue("catalog-changes", payload);
+
+  // What changed in the workspace since the renderer's last save: small,
+  // and a delta, so never coalesced.
+  const saveWorkspaceChanges = (payload) =>
+    enqueue("save-workspace-changes", payload);
+
+  // The workspace as stored, read by the worker after every write queued
+  // before it (a reloaded window sees what the old one saved).
+  const loadWorkspace = () => enqueue("load-workspace", null);
 
   const flushAndClose = async () => {
     if (closed) {
@@ -307,6 +315,8 @@ export function createStateSaveQueue({ databasePath }) {
     saveActiveProject,
     saveChatMessages,
     applyCatalogChanges,
+    saveWorkspaceChanges,
+    loadWorkspace,
     flushAndClose,
   };
 }

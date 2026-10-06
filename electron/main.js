@@ -35,7 +35,6 @@ import { createHost } from "./host/index.js";
 import {
   closePersistedStateDatabase,
   ensurePersistedInstallId,
-  loadPersistedState,
   loadPersistedThemePreference,
   resolveStateDatabasePath,
   savePersistedThemePreference,
@@ -128,9 +127,9 @@ const host = createHost({
   // per database file, and a reloaded renderer waits for them (state:load).
   getStateWriter: () => ({
     applyCatalogChanges: (changes) =>
-      trackStateWrite(getStateSaveQueue().applyCatalogChanges(changes)),
+      getStateSaveQueue().applyCatalogChanges(changes),
     saveChatMessages: (payload) =>
-      trackStateWrite(getStateSaveQueue().saveChatMessages(payload)),
+      getStateSaveQueue().saveChatMessages(payload),
   }),
   version: dreamVersion,
   // Requests for SSH-host projects go through the local API to the host's
@@ -782,11 +781,10 @@ async function createMainWindow() {
 }
 
 ipcMain.handle("projects:pick-directory", pickDirectory);
-ipcMain.handle("state:load", async () => {
-  // A refreshed renderer must see the writes submitted by the old document.
-  await Promise.all([...pendingStateWrites]);
-  return loadPersistedState();
-});
+// Read by the save worker, after every write queued before it: a refreshed
+// renderer sees what the old document saved, and the main thread never
+// waits on SQLite.
+ipcMain.handle("state:load", () => getStateSaveQueue().loadWorkspace());
 ipcMain.on("api:get-session-token", (event) => {
   const apiSessionToken = rendererServerManager?.getApiSessionToken();
   if (!apiSessionToken) {
@@ -800,27 +798,18 @@ ipcMain.on("api:get-session-token", (event) => {
   event.returnValue = apiSessionToken;
 });
 
-// SQLite state writes stay off the main thread so even a large completed chat
-// cannot delay input-event delivery. The queue coalesces metadata snapshots and
-// per-chat transcript writes independently.
+// SQLite state reads and writes stay off the main thread so even a large
+// completed chat cannot delay input-event delivery. The queue runs them in
+// order: workspace changes, catalog changes, transcripts and the workspace
+// load a reloaded window makes.
 let stateSaveQueue = null;
-const pendingStateWrites = new Set();
-const trackStateWrite = (write) => {
-  pendingStateWrites.add(write);
-  const settled = () => pendingStateWrites.delete(write);
-  void write.then(settled, settled);
-  return write;
-};
 const getStateSaveQueue = () =>
   (stateSaveQueue ??= createStateSaveQueue({
     databasePath: resolveStateDatabasePath(),
   }));
 
-ipcMain.handle("state:save", (_event, state) =>
-  trackStateWrite(getStateSaveQueue().save(state)),
-);
-ipcMain.handle("state:save-active-project", (_event, payload) =>
-  trackStateWrite(getStateSaveQueue().saveActiveProject(payload)),
+ipcMain.handle("state:save-workspace", (_event, changes) =>
+  getStateSaveQueue().saveWorkspaceChanges(changes),
 );
 
 ipcMain.handle("theme:set", (_event, { theme } = {}) => {

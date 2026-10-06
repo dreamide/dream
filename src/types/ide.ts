@@ -342,6 +342,22 @@ export interface PersistedWorkspace {
   workspaceProjects: PersistedWorkspaceProject[];
 }
 
+/**
+ * What changed in the client's workspace since its last save
+ * (store/workspace-save.ts): the main process writes only these.
+ */
+export interface WorkspaceChanges {
+  /** Config rows whose value changed, by key (settings are `settings.*`). */
+  config?: Record<string, unknown>;
+  /** Every saved prompt, when any of them changed. */
+  savedPrompts?: SavedPrompt[];
+  /** Whole rows to write. */
+  upsertRows?: PersistedWorkspaceProject[];
+  /** Rows of a host this window has not loaded: status and place only. */
+  moveRows?: PersistedWorkspaceProject[];
+  removeRows?: { hostId: string; projectId: string }[];
+}
+
 export interface PersistedIdeState {
   projects: ProjectConfig[];
   closedProjects: ProjectConfig[];
@@ -894,12 +910,8 @@ export interface DesktopApi {
 
   /** This client's workspace; the renderer merges it with host catalogs. */
   loadState: () => Promise<PersistedWorkspace>;
-  /** Saves the workspace part of the state (not catalog rows). */
-  saveState: (state: PersistedIdeState) => Promise<boolean>;
-  saveActiveProject: (payload: {
-    activeProjectId: string | null;
-    lastUsedAt: string | null;
-  }) => Promise<boolean>;
+  /** Saves what changed in the workspace (not catalog rows). */
+  saveWorkspaceChanges: (changes: WorkspaceChanges) => Promise<boolean>;
   getThemePreferences: () => Promise<{
     accentColor?: string;
     baseColor?: string;

@@ -21,7 +21,8 @@ import {
   getLoadedWorkspace,
   isWorkspaceLoaded,
   loadPersistedIdeState,
-  savePersistedIdeState,
+  pushPersistedCatalogs,
+  savePersistedWorkspace,
   setCatalogConflictHandler,
 } from "./store/ide-store-persistence";
 import type { IdeState } from "./store/ide-store-types";
@@ -29,6 +30,11 @@ import { createPanelActions } from "./store/panel-actions";
 import { createProjectLifecycleActions } from "./store/project-lifecycle-actions";
 import { readCachedProviderModels } from "./store/provider-model-cache";
 import { createRuntimeActions } from "./store/runtime-actions";
+import {
+  browserSaveTimers,
+  createSaveScheduler,
+  type SaveSlice,
+} from "./store/save-scheduler";
 import { createSavedPromptActions } from "./store/saved-prompt-actions";
 import { createSettingsActions } from "./store/settings-actions";
 import { createStashActions } from "./store/stash-actions";
@@ -223,43 +229,67 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   ...createCatalogActions(set, get),
   ...createHostActions(set, get),
 
-  persist: () => {
-    const {
-      activeProjectId,
-      activeBrowserTabIdByProject,
-      appView,
-      browserTabsByProject,
-      chatSort,
-      chats,
-      closedProjects,
-      savedPrompts,
-      projects,
-      settings,
-      stateHydrated,
-    } = get();
-    if (!stateHydrated) return;
-
-    const nextState = encodePersistedState({
-      activeBrowserTabIdByProject,
-      activeProjectId,
-      appView,
-      savedPrompts,
-      browserTabsByProject,
-      chats,
-      chatSort,
-      closedProjects,
-      // Message bodies have their own per-chat persistence path. Keeping them
-      // out of metadata saves avoids cloning every loaded transcript for IPC.
-      messagesByChatId: {},
-      projects,
-      settings,
-    });
-
-    savePersistedIdeState(nextState, { chats, closedProjects, projects });
-  },
+  // Saves now, every slice; see the save scheduler below.
+  persist: () => saveScheduler.saveAll(),
 }));
 
 useIdeStore.subscribe(transcriptCache.observe);
+
+/**
+ * Saves the dirty slices (store/save-scheduler.ts): what changed in the
+ * workspace to the main process, and, when projects or chats changed, what
+ * changed in each host's catalog. Only a project or chat change needs the
+ * chats encoded.
+ */
+const saveSlices = (dirty: ReadonlySet<SaveSlice>) => {
+  const {
+    activeProjectId,
+    activeBrowserTabIdByProject,
+    appView,
+    browserTabsByProject,
+    chatSort,
+    chats,
+    closedProjects,
+    savedPrompts,
+    projects,
+    settings,
+    stateHydrated,
+  } = useIdeStore.getState();
+  if (!stateHydrated) return;
+
+  const catalogChanged = dirty.has("projects") || dirty.has("chats");
+  const encoded = encodePersistedState({
+    activeBrowserTabIdByProject,
+    activeProjectId,
+    appView,
+    savedPrompts,
+    browserTabsByProject,
+    // Config and saved prompts do not depend on chats.
+    chats: catalogChanged ? chats : [],
+    chatSort,
+    closedProjects,
+    // Message bodies have their own per-chat persistence path.
+    messagesByChatId: {},
+    projects,
+    settings,
+  });
+
+  savePersistedWorkspace(encoded, { rows: catalogChanged });
+  if (catalogChanged) {
+    pushPersistedCatalogs(encoded, { chats, closedProjects, projects });
+  }
+};
+
+const saveScheduler = createSaveScheduler({
+  save: saveSlices,
+  timers: browserSaveTimers(),
+});
+useIdeStore.subscribe(saveScheduler.observe);
+if (typeof window !== "undefined") {
+  // Reload tears the document down without waiting for a scheduled save.
+  window.addEventListener("beforeunload", saveScheduler.flush);
+  window.addEventListener("pagehide", saveScheduler.flush);
+}
 
 // Which host a request is for (host-routing.ts): the host of the project the
 // request names, by id, by one of its chats or terminals, or by path.

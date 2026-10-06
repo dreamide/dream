@@ -8,16 +8,15 @@ const desktop = vi.hoisted(() => ({
   loadState: vi.fn(async () => {
     throw new Error("Database is locked.");
   }),
-  saveActiveProject: vi.fn(async () => true),
-  saveState: vi.fn(async () => true),
+  saveWorkspaceChanges: vi.fn(async () => true),
 }));
 vi.mock("@/lib/electron", () => ({ getDesktopApi: () => desktop }));
 
 const {
   isWorkspaceLoaded,
   loadPersistedIdeState,
-  savePersistedActiveProject,
-  savePersistedIdeState,
+  pushPersistedCatalogs,
+  savePersistedWorkspace,
 } = await import("./ide-store-persistence");
 
 test("after a failed load, nothing is saved", async () => {
@@ -28,12 +27,11 @@ test("after a failed load, nothing is saved", async () => {
   expect(state.settings.sshHosts).toEqual(DEFAULT_SETTINGS.sshHosts);
   expect(isWorkspaceLoaded()).toBe(false);
 
-  savePersistedIdeState(state as PersistedIdeState, {
+  savePersistedWorkspace(state as PersistedIdeState, { rows: true });
+  pushPersistedCatalogs(state as PersistedIdeState, {
     chats: [],
     closedProjects: [],
     projects: [],
   });
-  savePersistedActiveProject(null, null);
-  expect(desktop.saveState).not.toHaveBeenCalled();
-  expect(desktop.saveActiveProject).not.toHaveBeenCalled();
+  expect(desktop.saveWorkspaceChanges).not.toHaveBeenCalled();
 });
