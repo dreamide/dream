@@ -1,16 +1,13 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import {
+  cliCatalog,
   execCliCommand,
   getCliVersion,
   isCliCommandAvailable,
 } from "../shared/cli.js";
 
 const CURSOR_CLI_COMMANDS = ["agent", "cursor-agent"];
-const CURSOR_CLI_CACHE_TTL_MS = 30_000;
-
-let cachedCursorCli = null;
-let cachedCursorCliTimestamp = 0;
 
 /**
  * Other tools also install a generic `agent` binary (Grok Build does, and its
@@ -76,28 +73,23 @@ const isCursorCommandCandidate = async (commandName) => {
   }
 };
 
-export const getCursorCliCommand = async ({ force = false } = {}) => {
-  const now = Date.now();
-  if (
-    !force &&
-    cachedCursorCli &&
-    now - cachedCursorCliTimestamp < CURSOR_CLI_CACHE_TTL_MS
-  ) {
-    return cachedCursorCli;
-  }
-
-  for (const commandName of getCursorCliCandidates()) {
-    if (await isCursorCommandCandidate(commandName)) {
-      cachedCursorCli = commandName;
-      cachedCursorCliTimestamp = now;
-      return commandName;
-    }
-  }
-
-  cachedCursorCli = null;
-  cachedCursorCliTimestamp = now;
-  return null;
-};
+/**
+ * Which command is Cursor Agent, or null: remembered in the CLI catalog
+ * under its policy (cli-catalog.js).
+ */
+export const getCursorCliCommand = ({ force = false } = {}) =>
+  cliCatalog.derived(
+    "cursor-command",
+    async () => {
+      for (const commandName of getCursorCliCandidates()) {
+        if (await isCursorCommandCandidate(commandName)) {
+          return commandName;
+        }
+      }
+      return null;
+    },
+    { force },
+  );
 
 export const isCursorCliAvailable = async (options = {}) =>
   (await getCursorCliCommand(options)) !== null;

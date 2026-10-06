@@ -4,11 +4,9 @@ import { access } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { createCliCatalog } from "./cli-catalog.js";
 
 export const execFileAsync = promisify(execFile);
-
-const CLI_VERSION_CACHE_TTL_MS = 5 * 60 * 1000;
-const cliVersionCache = new Map();
 
 const SHELL_PATH_MARKER_START = "__DREAM_CLI_PATH_START__";
 const SHELL_PATH_MARKER_END = "__DREAM_CLI_PATH_END__";
@@ -221,12 +219,8 @@ const resolveCommandFromPath = async (commandName, env) => {
   return null;
 };
 
-export const isCliCommandAvailable = async (commandName) => {
-  const commandPath = await resolveCliCommandPath(commandName);
-  return commandPath !== null;
-};
-
-export const resolveCliCommandPath = async (commandName) => {
+/** Where `commandName` is, looked up now (the catalog's reader). */
+const lookUpCliCommandPath = async (commandName) => {
   const env = await ensureCliEnvironment();
 
   try {
@@ -254,38 +248,28 @@ export const resolveCliCommandPath = async (commandName) => {
   }
 };
 
-const readCliVersion = async (commandName) => {
+/** What `<commandPath> --version` says (the catalog's reader). */
+const readCliVersion = async (_commandName, commandPath) => {
   const env = await ensureCliEnvironment();
 
   try {
-    if (process.platform === "win32") {
-      const result = await execFileAsync(
-        "powershell.exe",
-        [
-          "-NoProfile",
-          "-Command",
-          `$command = (Get-Command ${quotePowerShellString(commandName)} -ErrorAction Stop).Path; & $command --version`,
-        ],
-        {
-          encoding: "utf8",
-          env,
-          windowsHide: true,
-        },
-      );
-
-      return result.stdout.trim() || result.stderr.trim() || null;
-    }
-
-    const commandPath = await resolveCliCommandPath(commandName);
-    if (!commandPath) {
-      return null;
-    }
-
-    const result = await execFileAsync(commandPath, ["--version"], {
-      encoding: "utf8",
-      env,
-      windowsHide: true,
-    });
+    // On Windows the path may be a .cmd or .ps1 shim, which PowerShell runs.
+    const result =
+      process.platform === "win32"
+        ? await execFileAsync(
+            "powershell.exe",
+            [
+              "-NoProfile",
+              "-Command",
+              `& ${quotePowerShellString(commandPath)} --version`,
+            ],
+            { encoding: "utf8", env, windowsHide: true },
+          )
+        : await execFileAsync(commandPath, ["--version"], {
+            encoding: "utf8",
+            env,
+            windowsHide: true,
+          });
 
     return result.stdout.trim() || result.stderr.trim() || null;
   } catch {
@@ -293,35 +277,33 @@ const readCliVersion = async (commandName) => {
   }
 };
 
-export const getCliVersion = async (commandName, { force = false } = {}) => {
-  const now = Date.now();
-  const cached = cliVersionCache.get(commandName);
-  if (!force && cached) {
-    if (cached.promise) {
-      return cached.promise;
-    }
+/**
+ * The host's CLI catalog (cli-catalog.js): where each agent CLI is and
+ * which version, looked up once and remembered.
+ */
+export const cliCatalog = createCliCatalog({
+  readVersion: readCliVersion,
+  resolvePath: lookUpCliCommandPath,
+});
 
-    if (now - cached.fetchedAt < CLI_VERSION_CACHE_TTL_MS) {
-      return cached.value;
-    }
-  }
+/** Whether `commandName` is installed (remembered; see cli-catalog.js). */
+export const isCliCommandAvailable = (commandName, options) =>
+  cliCatalog.isAvailable(commandName, options);
 
-  const promise = readCliVersion(commandName).then((value) => {
-    cliVersionCache.set(commandName, {
-      fetchedAt: Date.now(),
-      value,
-    });
-    return value;
-  });
+/** Where `commandName` is, or null (remembered; see cli-catalog.js). */
+export const resolveCliCommandPath = (commandName, options) =>
+  cliCatalog.path(commandName, options);
 
-  cliVersionCache.set(commandName, {
-    fetchedAt: now,
-    promise,
-    value: cached?.value ?? null,
-  });
+/** What `commandName --version` says, or null (remembered). */
+export const getCliVersion = (commandName, { force = false } = {}) =>
+  cliCatalog.version(commandName, { force });
 
-  return promise;
-};
+/** Whether a failure says the command itself could not be started. */
+const isMissingCommandError = (error) =>
+  error?.code === "ENOENT" ||
+  /is not recognized|CommandNotFoundException|cannot find the path/i.test(
+    `${error?.stderr ?? ""}\n${error?.message ?? ""}`,
+  );
 
 /**
  * `closeStdin` ends the child's stdin right away so a command that would
@@ -344,15 +326,26 @@ export const execCliCommand = async (commandName, args = [], options = {}) => {
     if (closeStdin) {
       promise.child?.stdin?.end();
     }
+    // A command that is no longer where it was is looked up again next time.
+    promise.catch((error) => {
+      if (isMissingCommandError(error)) cliCatalog.forget(commandName);
+    });
     return promise;
   };
 
+  const commandPath = await resolveCliCommandPath(commandName);
+
   if (process.platform === "win32") {
+    // The known path when there is one; else let PowerShell look it up and
+    // report the command missing in its own words.
+    const target = commandPath
+      ? quotePowerShellString(commandPath)
+      : `(Get-Command ${quotePowerShellString(commandName)} -ErrorAction Stop).Path`;
     const psArgs = [
       "-NoProfile",
       "-Command",
       [
-        `$command = (Get-Command ${quotePowerShellString(commandName)} -ErrorAction Stop).Path`,
+        `$command = ${target}`,
         ["& $command", ...args.map((arg) => JSON.stringify(String(arg)))].join(
           " ",
         ),
@@ -362,6 +355,5 @@ export const execCliCommand = async (commandName, args = [], options = {}) => {
     return run("powershell.exe", psArgs);
   }
 
-  const commandPath = await resolveCliCommandPath(commandName);
   return run(commandPath ?? commandName, args);
 };

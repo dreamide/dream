@@ -1,4 +1,4 @@
-import { execCliCommand, getCliVersion } from "../shared/cli.js";
+import { cliCatalog, execCliCommand, getCliVersion } from "../shared/cli.js";
 import { execCursorCliCommand } from "./cursor-cli.js";
 import { CLI_UPDATE_PROVIDERS } from "./schemas.js";
 
@@ -208,8 +208,10 @@ const runUpgrade = async (provider) => {
         : "The update failed.";
     return { error: output || reason, ok: false };
   } finally {
-    // Whatever happened, the next lookups should see the new state.
+    // Whatever happened, the next lookups should see the new state: the
+    // installed version (and, for Cursor, which binary it is) included.
     latestVersionCache.clear();
+    cliCatalog.forget(command);
   }
 };
 

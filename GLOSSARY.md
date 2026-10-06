@@ -194,6 +194,18 @@ The translator from one provider's native events to agent-turn calls
 per-provider adapter behind it (`acp-stream.js` with `cursor-stream.js`
 and `grok-stream.js`).
 
+## CLI catalog
+
+What a host knows about the agent CLIs installed on it: whether each
+command is there, where, and which version
+(`electron/api/shared/cli-catalog.js`, the host's instance `cliCatalog` in
+`cli.js`). One policy for all of it: a CLI that was found is remembered for
+5 minutes, one that was not for 30 seconds (so an install shows up soon),
+a lookup under way is shared, and `force` looks again. A CLI's upgrade, or
+a failure to start it because it is gone, makes the host forget it.
+Provider readiness checks and turn launches read it rather than looking
+the CLI up, which on Windows is a PowerShell process each time.
+
 ## Composer draft
 
 The chat composer's text read as a mention-aware document

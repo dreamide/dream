@@ -22,6 +22,7 @@ import { streamCursorResponse } from "../chat/cursor-stream.js";
 import { streamGrokResponse } from "../chat/grok-stream.js";
 import { streamOpenCodeResponse } from "../chat/opencode-stream.js";
 import { isCliCommandAvailable } from "../shared/cli.js";
+import { createTimedCache } from "../shared/cli-catalog.js";
 import { readCodexAccessToken } from "./codex-auth.js";
 import {
   getCursorCliUnavailableMessage,
@@ -49,6 +50,16 @@ import {
 } from "./usage-limits.js";
 
 const notReady = (message, status = 400) => ({ message, status });
+
+// Usage limits under the CLI catalog's policy (cli-catalog.js): every open
+// usage popover polls, and OpenCode's answer starts a server, so an answer
+// is shared for 30 seconds and a read under way by everyone who asks.
+const USAGE_LIMITS_TTL_MS = 30_000;
+const usageLimits = createTimedCache({
+  isMiss: () => false,
+  ttlMs: USAGE_LIMITS_TTL_MS,
+});
+const sharedUsageLimits = (id, read) => () => usageLimits.get(id, read);
 
 const requireCli = (command, message) => async () =>
   (await isCliCommandAvailable(command)) ? null : notReady(message);
@@ -92,7 +103,9 @@ const providers = {
     generateText: (options) => runCodexPrompt(options),
     titleModel: requireTitleModel("OpenAI"),
     fetchModels: (options) => fetchOpenAiModels(options),
-    fetchUsageLimits: () => fetchOpenAiUsageLimits(),
+    fetchUsageLimits: sharedUsageLimits("openai", () =>
+      fetchOpenAiUsageLimits(),
+    ),
   }),
   anthropic: withCapabilities({
     id: "anthropic",
@@ -104,7 +117,9 @@ const providers = {
     generateText: (options) => runClaudePrompt(options),
     titleModel: (fallbackModel) => fallbackModel?.trim() || "haiku",
     fetchModels: (options) => fetchAnthropicModels(options),
-    fetchUsageLimits: () => fetchAnthropicUsageLimits(),
+    fetchUsageLimits: sharedUsageLimits("anthropic", () =>
+      fetchAnthropicUsageLimits(),
+    ),
   }),
   opencode: withCapabilities({
     id: "opencode",
@@ -116,7 +131,9 @@ const providers = {
     generateText: (options) => runOpenCodePrompt(options),
     titleModel: requireTitleModel("OpenCode"),
     fetchModels: (options) => fetchOpenCodeModels(options),
-    fetchUsageLimits: () => fetchOpenCodeUsageStats(),
+    fetchUsageLimits: sharedUsageLimits("opencode", () =>
+      fetchOpenCodeUsageStats(),
+    ),
   }),
   cursor: withCapabilities({
     id: "cursor",
@@ -143,7 +160,7 @@ const providers = {
     generateText: (options) => runGrokTextPrompt(options),
     titleModel: (fallbackModel) => fallbackModel?.trim() || null,
     fetchModels: (options) => fetchGrokModels(options),
-    fetchUsageLimits: () => fetchGrokUsageLimits(),
+    fetchUsageLimits: sharedUsageLimits("grok", () => fetchGrokUsageLimits()),
   }),
 };
 
