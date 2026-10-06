@@ -6,6 +6,7 @@ import { getStatusFileCount } from "../git-actions/utils";
 import { areProjectsEqualExceptLastUsedAt } from "../ide-state";
 import { useIdeStore } from "../ide-store";
 import type { RightPanelView } from "../ide-types";
+import { useShortcut } from "../shortcuts/shortcuts";
 import { moveTabItem } from "../standard-tabs";
 import {
   BROWSER_PANEL_DEFAULT_WIDTH_PX,
@@ -615,6 +616,63 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
       setProjectTerminalPanelOpen,
     ],
   );
+
+  // ── Keyboard shortcuts ───────────────────────────────────────────────
+  // Every project's workspace stays mounted; only the visible one answers.
+  const focusChatInput = useCallback(() => {
+    setRightPanelExpandedRequested(false);
+    setProjectChatHistoryPanelOpen(projectId, false);
+    setProjectGitLogPanelOpen(projectId, false);
+    // After the panels above have closed, so the composer is on screen.
+    requestAnimationFrame(() => {
+      const root = horizontalPanelsRef.current;
+      const column = activeChatId
+        ? root?.querySelector(`[data-chat-id="${CSS.escape(activeChatId)}"]`)
+        : null;
+      const textarea = (column ?? root)?.querySelector<HTMLTextAreaElement>(
+        'textarea[name="message"]:not(:disabled)',
+      );
+      if (!textarea) {
+        return;
+      }
+      textarea.focus();
+      const end = textarea.value.length;
+      textarea.setSelectionRange(end, end);
+    });
+  }, [
+    activeChatId,
+    projectId,
+    setProjectChatHistoryPanelOpen,
+    setProjectGitLogPanelOpen,
+  ]);
+
+  useShortcut("newChat", handleAddChat, active);
+  useShortcut("focusChatInput", focusChatInput, active);
+  useShortcut("toggleChatHistory", handleToggleHistory, active);
+  useShortcut("toggleSideBySide", handleToggleMultiChat, active);
+  useShortcut("toggleSidePanel", handleToggleRightPanel, active);
+  useShortcut("toggleTerminal", handleOpenTerminal, active);
+  useShortcut(
+    "showFiles",
+    () => handleSelectRightPanelView("explorer"),
+    active,
+  );
+  useShortcut(
+    "showChanges",
+    () => handleSelectRightPanelView("changes"),
+    active,
+  );
+  useShortcut(
+    "showBrowser",
+    () => handleSelectRightPanelView("browser"),
+    active,
+  );
+  useShortcut(
+    "showPullRequests",
+    () => handleSelectRightPanelView("pull-requests"),
+    active,
+  );
+  useShortcut("showStash", () => handleSelectRightPanelView("stash"), active);
 
   useEffect(() => {
     rightPanelTransitionEnabledRef.current = true;

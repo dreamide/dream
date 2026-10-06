@@ -81,6 +81,7 @@ import {
 import { ProjectFileSearchIndex } from "./project-file-search-index";
 import { projectResourceKey, readProjectResource } from "./project-resources";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
+import { useShortcutMatcher } from "./shortcuts/shortcuts";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 
 const FILE_TREE_MIN_WIDTH_PX = 250;
@@ -1326,14 +1327,15 @@ const FileExplorerPanelImpl = ({
     closeFileTab(pending.projectId, pending.path);
   }, [closeFileTab, pendingCloseTab]);
 
+  const isSaveShortcut = useShortcutMatcher("saveFile");
   const handleEditorKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      if (isSaveShortcut(event.nativeEvent)) {
         event.preventDefault();
         void handleSaveEditing();
       }
     },
-    [handleSaveEditing],
+    [handleSaveEditing, isSaveShortcut],
   );
 
   const handleTreeResizeStart = useCallback(() => {

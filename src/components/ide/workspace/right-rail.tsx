@@ -4,6 +4,7 @@ import { memo } from "react";
 import type { RightPanelView } from "@/types/ide";
 import { GitActionsMenu } from "../git-actions-menu";
 import { PullRequestNavButton } from "../pull-requests/nav-button";
+import { useShortcutTitle } from "../shortcuts/shortcut-keys";
 import { WorkspaceNavButton } from "./nav-button";
 
 export interface WorkspaceRightRailProps {
@@ -34,6 +35,11 @@ const WorkspaceRightRailImpl = ({
   terminalHiddenWithActiveSession,
 }: WorkspaceRightRailProps) => {
   const t = useTranslations("common");
+  const changesTitle = useShortcutTitle("showChanges", t("changes"));
+  const filesTitle = useShortcutTitle("showFiles", t("files"));
+  const browserTitle = useShortcutTitle("showBrowser", t("browser"));
+  const terminalTitle = useShortcutTitle("toggleTerminal", t("terminal"));
+  const stashTitle = useShortcutTitle("showStash", t("stash"));
 
   return (
     <aside className="relative z-20 flex w-12 shrink-0 flex-col items-center gap-1 py-2">
@@ -42,14 +48,14 @@ const WorkspaceRightRailImpl = ({
         active={rightVisible && rightPanelView === "changes"}
         accent={changesAvailable}
         onClick={() => onSelectRightPanelView("changes")}
-        title={t("changes")}
+        title={changesTitle}
       >
         <Code className="size-4" />
       </WorkspaceNavButton>
       <WorkspaceNavButton
         active={rightVisible && rightPanelView === "explorer"}
         onClick={() => onSelectRightPanelView("explorer")}
-        title={t("files")}
+        title={filesTitle}
       >
         <Files className="size-4" />
       </WorkspaceNavButton>
@@ -57,7 +63,7 @@ const WorkspaceRightRailImpl = ({
         active={rightVisible && rightPanelView === "browser"}
         accent={browserHiddenWithActiveTab}
         onClick={() => onSelectRightPanelView("browser")}
-        title={t("browser")}
+        title={browserTitle}
       >
         <Globe className="size-4" />
       </WorkspaceNavButton>
@@ -66,7 +72,7 @@ const WorkspaceRightRailImpl = ({
         active={rightVisible && rightPanelView === "terminal"}
         accent={terminalHiddenWithActiveSession}
         onClick={onOpenTerminal}
-        title={t("terminal")}
+        title={terminalTitle}
       >
         <TerminalSquare className="size-4" />
       </WorkspaceNavButton>
@@ -81,7 +87,7 @@ const WorkspaceRightRailImpl = ({
         accent={stashAvailable}
         className="mt-auto"
         onClick={() => onSelectRightPanelView("stash")}
-        title={t("stash")}
+        title={stashTitle}
       >
         <Inbox className="size-4" />
       </WorkspaceNavButton>

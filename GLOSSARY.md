@@ -256,3 +256,16 @@ The server side of the same seam (`electron/api/shared/json-route.js`):
 parse the JSON body, validate it, run the route, answer with JSON or a
 plain-text error whose status comes from a `RouteError` (or the route's
 default).
+
+## Shortcut action
+
+Something the user can do from the keyboard (New chat, Toggle terminal…),
+listed once in `src/lib/keybindings/actions.ts` with its default **chord**
+per platform. A chord is modifiers plus one key, written `Mod+Shift+f`:
+`Mod` is Cmd on macOS and Ctrl elsewhere. The user's changes are
+**keybinding overrides** (`settings.keybindings`): only the actions they
+changed, by action id, with `null` for "no shortcut". Components never read
+keys themselves; they say what an action does with `useShortcut`, and one
+window listener (`src/components/ide/shortcuts/shortcuts.ts`) runs the
+action the pressed chord is bound to. **Reserved shortcuts** are keys the
+main process, the OS or text editing take first, so they cannot be bound.

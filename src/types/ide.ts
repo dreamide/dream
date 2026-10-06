@@ -232,6 +232,12 @@ export interface AppSettings {
   chatNotificationSound: boolean;
   expandToolCalls: boolean;
   groupToolCalls: boolean;
+  /**
+   * Keyboard shortcuts the user changed, by action id
+   * (`src/lib/keybindings/actions.ts`): a chord such as `Mod+Shift+n`, or
+   * `null` for no shortcut. Actions not listed use their default.
+   */
+  keybindings: Record<string, string | null>;
   openAiSelectedModels: string[];
   anthropicSelectedModels: string[];
   openCodeSelectedModels: string[];

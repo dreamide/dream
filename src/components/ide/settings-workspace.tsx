@@ -2,6 +2,7 @@ import {
   Archive,
   ArrowLeft,
   Bot,
+  Keyboard,
   MessageSquareText,
   Monitor,
   Moon,
@@ -85,6 +86,7 @@ import {
   SettingsGroup,
   SettingsSwitchRow,
 } from "./settings";
+import { KeyboardShortcutsSection } from "./settings/keyboard-shortcuts-section";
 import { SkillsSettingsSection } from "./skills/skills-settings-section";
 import { SshHostsSettingsSection } from "./ssh/ssh-hosts-settings-section";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
@@ -156,6 +158,7 @@ export const SettingsWorkspace = () => {
   const settingsT = useTranslations("settings");
   const promptsT = useTranslations("savedPrompts");
   const skillsT = useTranslations("skills");
+  const shortcutsT = useTranslations("shortcuts");
   const themeT = useTranslations("theme");
   const uiT = useTranslations("ui");
   const getColorLabel = (color: AccentColor | BaseColor) =>
@@ -556,6 +559,21 @@ export const SettingsWorkspace = () => {
               <span className="flex items-center gap-2">
                 <Bot className="size-4" />
                 {commonT("providers")}
+              </span>
+            </button>
+            <button
+              className={cn(
+                "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
+                settingsSection === "shortcuts"
+                  ? "font-semibold text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setSettingsSection("shortcuts")}
+              type="button"
+            >
+              <span className="flex items-center gap-2">
+                <Keyboard className="size-4" />
+                {shortcutsT("title")}
               </span>
             </button>
             <button
@@ -1442,6 +1460,10 @@ export const SettingsWorkspace = () => {
                     </ProviderStatusCard>
                   </div>
                 </div>
+              ) : null}
+
+              {settingsSection === "shortcuts" ? (
+                <KeyboardShortcutsSection />
               ) : null}
 
               {settingsSection === "mcp" ? <McpServersSection /> : null}

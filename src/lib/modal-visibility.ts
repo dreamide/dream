@@ -69,6 +69,9 @@ const subscribe = (listener: () => void) => {
 
 export const isModalBrowserHidden = () => modalBrowserHidden;
 
+/** Whether a dialog is open right now (no exit-animation grace period). */
+export const isAnyModalOpen = () => activeModalCount > 0;
+
 export const useModalBrowserHidden = () =>
   React.useSyncExternalStore(
     subscribe,

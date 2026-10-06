@@ -827,6 +827,7 @@ const FULL_SETTINGS = {
   groupToolCalls: true,
   cursorSelectedModels: ["cursor-composer"],
   grokSelectedModels: ["grok-4"],
+  keybindings: { newChat: "Mod+Shift+n", toggleSidePanel: null },
   locale: "fr",
   mcpServers: [
     {

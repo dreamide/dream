@@ -85,6 +85,7 @@ export const DEFAULT_SETTINGS = {
   groupToolCalls: false,
   cursorSelectedModels: [],
   grokSelectedModels: [],
+  keybindings: {},
   locale: "en",
   mcpServers: [],
   openAiSelectedModels: [],
@@ -762,6 +763,37 @@ const normalizeSavedPrompts = (value) => {
   return savedPrompts;
 };
 
+const KEYBINDING_ACTION_ID_PATTERN = /^[A-Za-z][A-Za-z0-9]*$/;
+const KEYBINDING_MAX_LENGTH = 64;
+
+/**
+ * Keyboard shortcut overrides: action id -> chord text, or `null` for "no
+ * shortcut". Chords are kept as text; the renderer parses them and falls
+ * back to the default for one it cannot read, so an id or chord from a newer
+ * version survives a round trip through an older one.
+ * @param {unknown} value
+ * @returns {AppSettings["keybindings"]}
+ */
+const normalizeKeybindings = (value) => {
+  /** @type {AppSettings["keybindings"]} */
+  const keybindings = {};
+  for (const [id, chord] of Object.entries(asRecord(value))) {
+    if (!KEYBINDING_ACTION_ID_PATTERN.test(id)) {
+      continue;
+    }
+    if (chord === null) {
+      keybindings[id] = null;
+    } else if (
+      typeof chord === "string" &&
+      chord.trim() !== "" &&
+      chord.length <= KEYBINDING_MAX_LENGTH
+    ) {
+      keybindings[id] = chord.trim();
+    }
+  }
+  return keybindings;
+};
+
 /**
  * Settings with every field present and valid, and the default models
  * repaired against the models actually selected. Understands the retired
@@ -845,6 +877,7 @@ const normalizeSettings = (value) => {
     ),
     cursorSelectedModels: dedupeModels(asStringArray(raw.cursorSelectedModels)),
     grokSelectedModels: dedupeModels(asStringArray(raw.grokSelectedModels)),
+    keybindings: normalizeKeybindings(raw.keybindings),
     locale: normalizeLocalePreference(raw.locale),
     mcpServers: normalizeMcpServerList(raw.mcpServers),
     openAiSelectedModels: dedupeModels(asStringArray(raw.openAiSelectedModels)),

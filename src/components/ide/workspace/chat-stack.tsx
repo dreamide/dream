@@ -808,6 +808,7 @@ const WorkspaceChatStackImpl = ({
                     ? "transition-none"
                     : "transition-transform duration-150 ease-out"
               }`}
+              data-chat-id={chat.id}
               key={chat.id}
               ref={(element) => {
                 columnRefs.current[chat.id] = element;

@@ -25,6 +25,7 @@ import { IdeHeader } from "./ide-header";
 import { useIdeStore } from "./ide-store";
 import { dedupeModels } from "./ide-types";
 import { ProjectWorkspace } from "./project-workspace";
+import { GlobalShortcuts } from "./shortcuts/global-shortcuts";
 import { SshPromptDialog } from "./ssh/ssh-prompt-dialog";
 import { watchHostBrowser } from "./store/host-browser-watch";
 import { watchHostCatalog } from "./store/host-catalog-watch";
@@ -494,6 +495,7 @@ export const IdeShell = () => {
     <div className="relative flex h-screen flex-col overflow-hidden bg-surface-50 dark:bg-surface-900 text-foreground">
       {!appReady && <AppLoadingScreen />}
       <ChatRuntimeHost />
+      <GlobalShortcuts />
       <div className="contents" inert={settingsOpen}>
         <IdeHeader />
       </div>

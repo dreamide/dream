@@ -132,23 +132,6 @@ export const ChatSearchDialog = () => {
     if (!open) setQuery("");
   }, [open]);
 
-  // Ctrl/Cmd+Shift+F, from anywhere in the window.
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.key.toLowerCase() === "f" &&
-        event.shiftKey &&
-        (event.metaKey || event.ctrlKey) &&
-        !event.altKey
-      ) {
-        event.preventDefault();
-        setOpen(true);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [setOpen]);
-
   const relativeTimeFormatter = useMemo(
     () =>
       new Intl.RelativeTimeFormat(locale, { numeric: "auto", style: "narrow" }),

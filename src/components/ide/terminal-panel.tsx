@@ -15,6 +15,7 @@ import { echoPipeFallbackInput } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
 import { TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
+import { isAppShortcutForTerminal } from "./shortcuts/shortcuts";
 import { StandardTabs } from "./standard-tabs";
 import {
   getTerminalScrollback,
@@ -344,6 +345,12 @@ export const TerminalPanel = ({
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
     terminal.attachCustomKeyEventHandler((event) => {
+      // App shortcuts (Ctrl+`, Ctrl+Shift+F…) reach the app instead of the
+      // shell; the shell keeps its control characters (Ctrl+C, Ctrl+W…).
+      if (isAppShortcutForTerminal(event)) {
+        return false;
+      }
+
       if (event.type !== "keydown" || !isCopyShortcut(event)) {
         return true;
       }

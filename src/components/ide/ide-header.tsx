@@ -9,6 +9,7 @@ import { HeaderUpdateButton } from "./header/update-button";
 import { WindowControls } from "./header/window-controls";
 import { WorkspaceSwitcher } from "./header/workspace-switcher";
 import { useIdeStore } from "./ide-store";
+import { useShortcutTitle } from "./shortcuts/shortcut-keys";
 
 export const IdeHeader = () => {
   const t = useTranslations("common");
@@ -19,6 +20,12 @@ export const IdeHeader = () => {
   const isElectron = useIdeStore((s) => s.isElectron);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
+
+  const searchChatsTitle = useShortcutTitle(
+    "searchChats",
+    workspaceT("searchChats"),
+  );
+  const settingsTitle = useShortcutTitle("openSettings", t("settings"));
 
   const openSettings = () => {
     setSettingsSection("appearance");
@@ -51,7 +58,7 @@ export const IdeHeader = () => {
           className="size-8 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
           onClick={() => openChatSearch(true)}
           size="icon"
-          title={workspaceT("searchChats")}
+          title={searchChatsTitle}
           variant="ghost"
         >
           <Search className="size-4" />
@@ -62,7 +69,7 @@ export const IdeHeader = () => {
           className="mr-2 size-8 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
           onClick={openSettings}
           size="icon"
-          title={t("settings")}
+          title={settingsTitle}
           variant="ghost"
         >
           <Settings className="size-4" />

@@ -1,7 +1,8 @@
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect } from "react";
-import { useIdeStore } from "../ide-store";
+import { useShortcutTitle } from "../shortcuts/shortcut-keys";
+import { useShortcut } from "../shortcuts/shortcuts";
 import {
   canGoBackInNavHistory,
   canGoForwardInNavHistory,
@@ -18,36 +19,12 @@ const MOUSE_BUTTON_BACK = 3;
 const MOUSE_BUTTON_FORWARD = 4;
 
 /**
- * The terminal and the code editor bind these same keys themselves (word
- * movement, indent), so a shortcut typed there belongs to them.
+ * Back/Forward from the user's keyboard shortcuts (Settings > Keyboard
+ * shortcuts), plus the fixed ways every browser offers: a keyboard's own
+ * Back/Forward keys and a mouse's side buttons.
  */
-const isInsideOwnKeyHandler = (target: EventTarget | null) =>
-  target instanceof Element && target.closest(".xterm, .cm-editor") !== null;
-
-const getShortcutDirection = (
-  event: KeyboardEvent,
-  isMacOs: boolean,
-): -1 | 1 | null => {
-  if (event.key === "BrowserBack") return -1;
-  if (event.key === "BrowserForward") return 1;
-  if (event.shiftKey) return null;
-
-  if (isMacOs) {
-    if (!event.metaKey || event.ctrlKey || event.altKey) return null;
-    if (event.key === "[") return -1;
-    if (event.key === "]") return 1;
-    return null;
-  }
-
-  if (!event.altKey || event.ctrlKey || event.metaKey) return null;
-  if (event.key === "ArrowLeft") return -1;
-  if (event.key === "ArrowRight") return 1;
-  return null;
-};
-
 export const HistoryNavButtons = () => {
   const t = useTranslations("common");
-  const isMacOs = useIdeStore((s) => s.isMacOs);
   const canGoBack = useNavigationHistoryStore((s) =>
     canGoBackInNavHistory(s.history),
   );
@@ -57,17 +34,23 @@ export const HistoryNavButtons = () => {
 
   useEffect(() => startNavigationHistoryTracking(), []);
 
+  useShortcut("navigateBack", () => navigateHistory(-1));
+  useShortcut("navigateForward", () => navigateHistory(1));
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || isInsideOwnKeyHandler(event.target)) {
+      if (event.defaultPrevented) {
         return;
       }
-
-      const direction = getShortcutDirection(event, isMacOs);
+      const direction =
+        event.key === "BrowserBack"
+          ? -1
+          : event.key === "BrowserForward"
+            ? 1
+            : null;
       if (direction === null) {
         return;
       }
-
       event.preventDefault();
       navigateHistory(direction);
     };
@@ -93,10 +76,10 @@ export const HistoryNavButtons = () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isMacOs]);
+  }, []);
 
-  const backTitle = `${t("back")} (${isMacOs ? "⌘[" : "Alt+←"})`;
-  const forwardTitle = `${t("forward")} (${isMacOs ? "⌘]" : "Alt+→"})`;
+  const backTitle = useShortcutTitle("navigateBack", t("back"));
+  const forwardTitle = useShortcutTitle("navigateForward", t("forward"));
 
   return (
     <div className="flex shrink-0 items-center [-webkit-app-region:no-drag]">

@@ -22,6 +22,7 @@ export {
 export type SettingsSection =
   | "appearance"
   | "providers"
+  | "shortcuts"
   | "mcp"
   | "prompts"
   | "skills"

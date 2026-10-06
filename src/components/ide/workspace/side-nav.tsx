@@ -1,6 +1,7 @@
 import { History, MessageSquarePlus, MessagesSquare } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { memo, type PropsWithChildren, type RefObject } from "react";
+import { useShortcutTitle } from "../shortcuts/shortcut-keys";
 import { WorkspaceNavButton } from "./nav-button";
 
 export const WorkspaceNavRail = ({ children }: PropsWithChildren) => (
@@ -32,6 +33,9 @@ const WorkspaceSideNavImpl = ({
   const multiChatLabel = multiChat
     ? t("disableMultiChat")
     : t("enableMultiChat");
+  const historyTitle = useShortcutTitle("toggleChatHistory", t("chatHistory"));
+  const newChatTitle = useShortcutTitle("newChat", t("newChat"));
+  const multiChatTitle = useShortcutTitle("toggleSideBySide", multiChatLabel);
 
   return (
     <WorkspaceNavRail>
@@ -41,14 +45,14 @@ const WorkspaceSideNavImpl = ({
         accent={historyHasUnseenChats}
         onClick={onToggleHistory}
         ref={historyButtonRef}
-        title={t("chatHistory")}
+        title={historyTitle}
       >
         <History className="size-4" />
       </WorkspaceNavButton>
       <WorkspaceNavButton
         aria-label={t("newChat")}
         onClick={onAddChat}
-        title={t("newChat")}
+        title={newChatTitle}
       >
         <MessageSquarePlus className="size-4" />
       </WorkspaceNavButton>
@@ -58,7 +62,7 @@ const WorkspaceSideNavImpl = ({
         accent={multiChat}
         data-state={multiChat ? "on" : "off"}
         onClick={onToggleMultiChat}
-        title={multiChatLabel}
+        title={multiChatTitle}
       >
         <MessagesSquare className="size-4" />
       </WorkspaceNavButton>
