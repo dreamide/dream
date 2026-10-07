@@ -86,6 +86,7 @@ export function createRendererServerManager({
   rendererStartupTimeoutMs,
   rendererUrlFromEnv,
   startApi,
+  onRendererOutput,
 }) {
   const apiSessionToken = createApiSessionToken();
 
@@ -132,9 +133,21 @@ export function createRendererServerManager({
             ELECTRON_INTERNAL_PORT: String(internalRendererPort),
             FORCE_COLOR: "1",
           },
-          stdio: "inherit",
+          stdio: onRendererOutput ? ["ignore", "pipe", "pipe"] : "inherit",
         },
       );
+
+      if (onRendererOutput) {
+        for (const [stream, output] of [
+          [viteDevProcess.stdout, process.stdout],
+          [viteDevProcess.stderr, process.stderr],
+        ]) {
+          stream.on("data", (chunk) => {
+            output.write(chunk);
+            onRendererOutput(chunk.toString("utf8"));
+          });
+        }
+      }
 
       viteDevProcess.on("error", (error) => {
         console.error("Failed to start Vite dev server:", error);

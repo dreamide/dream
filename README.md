@@ -48,6 +48,11 @@ pnpm install
 
 ## Development
 
+Agent navigation is in [AGENTS.md](AGENTS.md); reviewer guidance is in
+[CODING_STANDARDS.md](CODING_STANDARDS.md). See [development tools](docs/development-tools.md)
+for inspecting the running app, UI fixtures, scratch programs, and benchmarks.
+Run `pnpm check` for the same lint, typecheck, hygiene, and existing tests used by CI.
+
 ```sh
 pnpm dev
 ```

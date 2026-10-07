@@ -1,4 +1,4 @@
-import { getSingletonHighlighter, type BundledLanguage } from "shiki";
+import { type BundledLanguage, getSingletonHighlighter } from "shiki";
 import { CODE_THEMES } from "@/components/ai-elements/incremental-tokens";
 
 export const getCodeHighlighter = (language: BundledLanguage) =>

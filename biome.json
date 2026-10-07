@@ -11,9 +11,10 @@
       "**",
       "!node_modules",
       "!dist",
-      "!dist",
       "!build",
-      "!src/components/ai-elements"
+      "!src/components/ai-elements/*.tsx",
+      "src/components/ai-elements/code-block.tsx",
+      "src/components/ai-elements/streamdown-*.tsx"
     ]
   },
   "formatter": {

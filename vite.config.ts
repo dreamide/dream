@@ -1,6 +1,7 @@
 import path from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { devInspectionPlugin } from "./scripts/dev-vite-plugin.mjs";
 
 const parsePort = (value: string | undefined, fallback: number) => {
   const port = Number(value);
@@ -11,10 +12,10 @@ const devServerPort = parsePort(process.env.ELECTRON_INTERNAL_PORT, 3210);
 const apiServerPort = parsePort(process.env.ELECTRON_API_PORT, 3211);
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), devInspectionPlugin()],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
   server: {

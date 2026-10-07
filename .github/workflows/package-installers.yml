@@ -22,7 +22,11 @@ env:
   SSL_COM_ENVIRONMENT_NAME: ${{ secrets.SSL_COM_ENVIRONMENT_NAME || 'PROD' }}
 
 jobs:
+  validate:
+    uses: ./.github/workflows/checks.yml
+
   package-linux:
+    needs: validate
     name: Package Linux
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 45
@@ -69,6 +73,7 @@ jobs:
             release/latest-linux.yml
 
   package-macos:
+    needs: validate
     name: Package macOS
     runs-on: blacksmith-6vcpu-macos-15
     timeout-minutes: 70
@@ -333,6 +338,7 @@ jobs:
             release/latest-mac.yml
 
   package-windows:
+    needs: validate
     name: Package Windows
     runs-on: blacksmith-4vcpu-windows-2025
     timeout-minutes: 60
@@ -456,6 +462,7 @@ jobs:
   # The host runtime an SSH host runs (scripts/build-host-runtime.mjs), built
   # on each target platform's own runner: its Node and node-pty are native.
   package-host:
+    needs: validate
     name: Package host runtime (${{ matrix.target }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30

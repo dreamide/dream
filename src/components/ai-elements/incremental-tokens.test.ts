@@ -36,6 +36,7 @@ const SAMPLES = {
     " * several lines.",
     " */",
     "const template = `first line",
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: literal template syntax is tokenizer input
     "${value} second line",
     "third line`;",
     "",
@@ -47,7 +48,7 @@ const SAMPLES = {
     "",
   ].join("\n"),
   python: [
-    'def greet(name: str) -> str:',
+    "def greet(name: str) -> str:",
     '    """Docstring that',
     '    spans lines."""',
     '    return f"hello {name}"',

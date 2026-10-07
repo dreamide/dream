@@ -6,12 +6,14 @@ interface TableData {
 export const extractTableDataFromElement = (
   tableElement: HTMLElement,
 ): TableData => ({
-  headers: Array.from(tableElement.querySelectorAll("thead th"), (cell) =>
-    cell.textContent?.trim() ?? "",
+  headers: Array.from(
+    tableElement.querySelectorAll("thead th"),
+    (cell) => cell.textContent?.trim() ?? "",
   ),
   rows: Array.from(tableElement.querySelectorAll("tbody tr"), (row) =>
-    Array.from(row.querySelectorAll("td"), (cell) =>
-      cell.textContent?.trim() ?? "",
+    Array.from(
+      row.querySelectorAll("td"),
+      (cell) => cell.textContent?.trim() ?? "",
     ),
   ),
 });
@@ -59,7 +61,8 @@ export const tableDataToMarkdown = (data: TableData) => {
       escapeMarkdownCell(row[index] ?? ""),
     );
   const formatRow = (row: string[]) => `| ${normalizeRow(row).join(" | ")} |`;
-  const headers = data.headers.length > 0 ? data.headers : Array(columnCount).fill("");
+  const headers =
+    data.headers.length > 0 ? data.headers : Array(columnCount).fill("");
 
   return [
     formatRow(headers),

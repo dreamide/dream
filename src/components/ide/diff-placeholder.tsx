@@ -99,7 +99,10 @@ export const DiffPlaceholder = ({
       aria-busy="true"
       className={cn(
         "dream-diff-viewer dream-diff-placeholder w-full min-w-0 py-2 text-muted-foreground",
-        fill && "overflow-x-auto",
+        // Pierre reserves the bottom 8px for scrolling. A native placeholder
+        // scrollbar adds another row of pixels; hide it during this brief state
+        // while preserving wheel/trackpad scrolling and the final row geometry.
+        fill && "overflow-x-auto no-scrollbar",
         className,
       )}
     >

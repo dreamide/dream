@@ -29,6 +29,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "biome check .",
+    "check": "pnpm check:scratch && pnpm lint && pnpm typecheck && pnpm test",
+    "check:scratch": "node scripts/check-scratch-files.mjs",
+    "inspect:dev": "node scripts/inspect-dev.mjs",
+    "scratch": "node scripts/create-scratch.mjs",
+    "bench:highlight": "tsx scripts/bench-highlight.mts",
+    "architecture:report": "node scripts/render-architecture-report.mjs",
     "typecheck": "tsc --noEmit",
     "test:update-button-styles": "vitest run src/components/ide/header/update-button-styles.test.ts",
     "format": "biome format --write ."

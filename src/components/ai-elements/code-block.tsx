@@ -19,7 +19,6 @@ import {
   type TokenizedCode,
 } from "@/components/ai-elements/incremental-tokens";
 import { Button } from "@/components/ui/button";
-import { getDesktopApi } from "@/lib/electron";
 import {
   Select,
   SelectContent,
@@ -27,18 +26,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 
 // Shiki uses bitflags for font styles: 1=italic, 2=bold, 4=underline
-// biome-ignore lint/suspicious/noBitwiseOperators: shiki bitflag check
 // eslint-disable-next-line no-bitwise -- shiki bitflag check
 const isItalic = (fontStyle: number | undefined) => fontStyle && fontStyle & 1;
-// biome-ignore lint/suspicious/noBitwiseOperators: shiki bitflag check
 // eslint-disable-next-line no-bitwise -- shiki bitflag check
 // oxlint-disable-next-line eslint(no-bitwise)
 const isBold = (fontStyle: number | undefined) => fontStyle && fontStyle & 2;
 const isUnderline = (fontStyle: number | undefined) =>
-  // biome-ignore lint/suspicious/noBitwiseOperators: shiki bitflag check
   // oxlint-disable-next-line eslint(no-bitwise)
   fontStyle && fontStyle & 4;
 
@@ -550,12 +547,12 @@ const CodeBlockBody = memo(
     }, [searchMatches]);
 
     return (
-        <pre
-          className={cn(
-            "dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)] m-0 px-4 py-3 !text-[12px]",
-            wordWrap && "whitespace-pre-wrap break-words",
-            className,
-          )}
+      <pre
+        className={cn(
+          "dark:!bg-[var(--shiki-dark-bg)] dark:!text-[var(--shiki-dark)] m-0 px-4 py-3 !text-[12px]",
+          wordWrap && "whitespace-pre-wrap break-words",
+          className,
+        )}
         style={preStyle}
       >
         <code className={cn("font-mono !text-[12px]")}>
@@ -611,11 +608,11 @@ export const CodeBlockHeader = ({
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement>) => (
-    <div
-      className={cn(
-        "flex min-h-9 items-center justify-between px-3 py-1.5 text-muted-foreground text-[12px]",
-        className,
-      )}
+  <div
+    className={cn(
+      "flex min-h-9 items-center justify-between px-3 py-1.5 text-muted-foreground text-[12px]",
+      className,
+    )}
     {...props}
   >
     {children}
@@ -647,10 +644,7 @@ export const CodeBlockActions = ({
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn("-mr-1 flex items-center gap-1.5", className)}
-    {...props}
-  >
+  <div className={cn("-mr-1 flex items-center gap-1.5", className)} {...props}>
     {children}
   </div>
 );
@@ -687,7 +681,12 @@ export const CodeBlockContent = ({
   const tokenized = highlighted ?? rawTokens;
 
   return (
-    <div className={cn("relative", wordWrap ? "overflow-x-hidden" : "overflow-auto")}>
+    <div
+      className={cn(
+        "relative",
+        wordWrap ? "overflow-x-hidden" : "overflow-auto",
+      )}
+    >
       {tokenized ? (
         <CodeBlockBody
           activeSearchMatchIndex={activeSearchMatchIndex}
@@ -854,11 +853,11 @@ export const CodeBlockLanguageSelectorTrigger = ({
   className,
   ...props
 }: CodeBlockLanguageSelectorTriggerProps) => (
-    <SelectTrigger
-      className={cn(
-        "h-7 border-none bg-transparent px-2 text-sm shadow-none",
-        className,
-      )}
+  <SelectTrigger
+    className={cn(
+      "h-7 border-none bg-transparent px-2 text-sm shadow-none",
+      className,
+    )}
     size="sm"
     {...props}
   />

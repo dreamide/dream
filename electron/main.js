@@ -29,6 +29,7 @@ import {
 } from "./app-screenshot.js";
 import { createBrowserAgentBridge } from "./browser-agent-bridge.js";
 import { createBrowserSessionManager } from "./browser-sessions.js";
+import { createDevLogger, publishDevSession } from "./dev-inspection.js";
 import { detectAvailableEditors, openProjectInEditor } from "./editors.js";
 import { getHelloUrl } from "./hello.js";
 import { createHost } from "./host/index.js";
@@ -53,6 +54,18 @@ const appIconPath = app.isPackaged
   : path.join(__dirname, "..", "public", appIconFileName);
 
 const isDevelopment = process.env.NODE_ENV === "development";
+const devInspectionEnabled = isDevelopment && !app.isPackaged;
+let devLogger = null;
+const devToolsPort = Number(process.env.DREAM_DEVTOOLS_PORT);
+if (
+  devInspectionEnabled &&
+  Number.isInteger(devToolsPort) &&
+  devToolsPort > 0 &&
+  devToolsPort <= 65535
+) {
+  app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1");
+  app.commandLine.appendSwitch("remote-debugging-port", String(devToolsPort));
+}
 
 // Dream's version. Unpackaged, `app.getVersion()` can answer Electron's own
 // version, which names no Dream release (and so no host runtime to install).
@@ -567,6 +580,9 @@ async function createStartupRendererServerManager() {
     rendererStartupTimeoutMs,
     rendererUrlFromEnv,
     startApi: ({ apiToken, port }) => host.listen({ apiToken, port }),
+    onRendererOutput: devLogger
+      ? (text) => devLogger.log("vite", text)
+      : undefined,
   });
 }
 
@@ -1011,6 +1027,10 @@ ipcMain.handle("browser:capture-page", (_event, payload) =>
 );
 
 app.whenReady().then(async () => {
+  const projectRoot = path.resolve(__dirname, "..");
+  if (devInspectionEnabled) {
+    devLogger = await createDevLogger(projectRoot).catch(() => null);
+  }
   configureDetachedDevToolsShortcuts();
   configureApplicationMenu(app, APP_NAME, {
     onCaptureScreenshot: requestAppScreenshot,
@@ -1028,6 +1048,17 @@ app.whenReady().then(async () => {
 
   rendererServerManager = await createStartupRendererServerManager();
   await rendererServerManager.start();
+  if (devInspectionEnabled) {
+    await publishDevSession(projectRoot, {
+      kind: "electron",
+      rendererUrl: rendererServerManager.getUrl(),
+      apiUrl: `http://127.0.0.1:${rendererServerManager.getApiServerPort()}`,
+      debugUrl: app.commandLine.hasSwitch("remote-debugging-port")
+        ? `http://127.0.0.1:${app.commandLine.getSwitchValue("remote-debugging-port")}/json/list`
+        : null,
+      logPath: devLogger?.logPath ?? null,
+    }).catch((error) => console.warn("Cannot publish dev session:", error));
+  }
 
   try {
     installId = ensurePersistedInstallId();
@@ -1036,6 +1067,11 @@ app.whenReady().then(async () => {
   }
 
   await createMainWindow();
+  if (devLogger) {
+    mainWindow.webContents.on("console-message", (_event, details) => {
+      devLogger.log(`renderer:${details.level}`, details.message);
+    });
+  }
 
   updateManager = initializeAutoUpdater({
     app,

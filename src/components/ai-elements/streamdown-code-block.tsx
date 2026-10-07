@@ -1,7 +1,6 @@
-import type { CustomRendererProps } from "streamdown";
 import type { ComponentProps, ReactElement } from "react";
 import { cloneElement, isValidElement } from "react";
-import { codeFenceLanguageMarkers } from "@/components/ai-elements/code-languages";
+import type { CustomRendererProps } from "streamdown";
 import {
   CodeBlock,
   CodeBlockActions,
@@ -12,6 +11,7 @@ import {
   CodeBlockTitle,
   resolveBundledLanguage,
 } from "@/components/ai-elements/code-block";
+import { codeFenceLanguageMarkers } from "@/components/ai-elements/code-languages";
 
 const codeFenceLanguageRegex = /(?:^|\s)language-([^\s]+)/;
 
