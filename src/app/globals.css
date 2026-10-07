@@ -936,20 +936,8 @@
   color: var(--muted-foreground);
 }
 
-/* Keep Streamdown table cards aligned with the message width instead of inset. */
-[data-streamdown="table-wrapper"][data-streamdown="table-wrapper"] {
-  padding-right: 0;
-  padding-bottom: 0;
-  padding-left: 0;
-}
-
 [data-streamdown="table-wrapper"] table {
   width: 100%;
-}
-
-[data-streamdown="table-wrapper"] > :first-child {
-  margin-right: 0.5rem;
-  margin-left: 0.5rem;
 }
 
 [data-streamdown="table-wrapper"] > :first-child button svg {

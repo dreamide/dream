@@ -99,10 +99,10 @@ export const StreamdownCodeBlock = ({
         )}
         <CodeBlockActions>
           <CodeBlockDownloadButton
-            className="h-7 w-7 [&_svg]:size-3"
+            className="h-7 w-7"
             language={highlightLanguage}
           />
-          <CodeBlockCopyButton className="h-7 w-7 [&_svg]:size-3" />
+          <CodeBlockCopyButton className="h-7 w-7" />
         </CodeBlockActions>
       </CodeBlockHeader>
     </CodeBlock>

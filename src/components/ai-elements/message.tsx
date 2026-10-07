@@ -628,10 +628,8 @@ const MarkdownTable = memo(
     const tableRef = useRef<HTMLTableElement>(null);
 
     return (
-      <div
-        className="my-4 flex flex-col gap-2 rounded-lg border border-border bg-sidebar p-2"
-        data-streamdown="table-wrapper"
-      >
+      // No frame around the toolbar: the buttons float above the table.
+      <div className="my-4 flex flex-col gap-1" data-streamdown="table-wrapper">
         <div className="flex items-center justify-end gap-1">
           <MarkdownTableCopyMenu tableRef={tableRef} />
           <MarkdownTableDownloadMenu tableRef={tableRef} />

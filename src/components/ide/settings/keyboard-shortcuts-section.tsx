@@ -236,36 +236,39 @@ const ShortcutRow = ({
           >
             <Pencil className="size-3.5" />
           </Button>
-          <Button
-            aria-label={t("remove", { action: label })}
-            className={cn(!binding && "invisible")}
-            disabled={!binding}
-            onClick={() =>
-              update((current) =>
-                assignBinding(current, actionId, null, platform),
-              )
-            }
-            size="icon-sm"
-            title={t("deleteShortcut")}
-            type="button"
-            variant="ghost"
-          >
-            <X className="size-3.5" />
-          </Button>
-          <Button
-            aria-label={t("reset", { action: label })}
-            className={cn(!customized && "invisible")}
-            disabled={!customized}
-            onClick={() =>
-              update((current) => resetBinding(current, actionId, platform))
-            }
-            size="icon-sm"
-            title={t("resetShortcut")}
-            type="button"
-            variant="ghost"
-          >
-            <RotateCcw className="size-3.5" />
-          </Button>
+          {/* One slot: Reset once the shortcut differs from the default
+              (including after Delete), otherwise Delete. */}
+          {customized ? (
+            <Button
+              aria-label={t("reset", { action: label })}
+              onClick={() =>
+                update((current) => resetBinding(current, actionId, platform))
+              }
+              size="icon-sm"
+              title={t("resetShortcut")}
+              type="button"
+              variant="ghost"
+            >
+              <RotateCcw className="size-3.5" />
+            </Button>
+          ) : (
+            <Button
+              aria-label={t("remove", { action: label })}
+              className={cn(!binding && "invisible")}
+              disabled={!binding}
+              onClick={() =>
+                update((current) =>
+                  assignBinding(current, actionId, null, platform),
+                )
+              }
+              size="icon-sm"
+              title={t("deleteShortcut")}
+              type="button"
+              variant="ghost"
+            >
+              <X className="size-3.5" />
+            </Button>
+          )}
         </div>
       )}
     </div>
