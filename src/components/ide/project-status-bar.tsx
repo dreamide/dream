@@ -140,7 +140,9 @@ export const ProjectBranchFooter = ({
   return (
     <>
       <div className={cn("shrink-0 px-2 pt-1 pb-2", className)}>
-        <div className="mx-auto flex w-full max-w-[700px] items-center justify-between gap-2">
+        {/* Fixed height (the branch switcher's) so the composer above does not
+            shift when switching to a project without a branch. */}
+        <div className="mx-auto flex h-8 w-full max-w-[700px] items-center justify-between gap-2">
           <ProjectHostLabel className="-ml-2" project={project} />
           {!showBranch ? null : project.worktree ? (
             <div
