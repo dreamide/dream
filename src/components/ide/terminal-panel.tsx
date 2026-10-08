@@ -641,7 +641,7 @@ export const ProjectTerminalTabsPanel = ({
   const content = (
     <>
       <div className="flex items-center gap-2 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-3 py-1.5">
-        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {onClosePanel ? (
             <RightPanelHeaderIconButton
               icon={TerminalSquare}

@@ -560,10 +560,7 @@ export const StandardTabs = <TItem extends StandardTabItem>({
   return (
     <div
       aria-label={ariaLabel}
-      className={cn(
-        "flex min-w-0 max-w-full items-end overflow-hidden",
-        className,
-      )}
+      className={cn("flex min-w-0 max-w-full items-end", className)}
       ref={containerRef}
       role="tablist"
     >
@@ -582,9 +579,11 @@ export const StandardTabs = <TItem extends StandardTabItem>({
           <ChevronLeft className="size-4" />
         </button>
       ) : null}
+      {/* The scroller clips on both axes, so it pads out room for the active
+          tab's shadow and cancels that padding with matching negative margins. */}
       <div
         className={cn(
-          "no-scrollbar min-w-0 max-w-full shrink overflow-x-auto overflow-y-hidden pb-px",
+          "no-scrollbar -mx-1 -mt-1 -mb-1 min-w-0 max-w-[calc(100%+0.5rem)] shrink overflow-x-auto overflow-y-hidden px-1 pt-1 pb-[5px]",
         )}
         onScroll={updateScrollState}
         ref={scrollRef}
