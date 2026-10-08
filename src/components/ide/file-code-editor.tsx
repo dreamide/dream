@@ -27,6 +27,14 @@ import {
   serializeEditorContent,
 } from "./file-buffers";
 import { createFileCodeSearchPanel } from "./file-code-search-panel";
+import type { ProjectFilePosition } from "./store/ide-store-types";
+
+/** A position to select and scroll to; a new `requestId` reveals it again. */
+export interface FileEditorReveal extends ProjectFilePosition {
+  /** Also move keyboard focus into the editor. */
+  focus: boolean;
+  requestId: number;
+}
 
 interface FileCodeEditorProps {
   disabled?: boolean;
@@ -34,6 +42,7 @@ interface FileCodeEditorProps {
   lineEnding: FileLineEnding;
   onChange: (value: string) => void;
   onSearchOpenChange: (open: boolean) => void;
+  reveal?: FileEditorReveal | null;
   searchRequest: number;
   value: string;
   wordWrap?: boolean;
@@ -163,6 +172,7 @@ const FileCodeEditor = ({
   lineEnding,
   onChange,
   onSearchOpenChange,
+  reveal = null,
   searchRequest,
   value,
   wordWrap = false,
@@ -200,6 +210,39 @@ const FileCodeEditor = ({
       ...(language ? [language] : []),
     ];
   }, [filePath, onSearchOpenChange, wordWrap, t]);
+
+  // The view is created after the first render, so a reveal is applied from
+  // whichever comes second: the view's creation or the reveal's arrival.
+  const revealRef = useRef(reveal);
+  revealRef.current = reveal;
+  const appliedRevealRef = useRef<number | null>(null);
+  const applyReveal = useCallback((view: EditorView) => {
+    const target = revealRef.current;
+    if (!target || appliedRevealRef.current === target.requestId) {
+      return;
+    }
+    appliedRevealRef.current = target.requestId;
+
+    const { doc } = view.state;
+    const line = doc.line(Math.min(Math.max(1, target.line), doc.lines));
+    const from = Math.min(line.from + target.column, line.to);
+    const to = Math.min(from + target.length, line.to);
+    view.dispatch({
+      effects: EditorView.scrollIntoView(from, { y: "center" }),
+      selection: { anchor: from, head: to },
+    });
+    if (target.focus) {
+      view.focus();
+    }
+  }, []);
+
+  useEffect(() => {
+    void reveal;
+    const view = editorRef.current?.view;
+    if (view) {
+      applyReveal(view);
+    }
+  }, [applyReveal, reveal]);
 
   useEffect(() => {
     // The search panel has its own React root, so refresh its translated labels.
@@ -257,6 +300,7 @@ const FileCodeEditor = ({
       height="100%"
       indentWithTab
       onChange={handleChange}
+      onCreateEditor={applyReveal}
       readOnly={disabled}
       ref={editorRef}
       theme={resolvedTheme === "dark" ? "dark" : "light"}

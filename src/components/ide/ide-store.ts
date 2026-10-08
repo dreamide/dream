@@ -89,6 +89,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   projectGitRefreshKeys: {},
   projectFilesRefreshKeys: {},
   projectFileOpenRequests: {},
+  projectFileSearchRequests: {},
   stateHydrated: false,
   persistenceBlocked: false,
   isMacOs: false,

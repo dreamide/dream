@@ -93,6 +93,7 @@ import type {
   projectGitWorktreeMergeRequestSchema,
   projectGitWorktreesRequestSchema,
   projectIconRequestSchema,
+  projectSearchRequestSchema,
 } from "../../electron/api/project-git/schemas.js";
 import type {
   cliUpdatesRequestSchema,
@@ -279,6 +280,34 @@ export interface CatalogChangesResponse {
   conflicts: { id: string; existingId: string; path: string }[];
 }
 
+/** One line of a file that matched a project search. */
+export interface ProjectSearchLine {
+  /** 1-based line number. */
+  line: number;
+  /** The first match on the line: its 0-based column and length. */
+  column: number;
+  length: number;
+  /** How many times the query matches on the line. */
+  matchCount: number;
+  /** The line as shown: indentation dropped, long lines cut with "…". */
+  preview: string;
+  /** Each match as [start, end) offsets into `preview`. */
+  ranges: [number, number][];
+}
+
+export interface ProjectSearchFile {
+  /** Project-relative POSIX path. */
+  path: string;
+  lines: ProjectSearchLine[];
+}
+
+export interface ProjectSearchResponse {
+  files: ProjectSearchFile[];
+  matchCount: number;
+  /** The search stopped at its result limit; more matches may exist. */
+  truncated: boolean;
+}
+
 /** One chat whose transcript matched a search, with its latest match. */
 export interface CatalogSearchResult {
   chatId: string;
@@ -347,6 +376,10 @@ export const API_ROUTES = {
     Input<typeof projectFileWriteRequestSchema>,
     ProjectFileWriteResponse
   >("/api/project-file"),
+  searchProjectFiles: post<
+    Input<typeof projectSearchRequestSchema>,
+    ProjectSearchResponse
+  >("/api/project-search"),
   projectIcon: post<
     Input<typeof projectIconRequestSchema>,
     ProjectIconResponse

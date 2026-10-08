@@ -433,6 +433,21 @@
     "matchPosition": "{current} of {total} matches",
     "editing": "Editing {path}"
   },
+  "fileSearch": {
+    "title": "Find in files",
+    "view": "Files panel view",
+    "filters": "File filters",
+    "include": "Files to include",
+    "includePlaceholder": "Files to include, e.g. src, *.ts",
+    "exclude": "Files to exclude",
+    "excludePlaceholder": "Files to exclude, e.g. *.test.ts",
+    "hint": "Search the contents of every file in the project.",
+    "summary": "{matches, plural, one {# result} other {# results}} in {files, plural, one {# file} other {# files}}",
+    "noResults": "No results found.",
+    "truncated": "Showing the first {count, number} results. Narrow the search to see the rest.",
+    "failed": "Search failed.",
+    "line": "Line {line}"
+  },
   "pullRequests": {
     "title": "Pull request",
     "actions": "Pull request actions",
@@ -1020,6 +1035,7 @@
       "showBrowser": "Show browser",
       "showPullRequests": "Show pull requests",
       "showStash": "Show stash",
+      "findInFiles": "Find in files",
       "saveFile": "Save file"
     },
     "reserved": {

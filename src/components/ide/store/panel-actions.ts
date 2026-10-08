@@ -15,6 +15,7 @@ export const createPanelActions = (
   | "setProjectRightPanelView"
   | "setAppView"
   | "openProjectFile"
+  | "openProjectFileSearch"
   | "setOutputPanelOpen"
 > => ({
   togglePanel: (panel) => {
@@ -206,7 +207,7 @@ export const createPanelActions = (
 
   setAppView: (appView) => set({ appView }),
 
-  openProjectFile: (projectId, filePath) => {
+  openProjectFile: (projectId, filePath, position) => {
     const normalizedProjectId =
       typeof projectId === "string" ? projectId.trim() : "";
     const normalizedFilePath =
@@ -229,12 +230,37 @@ export const createPanelActions = (
           ...state.projectFileOpenRequests,
           [normalizedProjectId]: {
             filePath: normalizedFilePath,
+            ...(position ? { position } : {}),
             requestId: (currentRequest?.requestId ?? 0) + 1,
           },
         },
         projects: updateProjectUiInList(
           state.projects,
           normalizedProjectId,
+          (project) => ({
+            ...project.ui,
+            rightPanelOpen: true,
+            rightPanelView: "explorer",
+          }),
+        ),
+      };
+    });
+  },
+
+  openProjectFileSearch: (projectId) => {
+    set((state) => {
+      if (!state.projects.some((project) => project.id === projectId)) {
+        return state;
+      }
+
+      return {
+        projectFileSearchRequests: {
+          ...state.projectFileSearchRequests,
+          [projectId]: (state.projectFileSearchRequests[projectId] ?? 0) + 1,
+        },
+        projects: updateProjectUiInList(
+          state.projects,
+          projectId,
           (project) => ({
             ...project.ui,
             rightPanelOpen: true,

@@ -58,6 +58,39 @@ const BLOCKED_DIRECTORIES = new Set([
   "venv",
 ]);
 
+const BINARY_CONTROL_CHAR_RATIO = 0.1;
+const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
+
+const isAllowedTextControlByte = (byte) =>
+  byte === 9 || byte === 10 || byte === 12 || byte === 13;
+
+/**
+ * Whether a file's bytes are binary rather than UTF-8 text: a NUL byte, too
+ * many control characters, or invalid UTF-8.
+ */
+export const isLikelyBinaryBuffer = (buffer) => {
+  if (buffer.length === 0) return false;
+
+  let controlByteCount = 0;
+  for (const byte of buffer) {
+    if (byte === 0) return true;
+    if (byte < 32 && !isAllowedTextControlByte(byte)) {
+      controlByteCount += 1;
+    }
+  }
+
+  if (controlByteCount / buffer.length > BINARY_CONTROL_CHAR_RATIO) {
+    return true;
+  }
+
+  try {
+    utf8Decoder.decode(buffer);
+    return false;
+  } catch {
+    return true;
+  }
+};
+
 export const normalizePath = (value) => value.replace(/\\/g, "/");
 
 export const resolveProjectPath = (projectRoot, filePath) => {
@@ -114,6 +147,80 @@ const walkFiles = async (root, current, maxResults, output, projectIgnore) => {
     output.push(relative);
   }
 };
+
+const readIgnoreFile = async (directory) => {
+  try {
+    return await fs.readFile(path.join(directory, ".gitignore"), "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT" || error?.code === "EISDIR") {
+      return null;
+    }
+    throw error;
+  }
+};
+
+/**
+ * Every file under the project root, as root-relative POSIX paths in name
+ * order. Skips the blocked directories and whatever any `.gitignore` on the
+ * way down ignores (each relative to its own directory). Symlinks are not
+ * followed, so the walk never leaves the project. `skipDirectory` prunes a
+ * directory by its relative path; stops early once `signal` aborts.
+ *
+ * @param {string} projectRoot
+ * @param {{ signal?: AbortSignal, skipDirectory?: (relative: string) => boolean }} [options]
+ * @returns {AsyncGenerator<string>}
+ */
+export async function* walkProjectFiles(projectRoot, options = {}) {
+  const { signal, skipDirectory } = options;
+  const root = path.resolve(projectRoot);
+
+  async function* walk(absoluteDirectory, relativeDirectory, matchers) {
+    if (signal?.aborted) return;
+    const ignoreText = await readIgnoreFile(absoluteDirectory);
+    const scope = ignoreText
+      ? [
+          ...matchers,
+          { base: relativeDirectory, rules: ignore().add(ignoreText) },
+        ]
+      : matchers;
+    const isIgnored = (relative, isDirectory) =>
+      scope.some(({ base, rules }) => {
+        const local = base ? relative.slice(base.length + 1) : relative;
+        return rules.ignores(isDirectory ? `${local}/` : local);
+      });
+
+    let entries;
+    try {
+      entries = await fs.readdir(absoluteDirectory, { withFileTypes: true });
+    } catch (error) {
+      // A directory removed or unreadable mid-walk is skipped, not fatal.
+      if (error?.code === "ENOENT" || error?.code === "EACCES") return;
+      throw error;
+    }
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+
+    for (const entry of entries) {
+      if (signal?.aborted) return;
+      const relative = relativeDirectory
+        ? `${relativeDirectory}/${entry.name}`
+        : entry.name;
+      if (entry.isDirectory()) {
+        if (
+          BLOCKED_DIRECTORIES.has(entry.name.toLowerCase()) ||
+          isIgnored(relative, true) ||
+          skipDirectory?.(relative)
+        ) {
+          continue;
+        }
+        yield* walk(path.join(absoluteDirectory, entry.name), relative, scope);
+      } else if (entry.isFile() && !isIgnored(relative, false)) {
+        yield relative;
+      }
+    }
+  }
+
+  yield* walk(root, "", []);
+}
 
 export const listProjectFiles = async (projectRoot, directory, maxResults) => {
   const targetDirectory = resolveProjectPath(projectRoot, directory);

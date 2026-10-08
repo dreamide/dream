@@ -433,6 +433,21 @@
     "matchPosition": "第 {current} 個相符項目，共 {total} 個",
     "editing": "正在編輯 {path}"
   },
+  "fileSearch": {
+    "title": "在檔案中尋找",
+    "view": "檔案面板檢視",
+    "filters": "檔案篩選",
+    "include": "要包含的檔案",
+    "includePlaceholder": "要包含的檔案，例如 src, *.ts",
+    "exclude": "要排除的檔案",
+    "excludePlaceholder": "要排除的檔案，例如 *.test.ts",
+    "hint": "搜尋專案中所有檔案的內容。",
+    "summary": "{files, plural, other {# 個檔案}}中有{matches, plural, other {# 個結果}}",
+    "noResults": "找不到結果。",
+    "truncated": "僅顯示前 {count, number} 個結果。縮小搜尋範圍以查看其餘結果。",
+    "failed": "搜尋失敗。",
+    "line": "第 {line} 行"
+  },
   "pullRequests": {
     "title": "拉取請求",
     "actions": "拉取請求操作",
@@ -1020,6 +1035,7 @@
       "showBrowser": "顯示瀏覽器",
       "showPullRequests": "顯示提取要求",
       "showStash": "顯示暫存",
+      "findInFiles": "在檔案中尋找",
       "saveFile": "儲存檔案"
     },
     "reserved": {

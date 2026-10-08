@@ -433,6 +433,21 @@
     "matchPosition": "第 {current} 个匹配项，共 {total} 个",
     "editing": "正在编辑 {path}"
   },
+  "fileSearch": {
+    "title": "在文件中查找",
+    "view": "文件面板视图",
+    "filters": "文件筛选",
+    "include": "要包含的文件",
+    "includePlaceholder": "要包含的文件，例如 src, *.ts",
+    "exclude": "要排除的文件",
+    "excludePlaceholder": "要排除的文件，例如 *.test.ts",
+    "hint": "搜索项目中所有文件的内容。",
+    "summary": "{files, plural, other {# 个文件}}中有{matches, plural, other {# 个结果}}",
+    "noResults": "未找到结果。",
+    "truncated": "仅显示前 {count, number} 个结果。缩小搜索范围以查看其余结果。",
+    "failed": "搜索失败。",
+    "line": "第 {line} 行"
+  },
   "pullRequests": {
     "title": "拉取请求",
     "actions": "拉取请求操作",
@@ -1020,6 +1035,7 @@
       "showBrowser": "显示浏览器",
       "showPullRequests": "显示拉取请求",
       "showStash": "显示暂存",
+      "findInFiles": "在文件中查找",
       "saveFile": "保存文件"
     },
     "reserved": {

@@ -433,6 +433,21 @@
     "matchPosition": "일치 항목 {total}개 중 {current}번째",
     "editing": "{path} 편집 중"
   },
+  "fileSearch": {
+    "title": "파일에서 찾기",
+    "view": "파일 패널 보기",
+    "filters": "파일 필터",
+    "include": "포함할 파일",
+    "includePlaceholder": "포함할 파일 (예: src, *.ts)",
+    "exclude": "제외할 파일",
+    "excludePlaceholder": "제외할 파일 (예: *.test.ts)",
+    "hint": "프로젝트에 있는 모든 파일의 내용을 검색합니다.",
+    "summary": "{files, plural, other {파일 #개}}에서 {matches, plural, other {결과 #개}}",
+    "noResults": "결과가 없습니다.",
+    "truncated": "처음 {count, number}개의 결과를 표시합니다. 나머지를 보려면 검색 범위를 좁히세요.",
+    "failed": "검색하지 못했습니다.",
+    "line": "{line}번째 줄"
+  },
   "pullRequests": {
     "title": "풀 리퀘스트",
     "actions": "풀 리퀘스트 작업",
@@ -1020,6 +1035,7 @@
       "showBrowser": "브라우저 보기",
       "showPullRequests": "풀 리퀘스트 보기",
       "showStash": "스태시 보기",
+      "findInFiles": "파일에서 찾기",
       "saveFile": "파일 저장"
     },
     "reserved": {

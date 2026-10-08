@@ -433,6 +433,21 @@
     "matchPosition": "{total} 件中 {current} 件目",
     "editing": "{path} を編集中"
   },
+  "fileSearch": {
+    "title": "ファイル内を検索",
+    "view": "ファイル パネルの表示",
+    "filters": "ファイル フィルター",
+    "include": "含めるファイル",
+    "includePlaceholder": "含めるファイル (例: src, *.ts)",
+    "exclude": "除外するファイル",
+    "excludePlaceholder": "除外するファイル (例: *.test.ts)",
+    "hint": "プロジェクト内のすべてのファイルの内容を検索します。",
+    "summary": "{files, plural, other {# 個のファイル}}に{matches, plural, other {# 件の結果}}",
+    "noResults": "結果が見つかりません。",
+    "truncated": "最初の {count, number} 件の結果を表示しています。残りを表示するには検索を絞り込んでください。",
+    "failed": "検索に失敗しました。",
+    "line": "{line} 行目"
+  },
   "pullRequests": {
     "title": "プルリクエスト",
     "actions": "プルリクエストの操作",
@@ -1020,6 +1035,7 @@
       "showBrowser": "ブラウザを表示",
       "showPullRequests": "プルリクエストを表示",
       "showStash": "スタッシュを表示",
+      "findInFiles": "ファイル内を検索",
       "saveFile": "ファイルを保存"
     },
     "reserved": {

@@ -433,6 +433,21 @@
     "matchPosition": "Kết quả khớp {current} trong {total}",
     "editing": "Đang sửa {path}"
   },
+  "fileSearch": {
+    "title": "Tìm trong các tệp",
+    "view": "Chế độ xem bảng tệp",
+    "filters": "Bộ lọc tệp",
+    "include": "Tệp cần bao gồm",
+    "includePlaceholder": "Tệp cần bao gồm, ví dụ src, *.ts",
+    "exclude": "Tệp cần loại trừ",
+    "excludePlaceholder": "Tệp cần loại trừ, ví dụ *.test.ts",
+    "hint": "Tìm trong nội dung của mọi tệp trong dự án.",
+    "summary": "{matches, plural, other {# kết quả}} trong {files, plural, other {# tệp}}",
+    "noResults": "Không tìm thấy kết quả nào.",
+    "truncated": "Đang hiển thị {count, number} kết quả đầu tiên. Hãy thu hẹp tìm kiếm để xem phần còn lại.",
+    "failed": "Tìm kiếm không thành công.",
+    "line": "Dòng {line}"
+  },
   "pullRequests": {
     "title": "Pull request",
     "actions": "Thao tác pull request",
@@ -1020,6 +1035,7 @@
       "showBrowser": "Hiện trình duyệt",
       "showPullRequests": "Hiện pull request",
       "showStash": "Hiện stash",
+      "findInFiles": "Tìm trong các tệp",
       "saveFile": "Lưu tệp"
     },
     "reserved": {

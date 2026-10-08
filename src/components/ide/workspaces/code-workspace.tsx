@@ -673,6 +673,11 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
     active,
   );
   useShortcut("showStash", () => handleSelectRightPanelView("stash"), active);
+  useShortcut(
+    "findInFiles",
+    () => useIdeStore.getState().openProjectFileSearch(projectId),
+    active,
+  );
 
   useEffect(() => {
     rightPanelTransitionEnabledRef.current = true;

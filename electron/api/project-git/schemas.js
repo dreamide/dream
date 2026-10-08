@@ -30,6 +30,19 @@ export const projectFileRequestSchema = z.object({
   startLine: z.number().int().min(1).optional(),
 });
 
+export const projectSearchRequestSchema = z.object({
+  caseSensitive: z.boolean().default(false),
+  /** Comma-separated gitignore-style patterns; matching files are skipped. */
+  exclude: z.string().max(2000).default(""),
+  /** Comma-separated gitignore-style patterns; only matching files are searched. */
+  include: z.string().max(2000).default(""),
+  maxResults: z.number().int().min(1).max(10_000).default(2000),
+  projectPath: z.string().min(1),
+  query: z.string().min(1).max(1000),
+  regexp: z.boolean().default(false),
+  wholeWord: z.boolean().default(false),
+});
+
 export const projectFileWriteRequestSchema = z.object({
   content: z.string(),
   expectedContent: z.string(),

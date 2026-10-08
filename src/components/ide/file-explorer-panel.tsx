@@ -12,6 +12,7 @@ import {
   RotateCw,
   Save,
   Search,
+  TextSearch,
   TextWrap,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -27,6 +28,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import type { BundledLanguage } from "shiki";
 import {
   CodeBlockContainer,
@@ -52,6 +54,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ApiError,
   apiClient,
@@ -60,11 +63,13 @@ import {
   getProjectFileRawUrl,
 } from "@/lib/api-client";
 import { getDesktopApi } from "@/lib/electron";
+import { cn } from "@/lib/utils";
 import {
   type FileBuffersState,
   fileBuffersReducer,
   getFileBufferKey,
 } from "./file-buffers";
+import type { FileEditorReveal } from "./file-code-editor";
 import {
   type FileTabsState,
   fileTabsReducer,
@@ -80,9 +85,11 @@ import {
 } from "./project-directory-loader";
 import { ProjectFileSearchIndex } from "./project-file-search-index";
 import { projectResourceKey, readProjectResource } from "./project-resources";
+import { ProjectSearchView } from "./project-search-view";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 import { useShortcutMatcher } from "./shortcuts/shortcuts";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
+import type { ProjectFilePosition } from "./store/ide-store-types";
 
 const FILE_TREE_MIN_WIDTH_PX = 250;
 const FILE_TREE_MAX_WIDTH_RATIO = 0.5;
@@ -104,6 +111,14 @@ export interface FileExplorerPanelProps {
   projectId?: string | null;
 }
 
+/** What the tree column shows: the file tree, or find in files. */
+type FileTreeMode = "files" | "search";
+
+/** A reveal for the editor of one open file. */
+interface PendingFileReveal extends FileEditorReveal {
+  bufferKey: string;
+}
+
 interface ProjectFileMetadata {
   lineEnding: "crlf" | "lf";
   readOnlyReason: string | null;
@@ -123,6 +138,11 @@ interface ProjectFileTreeProps {
   // Fired on double-click / Enter. Mirrors VS Code: a single click previews
   // the file in a reusable tab, while this promotes it to a persistent tab.
   onPinFile: (path: string) => void;
+  /**
+   * The panel's toolbar row to render the filter input into, while the tree
+   * is the visible mode; null otherwise.
+   */
+  toolbarSlot: HTMLElement | null;
 }
 
 const IMAGE_EXTENSIONS = new Set([
@@ -247,6 +267,7 @@ const ProjectFileTree = ({
   projectPath,
   refreshVersion,
   selectedFilePath,
+  toolbarSlot,
 }: ProjectFileTreeProps) => {
   const panelsT = useTranslations("panels");
   const knownFilesRef = useRef<ReadonlySet<string>>(new Set());
@@ -627,41 +648,38 @@ const ProjectFileTree = ({
     ([directory]) => directory !== ".",
   );
 
-  if (rootStatus === "idle" || rootStatus === "loading") {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Spinner className="size-4 text-muted-foreground" />
-      </div>
-    );
-  }
+  const toolbar = toolbarSlot
+    ? createPortal(
+        <SearchInput
+          aria-label={panelsT("searchFiles")}
+          clearLabel={panelsT("clearSearch")}
+          disabled={rootStatus !== "ready"}
+          onClear={() => treeSearch.close()}
+          onValueChange={(value) => {
+            if (treeSearch.isOpen) {
+              treeSearch.setValue(value);
+            } else {
+              treeSearch.open(value);
+            }
+          }}
+          placeholder={panelsT("searchFiles")}
+          value={treeSearch.isOpen ? treeSearch.value : ""}
+        />,
+        toolbarSlot,
+      )
+    : null;
 
-  if (rootStatus === "error") {
-    const rootError =
-      directoryErrors["."] ?? panelsT("failedToLoadProjectFiles");
+  if (rootStatus !== "ready") {
     return (
-      <div className="p-3">
-        {isMissingPathError(rootError) ? (
-          <div className="rounded-md border border-surface-200 dark:border-surface-800 bg-background px-3 py-3">
-            <div className="font-medium text-foreground text-sm">
-              {panelsT("projectFolderNotFound")}
-            </div>
-            <div className="mt-1 break-all font-mono text-xs text-muted-foreground">
-              {projectPath}
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-xs">
-            {rootError}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (rootStatus === "empty") {
-    return (
-      <div className="h-full p-3">
-        <AppShellPlaceholder message={panelsT("noProjectFiles")} />
+      <div className="flex h-full flex-col">
+        {toolbar}
+        <div className="min-h-0 flex-1">
+          <ProjectFileTreeStatus
+            directoryErrors={directoryErrors}
+            projectPath={projectPath}
+            rootStatus={rootStatus}
+          />
+        </div>
       </div>
     );
   }
@@ -682,22 +700,7 @@ const ProjectFileTree = ({
         }
       }}
     >
-      <div className="shrink-0 px-3 pt-3 pb-2">
-        <SearchInput
-          aria-label={panelsT("searchFiles")}
-          clearLabel={panelsT("clearSearch")}
-          onClear={() => treeSearch.close()}
-          onValueChange={(value) => {
-            if (treeSearch.isOpen) {
-              treeSearch.setValue(value);
-            } else {
-              treeSearch.open(value);
-            }
-          }}
-          placeholder={panelsT("searchFiles")}
-          value={treeSearch.isOpen ? treeSearch.value : ""}
-        />
-      </div>
+      {toolbar}
       {nestedErrors.length > 0 ? (
         <div className="shrink-0 space-y-1 p-2 pb-0">
           {nestedErrors.map(([directory, message]) => (
@@ -733,6 +736,56 @@ const ProjectFileTree = ({
   );
 };
 
+/** What the tree shows in place of its files while they are not ready. */
+const ProjectFileTreeStatus = ({
+  directoryErrors,
+  projectPath,
+  rootStatus,
+}: {
+  directoryErrors: Record<string, string>;
+  projectPath: string;
+  rootStatus: "idle" | "loading" | "empty" | "error";
+}) => {
+  const panelsT = useTranslations("panels");
+
+  if (rootStatus === "idle" || rootStatus === "loading") {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Spinner className="size-4 text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (rootStatus === "error") {
+    const rootError =
+      directoryErrors["."] ?? panelsT("failedToLoadProjectFiles");
+    return (
+      <div className="px-3 pb-3">
+        {isMissingPathError(rootError) ? (
+          <div className="rounded-md border border-surface-200 dark:border-surface-800 bg-background px-3 py-3">
+            <div className="font-medium text-foreground text-sm">
+              {panelsT("projectFolderNotFound")}
+            </div>
+            <div className="mt-1 break-all font-mono text-xs text-muted-foreground">
+              {projectPath}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-md border border-destructive-border bg-destructive-surface-muted px-3 py-2 text-destructive text-xs">
+            {rootError}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full px-3 pb-3">
+      <AppShellPlaceholder message={panelsT("noProjectFiles")} />
+    </div>
+  );
+};
+
 const FileExplorerPanelImpl = ({
   active = true,
   expanded = false,
@@ -741,6 +794,7 @@ const FileExplorerPanelImpl = ({
   projectId: requestedProjectId,
 }: FileExplorerPanelProps) => {
   const commonT = useTranslations("common");
+  const fileSearchT = useTranslations("fileSearch");
   const panelsT = useTranslations("panels");
   const uiT = useTranslations("ui");
   const activeProject = useIdeStore((s) =>
@@ -776,6 +830,15 @@ const FileExplorerPanelImpl = ({
   const [fileError, setFileError] = useState<string | null>(null);
   const [editorSearchRequest, setEditorSearchRequest] = useState(0);
   const [isEditorSearchOpen, setIsEditorSearchOpen] = useState(false);
+  const [treeMode, setTreeMode] = useState<FileTreeMode>("files");
+  const [treeToolbarSlot, setTreeToolbarSlot] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const [projectSearchFocusRequest, setProjectSearchFocusRequest] = useState(0);
+  const [pendingReveal, setPendingReveal] = useState<PendingFileReveal | null>(
+    null,
+  );
+  const revealRequestIdRef = useRef(0);
   const selectedImagePreviewUrlRef = useRef<string | null>(null);
 
   const replaceSelectedImagePreviewUrl = useCallback((url: string | null) => {
@@ -798,6 +861,10 @@ const FileExplorerPanelImpl = ({
     projectId ? (s.projectFileOpenRequests[projectId] ?? null) : null,
   );
   const fileOpenRequestPath = fileOpenRequest?.filePath ?? null;
+  const fileOpenRequestPosition = fileOpenRequest?.position ?? null;
+  const fileSearchRequest = useIdeStore((s) =>
+    projectId ? (s.projectFileSearchRequests[projectId] ?? 0) : 0,
+  );
   const fileOpenRequestKey = fileOpenRequest
     ? `${fileOpenRequest.requestId}:${fileOpenRequest.filePath}`
     : "";
@@ -901,15 +968,64 @@ const FileExplorerPanelImpl = ({
     }
   }, [active, projectFilesRefreshKey, projectId, projectPath]);
 
+  const queueReveal = useCallback(
+    (path: string, position: ProjectFilePosition, focus: boolean) => {
+      if (!projectId) {
+        return;
+      }
+      revealRequestIdRef.current += 1;
+      setPendingReveal({
+        ...position,
+        bufferKey: getFileBufferKey(projectId, path),
+        focus,
+        requestId: revealRequestIdRef.current,
+      });
+    },
+    [projectId],
+  );
+
+  // A request's position is revealed once; the request itself is replayed
+  // whenever the panel becomes active again.
+  const revealedOpenRequestKeyRef = useRef("");
   useEffect(() => {
-    void fileOpenRequestKey;
     if (!active || !projectId || !fileOpenRequestPath) {
       return;
     }
 
     dispatchFileTab({ type: "preview", projectId, path: fileOpenRequestPath });
     setFileError(null);
-  }, [active, fileOpenRequestKey, fileOpenRequestPath, projectId]);
+    if (
+      fileOpenRequestPosition &&
+      revealedOpenRequestKeyRef.current !== fileOpenRequestKey
+    ) {
+      revealedOpenRequestKeyRef.current = fileOpenRequestKey;
+      queueReveal(fileOpenRequestPath, fileOpenRequestPosition, false);
+    }
+  }, [
+    active,
+    fileOpenRequestKey,
+    fileOpenRequestPath,
+    fileOpenRequestPosition,
+    projectId,
+    queueReveal,
+  ]);
+
+  const handledFileSearchRequestRef = useRef(0);
+  useEffect(() => {
+    if (!active || fileSearchRequest === handledFileSearchRequestRef.current) {
+      return;
+    }
+    handledFileSearchRequestRef.current = fileSearchRequest;
+    setTreeMode("search");
+    setProjectSearchFocusRequest((current) => current + 1);
+  }, [active, fileSearchRequest]);
+
+  const handleTreeModeChange = useCallback((mode: FileTreeMode) => {
+    setTreeMode(mode);
+    if (mode === "search") {
+      setProjectSearchFocusRequest((current) => current + 1);
+    }
+  }, []);
 
   useEffect(() => {
     void projectFilesRefreshKey;
@@ -1095,6 +1211,23 @@ const FileExplorerPanelImpl = ({
       resetEditorChrome();
     },
     [projectId, resetEditorChrome],
+  );
+
+  const handleOpenSearchResult = useCallback(
+    (
+      path: string,
+      position: ProjectFilePosition,
+      { pin }: { pin: boolean },
+    ) => {
+      if (!projectId) {
+        return;
+      }
+
+      dispatchFileTab({ type: pin ? "pin" : "preview", projectId, path });
+      resetEditorChrome();
+      queueReveal(path, position, pin);
+    },
+    [projectId, queueReveal, resetEditorChrome],
   );
 
   const handleActivateTab = useCallback(
@@ -1365,6 +1498,36 @@ const FileExplorerPanelImpl = ({
     }
   }, []);
 
+  const treeModeToggle = (
+    <Tabs
+      onValueChange={(value) => {
+        if (value === "files" || value === "search") {
+          handleTreeModeChange(value);
+        }
+      }}
+      value={treeMode}
+    >
+      <TabsList aria-label={fileSearchT("view")}>
+        <TabsTrigger
+          aria-label={commonT("files")}
+          className="w-7 px-0"
+          title={commonT("files")}
+          value="files"
+        >
+          <Files className="size-3.5" />
+        </TabsTrigger>
+        <TabsTrigger
+          aria-label={fileSearchT("title")}
+          className="w-7 px-0"
+          title={fileSearchT("title")}
+          value="search"
+        >
+          <TextSearch className="size-3.5" />
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
+  );
+
   if (!activeProject) {
     return (
       <div className="flex h-full flex-col overflow-hidden">
@@ -1469,16 +1632,43 @@ const FileExplorerPanelImpl = ({
             maxWidth: `${FILE_TREE_MAX_WIDTH_RATIO * 100}%`,
           }}
         >
-          <div className="h-full border-r border-surface-200 dark:border-surface-800 bg-background">
-            <ProjectFileTree
-              active={active}
-              onPinFile={handlePinFile}
-              onSelectedFileMissing={handleSelectedFileMissing}
-              onSelectFile={handleSelectFile}
-              projectPath={activeProject.path}
-              refreshVersion={projectFilesRefreshKey}
-              selectedFilePath={selectedFilePath}
-            />
+          <div className="flex h-full flex-col border-r border-surface-200 dark:border-surface-800 bg-background">
+            {/* One switch for both modes, so its selection slides between
+                them; the visible mode renders its input beside it. */}
+            <div className="flex shrink-0 items-center gap-2 px-3 pt-3 pb-2">
+              {treeModeToggle}
+              <div className="min-w-0 flex-1" ref={setTreeToolbarSlot} />
+            </div>
+            {/* Both stay mounted so switching keeps the tree's expansion
+                and the search's results. */}
+            <div
+              className={cn("min-h-0 flex-1", treeMode !== "files" && "hidden")}
+            >
+              <ProjectFileTree
+                active={active}
+                onPinFile={handlePinFile}
+                onSelectedFileMissing={handleSelectedFileMissing}
+                onSelectFile={handleSelectFile}
+                projectPath={activeProject.path}
+                refreshVersion={projectFilesRefreshKey}
+                selectedFilePath={selectedFilePath}
+                toolbarSlot={treeMode === "files" ? treeToolbarSlot : null}
+              />
+            </div>
+            <div
+              className={cn(
+                "min-h-0 flex-1",
+                treeMode !== "search" && "hidden",
+              )}
+            >
+              <ProjectSearchView
+                focusRequest={projectSearchFocusRequest}
+                toolbarSlot={treeMode === "search" ? treeToolbarSlot : null}
+                onOpenResult={handleOpenSearchResult}
+                projectPath={activeProject.path}
+                refreshVersion={projectFilesRefreshKey}
+              />
+            </div>
           </div>
         </div>
 
@@ -1657,6 +1847,11 @@ const FileExplorerPanelImpl = ({
                           })
                         }
                         onSearchOpenChange={setIsEditorSearchOpen}
+                        reveal={
+                          pendingReveal?.bufferKey === selectedFileBufferKey
+                            ? pendingReveal
+                            : null
+                        }
                         searchRequest={editorSearchRequest}
                         value={selectedFileBuffer.draftContent}
                         wordWrap={wordWrapEnabled}

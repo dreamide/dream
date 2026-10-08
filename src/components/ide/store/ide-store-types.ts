@@ -29,6 +29,14 @@ import type {
   SettingsSection,
 } from "../ide-types";
 
+/** Where to put the cursor in a file being opened: a 1-based line, and a
+ *  0-based column and length to select on it. */
+export interface ProjectFilePosition {
+  line: number;
+  column: number;
+  length: number;
+}
+
 export interface StoreActionDependencies {
   /** The route client; tests pass a fake (`createFakeApiClient`). */
   api?: ApiClient;
@@ -134,8 +142,10 @@ export interface IdeState {
   projectFilesRefreshKeys: Record<string, number>;
   projectFileOpenRequests: Record<
     string,
-    { filePath: string; requestId: number }
+    { filePath: string; position?: ProjectFilePosition; requestId: number }
   >;
+  /** Bumped to show the Files panel's find in files, per project. */
+  projectFileSearchRequests: Record<string, number>;
   stateHydrated: boolean;
   /**
    * The workspace could not be loaded: what is shown is empty defaults, and
@@ -342,7 +352,13 @@ export interface IdeState {
   setProjectRightPanelOpen: (projectId: string, open: boolean) => void;
   setProjectRightPanelView: (projectId: string, view: RightPanelView) => void;
   setAppView: (view: AppView) => void;
-  openProjectFile: (projectId: string, filePath: string) => void;
+  openProjectFile: (
+    projectId: string,
+    filePath: string,
+    position?: ProjectFilePosition,
+  ) => void;
+  /** Opens the Files panel on find in files and focuses its query. */
+  openProjectFileSearch: (projectId: string) => void;
   setOutputPanelOpen: (open: boolean) => void;
 
   // Actions - settings

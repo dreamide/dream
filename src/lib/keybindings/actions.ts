@@ -21,7 +21,8 @@ import type { KeyPlatform } from "./chord";
  *   Mod+S             Save
  *
  * The browser, pull request and stash panels have no shared convention, so
- * they start unbound and can be given a key in Settings.
+ * they start unbound and can be given a key in Settings. Find in files is
+ * unbound too: its VS Code key, Mod+Shift+F, already searches chats.
  *
  * An action's id is also its persisted key in `settings.keybindings`, so it
  * must never be renamed.
@@ -84,6 +85,7 @@ export const SHORTCUT_ACTIONS = [
   { category: "panels", defaults: same(null), id: "showBrowser" },
   { category: "panels", defaults: same(null), id: "showPullRequests" },
   { category: "panels", defaults: same(null), id: "showStash" },
+  { category: "panels", defaults: same(null), id: "findInFiles" },
   { category: "editor", defaults: same("Mod+S"), id: "saveFile" },
 ] as const satisfies readonly ShortcutActionDefinition[];
 

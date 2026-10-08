@@ -20,6 +20,7 @@ import {
 } from "./project-git/core.js";
 import {
   ensureProjectDirectory,
+  isLikelyBinaryBuffer,
   listProjectDirectory,
   listProjectFiles,
   MIME_TYPES,
@@ -51,7 +52,9 @@ import {
   projectGitWorktreeMergeRequestSchema,
   projectGitWorktreesRequestSchema,
   projectIconRequestSchema,
+  projectSearchRequestSchema,
 } from "./project-git/schemas.js";
+import { searchProjectFiles } from "./project-git/search.js";
 import {
   compareProjectGitWorktree,
   createProjectGitWorktree,
@@ -67,7 +70,6 @@ import {
 } from "./shared/json-route.js";
 
 const PROJECT_FILE_PREVIEW_MAX_BYTES = 1024 * 1024;
-const PROJECT_FILE_BINARY_CONTROL_CHAR_RATIO = 0.1;
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
 
 export const detectProjectFileLineEnding = (content) =>
@@ -80,35 +82,6 @@ const formatBytes = (bytes) => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
   return `${Math.ceil(bytes / (1024 * 1024))} MB`;
-};
-
-const isAllowedTextControlByte = (byte) =>
-  byte === 9 || byte === 10 || byte === 12 || byte === 13;
-
-const isLikelyBinaryBuffer = (buffer) => {
-  if (buffer.length === 0) return false;
-
-  let controlByteCount = 0;
-  for (const byte of buffer) {
-    if (byte === 0) return true;
-    if (byte < 32 && !isAllowedTextControlByte(byte)) {
-      controlByteCount += 1;
-    }
-  }
-
-  if (
-    controlByteCount / buffer.length >
-    PROJECT_FILE_BINARY_CONTROL_CHAR_RATIO
-  ) {
-    return true;
-  }
-
-  try {
-    utf8Decoder.decode(buffer);
-    return false;
-  } catch {
-    return true;
-  }
 };
 
 const resolveRealProjectFilePath = async (projectPath, filePath) => {
@@ -274,6 +247,14 @@ export const registerProjectGitRoutes = (app) => {
     projectFileRequestSchema,
     readProjectFile,
     { errorMessage: "Unable to read file." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-search",
+    projectSearchRequestSchema,
+    (request, c) => searchProjectFiles(request, c.req.raw.signal),
+    { errorMessage: "Unable to search files." },
   );
 
   app.put("/api/project-file", (c) =>

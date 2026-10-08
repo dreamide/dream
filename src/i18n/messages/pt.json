@@ -433,6 +433,21 @@
     "matchPosition": "Correspondência {current} de {total}",
     "editing": "Editando {path}"
   },
+  "fileSearch": {
+    "title": "Localizar nos arquivos",
+    "view": "Visualização do painel de arquivos",
+    "filters": "Filtros de arquivos",
+    "include": "Arquivos a incluir",
+    "includePlaceholder": "Arquivos a incluir, p. ex. src, *.ts",
+    "exclude": "Arquivos a excluir",
+    "excludePlaceholder": "Arquivos a excluir, p. ex. *.test.ts",
+    "hint": "Pesquisa o conteúdo de todos os arquivos do projeto.",
+    "summary": "{matches, plural, one {# resultado} other {# resultados}} em {files, plural, one {# arquivo} other {# arquivos}}",
+    "noResults": "Nenhum resultado encontrado.",
+    "truncated": "Mostrando os primeiros {count, number} resultados. Refine a pesquisa para ver o restante.",
+    "failed": "A pesquisa falhou.",
+    "line": "Linha {line}"
+  },
   "pullRequests": {
     "title": "Pull request",
     "actions": "Ações do pull request",
@@ -1020,6 +1035,7 @@
       "showBrowser": "Mostrar navegador",
       "showPullRequests": "Mostrar pull requests",
       "showStash": "Mostrar stash",
+      "findInFiles": "Localizar nos arquivos",
       "saveFile": "Salvar arquivo"
     },
     "reserved": {

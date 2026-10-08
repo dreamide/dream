@@ -433,6 +433,21 @@
     "matchPosition": "Treffer {current} von {total}",
     "editing": "{path} bearbeiten"
   },
+  "fileSearch": {
+    "title": "In Dateien suchen",
+    "view": "Ansicht des Dateibereichs",
+    "filters": "Dateifilter",
+    "include": "Einzuschließende Dateien",
+    "includePlaceholder": "Einzuschließende Dateien, z. B. src, *.ts",
+    "exclude": "Auszuschließende Dateien",
+    "excludePlaceholder": "Auszuschließende Dateien, z. B. *.test.ts",
+    "hint": "Durchsucht den Inhalt aller Dateien im Projekt.",
+    "summary": "{matches, plural, one {# Ergebnis} other {# Ergebnisse}} in {files, plural, one {# Datei} other {# Dateien}}",
+    "noResults": "Keine Ergebnisse gefunden.",
+    "truncated": "Die ersten {count, number} Ergebnisse werden angezeigt. Grenze die Suche ein, um den Rest zu sehen.",
+    "failed": "Die Suche ist fehlgeschlagen.",
+    "line": "Zeile {line}"
+  },
   "pullRequests": {
     "title": "Pull Request",
     "actions": "Pull-Request-Aktionen",
@@ -1020,6 +1035,7 @@
       "showBrowser": "Browser anzeigen",
       "showPullRequests": "Pull Requests anzeigen",
       "showStash": "Stash anzeigen",
+      "findInFiles": "In Dateien suchen",
       "saveFile": "Datei speichern"
     },
     "reserved": {
