@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app";
 import { AppErrorBoundary } from "./components/app-error-boundary";
+import "./app/fonts";
 import "./app/globals.css";
 import { installApiSessionGuard } from "./lib/api-session";
 

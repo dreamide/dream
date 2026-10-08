@@ -505,7 +505,11 @@ export const SettingsWorkspace = () => {
     <section
       aria-label={commonT("settings")}
       ref={workspaceRef}
-      className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-50 text-foreground [-webkit-app-region:no-drag] dark:bg-surface-900"
+      // No `-webkit-app-region` here: it is inherited, and Chromium does not
+      // clip drag regions to a scroll container, so `no-drag` on an ancestor
+      // of the scrolling content let content scrolled up under the header
+      // cover its drag region.
+      className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-50 text-foreground dark:bg-surface-900"
     >
       {/* Settings replaces the app titlebar, so it provides its own drag
           region and window controls. */}

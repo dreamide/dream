@@ -14,9 +14,33 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=JetBrains+Mono:wght@100..800&display=swap"
     />
     <style>
+      /* Inter and JetBrains Mono have no CJK glyphs, so CJK text falls through
+         to the bundled Noto Sans faces (imported in src/app/fonts.ts). Han characters
+         are shared across Chinese, Japanese and Korean but drawn differently in
+         each, so the UI locale's face goes first. */
       :root {
-        --font-inter: "Inter", ui-sans-serif, system-ui, sans-serif;
-        --font-jetbrains-mono: "JetBrains Mono", ui-monospace, monospace;
+        --font-cjk:
+          "Noto Sans SC Variable", "Noto Sans TC Variable",
+          "Noto Sans JP Variable", "Noto Sans KR Variable";
+        --font-inter:
+          "Inter", var(--font-cjk), ui-sans-serif, system-ui, sans-serif;
+        --font-jetbrains-mono:
+          "JetBrains Mono", var(--font-cjk), ui-monospace, monospace;
+      }
+      :root:lang(ja) {
+        --font-cjk:
+          "Noto Sans JP Variable", "Noto Sans SC Variable",
+          "Noto Sans TC Variable", "Noto Sans KR Variable";
+      }
+      :root:lang(ko) {
+        --font-cjk:
+          "Noto Sans KR Variable", "Noto Sans SC Variable",
+          "Noto Sans TC Variable", "Noto Sans JP Variable";
+      }
+      :root:lang(zh-Hant) {
+        --font-cjk:
+          "Noto Sans TC Variable", "Noto Sans SC Variable",
+          "Noto Sans JP Variable", "Noto Sans KR Variable";
       }
 
       html,

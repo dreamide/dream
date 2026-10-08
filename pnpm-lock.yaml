@@ -138,6 +138,18 @@ importers:
       '@codemirror/search':
         specifier: ^6.7.2
         version: 6.7.2
+      '@fontsource-variable/noto-sans-jp':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource-variable/noto-sans-kr':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource-variable/noto-sans-sc':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource-variable/noto-sans-tc':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@opentelemetry/api':
         specifier: 1.9.1
         version: 1.9.1
@@ -1226,6 +1238,18 @@ packages:
 
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
+
+  '@fontsource-variable/noto-sans-jp@5.3.0':
+    resolution: {integrity: sha512-XVL9GfGBRjj523v9w3Bctu4mNq7E5rUa+AMZm8DK1EM3LAGlKC3DZMvuqkLn4DB4TwwoAjcsJUCiRpUTDzzOkw==}
+
+  '@fontsource-variable/noto-sans-kr@5.3.0':
+    resolution: {integrity: sha512-h863ZOIVMKjX0PSr0hLMUp/SjrwOul2yp0f5P61avqXdhqDABSkakzG2Ee07d3W8gVYgS9dMmxULdCkoN09f1A==}
+
+  '@fontsource-variable/noto-sans-sc@5.3.0':
+    resolution: {integrity: sha512-lNar1dF7Ik/lHNPo/7JWG0TolXY29LtsqYgMvEysooZ5bsO9uH4shJmRrwyJ3PjyTPljhpMJEK0jDuLSU4vJ1w==}
+
+  '@fontsource-variable/noto-sans-tc@5.3.0':
+    resolution: {integrity: sha512-sniyvTx+yRXlce9bjBV0i3kBG3/YFJiz6SZA9plNJLCR4TbY8il+G759gAXWHZu01eAclbJEN2YR+qbQjZTjkg==}
 
   '@formatjs/fast-memoize@3.1.6':
     resolution: {integrity: sha512-H5aexk1Le7T9TPmscacZ+1pR6CTa2n1wq+HDVGXhH8TzUlQQpeXzZs91dRtmFHrbeNbjPFPfQujUqm7MHgVoXQ==}
@@ -6674,6 +6698,14 @@ snapshots:
       react-dom: 19.3.0(react@19.3.0)
 
   '@floating-ui/utils@0.2.12': {}
+
+  '@fontsource-variable/noto-sans-jp@5.3.0': {}
+
+  '@fontsource-variable/noto-sans-kr@5.3.0': {}
+
+  '@fontsource-variable/noto-sans-sc@5.3.0': {}
+
+  '@fontsource-variable/noto-sans-tc@5.3.0': {}
 
   '@formatjs/fast-memoize@3.1.6': {}
 
