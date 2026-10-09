@@ -101,8 +101,12 @@ function PullRequestStatus({ pr }: { pr: PullRequestSummary }) {
   );
 }
 
-function checkSummary(checks: PullRequestDetail["checks"]): {
+function checkSummary(
+  checks: PullRequestDetail["checks"],
+  state: PullRequestSummary["state"] = "open",
+): {
   labelKey: keyof Messages["pullRequests"];
+  count?: number;
   className: string;
   icon: LucideIcon;
 } {
@@ -126,22 +130,23 @@ function checkSummary(checks: PullRequestDetail["checks"]): {
       "PENDING"
     ).toUpperCase(),
   );
-  if (
-    states.some((state) =>
-      [
-        "FAILURE",
-        "ERROR",
-        "TIMED_OUT",
-        "CANCELLED",
-        "ACTION_REQUIRED",
-        "STARTUP_FAILURE",
-        "STALE",
-      ].includes(state),
-    )
-  )
+  const failedCount = states.filter((state) =>
+    [
+      "FAILURE",
+      "ERROR",
+      "TIMED_OUT",
+      "CANCELLED",
+      "ACTION_REQUIRED",
+      "STARTUP_FAILURE",
+      "STALE",
+    ].includes(state),
+  ).length;
+  if (failedCount)
     return {
-      labelKey: checks.length === 1 ? "failed" : "checksAttention",
-      className: "text-destructive",
+      labelKey: "checksAttention",
+      count: failedCount,
+      className:
+        state === "open" ? "text-destructive" : "text-muted-foreground",
       icon: CircleX,
     };
   if (
@@ -1063,6 +1068,14 @@ function Detail({
   const [tab, setTab] = useState("overview");
   const [editing, setEditing] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(true);
+  const [checksOpen, setChecksOpen] = useState(true);
+  const [checksNavigation, setChecksNavigation] = useState(0);
+  const checksSection = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!checksNavigation || tab !== "overview") return;
+    checksSection.current?.scrollIntoView({ block: "nearest" });
+    checksSection.current?.focus({ preventScroll: true });
+  }, [checksNavigation, tab]);
   const [editingTitle, setEditingTitle] = useState(false);
   const [loading, setLoading] = useState(true);
   const openExternalUrl = useIdeStore((s) => s.openExternalUrl);
@@ -1139,7 +1152,7 @@ function Detail({
         save,
       }
     : null;
-  const checks = pr ? checkSummary(pr.checks) : null;
+  const checks = pr ? checkSummary(pr.checks, pr.state) : null;
   return (
     <Tabs
       value={tab}
@@ -1248,15 +1261,29 @@ function Detail({
               </TabsTrigger>
             </TabsList>
             {checks ? (
-              <div
+              <Button
+                variant="ghost"
+                size="xs"
+                title={
+                  pr.state === "merged" && checks.count
+                    ? t("pullRequests.mergedChecksFailed")
+                    : t("pullRequests.checks")
+                }
+                onClick={() => {
+                  setTab("overview");
+                  setChecksOpen(true);
+                  setChecksNavigation((value) => value + 1);
+                }}
                 className={cn(
                   "ml-auto flex items-center gap-1.5 text-xs",
                   checks.className,
                 )}
               >
                 <checks.icon className="size-3.5" />
-                {t(`pullRequests.${checks.labelKey}`)}
-              </div>
+                {t(`pullRequests.${checks.labelKey}`, {
+                  count: checks.count ?? 0,
+                })}
+              </Button>
             ) : null}
           </div>
         </>
@@ -1316,7 +1343,12 @@ function Detail({
                   )}
                 </CollapsibleContent>
               </Collapsible>
-              <Collapsible defaultOpen>
+              <Collapsible
+                ref={checksSection}
+                tabIndex={-1}
+                open={checksOpen}
+                onOpenChange={setChecksOpen}
+              >
                 <CollapsibleTrigger className="group flex items-center gap-1.5 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   {t("pullRequests.checks")}
                   <ChevronDown className="size-3 transition-transform group-aria-expanded:rotate-180" />
@@ -1332,7 +1364,8 @@ function Detail({
                     </p>
                   ) : (
                     pr.checks.map((check) => {
-                      const status = checkSummary([check]);
+                      const status = checkSummary([check], pr.state);
+                      const url = check.detailsUrl || check.targetUrl;
                       return (
                         <div
                           key={
@@ -1345,10 +1378,24 @@ function Detail({
                             <status.icon
                               className={cn("size-3.5", status.className)}
                             />
-                            {check.name ?? check.context}
+                            {url ? (
+                              <Button
+                                variant="link"
+                                size="xs"
+                                className="h-auto whitespace-normal p-0 text-inherit"
+                                onClick={() => openExternalUrl(url)}
+                              >
+                                {check.name ?? check.context}
+                                <ExternalLink className="size-3 shrink-0" />
+                              </Button>
+                            ) : (
+                              (check.name ?? check.context)
+                            )}
                           </span>
                           <span className="sr-only">
-                            {t(`pullRequests.${status.labelKey}`)}
+                            {t(`pullRequests.${status.labelKey}`, {
+                              count: status.count ?? 0,
+                            })}
                           </span>
                         </div>
                       );
