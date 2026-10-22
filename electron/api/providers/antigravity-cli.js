@@ -129,6 +129,14 @@ export const resolveAntigravityCliLaunch = async () => {
   };
 };
 
+const SAFE_SHELL_ARG = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/;
+
+export const assertSafeAntigravityArg = (launch, value, label) => {
+  if (launch?.shell && value && !SAFE_SHELL_ARG.test(value)) {
+    throw new Error(`Unsupported ${label} for Antigravity CLI launch.`);
+  }
+};
+
 const ANTIGRAVITY_REASONING_EFFORTS = new Set([
   "low",
   "medium",

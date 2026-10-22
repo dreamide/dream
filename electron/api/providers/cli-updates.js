@@ -1,4 +1,5 @@
 import { cliCatalog, execCliCommand, getCliVersion } from "../shared/cli.js";
+import { execAntigravityCliCommand } from "./antigravity-cli.js";
 import { execCursorCliCommand } from "./cursor-cli.js";
 import { CLI_UPDATE_PROVIDERS } from "./schemas.js";
 
@@ -226,7 +227,9 @@ const runUpgrade = async (provider) => {
     const result =
       provider === "cursor"
         ? await execCursorCliCommand(args, options)
-        : await execCliCommand(command, args, options);
+        : provider === "antigravity"
+          ? await execAntigravityCliCommand(args, options)
+          : await execCliCommand(command, args, options);
     return {
       ok: true,
       output: summarizeUpgradeOutput(result.stdout, result.stderr),

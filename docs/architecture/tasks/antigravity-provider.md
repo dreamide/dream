@@ -27,21 +27,24 @@ Scope:
     `fetchAntigravityUsageLimits`.
 - CLI detection & readiness:
   - `electron/api/providers/antigravity-cli.js`: checks `agy` binary on PATH and standard
-    installation paths (`%LOCALAPPDATA%\Programs\antigravity`, `~/.gemini/antigravity-cli`).
-  - Clear user guidance when CLI is uninstalled or unauthenticated (`agy auth login`).
+    installation paths under `%LOCALAPPDATA%\agy\bin\agy.exe`,
+    `%LOCALAPPDATA%\Programs\agy\bin\agy.exe`, and
+    `~/.gemini/antigravity-cli/bin/agy`.
+  - Clear user guidance when CLI is unavailable: install Antigravity CLI and run `agy`
+    in a terminal to authenticate.
 - Dynamic model discovery:
   - `fetchAntigravityModels` and `parseAntigravityModelsOutput` in
     `electron/api/providers/provider-models.js`. Discovers available models via `agy models`,
-    with fallback defaults, context window mappings (1M tokens for Gemini models), and
-    reasoning effort capabilities.
+    with context window mappings (1M tokens for Gemini models), and
+    reasoning effort capabilities; unavailable discovery returns no models.
 - Chat streaming adapter:
   - `electron/api/chat/antigravity-stream.js`: executes `agy` in streaming JSON mode
     (`--output-format stream-json`).
   - Translates NDJSON events (`init`, `step_update`, `agent_response`, `tool`, `result`)
     into Dream's `turn` contract:
-    - `turn.session` from `conversation_id` / `session_id`.
+    - `turn.session` from `conversation_id`.
     - `turn.text` from streamed message chunks.
-    - `turn.reasoning` from `thinking` / `thought` fields.
+    - `turn.reasoning` from `thought_delta` / `reasoning_delta` fields.
     - `turn.toolStart`, `turn.toolOutput`, and `turn.toolError` from tool calls
       (`run_command`, `read_file`, `write_file`, `edit_file`).
     - `turn.usage` from token usage reports.
@@ -70,7 +73,7 @@ Completion criteria:
 
 - [x] Provider recognized uniformly across main, renderer, settings, and validation schemas.
 - [x] CLI detection resolves executable and reports clean actionable error messages.
-- [x] Dynamic model discovery parses `agy models` with fallback model definitions.
+- [x] Dynamic model discovery parses `agy models`; unavailable discovery returns no models.
 - [x] Streaming adapter maps assistant text, reasoning, tool execution, tool output/error,
       and token usage into Dream's turn contract.
 - [x] Permission modes enforced safely; no dangerous elevation in `ask` mode.
@@ -85,7 +88,7 @@ Completion criteria:
 
 Validation:
 
-- `pnpm vitest run electron/api/providers/ electron/api/chat/`: 29 test files passed, 186 tests passed.
+- `pnpm vitest run electron/api/providers/ electron/api/chat/ src/lib/models.test.ts`: 30 test files passed, 201 tests passed.
 - `pnpm check:scratch`: clean.
 - `pnpm lint` (`biome check .`): 757 files clean, 0 errors, 0 warnings.
 - `pnpm typecheck` (`tsc --noEmit`): clean, 0 errors.

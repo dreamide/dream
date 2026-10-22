@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import readline from "node:readline";
 import { stopChildProcess } from "../../process-tree.js";
 import {
+  assertSafeAntigravityArg,
   getAntigravityCliSpawnErrorMessage,
   resolveAntigravityCliLaunch,
   resolveAntigravityEffort,
@@ -190,6 +191,8 @@ export const streamAntigravityResponse = async (options) => {
   }
 
   const launch = await resolveAntigravityCliLaunch();
+  assertSafeAntigravityArg(launch, model, "model");
+  assertSafeAntigravityArg(launch, targetSessionId, "conversation ID");
   const useStdin = Boolean(launch.shell) || finalPrompt.length > 8000;
 
   if (!useStdin) {
@@ -361,11 +364,17 @@ export const streamAntigravityResponse = async (options) => {
       reader.on("line", (line) => {
         const trimmed = line.trim();
         if (!trimmed) return;
+        let event;
         try {
-          const event = JSON.parse(trimmed);
-          handleEvent(event);
+          event = JSON.parse(trimmed);
         } catch {
-          // Ignore non-JSON output
+          return; // Ignore non-JSON output
+        }
+        try {
+          handleEvent(event);
+        } catch (error) {
+          exitError ??=
+            error instanceof Error ? error : new Error(String(error));
         }
       });
 

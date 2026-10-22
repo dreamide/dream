@@ -36,11 +36,11 @@ describe("streamAntigravityResponse", () => {
         ...actual,
         getAntigravityCliSpawnErrorMessage: (err) =>
           err?.message || "spawn error",
-        resolveAntigravityCliLaunch: async () => ({
+        resolveAntigravityCliLaunch: vi.fn(async () => ({
           argsPrefix: [],
           command: "agy",
           shell: false,
-        }),
+        })),
       };
     });
   });
@@ -375,5 +375,68 @@ describe("streamAntigravityResponse", () => {
     expect(args).not.toContain("-p");
     expect(options.stdio[0]).toBe("pipe");
     expect(writtenStdin).toBe(largePrompt);
+  });
+
+  it("captures result error event and surfaces it upon completion", async () => {
+    const { streamAntigravityResponse } = await import(
+      "./antigravity-stream.js"
+    );
+
+    const response = await streamAntigravityResponse({
+      messages: [
+        { id: "u1", parts: [{ text: "Fix bug", type: "text" }], role: "user" },
+      ],
+      model: "gemini-3.8-flash",
+      projectPath: "D:/project",
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    fakeChild.stdout.write(
+      `${JSON.stringify({
+        event: "result",
+        result: {
+          error: "Antigravity quota exceeded.",
+          status: "ERROR",
+        },
+      })}\n`,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    fakeChild.emit("close", 0);
+
+    const chunks = await readChunks(response);
+    const errorChunk = chunks.find((c) => c.type === "error");
+    expect(errorChunk).toBeDefined();
+    expect(errorChunk.errorText).toContain("Antigravity quota exceeded.");
+  });
+
+  it("rejects unsafe shell arguments when batch shell launch is enabled", async () => {
+    const { resolveAntigravityCliLaunch } = await import(
+      "../providers/antigravity-cli.js"
+    );
+    vi.mocked(resolveAntigravityCliLaunch).mockResolvedValueOnce({
+      argsPrefix: [],
+      command: "agy.bat",
+      shell: true,
+    });
+
+    const { streamAntigravityResponse } = await import(
+      "./antigravity-stream.js"
+    );
+
+    await expect(
+      streamAntigravityResponse({
+        messages: [
+          {
+            id: "u1",
+            parts: [{ text: "Fix bug", type: "text" }],
+            role: "user",
+          },
+        ],
+        model: "gemini-3.8-flash & calc.exe",
+        projectPath: "D:/project",
+      }),
+    ).rejects.toThrow(/Unsupported model/);
   });
 });

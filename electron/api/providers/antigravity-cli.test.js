@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertSafeAntigravityArg,
   getAntigravityCliSpawnErrorMessage,
   getAntigravityCliUnavailableMessage,
   resolveAntigravityEffort,
@@ -52,5 +53,33 @@ describe("antigravity-cli helpers", () => {
     // Invalid efforts return null
     expect(resolveAntigravityEffort("gemini-3.8-flash", "ultra")).toBeNull();
     expect(resolveAntigravityEffort("gemini-3.8-flash", null)).toBeNull();
+  });
+
+  it("validates shell arguments when batch shell launch is enabled", () => {
+    const batchLaunch = { shell: true };
+    const directLaunch = { shell: false };
+
+    expect(() =>
+      assertSafeAntigravityArg(batchLaunch, "gemini-3.8-flash", "model"),
+    ).not.toThrow();
+    expect(() =>
+      assertSafeAntigravityArg(
+        batchLaunch,
+        "session-123_abc:part",
+        "conversation ID",
+      ),
+    ).not.toThrow();
+
+    expect(() =>
+      assertSafeAntigravityArg(batchLaunch, "gemini & calc.exe", "model"),
+    ).toThrow(/Unsupported model/);
+    expect(() =>
+      assertSafeAntigravityArg(batchLaunch, "id; rm -rf", "conversation ID"),
+    ).toThrow(/Unsupported conversation ID/);
+
+    // Direct launch without shell allows normal execution without throwing
+    expect(() =>
+      assertSafeAntigravityArg(directLaunch, "gemini & calc.exe", "model"),
+    ).not.toThrow();
   });
 });

@@ -5,6 +5,11 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { createOpencode } from "@opencode-ai/sdk";
 import { execCliCommand, isCliCommandAvailable } from "../shared/cli.js";
+import {
+  execAntigravityCliCommand,
+  getAntigravityCliUnavailableMessage,
+  isAntigravityCliAvailable,
+} from "./antigravity-cli.js";
 import { readCodexChatGptAuthTokens } from "./codex-auth.js";
 
 const OPENAI_CODEX_CHATGPT_USAGE_URL =
@@ -1597,17 +1602,15 @@ export const normalizeAntigravityUsageLimits = (payload) => {
 };
 
 export const fetchAntigravityUsageLimits = async () => {
-  if (!(await isCliCommandAvailable("agy"))) {
+  if (!(await isAntigravityCliAvailable())) {
     return makeUsageLimitsResult({
-      error:
-        "Google Antigravity CLI is not installed or not available on PATH.",
+      error: getAntigravityCliUnavailableMessage(),
       provider: "antigravity",
     });
   }
 
   try {
-    const result = await execCliCommand(
-      "agy",
+    const result = await execAntigravityCliCommand(
       ["-p", "/usage", "--output-format", "json"],
       {
         closeStdin: true,

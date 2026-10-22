@@ -3,6 +3,12 @@ import {
   getCliVersion,
   isCliCommandAvailable,
 } from "../shared/cli.js";
+import {
+  execAntigravityCliCommand,
+  getAntigravityCliUnavailableMessage,
+  getAntigravityCliVersion,
+  isAntigravityCliAvailable,
+} from "./antigravity-cli.js";
 import { readCodexAccessToken, readCodexModelsCache } from "./codex-auth.js";
 import { fetchCursorAcpModels, toDreamCursorModelId } from "./cursor-acp.js";
 import {
@@ -507,27 +513,24 @@ export const parseAntigravityModelsOutput = (output) => {
 };
 
 export const fetchAntigravityModels = async ({ force = false } = {}) => {
-  const installed = await isCliCommandAvailable("agy");
+  const installed = await isAntigravityCliAvailable({ force });
   if (!installed) {
     return {
-      error:
-        "Google Antigravity CLI is not installed or not available on PATH.",
+      error: getAntigravityCliUnavailableMessage(),
       installed: false,
       models: [],
       source: "unavailable",
       version: null,
     };
   }
-  const version = await getCliVersion("agy", { force });
+  const version = await getAntigravityCliVersion({ force });
 
   try {
-    const result = await execCliCommand("agy", ["models"], {
+    const result = await execAntigravityCliCommand(["models"], {
       closeStdin: true,
       timeout: 15_000,
     });
-    const models = dedupeAndSort(
-      parseAntigravityModelsOutput(`${result.stdout}\n${result.stderr}`),
-    );
+    const models = dedupeAndSort(parseAntigravityModelsOutput(result.stdout));
     if (models.length === 0) {
       return {
         error: "Antigravity returned no models.",

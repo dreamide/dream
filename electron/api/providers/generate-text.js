@@ -20,6 +20,7 @@ import { getCodexReasoningEffort } from "../chat/codex-common.js";
 import { getCodexErrorDetail } from "../chat/codex-prompt.js";
 import { resolveCliCommandPath } from "../shared/cli.js";
 import {
+  assertSafeAntigravityArg,
   getAntigravityCliSpawnErrorMessage,
   resolveAntigravityCliLaunch,
   resolveAntigravityEffort,
@@ -422,6 +423,7 @@ export const runAntigravityPrompt = ({
 }) =>
   new Promise((resolve, reject) => {
     let latestText = "";
+    let errorDetails = "";
     const reader = createJsonLineReader((event) => {
       if (!event || typeof event !== "object") return;
       if (event.event === "step_update") {
@@ -442,16 +444,17 @@ export const runAntigravityPrompt = ({
         latestText = event.response;
       }
       if (event.status === "ERROR" || event.error) {
-        reader.pushStderr(
+        errorDetails =
           typeof event.error === "string"
             ? event.error
-            : event.error?.message || "Antigravity generation failed.",
-        );
+            : event.error?.message || "Antigravity generation failed.";
+        reader.pushStderr(errorDetails);
       }
     });
 
     void resolveAntigravityCliLaunch()
       .then((launch) => {
+        assertSafeAntigravityArg(launch, model, "model");
         const effectiveEffort = resolveAntigravityEffort(
           model,
           reasoningEffort,
@@ -493,6 +496,10 @@ export const runAntigravityPrompt = ({
         child.on("close", (code) => {
           reader.flush();
           if (code === 0) {
+            if (errorDetails) {
+              reject(new Error(errorDetails));
+              return;
+            }
             resolve(latestText);
             return;
           }

@@ -52,4 +52,12 @@ describe("parseAntigravityModelsOutput", () => {
     expect(models).toHaveLength(1);
     expect(models[0].id).toBe("gemini-3.8-flash");
   });
+
+  it("does not parse stderr warnings as models when given only stdout", () => {
+    const stdout = "gemini-3.8-flash\tGemini Flash\n";
+    const models = parseAntigravityModelsOutput(stdout);
+    expect(models).toHaveLength(1);
+    expect(models[0].id).toBe("gemini-3.8-flash");
+    expect(models.some((m) => m.id.startsWith("Warning"))).toBe(false);
+  });
 });
