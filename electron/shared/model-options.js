@@ -41,6 +41,8 @@ export const CLAUDE_REASONING_EFFORT_MAP = {
 const OPENAI_REASONING_EFFORTS = ["low", "medium", "high", "xhigh"];
 /** @type {ReasoningEffort[]} */
 const ANTHROPIC_REASONING_EFFORTS = ["low", "medium", "high", "xhigh", "max"];
+/** @type {ReasoningEffort[]} */
+const ANTIGRAVITY_REASONING_EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 const HIDDEN_OPENAI_MODEL_LABELS = new Set(["codex auto review"]);
 const HIDDEN_OPENAI_MODEL_IDS = new Set(["codex-auto-review"]);
 
@@ -183,6 +185,17 @@ export const getModelReasoningEfforts = (provider, modelId) => {
     return id.startsWith("grok-") && !id.includes("composer")
       ? ["low", "medium", "high"]
       : [];
+  }
+
+  if (provider === "antigravity") {
+    if (!id) return [];
+    if (/-(?:low|medium|high|xhigh|max)$/.test(id)) {
+      return [];
+    }
+    if (id.startsWith("claude-") || id.includes("thinking")) {
+      return [];
+    }
+    return ANTIGRAVITY_REASONING_EFFORTS;
   }
 
   return [];
