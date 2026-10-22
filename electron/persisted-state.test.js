@@ -781,6 +781,7 @@ const FULL_SETTINGS = {
   archiveChatsAfterDays: 14,
   autoCompactContext: false,
   anthropicSelectedModels: ["opus"],
+  antigravitySelectedModels: ["gemini-3.8-flash-low"],
   defaultGitGenerationModel: "opus",
   defaultGitGenerationModelSpeed: "fast",
   defaultGitGenerationReasoningEffort: "high",

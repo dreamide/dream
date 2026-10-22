@@ -50,6 +50,7 @@ export const PROVIDER_IDS = [
   "opencode",
   "cursor",
   "grok",
+  "antigravity",
 ];
 
 /** @type {Record<AiProvider, ProviderCapabilities>} */
@@ -117,6 +118,17 @@ export const PROVIDER_CAPABILITIES = {
     skills: null,
     usageLimits: true,
     browserMcpScope: "project",
+  },
+  antigravity: {
+    label: "Antigravity",
+    modelSwitchInSession: true,
+    nativeFork: false,
+    selectedModelsSetting: "antigravitySelectedModels",
+    modelAliases: null,
+    mcp: false,
+    skills: { dispatch: "slash" },
+    usageLimits: true,
+    browserMcpScope: null,
   },
 };
 

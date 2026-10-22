@@ -16,6 +16,7 @@ import {
   getProviderCapabilities,
   PROVIDER_IDS,
 } from "../../shared/provider-capabilities.js";
+import { streamAntigravityResponse } from "../chat/antigravity-stream.js";
 import { streamClaudeResponse } from "../chat/claude-stream.js";
 import { streamCodexAppServerResponse } from "../chat/codex-app-server.js";
 import { streamCursorResponse } from "../chat/cursor-stream.js";
@@ -23,12 +24,17 @@ import { streamGrokResponse } from "../chat/grok-stream.js";
 import { streamOpenCodeResponse } from "../chat/opencode-stream.js";
 import { isCliCommandAvailable } from "../shared/cli.js";
 import { createTimedCache } from "../shared/cli-catalog.js";
+import {
+  getAntigravityCliUnavailableMessage,
+  isAntigravityCliAvailable,
+} from "./antigravity-cli.js";
 import { readCodexAccessToken } from "./codex-auth.js";
 import {
   getCursorCliUnavailableMessage,
   isCursorCliAvailable,
 } from "./cursor-cli.js";
 import {
+  runAntigravityPrompt,
   runClaudePrompt,
   runCodexPrompt,
   runCursorPrompt,
@@ -37,6 +43,7 @@ import {
 } from "./generate-text.js";
 import {
   fetchAnthropicModels,
+  fetchAntigravityModels,
   fetchCursorModels,
   fetchGrokModels,
   fetchOpenAiModels,
@@ -44,6 +51,7 @@ import {
 } from "./provider-models.js";
 import {
   fetchAnthropicUsageLimits,
+  fetchAntigravityUsageLimits,
   fetchGrokUsageLimits,
   fetchOpenAiUsageLimits,
   fetchOpenCodeUsageStats,
@@ -89,6 +97,11 @@ const checkCursorReady = async () =>
   (await isCursorCliAvailable())
     ? null
     : notReady(getCursorCliUnavailableMessage());
+
+const checkAntigravityReady = async () =>
+  (await isAntigravityCliAvailable())
+    ? null
+    : notReady(getAntigravityCliUnavailableMessage());
 
 const withCapabilities = (record) => ({
   ...getProviderCapabilities(record.id),
@@ -161,6 +174,18 @@ const providers = {
     titleModel: (fallbackModel) => fallbackModel?.trim() || null,
     fetchModels: (options) => fetchGrokModels(options),
     fetchUsageLimits: sharedUsageLimits("grok", () => fetchGrokUsageLimits()),
+  }),
+  antigravity: withCapabilities({
+    id: "antigravity",
+    checkReady: checkAntigravityReady,
+    stream: (options) => streamAntigravityResponse(options),
+    generateText: (options) => runAntigravityPrompt(options),
+    titleModel: (fallbackModel) =>
+      fallbackModel?.trim() || "gemini-3.8-flash-low",
+    fetchModels: (options) => fetchAntigravityModels(options),
+    fetchUsageLimits: sharedUsageLimits("antigravity", () =>
+      fetchAntigravityUsageLimits(),
+    ),
   }),
 };
 

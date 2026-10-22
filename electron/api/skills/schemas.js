@@ -8,6 +8,7 @@ const providerSchema = z.enum([
   "opencode",
   "cursor",
   "grok",
+  "antigravity",
 ]);
 
 export const skillsRequestSchema = z.object({
