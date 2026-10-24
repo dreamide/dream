@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import {
+  normalizeAntigravityUsageLimits,
   normalizeClaudeUsageLimits,
   normalizeGrokUsageLimits,
   normalizeOpenCodeGoUsageLimits,
@@ -225,4 +226,52 @@ test("includes Claude model-scoped weekly limits such as Fable", () => {
       usedPercent: 34,
     },
   ]);
+});
+
+test("normalizes Antigravity usage limits from agy usage output", () => {
+  const result = normalizeAntigravityUsageLimits({
+    command: {
+      data: {
+        description: "Antigravity Pro Tier",
+        groups: [
+          {
+            name: "Gemini 3.8",
+            buckets: [
+              {
+                name: "5h",
+                window: "5h",
+                remaining_fraction: 0.85,
+                reset_time: "2026-10-22T18:00:00Z",
+              },
+              {
+                name: "Weekly",
+                window: "weekly",
+                remaining_fraction: 0.4,
+                reset_time: "2026-10-29T00:00:00Z",
+              },
+            ],
+          },
+        ],
+      },
+    },
+  });
+
+  assert.deepEqual(result, {
+    limits: [
+      {
+        label: "Gemini 3.8 · 5h limit",
+        resetAfterSeconds: null,
+        resetAt: "2026-10-22T18:00:00.000Z",
+        usedPercent: 15,
+      },
+      {
+        label: "Gemini 3.8 · Weekly limit",
+        resetAfterSeconds: null,
+        resetAt: "2026-10-29T00:00:00.000Z",
+        usedPercent: 60,
+      },
+    ],
+    note: "Antigravity Pro Tier",
+    stats: [],
+  });
 });

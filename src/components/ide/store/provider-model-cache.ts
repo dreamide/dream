@@ -9,6 +9,7 @@ type ProviderModels = IdeState["providerModels"];
 const STORAGE_KEY = "dream-provider-models-v1";
 const PROVIDERS = [
   "anthropic",
+  "antigravity",
   "cursor",
   "grok",
   "openai",

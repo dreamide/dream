@@ -6,6 +6,7 @@ export const PROVIDER_LABELS: Record<AiProvider, string> = {
   opencode: "OpenCode",
   cursor: "Cursor",
   grok: "Grok Build",
+  antigravity: "Antigravity",
 };
 
 export const CHAT_STREAM_UPDATE_THROTTLE_MS = 50;

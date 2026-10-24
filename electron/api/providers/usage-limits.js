@@ -5,6 +5,11 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { createOpencode } from "@opencode-ai/sdk";
 import { execCliCommand, isCliCommandAvailable } from "../shared/cli.js";
+import {
+  execAntigravityCliCommand,
+  getAntigravityCliUnavailableMessage,
+  isAntigravityCliAvailable,
+} from "./antigravity-cli.js";
 import { readCodexChatGptAuthTokens } from "./codex-auth.js";
 
 const OPENAI_CODEX_CHATGPT_USAGE_URL =
@@ -1552,6 +1557,102 @@ export const fetchGrokUsageLimits = async () => {
             ? error.message
             : "Unable to fetch Grok usage limits.",
       provider: "grok",
+    });
+  }
+};
+
+export const normalizeAntigravityUsageLimits = (payload) => {
+  const data = payload?.command?.data ?? payload;
+  const groups = Array.isArray(data?.groups) ? data.groups : [];
+  const limits = [];
+
+  for (const group of groups) {
+    const groupName = group?.name || "Models";
+    const buckets = Array.isArray(group?.buckets) ? group.buckets : [];
+    for (const bucket of buckets) {
+      const remainingFraction = toFiniteNumber(bucket?.remaining_fraction);
+      const usedPercent =
+        remainingFraction !== null
+          ? Math.max(
+              0,
+              Math.min(100, Math.round((1 - remainingFraction) * 100)),
+            )
+          : null;
+      if (usedPercent === null) continue;
+
+      const windowLabel =
+        bucket.window === "5h"
+          ? "5h limit"
+          : bucket.window === "weekly"
+            ? "Weekly limit"
+            : bucket.name || bucket.window;
+      const label = `${groupName} · ${windowLabel}`;
+
+      limits.push({
+        label,
+        resetAfterSeconds: null,
+        resetAt: normalizeResetAt(bucket.reset_time),
+        usedPercent,
+      });
+    }
+  }
+
+  const note = typeof data?.description === "string" ? data.description : null;
+  return { limits, note, stats: [] };
+};
+
+export const fetchAntigravityUsageLimits = async () => {
+  if (!(await isAntigravityCliAvailable())) {
+    return makeUsageLimitsResult({
+      error: getAntigravityCliUnavailableMessage(),
+      provider: "antigravity",
+    });
+  }
+
+  try {
+    const result = await execAntigravityCliCommand(
+      ["-p", "/usage", "--output-format", "json"],
+      {
+        closeStdin: true,
+        timeout: 15_000,
+      },
+    );
+    const text = `${result.stdout}\n${result.stderr}`;
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("Invalid Antigravity usage response.");
+    }
+    const payload = JSON.parse(jsonMatch[0]);
+    const { limits, note, stats } = normalizeAntigravityUsageLimits(payload);
+    if (limits.length === 0) {
+      throw new Error("Antigravity returned no usage limit windows.");
+    }
+
+    const usageResult = makeUsageLimitsResult({
+      limits,
+      note,
+      provider: "antigravity",
+      source: "cli",
+      stats,
+      status: "ok",
+    });
+    providerUsageLimitSnapshots.set("antigravity", usageResult);
+    return usageResult;
+  } catch (error) {
+    const cached = providerUsageLimitSnapshots.get("antigravity");
+    if (cached) {
+      return {
+        ...cached,
+        error:
+          error instanceof Error ? error.message : "Antigravity usage failed.",
+      };
+    }
+    return makeUsageLimitsResult({
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to fetch Antigravity usage limits.",
+      provider: "antigravity",
     });
   }
 };

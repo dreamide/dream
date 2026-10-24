@@ -6,6 +6,7 @@ import { PROVIDER_IDS } from "../../shared/provider-capabilities.js";
 /** The agent CLIs Dream can check for and install updates of. */
 export const CLI_UPDATE_PROVIDERS = /** @type {const} */ ([
   "anthropic",
+  "antigravity",
   "cursor",
   "grok",
   "openai",

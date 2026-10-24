@@ -8,7 +8,8 @@ export type AiProvider =
   | "anthropic"
   | "opencode"
   | "cursor"
-  | "grok";
+  | "grok"
+  | "antigravity";
 export type AccentColor =
   | "black-white"
   | "red"
@@ -245,6 +246,7 @@ export interface AppSettings {
   openCodeSelectedModels: string[];
   cursorSelectedModels: string[];
   grokSelectedModels: string[];
+  antigravitySelectedModels: string[];
   locale: AppLocale;
   mcpServers: McpServerConfig[];
   showReasoningSummaries: boolean;
