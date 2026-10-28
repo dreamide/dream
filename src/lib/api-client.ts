@@ -166,7 +166,10 @@ export interface RemoteAccessProblem {
   url: string | null;
   /** Values the client's words for this code need (a port, an address). */
   params?: { detail?: string; origin?: string; port?: number };
-  /** An enable request that was refused and saved nothing. */
+  /**
+   * An enable request that was refused and saved nothing. Older hosts never
+   * send `params` or `refused`.
+   */
   refused?: boolean;
 }
 
@@ -194,8 +197,11 @@ export interface RemoteAccessStatus {
   ready: boolean;
   /** The public address entered for a Cloudflare route. */
   requestedOrigin: string | null;
-  /** Whether the saved settings can be turned on as they are. */
-  configured: boolean;
+  /**
+   * Whether the saved settings can be turned on as they are. Absent from a
+   * host older than 2026-10-28 (a service the desktop attached to).
+   */
+  configured?: boolean;
   problem: RemoteAccessProblem | null;
   checkedAt: string | null;
 }

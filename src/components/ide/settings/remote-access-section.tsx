@@ -119,19 +119,26 @@ const PROBLEM_KEYS = {
 const useProblemText = () => {
   const t = useTranslations("remote.problems");
   return (problem: RemoteAccessProblem, mode: Mode) => {
-    const params = {
-      origin: problem.params?.origin ?? "",
-      port: String(problem.params?.port ?? "—"),
-    };
+    const { origin, port } = problem.params ?? {};
+    // A host older than these words sends no values: use its own text.
     if (problem.code === "unreachable")
-      return t(
-        mode === "cloudflare"
-          ? "unreachableCloudflare"
-          : "unreachableTailscale",
-        params,
-      );
+      return origin && port
+        ? t(
+            mode === "cloudflare"
+              ? "unreachableCloudflare"
+              : "unreachableTailscale",
+            { origin, port: String(port) },
+          )
+        : problem.message;
+    if (
+      (problem.code === "port-taken" || problem.code === "port-in-use") &&
+      !port
+    )
+      return problem.message;
     const key = PROBLEM_KEYS[problem.code as keyof typeof PROBLEM_KEYS];
-    return key ? t(key, params) : problem.message;
+    return key
+      ? t(key, { origin: origin ?? "", port: String(port) })
+      : problem.message;
   };
 };
 
@@ -223,7 +230,8 @@ export const RemoteAccessSection = () => {
   const [pendingRevoke, setPendingRevoke] =
     useState<RemoteDeviceSession | null>(null);
   const enabled = status?.enabled ?? false;
-  const configured = status?.configured ?? false;
+  // A host older than `configured` was set up if it is on.
+  const configured = status?.configured ?? status?.enabled ?? false;
   const problemText = useProblemText();
   // A refused save is the setup dialog's to show; it changed nothing here.
   const problem = status?.problem?.refused ? null : (status?.problem ?? null);
