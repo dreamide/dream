@@ -279,13 +279,119 @@ export function createVerifiedHttps({
   };
 }
 
+/** How often a code claim asks whether the host confirmed it yet. */
+const CODE_CLAIM_POLL_MS = 2_000;
+
+/** The host's reason for refusing, as it worded it (plain text), or null. */
+const refusal = async (response) => {
+  const text = (await response.text().catch(() => "")).trim();
+  return text ? text.slice(0, 300) : null;
+};
+
 export function createHttpsRoutes({
   credentials,
   ca,
   setTimer = setTimeout,
   clearTimer = clearTimeout,
 }) {
+  /** Stores the session a verified host issued as this device's credential. */
+  const keepSession = (transport, origin, result) => {
+    if (typeof result?.token !== "string" || !result.session)
+      throw fatal("The host did not issue a device session.");
+    const host = transport.getDescriptor();
+    const credentialId = credentials.put({
+      origin,
+      token: result.token,
+      hostId: host.hostId,
+      fingerprint: host.fingerprint,
+    });
+    return { credentialId, origin, host };
+  };
+
+  /** Resolves after `ms`, or rejects as soon as `signal` aborts. */
+  const wait = (ms, signal) =>
+    new Promise((resolve, reject) => {
+      signal.throwIfAborted();
+      const stop = () => {
+        clearTimer(timer);
+        reject(signal.reason);
+      };
+      const timer = setTimer(() => {
+        signal.removeEventListener("abort", stop);
+        resolve();
+      }, ms);
+      signal.addEventListener("abort", stop, { once: true });
+    });
+
   return {
+    /**
+     * Pairs with a short code shown in the host's Remote access settings.
+     * The code only asks: this waits, polling, until someone confirms the
+     * device on the host (or denies it, the claim expires, or `signal`
+     * aborts), then keeps the session it is handed.
+     */
+    async pairWithCode({
+      address,
+      code,
+      deviceName,
+      expectedIdentity,
+      knownIdentities,
+      signal,
+    }) {
+      credentials.check?.();
+      let origin;
+      try {
+        origin = httpsOrigin(new URL(address).origin);
+      } catch {
+        throw fatal(
+          "Enter the host's HTTPS address, as shown in its Remote access settings.",
+        );
+      }
+      const transport = createVerifiedHttps({
+        origin,
+        expectedIdentity,
+        knownIdentities,
+        ca,
+      });
+      const post = async (path, body) => {
+        const response = await transport.request(`${origin}${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
+        });
+        if (!response.ok)
+          throw fatal(
+            (await refusal(response)) ??
+              `Pairing was refused (${response.status}).`,
+          );
+        return response.json();
+      };
+      try {
+        const claim = await post("/api/remote/pair/code", {
+          code,
+          deviceName,
+          clientKind: "native",
+        });
+        if (
+          typeof claim?.claimId !== "string" ||
+          typeof claim.claimSecret !== "string"
+        )
+          throw fatal("The host did not accept the pairing code.");
+        const { claimId, claimSecret } = claim;
+        for (;;) {
+          await wait(CODE_CLAIM_POLL_MS, signal);
+          const result = await post("/api/remote/pair/claim", {
+            claimId,
+            claimSecret,
+          });
+          if (result?.status === "confirmed")
+            return keepSession(transport, origin, result);
+        }
+      } finally {
+        transport.close();
+      }
+    },
     async pair({ url, deviceName, expectedIdentity, knownIdentities }) {
       credentials.check?.();
       const link = new URL(url);
@@ -318,17 +424,7 @@ export function createHttpsRoutes({
           throw fatal(
             `Pairing was refused (${response.status}). Create a new pairing link on the host.`,
           );
-        const result = await response.json();
-        if (typeof result.token !== "string" || !result.session)
-          throw fatal("The host did not issue a device session.");
-        const host = transport.getDescriptor();
-        const credentialId = credentials.put({
-          origin,
-          token: result.token,
-          hostId: host.hostId,
-          fingerprint: host.fingerprint,
-        });
-        return { credentialId, origin, host };
+        return keepSession(transport, origin, await response.json());
       } finally {
         transport.close();
       }

@@ -85,6 +85,15 @@ export interface CloseProjectTerminalOptions {
   keepRightPanelOpen?: boolean;
 }
 
+/**
+ * How a desktop pairs with a host: a pairing link pasted whole, or a short
+ * code typed with the host's address, which waits for the host to confirm.
+ * `attemptId` names a code attempt so it can be cancelled.
+ */
+export type HostPairing =
+  | { kind: "link"; url: string }
+  | { kind: "code"; address: string; code: string; attemptId: string };
+
 export interface HostRuntimeState {
   state: HostConnectionState;
   error: string | null;
@@ -573,8 +582,9 @@ export interface IdeState {
   loadHostCatalog: (hostId: string) => Promise<void>;
   /** Connects an SSH host from settings and loads its catalog. */
   connectHost: (hostId: string) => Promise<boolean>;
+  /** Pairs by link, or by code (waiting until the host confirms it). */
   pairHost: (
-    url: string,
+    how: HostPairing,
     label: string,
     connectionId?: string,
     replaceRouteId?: string,

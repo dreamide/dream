@@ -99,6 +99,12 @@ const SENT = [
   ["pickProjectDirectory", [], ["invoke", "projects:pick-directory"]],
   ["loadState", [], ["invoke", "state:load"]],
   ["pairHost", [payload], ["invoke", "hosts:pair", payload]],
+  ["pairHostWithCode", [payload], ["invoke", "hosts:pair-with-code", payload]],
+  [
+    "cancelHostPairing",
+    ["attempt"],
+    ["invoke", "hosts:cancel-pairing", { attemptId: "attempt" }],
+  ],
   [
     "forgetHostCredential",
     ["credential"],

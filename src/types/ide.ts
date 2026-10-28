@@ -989,6 +989,21 @@ export interface DesktopApi {
     expectedHostId?: string;
     expectedFingerprint?: string | null;
   }) => Promise<{ credentialId: string; origin: string; host: HostDescriptor }>;
+  /**
+   * Pairs with a short code from the host's Remote access settings. Resolves
+   * once someone confirms this device on the host; `cancelHostPairing` with
+   * the same attempt id stops waiting.
+   */
+  pairHostWithCode: (payload: {
+    address: string;
+    code: string;
+    attemptId: string;
+    knownIdentities?: { hostId: string; fingerprint: string | null }[];
+    deviceName?: string;
+    expectedHostId?: string;
+    expectedFingerprint?: string | null;
+  }) => Promise<{ credentialId: string; origin: string; host: HostDescriptor }>;
+  cancelHostPairing: (attemptId: string) => Promise<boolean>;
   forgetHostCredential: (credentialId: string) => Promise<boolean>;
   disconnectHost: (hostId: string) => Promise<boolean>;
   getHostState: (hostId: string) => Promise<HostConnectionState>;

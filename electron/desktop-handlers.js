@@ -47,6 +47,33 @@ const fields = (payload) =>
   payload && typeof payload === "object" ? payload : {};
 
 /**
+ * What a pairing request may say about the host it expects and this
+ * device: the saved identities to recognise, and the device's name.
+ */
+const pairingIdentity = (payload) => {
+  const { deviceName, expectedHostId, expectedFingerprint, knownIdentities } =
+    fields(payload);
+  return {
+    knownIdentities: Array.isArray(knownIdentities)
+      ? knownIdentities
+          .filter(
+            (host) =>
+              typeof host?.hostId === "string" &&
+              (host.fingerprint === null ||
+                typeof host.fingerprint === "string"),
+          )
+          .slice(0, 1000)
+      : [],
+    deviceName:
+      typeof deviceName === "string" ? deviceName.slice(0, 200) : undefined,
+    expectedIdentity:
+      typeof expectedHostId === "string" && expectedHostId
+        ? { hostId: expectedHostId, fingerprint: expectedFingerprint }
+        : null,
+  };
+};
+
+/**
  * @param {object} deps
  * @param {() => DesktopWindow | null} deps.getWindow The main window, while
  *   it is alive.
@@ -131,6 +158,8 @@ export const createDesktopHandlers = ({
   // notification never delivers its click.
   /** @type {Set<unknown>} */
   const shownNotifications = new Set();
+  /** Code pairings waiting on the host, by the renderer's attempt id. */
+  const codePairings = new Map();
 
   /** @satisfies {Partial<Record<DesktopMethod, (payload: any) => unknown>>} */
   const handlers = {
@@ -296,36 +325,49 @@ export const createDesktopHandlers = ({
     },
 
     pairHost: async (payload) => {
-      const {
-        url,
-        deviceName,
-        expectedHostId,
-        expectedFingerprint,
-        knownIdentities,
-      } = fields(payload);
+      const { url, deviceName } = fields(payload);
       if (
         typeof url !== "string" ||
         url.length > 2000 ||
         (deviceName !== undefined && typeof deviceName !== "string")
       )
         throw new Error("A pairing link and device name are required.");
-      return sshHosts.pair({
-        url,
-        knownIdentities: Array.isArray(knownIdentities)
-          ? knownIdentities
-              .filter(
-                (host) =>
-                  typeof host?.hostId === "string" &&
-                  (host.fingerprint === null ||
-                    typeof host.fingerprint === "string"),
-              )
-              .slice(0, 1000)
-          : [],
-        deviceName: deviceName?.slice(0, 200),
-        expectedIdentity: expectedHostId
-          ? { hostId: expectedHostId, fingerprint: expectedFingerprint }
-          : null,
-      });
+      return sshHosts.pair({ url, ...pairingIdentity(payload) });
+    },
+    pairHostWithCode: async (payload) => {
+      const { address, code, attemptId, deviceName } = fields(payload);
+      if (
+        typeof address !== "string" ||
+        address.length > 500 ||
+        typeof code !== "string" ||
+        code.length > 32 ||
+        typeof attemptId !== "string" ||
+        attemptId.length > 100 ||
+        codePairings.has(attemptId) ||
+        (deviceName !== undefined && typeof deviceName !== "string")
+      )
+        throw new Error(
+          "A host address, pairing code and attempt id are required.",
+        );
+      const controller = new AbortController();
+      codePairings.set(attemptId, controller);
+      try {
+        return await sshHosts.pairWithCode({
+          address,
+          code,
+          signal: controller.signal,
+          ...pairingIdentity(payload),
+        });
+      } finally {
+        codePairings.delete(attemptId);
+      }
+    },
+    cancelHostPairing: (payload) => {
+      const { attemptId } = fields(payload);
+      const controller =
+        typeof attemptId === "string" ? codePairings.get(attemptId) : null;
+      controller?.abort(new Error("Pairing was cancelled."));
+      return Boolean(controller);
     },
     forgetHostCredential: (payload) => {
       const { credentialId } = fields(payload);

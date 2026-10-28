@@ -15,7 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,6 +46,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusDot, type StatusDotColor } from "@/components/ui/status-dot";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getClientPlatform } from "@/lib/connections/platform";
 import { getDesktopApi } from "@/lib/electron";
 import type {
@@ -56,7 +57,8 @@ import type {
 import { listHostChoices } from "../../../../electron/shared/host-connections.js";
 import { useIdeStore } from "../ide-store";
 import { SettingsGroup } from "../settings/settings-shared";
-import type { HostRuntimeState } from "../store/ide-store-types";
+import { DESKTOP_DEVICE_NAME } from "../store/host-actions";
+import type { HostPairing, HostRuntimeState } from "../store/ide-store-types";
 import {
   EMPTY_HOST_FORM,
   type HostFormValues,
@@ -158,6 +160,12 @@ export function ConnectionsSettingsSection() {
     routeId?: string;
     back?: string;
   } | null>(null);
+  // Pairing an existing HTTPS route again starts from its address.
+  const pairingRoute = connections
+    .find((host) => host.id === pairing?.owner)
+    ?.routes.find((route) => route.id === pairing?.routeId);
+  const pairingOrigin =
+    pairingRoute?.kind === "https" ? pairingRoute.origin : undefined;
   const [routesOf, setRoutesOf] = useState<string | null>(null);
   const [pendingRemove, setPendingRemove] = useState<{
     id: string;
@@ -301,11 +309,12 @@ export function ConnectionsSettingsSection() {
       ) : null}
       {pairing ? (
         <PairHostDialog
+          initialAddress={pairingOrigin}
           onCancel={closePairing}
-          onPair={async (url, label) => {
+          onPair={async (how, label) => {
             await useIdeStore
               .getState()
-              .pairHost(url, label, pairing.owner, pairing.routeId);
+              .pairHost(how, label, pairing.owner, pairing.routeId);
             closePairing();
           }}
         />
@@ -618,23 +627,84 @@ function HostRoutesDialog({
   );
 }
 
+/** A typed host address, with `https://` assumed when no scheme is given. */
+const hostAddress = (value: string) => {
+  const address = value.trim();
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(address)
+    ? address
+    : `https://${address}`;
+};
+
+type PairMode = "link" | "code";
+
 function PairHostDialog({
+  initialAddress,
   onCancel,
   onPair,
 }: {
+  initialAddress?: string;
   onCancel: () => void;
-  onPair: (url: string, label: string) => Promise<void>;
+  onPair: (how: HostPairing, label: string) => Promise<void>;
 }) {
   const t = useTranslations("connections");
+  const [mode, setMode] = useState<PairMode>("link");
   const [url, setUrl] = useState("");
+  const [address, setAddress] = useState(initialAddress ?? "");
+  const [code, setCode] = useState("");
   const [label, setLabel] = useState("");
   const [busy, setBusy] = useState(false);
+  // A code attempt waiting for the host to confirm this device.
+  const [waiting, setWaiting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const cancelled = useRef<string | null>(null);
+
+  const stopWaiting = () => {
+    if (!waiting) return;
+    cancelled.current = waiting;
+    void getDesktopApi()?.cancelHostPairing(waiting);
+    setWaiting(null);
+    setBusy(false);
+  };
+
+  const submit = () => {
+    const how: HostPairing =
+      mode === "link"
+        ? { kind: "link", url: url.trim() }
+        : {
+            kind: "code",
+            address: hostAddress(address),
+            code: code.trim(),
+            attemptId: crypto.randomUUID(),
+          };
+    setBusy(true);
+    setError(null);
+    if (how.kind === "code") setWaiting(how.attemptId);
+    void onPair(how, label)
+      .catch((reason) => {
+        if (how.kind === "code" && cancelled.current === how.attemptId) return;
+        setError(errorText(reason));
+      })
+      .finally(() => {
+        if (how.kind === "code" && cancelled.current === how.attemptId) return;
+        setWaiting(null);
+        setBusy(false);
+      });
+  };
+
+  const ready =
+    mode === "link"
+      ? url.trim() !== ""
+      : address.trim() !== "" && code.trim() !== "";
+
   return (
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open && !busy) onCancel();
+        if (open) return;
+        if (waiting) {
+          stopWaiting();
+          onCancel();
+        } else if (!busy) onCancel();
       }}
     >
       <DialogContent className="sm:max-w-lg">
@@ -642,36 +712,96 @@ function PairHostDialog({
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
-            setBusy(true);
-            setError(null);
-            void onPair(url.trim(), label)
-              .catch((reason) => setError(errorText(reason)))
-              .finally(() => setBusy(false));
+            if (ready && !busy) submit();
           }}
         >
           <DialogHeader>
             <DialogTitle>{t("pair")}</DialogTitle>
           </DialogHeader>
-          <p className="text-muted-foreground text-sm">{t("pairHint")}</p>
-          <div className="space-y-2">
-            <Label htmlFor="pair-host-link">{t("pairLink")}</Label>
-            <Input
-              autoFocus
-              id="pair-host-link"
-              type="password"
-              autoComplete="off"
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="pair-host-name">{t("name")}</Label>
-            <Input
-              id="pair-host-name"
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-            />
-          </div>
+          {waiting ? (
+            <div className="flex items-start gap-2 py-2 text-sm">
+              <Spinner className="mt-0.5 size-4 shrink-0" />
+              <p>{t("waitingForConfirm", { device: DESKTOP_DEVICE_NAME })}</p>
+            </div>
+          ) : (
+            <>
+              <Tabs
+                onValueChange={(value) => {
+                  if (value === "link" || value === "code") {
+                    setMode(value);
+                    setError(null);
+                  }
+                }}
+                value={mode}
+              >
+                <TabsList>
+                  <TabsTrigger disabled={busy} value="link">
+                    {t("pairByLink")}
+                  </TabsTrigger>
+                  <TabsTrigger disabled={busy} value="code">
+                    {t("pairByCode")}
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <p className="text-muted-foreground text-sm">
+                {mode === "link" ? t("pairHint") : t("pairCodeHint")}
+              </p>
+              {mode === "link" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="pair-host-link">{t("pairLink")}</Label>
+                  <Input
+                    autoFocus
+                    id="pair-host-link"
+                    type="password"
+                    autoComplete="off"
+                    value={url}
+                    onChange={(event) => setUrl(event.target.value)}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="pair-host-address">
+                      {t("hostAddress")}
+                    </Label>
+                    <Input
+                      autoComplete="off"
+                      autoFocus={!initialAddress}
+                      className="font-mono"
+                      id="pair-host-address"
+                      onChange={(event) => setAddress(event.target.value)}
+                      placeholder="https://host.example.com"
+                      spellCheck={false}
+                      value={address}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="pair-host-code">{t("pairingCode")}</Label>
+                    <Input
+                      autoCapitalize="characters"
+                      autoComplete="one-time-code"
+                      autoCorrect="off"
+                      autoFocus={Boolean(initialAddress)}
+                      className="font-mono tracking-widest"
+                      id="pair-host-code"
+                      onChange={(event) => setCode(event.target.value)}
+                      placeholder="ABCD-EFGH"
+                      spellCheck={false}
+                      value={code}
+                    />
+                  </div>
+                </>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="pair-host-name">{t("name")}</Label>
+                <Input
+                  id="pair-host-name"
+                  value={label}
+                  onChange={(event) => setLabel(event.target.value)}
+                />
+              </div>
+            </>
+          )}
           {error ? (
             <p role="alert" className="break-words text-destructive text-sm">
               {error}
@@ -679,19 +809,21 @@ function PairHostDialog({
           ) : null}
           <DialogFooter>
             <Button
-              disabled={busy}
+              disabled={busy && !waiting}
               type="button"
               variant="outline"
-              onClick={onCancel}
+              onClick={waiting ? stopWaiting : onCancel}
             >
               {t("cancel")}
             </Button>
-            <Button
-              disabled={busy || !url.trim() || !getDesktopApi()}
-              type="submit"
-            >
-              {busy ? t("pairing") : t("pair")}
-            </Button>
+            {waiting ? null : (
+              <Button
+                disabled={busy || !ready || !getDesktopApi()}
+                type="submit"
+              >
+                {busy ? t("pairing") : t("pair")}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

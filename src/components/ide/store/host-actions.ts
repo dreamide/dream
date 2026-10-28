@@ -68,6 +68,9 @@ const settleWithin = async (work: Promise<unknown>, ms: number) => {
   clearTimeout(timer);
 };
 
+/** What a host's operator sees this desktop called when it pairs. */
+export const DESKTOP_DEVICE_NAME = "Dream desktop";
+
 export const createHostActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
@@ -323,26 +326,34 @@ export const createHostActions = (
   return {
     connectHost,
 
-    pairHost: async (url, label, connectionId, replaceRouteId) => {
+    pairHost: async (how, label, connectionId, replaceRouteId) => {
       const api = getDesktopApi();
       if (!api)
         throw new Error("Pairing remote routes requires the desktop app.");
       const saved = connectionId
         ? findHostConnection(get().hostConnections, connectionId)
         : null;
-      const paired = await api.pairHost({
-        url,
+      const identity = {
         knownIdentities: get().hostConnections.map(
           ({ hostId, fingerprint }) => ({ hostId, fingerprint }),
         ),
-        deviceName: "Dream desktop",
+        deviceName: DESKTOP_DEVICE_NAME,
         ...(saved
           ? {
               expectedHostId: saved.hostId,
               expectedFingerprint: saved.fingerprint,
             }
           : {}),
-      });
+      };
+      const paired =
+        how.kind === "link"
+          ? await api.pairHost({ url: how.url, ...identity })
+          : await api.pairHostWithCode({
+              address: how.address,
+              code: how.code,
+              attemptId: how.attemptId,
+              ...identity,
+            });
       promoteFormerHome(paired.host.hostId, paired.host.fingerprint);
       const other = get().hostConnections.find(
         (host) => host.hostId === paired.host.hostId,

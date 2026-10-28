@@ -109,6 +109,15 @@ const createFakes = ({ window = true } = {}) => {
       disconnect: record("disconnect"),
       forwardPort: (_hostId, port) => 40000 + port,
       getState: () => "connected",
+      pairWithCode: (options) => {
+        log.push(["pair with code", options]);
+        return new Promise((resolve, reject) => {
+          if (options.code === "WORKS-NOW") resolve({ credentialId: "c1" });
+          options.signal.addEventListener("abort", () =>
+            reject(options.signal.reason),
+          );
+        });
+      },
     },
     sshPrompts: { answer: record("prompt answer") },
     state: {
@@ -263,6 +272,51 @@ const REGISTERED_ELSEWHERE = [
   "reportBrowserGuestDetached",
   "sendBrowserCommandResult",
 ];
+
+test("a code pairing waits until it is confirmed or cancelled", async () => {
+  const { handlers, log } = createFakes();
+  const confirmed = await handlers.pairHostWithCode({
+    address: "https://host.example",
+    code: "WORKS-NOW",
+    attemptId: "a1",
+    deviceName: "Dream desktop",
+    expectedHostId: "host-1",
+    expectedFingerprint: "fp",
+    knownIdentities: [{ hostId: "host-1", fingerprint: "fp" }, { bad: true }],
+  });
+  assert.deepEqual(confirmed, { credentialId: "c1" });
+  const [, options] = log[0];
+  assert.equal(options.address, "https://host.example");
+  assert.equal(options.code, "WORKS-NOW");
+  assert.equal(options.deviceName, "Dream desktop");
+  assert.deepEqual(options.expectedIdentity, {
+    hostId: "host-1",
+    fingerprint: "fp",
+  });
+  assert.deepEqual(options.knownIdentities, [
+    { hostId: "host-1", fingerprint: "fp" },
+  ]);
+
+  const waiting = handlers.pairHostWithCode({
+    address: "https://host.example",
+    code: "ABCD-EFGH",
+    attemptId: "a2",
+  });
+  // One attempt per id; a second with the same id is refused.
+  await assert.rejects(
+    handlers.pairHostWithCode({
+      address: "https://host.example",
+      code: "ABCD-EFGH",
+      attemptId: "a2",
+    }),
+  );
+  assert.equal(handlers.cancelHostPairing({ attemptId: "a2" }), true);
+  await assert.rejects(waiting, /cancelled/);
+  assert.equal(handlers.cancelHostPairing({ attemptId: "a2" }), false);
+  await assert.rejects(
+    handlers.pairHostWithCode({ address: 1, code: "x", attemptId: "a3" }),
+  );
+});
 
 test("every method the renderer calls is handled once, on its channel", () => {
   const { handlers } = createFakes();
