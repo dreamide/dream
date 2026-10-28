@@ -795,6 +795,23 @@ native clients (CONN-09) or LAN discovery (CONN-07).
 Remaining/deferred: automatic LAN discovery and route preference are CONN-07;
 public managed tunnels are CONN-08.
 
+Removal (2026-10-28): the manual reverse-proxy mode (`origin`) is gone; the
+requirement above to support manually supplied reverse-proxy endpoints is
+withdrawn. Remote access is Tailscale Serve or a Cloudflare Tunnel (CONN-08),
+whose externally managed connector still covers a connector the user runs.
+- Settings no longer offers "Your HTTPS reverse proxy"; the enable route's
+  schema and `RemoteAccessStatus["mode"]` accept only `tailscale` and
+  `cloudflare`.
+- `dream-host remote on --origin` is accepted only with `--cloudflare`.
+- A settings file saved with `mode: "origin"` loads as Tailscale with access
+  off. Starting the host therefore neither serves the old address nor creates
+  a Tailscale Serve entry the user never chose.
+- The daemon's low-level `--remote-origin` and `--trust-forwarded-host` flags
+  (CONN-04's listener test hook) are unchanged.
+
+Validation: `remote-access.test.js` covers the saved-mode migration and the
+schema refusal; settings state tests pass with a Cloudflare status.
+
 ## CONN-06: Host lifecycle independent of the desktop
 
 Status: all four implementation slices complete. Native macOS service updates,

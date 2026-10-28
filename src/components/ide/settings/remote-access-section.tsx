@@ -1,6 +1,6 @@
 /**
  * Settings > Remote access (the desktop's): whether paired devices can reach
- * this computer and how (Tailscale, Cloudflare, or an HTTPS reverse proxy),
+ * this computer and how (Tailscale Serve or a Cloudflare Tunnel),
  * pairing a device by QR code, link or code, confirming code requests, and
  * revoking paired devices. The host owns all of it (host/remote-access/,
  * host/auth/); this section is its local operator's view.
@@ -74,7 +74,7 @@ import { createRemoteAccessState } from "./remote-access-state";
 import { SettingsGroup } from "./settings-shared";
 
 type Mode = RemoteAccessStatus["mode"];
-const MODES: Mode[] = ["tailscale", "cloudflare", "origin"];
+const MODES: Mode[] = ["tailscale", "cloudflare"];
 
 const isValidPort = (value: string) => {
   const port = Number(value);
@@ -85,9 +85,7 @@ const isValidPort = (value: string) => {
 const isConfigured = (status: RemoteAccessStatus) =>
   status.mode === "tailscale" ||
   (Boolean(status.requestedOrigin) &&
-    (status.mode !== "cloudflare" ||
-      !status.cloudflare?.managed ||
-      status.cloudflare.tokenSaved));
+    (!status.cloudflare?.managed || status.cloudflare.tokenSaved));
 
 type ScopeChoice = "view" | "operate" | "manage";
 const SCOPES_FOR: Record<ScopeChoice, string[]> = {
@@ -143,17 +141,9 @@ const useModeText = () => {
   const t = useTranslations("remote");
   return {
     label: (mode: Mode) =>
-      mode === "tailscale"
-        ? t("modeTailscale")
-        : mode === "cloudflare"
-          ? t("modeCloudflare")
-          : t("modeOrigin"),
-    hint: (mode: Mode, port: string) =>
-      mode === "tailscale"
-        ? t("modeTailscaleHint")
-        : mode === "cloudflare"
-          ? t("modeCloudflareHint")
-          : t("modeOriginHint", { port }),
+      mode === "tailscale" ? t("modeTailscale") : t("modeCloudflare"),
+    hint: (mode: Mode) =>
+      mode === "tailscale" ? t("modeTailscaleHint") : t("modeCloudflareHint"),
   };
 };
 
@@ -635,7 +625,7 @@ const RemoteAccessSetupDialog = ({
   const portsValid =
     (localPort === "" || isValidPort(localPort)) &&
     (mode !== "tailscale" || isValidPort(httpsPort));
-  const needsOrigin = mode !== "tailscale" && !origin.trim();
+  const needsOrigin = mode === "cloudflare" && !origin.trim();
   const needsToken =
     mode === "cloudflare" &&
     managed &&
@@ -672,17 +662,11 @@ const RemoteAccessSetupDialog = ({
               mode === "tailscale"
                 ? { httpsPort: Number(httpsPort), mode, port }
                 : {
+                    cloudflareManaged: managed,
                     mode,
                     origin: origin.trim(),
                     port,
-                    ...(mode === "cloudflare"
-                      ? {
-                          cloudflareManaged: managed,
-                          ...(token.trim()
-                            ? { cloudflareToken: token.trim() }
-                            : {}),
-                        }
-                      : {}),
+                    ...(token.trim() ? { cloudflareToken: token.trim() } : {}),
                   },
             );
           }}
@@ -716,29 +700,26 @@ const RemoteAccessSetupDialog = ({
                     {modeText.label(item)}
                   </span>
                   <span className="text-muted-foreground text-xs">
-                    {modeText.hint(item, shownPort)}
+                    {modeText.hint(item)}
                   </span>
                 </span>
               </Label>
             ))}
           </RadioGroup>
 
-          {mode !== "tailscale" ? (
-            <div className="grid gap-1.5">
-              <Label htmlFor="remote-access-origin">{t("originLabel")}</Label>
-              <Input
-                className="font-mono"
-                id="remote-access-origin"
-                onChange={(event) => setOrigin(event.target.value)}
-                placeholder="https://dream.example.com"
-                spellCheck={false}
-                value={origin}
-              />
-            </div>
-          ) : null}
-
           {mode === "cloudflare" ? (
             <>
+              <div className="grid gap-1.5">
+                <Label htmlFor="remote-access-origin">{t("originLabel")}</Label>
+                <Input
+                  className="font-mono"
+                  id="remote-access-origin"
+                  onChange={(event) => setOrigin(event.target.value)}
+                  placeholder="https://dream.example.com"
+                  spellCheck={false}
+                  value={origin}
+                />
+              </div>
               {managed ? (
                 <>
                   <div className="grid gap-1.5">

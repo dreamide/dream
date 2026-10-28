@@ -26,7 +26,7 @@ const status: RemoteAccessStatus = {
   enabled: true,
   ready: true,
   listening: true,
-  mode: "origin",
+  mode: "cloudflare",
   port: 4321,
   httpsPort: 443,
   origin: "https://host.example",
@@ -230,5 +230,5 @@ test("claim answers and access commands share the accepted snapshot", async () =
   await model.enable({ mode: "tailscale", httpsPort: 443 });
   await model.check();
   expect(model.getSnapshot().status?.mode).toBe("tailscale");
-  expect(model.getSnapshot().initialStatus?.mode).toBe("origin");
+  expect(model.getSnapshot().initialStatus?.mode).toBe("cloudflare");
 });

@@ -137,7 +137,7 @@ import { resolveRequestHost } from "./host-routing";
 /** Whether and how paired devices reach a host (host/remote-access/). */
 export interface RemoteAccessStatus {
   enabled: boolean;
-  mode: "tailscale" | "origin" | "cloudflare";
+  mode: "tailscale" | "cloudflare";
   cloudflare?: {
     managed: boolean;
     installed: boolean;

@@ -5,11 +5,14 @@
 //
 //   remote-access.json beside dream.db, or <database>.remote-access.json   0600
 //     enabled      whether to serve paired devices at all
-//     mode         "tailscale", "cloudflare", or "origin" (a user proxy)
+//     mode         "tailscale" or "cloudflare". A file saved with the
+//                  removed "origin" mode (the user's own reverse proxy)
+//                  loads as Tailscale with access off, so nothing is
+//                  exposed again without the user choosing a route.
 //     port         the listener's loopback port, picked once and kept so a
-//                  proxy's configuration stays valid across restarts
+//                  tunnel's configuration stays valid across restarts
 //     httpsPort    Tailscale's HTTPS port (443 by default)
-//     origin       the reverse proxy's public origin (origin/cloudflare)
+//     origin       the Cloudflare hostname's public origin
 //     cloudflareManaged  whether this host owns its cloudflared child
 //     servedBy     the Tailscale Serve entry Dream created, so turning
 //                  access off removes exactly that and nothing else
@@ -70,9 +73,9 @@ const readSettings = (file) => {
   }
   if (!isRecord(raw)) return { ...DEFAULTS };
   return {
-    enabled: raw.enabled === true,
+    enabled: raw.enabled === true && raw.mode !== "origin",
     httpsPort: validPort(raw.httpsPort) ?? DEFAULTS.httpsPort,
-    mode: ["origin", "cloudflare"].includes(raw.mode) ? raw.mode : "tailscale",
+    mode: raw.mode === "cloudflare" ? "cloudflare" : "tailscale",
     cloudflareManaged: raw.cloudflareManaged !== false,
     origin: httpsOrigin(raw.origin),
     port: validPort(raw.port),
@@ -179,7 +182,7 @@ export function createRemoteAccess({
       (settings.mode !== "cloudflare" ||
         !settings.cloudflareManaged ||
         cloudflare.status().state === "connected"),
-    requestedOrigin: settings.mode !== "tailscale" ? settings.origin : null,
+    requestedOrigin: settings.mode === "cloudflare" ? settings.origin : null,
     cloudflare: {
       ...cloudflare.status(),
       managed: settings.cloudflareManaged,
@@ -325,10 +328,10 @@ export function createRemoteAccess({
       if (settings.mode !== "cloudflare" || !settings.cloudflareManaged)
         await cloudflare.stop();
       let candidate;
-      if (settings.mode === "origin" || settings.mode === "cloudflare") {
+      if (settings.mode === "cloudflare") {
         if (!settings.origin) {
           throw Object.assign(
-            new Error("Enter the HTTPS address your reverse proxy serves."),
+            new Error("Enter the HTTPS address of your Cloudflare hostname."),
             { problemCode: "needs-origin" },
           );
         }
@@ -338,14 +341,10 @@ export function createRemoteAccess({
           save({ servedBy: null });
         }
         await startListening(settings.origin);
-        candidate = settings.origin;
-        if (settings.mode === "cloudflare") {
-          if (settings.cloudflareManaged)
-            await cloudflare.start({ retry: true });
-          await checkCloudflare();
-          armMonitor();
-          return status();
-        }
+        if (settings.cloudflareManaged) await cloudflare.start({ retry: true });
+        await checkCloudflare();
+        armMonitor();
+        return status();
       } else {
         // The device's name first: it is the origin the listener accepts.
         const device = await tailscale.device();
@@ -373,10 +372,7 @@ export function createRemoteAccess({
       if (unreachable) {
         problem = {
           code: "unreachable",
-          message:
-            settings.mode === "origin"
-              ? `${unreachable} Check that your reverse proxy forwards to 127.0.0.1:${listening?.port}.`
-              : `${unreachable} Tailscale may still be provisioning the certificate; check again in a minute.`,
+          message: `${unreachable} Tailscale may still be provisioning the certificate; check again in a minute.`,
           url: null,
         };
       } else {
@@ -433,13 +429,11 @@ export function createRemoteAccess({
 
     /**
      * Turns remote access on with these settings.
-     * @param {{ mode?: "tailscale" | "origin" | "cloudflare", origin?: string, httpsPort?: number, port?: number | null, cloudflareManaged?: boolean, cloudflareToken?: string }} options
+     * @param {{ mode?: "tailscale" | "cloudflare", origin?: string, httpsPort?: number, port?: number | null, cloudflareManaged?: boolean, cloudflareToken?: string }} options
      */
     enable: (options = {}) =>
       serially(async () => {
-        const mode = ["origin", "tailscale", "cloudflare"].includes(
-          options.mode,
-        )
+        const mode = ["tailscale", "cloudflare"].includes(options.mode)
           ? options.mode
           : settings.mode;
         const requestedOrigin =
@@ -447,19 +441,17 @@ export function createRemoteAccess({
             ? settings.origin
             : httpsOrigin(options.origin);
         if (
-          mode !== "tailscale" &&
+          mode === "cloudflare" &&
           (!requestedOrigin ||
-            (mode === "cloudflare" &&
-              /(^|\.)trycloudflare\.com$/i.test(
-                new URL(requestedOrigin).hostname,
-              )))
+            /(^|\.)trycloudflare\.com$/i.test(
+              new URL(requestedOrigin).hostname,
+            ))
         ) {
           problem = {
             code: "needs-origin",
-            message:
-              mode === "cloudflare" && requestedOrigin
-                ? "Use a persistent Cloudflare tunnel with a stable hostname. Quick Tunnels do not support chat streaming."
-                : "The address must be an https:// origin, such as https://dream.example.com.",
+            message: requestedOrigin
+              ? "Use a persistent Cloudflare tunnel with a stable hostname. Quick Tunnels do not support chat streaming."
+              : "The address must be an https:// origin, such as https://dream.example.com.",
             url: null,
           };
           return status();

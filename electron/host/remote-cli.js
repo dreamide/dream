@@ -5,7 +5,6 @@
 //
 //   remote [status]                  is remote access on, and where
 //   remote on [--tailscale] [--https-port n]
-//   remote on --origin https://...   behind your own HTTPS reverse proxy
 //   remote install-cloudflared      install/update the private connector
 //   remote on --cloudflare --origin https://... --token-file <path>
 //                                    run a user-owned persistent tunnel
@@ -62,9 +61,7 @@ const describeAccess = (status) => {
   const via =
     status.mode === "cloudflare"
       ? `Cloudflare Tunnel (${status.cloudflare?.managed ? "managed by Dream" : "externally managed"})`
-      : status.mode === "origin"
-        ? `your reverse proxy (${status.requestedOrigin ?? "no address set"})`
-        : `Tailscale Serve (HTTPS port ${status.httpsPort})`;
+      : `Tailscale Serve (HTTPS port ${status.httpsPort})`;
   lines.push(`Remote access is on, through ${via}.`);
   lines.push(
     status.listening
@@ -153,10 +150,11 @@ export async function runRemoteCommand({
         if (
           (values.cloudflare && values.tailscale) ||
           (values.external && !values.cloudflare) ||
-          (values["token-file"] && !values.cloudflare)
+          (values["token-file"] && !values.cloudflare) ||
+          (values.origin && !values.cloudflare)
         ) {
           print(
-            "Choose --cloudflare or --tailscale; --external and --token-file apply only to --cloudflare.",
+            "Choose --cloudflare or --tailscale; --origin, --external and --token-file apply only to --cloudflare.",
           );
           return 2;
         }
@@ -176,10 +174,10 @@ export async function runRemoteCommand({
         const port =
           values.port === undefined ? undefined : Number(values.port);
         status = await call("/api/remote/access/enable", {
-          ...(values.origin ? { mode: "origin", origin: values.origin } : {}),
           ...(values.cloudflare
             ? {
                 mode: "cloudflare",
+                ...(values.origin ? { origin: values.origin } : {}),
                 cloudflareManaged: !values.external,
                 ...(token ? { cloudflareToken: token } : {}),
               }
@@ -190,7 +188,7 @@ export async function runRemoteCommand({
         });
       } else {
         print(
-          "Usage: dream-host remote [status|on|off|check|restart|install-cloudflared] [--cloudflare [--external|--token-file path]] [--tailscale] [--origin https://...] [--https-port n] [--port n]",
+          "Usage: dream-host remote [status|on|off|check|restart|install-cloudflared] [--cloudflare --origin https://... [--external|--token-file path]] [--tailscale [--https-port n]] [--port n]",
         );
         return 2;
       }

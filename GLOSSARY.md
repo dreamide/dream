@@ -259,8 +259,8 @@ running. A fresh desktop discovers surviving terminals for its known projects.
 
 Whether a host serves paired devices, and how (`electron/host/remote-access/`).
 It is the host's setting, saved beside its state database: on or off; through
-**Tailscale Serve** (HTTPS on the tailnet), **Cloudflare Tunnel**, or the user's
-own HTTPS reverse proxy; and a stable loopback port for the remote listener.
+**Tailscale Serve** (HTTPS on the tailnet) or **Cloudflare Tunnel**; and a
+stable loopback port for the remote listener.
 An address is **ready** only once a request through it reached this host;
 Cloudflare also requires proof of the host's installation key. A **managed
 connector** is the cloudflared process owned by this host; an **external

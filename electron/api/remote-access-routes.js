@@ -114,7 +114,7 @@ export { clearSessionCookie };
  */
 export const remoteAccessEnableSchema = z.object({
   httpsPort: z.number().int().min(1).max(65_535).optional(),
-  mode: z.enum(["tailscale", "origin", "cloudflare"]).optional(),
+  mode: z.enum(["tailscale", "cloudflare"]).optional(),
   cloudflareManaged: z.boolean().optional(),
   cloudflareToken: z.string().max(16_384).optional(),
   origin: z.string().max(500).optional(),
