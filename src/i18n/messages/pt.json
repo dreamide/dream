@@ -1180,7 +1180,7 @@
     "scopeViewHint": "Ler projetos, chats e terminais.",
     "scopeOperate": "Ver e trabalhar",
     "scopeOperateHint": "Também executar agentes, terminais e Git como você.",
-    "scopeManage": "Completo, incluindo emparelhar dispositivos",
+    "scopeManage": "Completo",
     "scopeManageHint": "Também parear e remover dispositivos.",
     "done": "Concluído",
     "createPairing": "Criar emparelhamento",

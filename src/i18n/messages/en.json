@@ -1180,7 +1180,7 @@
     "scopeViewHint": "Read projects, chats and terminals.",
     "scopeOperate": "View and work",
     "scopeOperateHint": "Also run agents, terminals and Git as you.",
-    "scopeManage": "Full, including pairing devices",
+    "scopeManage": "Full",
     "scopeManageHint": "Also pair and remove devices.",
     "done": "Done",
     "createPairing": "Create pairing",

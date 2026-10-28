@@ -1180,7 +1180,7 @@
     "scopeViewHint": "Đọc dự án, cuộc trò chuyện và terminal.",
     "scopeOperate": "Xem và làm việc",
     "scopeOperateHint": "Thêm quyền chạy agent, terminal và Git với tư cách của bạn.",
-    "scopeManage": "Toàn quyền, gồm cả ghép nối thiết bị",
+    "scopeManage": "Toàn quyền",
     "scopeManageHint": "Thêm quyền ghép nối và gỡ thiết bị.",
     "done": "Xong",
     "createPairing": "Tạo ghép nối",

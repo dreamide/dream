@@ -1180,7 +1180,7 @@
     "scopeViewHint": "프로젝트, 채팅, 터미널을 읽습니다.",
     "scopeOperate": "보기 및 작업",
     "scopeOperateHint": "또한 사용자 권한으로 에이전트, 터미널, Git을 실행합니다.",
-    "scopeManage": "전체(기기 페어링 포함)",
+    "scopeManage": "전체",
     "scopeManageHint": "또한 기기를 페어링하고 제거합니다.",
     "done": "완료",
     "createPairing": "페어링 만들기",

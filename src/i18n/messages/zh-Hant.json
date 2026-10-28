@@ -1180,7 +1180,7 @@
     "scopeViewHint": "讀取專案、聊天和終端機。",
     "scopeOperate": "檢視與工作",
     "scopeOperateHint": "還能以你的身分執行代理、終端機和 Git。",
-    "scopeManage": "完整存取，包括配對裝置",
+    "scopeManage": "完整存取",
     "scopeManageHint": "還能配對和移除裝置。",
     "done": "完成",
     "createPairing": "建立配對",

@@ -1180,7 +1180,7 @@
     "scopeViewHint": "Projekte, Chats und Terminals lesen.",
     "scopeOperate": "Ansehen und arbeiten",
     "scopeOperateHint": "Zusätzlich Agenten, Terminals und Git als du ausführen.",
-    "scopeManage": "Vollständig, einschließlich Geräte koppeln",
+    "scopeManage": "Vollständig",
     "scopeManageHint": "Zusätzlich Geräte koppeln und entfernen.",
     "done": "Fertig",
     "createPairing": "Kopplung erstellen",

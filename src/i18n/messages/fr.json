@@ -1180,7 +1180,7 @@
     "scopeViewHint": "Lire les projets, les chats et les terminaux.",
     "scopeOperate": "Consulter et travailler",
     "scopeOperateHint": "Exécuter aussi des agents, des terminaux et Git en votre nom.",
-    "scopeManage": "Complet, y compris l’association d’appareils",
+    "scopeManage": "Complet",
     "scopeManageHint": "Appairer et retirer aussi des appareils.",
     "done": "Terminé",
     "createPairing": "Créer une association",

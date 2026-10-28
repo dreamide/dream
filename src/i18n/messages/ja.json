@@ -1180,7 +1180,7 @@
     "scopeViewHint": "プロジェクト、チャット、ターミナルを閲覧します。",
     "scopeOperate": "表示と作業",
     "scopeOperateHint": "さらに、あなたとしてエージェント、ターミナル、Git を実行します。",
-    "scopeManage": "すべて（デバイスのペアリングを含む）",
+    "scopeManage": "すべて",
     "scopeManageHint": "さらに、デバイスのペアリングと削除を行います。",
     "done": "完了",
     "createPairing": "ペアリングを作成",

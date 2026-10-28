@@ -1180,7 +1180,7 @@
     "scopeViewHint": "读取项目、聊天和终端。",
     "scopeOperate": "查看和工作",
     "scopeOperateHint": "还能以你的身份运行代理、终端和 Git。",
-    "scopeManage": "完全访问，包括配对设备",
+    "scopeManage": "完全访问",
     "scopeManageHint": "还能配对和移除设备。",
     "done": "完成",
     "createPairing": "创建配对",

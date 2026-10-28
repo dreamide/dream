@@ -1180,7 +1180,7 @@
     "scopeViewHint": "Leer proyectos, chats y terminales.",
     "scopeOperate": "Ver y trabajar",
     "scopeOperateHint": "Además, ejecutar agentes, terminales y Git como tú.",
-    "scopeManage": "Completo, incluida la vinculación de dispositivos",
+    "scopeManage": "Completo",
     "scopeManageHint": "Además, emparejar y quitar dispositivos.",
     "done": "Listo",
     "createPairing": "Crear vinculación",
