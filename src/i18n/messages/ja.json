@@ -22,7 +22,7 @@
     "pairCodeHint": "ホストのリモートアクセス設定で「デバイスをペアリング」を選び、ホストのアドレスと表示されたコードをここに入力してください。",
     "hostAddress": "ホストのアドレス",
     "pairingCode": "ペアリングコード",
-    "waitingForConfirm": "ホストのリモートアクセス設定で「{device}」が承認されるのを待っています…",
+    "waitingForConfirm": "ホストのリモートアクセス設定でこのデスクトップが承認されるのを待っています…",
     "name": "名前（任意）",
     "cancel": "キャンセル",
     "pairing": "ペアリング中…",
@@ -1201,6 +1201,22 @@
     "cloudflareSelfManaged": "cloudflared を自分で実行する",
     "needsOrigin": "公開アドレスを入力してください。",
     "needsToken": "トンネルトークンを貼り付けてください。",
-    "save": "保存"
+    "save": "保存",
+    "problems": {
+      "notInstalled": "このコンピューターに Tailscale がインストールされていません。",
+      "notRunning": "このコンピューターで Tailscale が実行されていないか、接続されていません。起動してから再確認してください。",
+      "needsLogin": "このコンピューターで Tailscale にサインインしてから再確認してください。",
+      "needsApproval": "このコンピューターは Tailscale 管理コンソールで承認を待っています。",
+      "httpsDisabled": "Tailscale 管理コンソールで tailnet の MagicDNS と HTTPS 証明書を有効にしてから再確認してください。",
+      "portTaken": "Tailscale は HTTPS ポート {port} で既に別のものを提供しています。詳細設定で別の HTTPS ポートを選択してください。",
+      "permission": "Tailscale はこのユーザーによる Serve 設定の変更を許可していません。Linux では sudo tailscale set --operator=$USER を一度実行してから再確認してください。",
+      "cloudflareToken": "インストールコマンドではなく、トンネルトークンだけを貼り付けてください。",
+      "cloudflareConnecting": "Cloudflare コネクターの接続を待っています。",
+      "needsOrigin": "Cloudflare のホスト名を https:// アドレスで入力してください（例: https://dream.example.com）。",
+      "quickTunnel": "固定ホスト名の永続的な Cloudflare トンネルを使用してください。Quick Tunnel はチャットのストリーミングに対応していません。",
+      "portInUse": "このコンピューターのポート {port} は既に使用中です。詳細設定で別のローカルポートを選択してください。",
+      "unreachableTailscale": "{origin} 経由でこのコンピューターに到達できませんでした。Tailscale がまだ証明書を取得中の可能性があります。1 分後に再確認してください。",
+      "unreachableCloudflare": "{origin} 経由でこのコンピューターに到達できませんでした。Cloudflare で、このホスト名のサービス URL を http://127.0.0.1:{port} に設定してください。"
+    }
   }
 }

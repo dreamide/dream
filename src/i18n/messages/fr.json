@@ -22,7 +22,7 @@
     "pairCodeHint": "Dans les réglages d’accès distant de l’hôte, choisissez « Associer un appareil », puis saisissez ici l’adresse de l’hôte et le code affiché.",
     "hostAddress": "Adresse de l’hôte",
     "pairingCode": "Code d’association",
-    "waitingForConfirm": "En attente de la confirmation de « {device} » dans les réglages d’accès distant de l’hôte…",
+    "waitingForConfirm": "En attente de la confirmation de ce bureau dans les réglages d’accès distant de l’hôte…",
     "name": "Nom (facultatif)",
     "cancel": "Annuler",
     "pairing": "Association…",
@@ -1201,6 +1201,22 @@
     "cloudflareSelfManaged": "J’exécute cloudflared moi-même",
     "needsOrigin": "Saisissez l’adresse publique.",
     "needsToken": "Collez le jeton du tunnel.",
-    "save": "Enregistrer"
+    "save": "Enregistrer",
+    "problems": {
+      "notInstalled": "Tailscale n’est pas installé sur cet ordinateur.",
+      "notRunning": "Tailscale n’est pas lancé ou pas connecté sur cet ordinateur. Lancez-le, puis vérifiez à nouveau.",
+      "needsLogin": "Connectez-vous à Tailscale sur cet ordinateur, puis vérifiez à nouveau.",
+      "needsApproval": "Cet ordinateur attend une approbation dans la console d’administration Tailscale.",
+      "httpsDisabled": "Activez MagicDNS et les certificats HTTPS de votre tailnet dans la console d’administration Tailscale, puis vérifiez à nouveau.",
+      "portTaken": "Tailscale sert déjà autre chose sur le port HTTPS {port}. Choisissez un autre port HTTPS dans Avancé.",
+      "permission": "Tailscale n’autorise pas cet utilisateur à modifier ses réglages Serve. Sous Linux, exécutez une fois sudo tailscale set --operator=$USER, puis vérifiez à nouveau.",
+      "cloudflareToken": "Collez uniquement le jeton du tunnel, pas la commande d’installation.",
+      "cloudflareConnecting": "En attente de la connexion du connecteur Cloudflare.",
+      "needsOrigin": "Saisissez votre nom d’hôte Cloudflare sous forme d’adresse https://, par exemple https://dream.example.com.",
+      "quickTunnel": "Utilisez un tunnel Cloudflare persistant avec un nom d’hôte stable. Les Quick Tunnels ne prennent pas en charge le streaming du chat.",
+      "portInUse": "Le port {port} est déjà utilisé sur cet ordinateur. Choisissez un autre port local dans Avancé.",
+      "unreachableTailscale": "Impossible de joindre cet ordinateur via {origin}. Tailscale est peut-être encore en train d’obtenir son certificat ; vérifiez à nouveau dans une minute.",
+      "unreachableCloudflare": "Impossible de joindre cet ordinateur via {origin}. Dans Cloudflare, définissez l’URL de service de ce nom d’hôte sur http://127.0.0.1:{port}."
+    }
   }
 }

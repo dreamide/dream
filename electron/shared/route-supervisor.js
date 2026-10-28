@@ -1,6 +1,8 @@
 // One logical host, several ordered routes. Transport adapters own credentials
 // and identity proof; this owner selects only verified, ready handles. It
 // never retries requests or knows how a host process is started or stopped.
+import { MAX_HOST_ROUTES } from "./host-connections.js";
+
 const RETRY_MS = [2_000, 4_000, 8_000, 16_000, 30_000, 60_000];
 
 /**
@@ -296,11 +298,11 @@ export function createRouteSupervisor({
     updateRoutes(next) {
       if (
         !next.length ||
-        next.length > 8 ||
+        next.length > MAX_HOST_ROUTES ||
         new Set(next.map((route) => route.id)).size !== next.length
       )
         throw new Error(
-          "A connection needs between one and eight distinct routes.",
+          `A connection needs between 1 and ${MAX_HOST_ROUTES} distinct routes.`,
         );
       generation += 1;
       attempt?.controller.abort();

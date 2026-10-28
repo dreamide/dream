@@ -134,6 +134,45 @@ import { resolveRequestHost } from "./host-routing";
 
 // ── Responses the renderer declares ─────────────────────────────────────
 
+/**
+ * The problems remote access reports (host/remote-access/). A client shows
+ * its own words for a code it knows, and the host's English `message` for
+ * any other.
+ */
+export type RemoteAccessProblemCode =
+  // Tailscale (tailscale.js)
+  | "not-installed"
+  | "not-running"
+  | "needs-login"
+  | "needs-approval"
+  | "https-disabled"
+  | "port-taken"
+  | "permission"
+  // Cloudflare (cloudflare.js, cloudflared-runtime.js)
+  | "cloudflare-token"
+  | "cloudflare-connecting"
+  | "cloudflare-connector"
+  | "cloudflared-install"
+  | "needs-origin"
+  | "quick-tunnel"
+  // Either route (remote-access.js)
+  | "port-in-use"
+  | "unreachable"
+  | "failed";
+
+export interface RemoteAccessProblem {
+  code: RemoteAccessProblemCode | (string & {});
+  message: string;
+  url: string | null;
+  /** Values the client's words for this code need (a port, an address). */
+  params?: { detail?: string; origin?: string; port?: number };
+  /**
+   * An enable request that was refused and saved nothing. Older hosts never
+   * send `params` or `refused`.
+   */
+  refused?: boolean;
+}
+
 /** Whether and how paired devices reach a host (host/remote-access/). */
 export interface RemoteAccessStatus {
   enabled: boolean;
@@ -156,9 +195,14 @@ export interface RemoteAccessStatus {
   /** The public origin, only once a request through it reached this host. */
   origin: string | null;
   ready: boolean;
-  /** The public address entered for an origin or Cloudflare route. */
+  /** The public address entered for a Cloudflare route. */
   requestedOrigin: string | null;
-  problem: { code: string; message: string; url: string | null } | null;
+  /**
+   * Whether the saved settings can be turned on as they are. Absent from a
+   * host older than 2026-10-28 (a service the desktop attached to).
+   */
+  configured?: boolean;
+  problem: RemoteAccessProblem | null;
   checkedAt: string | null;
 }
 

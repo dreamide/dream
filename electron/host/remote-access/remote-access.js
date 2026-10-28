@@ -101,10 +101,20 @@ const writeSettings = (file, settings) => {
   renameSync(temporary, file);
 };
 
-/** A problem the user can act on: { code, message, url }. */
+/**
+ * A problem the user can act on: { code, message, url, params?, refused? }.
+ * `code` is the contract clients show their own words for, with `params`;
+ * `message` is the English text for the command line and unknown codes.
+ * `refused` marks an enable request that was refused and saved nothing.
+ */
 const asProblem = (error) =>
-  error instanceof TailscaleProblem
-    ? { code: error.code, message: error.message, url: error.url ?? null }
+  error instanceof TailscaleProblem || error?.problemCode
+    ? {
+        code: error.problemCode ?? error.code,
+        message: error.message,
+        url: error.url ?? null,
+        ...(error.params ? { params: error.params } : {}),
+      }
     : {
         code: "failed",
         message: error instanceof Error ? error.message : String(error),
@@ -183,6 +193,12 @@ export function createRemoteAccess({
         !settings.cloudflareManaged ||
         cloudflare.status().state === "connected"),
     requestedOrigin: settings.mode === "cloudflare" ? settings.origin : null,
+    // Whether the saved settings can be turned on as they are.
+    configured:
+      settings.mode === "tailscale" ||
+      (Boolean(settings.origin) &&
+        (!settings.cloudflareManaged ||
+          Boolean(cloudflare.status().tokenSaved))),
     cloudflare: {
       ...cloudflare.status(),
       managed: settings.cloudflareManaged,
@@ -255,7 +271,7 @@ export function createRemoteAccess({
           new Error(
             `Port ${port} on this computer is already in use. Choose another port for remote access.`,
           ),
-          { problemCode: "port-in-use" },
+          { problemCode: "port-in-use", params: { port } },
         );
       }
       throw error;
@@ -268,13 +284,17 @@ export function createRemoteAccess({
       const connector = await cloudflare.check();
       if (connector.state !== "connected") {
         origin = null;
-        problem = {
-          code: "cloudflare-connector",
-          message:
-            connector.error ??
-            "Waiting for the Cloudflare connector to connect.",
-          url: null,
-        };
+        problem = connector.error
+          ? {
+              code: "cloudflare-connector",
+              message: connector.error,
+              url: null,
+            }
+          : {
+              code: "cloudflare-connecting",
+              message: "Waiting for the Cloudflare connector to connect.",
+              url: null,
+            };
         return;
       }
     }
@@ -285,6 +305,11 @@ export function createRemoteAccess({
           code: "unreachable",
           message: `${unreachable} Configure this hostname's Cloudflare service URL as http://127.0.0.1:${listening?.port ?? settings.port}.`,
           url: "https://one.dash.cloudflare.com/",
+          params: {
+            detail: unreachable,
+            origin: settings.origin,
+            port: listening?.port ?? settings.port,
+          },
         }
       : null;
   };
@@ -327,7 +352,6 @@ export function createRemoteAccess({
     try {
       if (settings.mode !== "cloudflare" || !settings.cloudflareManaged)
         await cloudflare.stop();
-      let candidate;
       if (settings.mode === "cloudflare") {
         if (!settings.origin) {
           throw Object.assign(
@@ -345,43 +369,42 @@ export function createRemoteAccess({
         await checkCloudflare();
         armMonitor();
         return status();
-      } else {
-        // The device's name first: it is the origin the listener accepts.
-        const device = await tailscale.device();
-        candidate =
-          settings.httpsPort === 443
-            ? `https://${device.dnsName}`
-            : `https://${device.dnsName}:${settings.httpsPort}`;
-        const port = await startListening(candidate);
-        // A Serve entry Dream made for another port is Dream's to remove.
-        if (
-          settings.servedBy &&
-          (settings.servedBy.httpsPort !== settings.httpsPort ||
-            settings.servedBy.localPort !== port)
-        ) {
-          await tailscale.disable(settings.servedBy).catch(() => false);
-          save({ servedBy: null });
-        }
-        await tailscale.enable({
-          httpsPort: settings.httpsPort,
-          localPort: port,
-        });
-        save({ servedBy: { httpsPort: settings.httpsPort, localPort: port } });
       }
+      // Tailscale. The device's name first: it is the origin the listener
+      // accepts.
+      const device = await tailscale.device();
+      const candidate =
+        settings.httpsPort === 443
+          ? `https://${device.dnsName}`
+          : `https://${device.dnsName}:${settings.httpsPort}`;
+      const port = await startListening(candidate);
+      // A Serve entry Dream made for another port is Dream's to remove.
+      if (
+        settings.servedBy &&
+        (settings.servedBy.httpsPort !== settings.httpsPort ||
+          settings.servedBy.localPort !== port)
+      ) {
+        await tailscale.disable(settings.servedBy).catch(() => false);
+        save({ servedBy: null });
+      }
+      await tailscale.enable({
+        httpsPort: settings.httpsPort,
+        localPort: port,
+      });
+      save({ servedBy: { httpsPort: settings.httpsPort, localPort: port } });
       const unreachable = await verify(candidate);
       if (unreachable) {
         problem = {
           code: "unreachable",
           message: `${unreachable} Tailscale may still be provisioning the certificate; check again in a minute.`,
           url: null,
+          params: { detail: unreachable, origin: candidate, port },
         };
       } else {
         origin = candidate;
       }
     } catch (error) {
-      problem = error?.problemCode
-        ? { code: error.problemCode, message: error.message, url: null }
-        : asProblem(error);
+      problem = asProblem(error);
     }
     armMonitor();
     return status();
@@ -447,17 +470,33 @@ export function createRemoteAccess({
               new URL(requestedOrigin).hostname,
             ))
         ) {
-          problem = {
-            code: "needs-origin",
-            message: requestedOrigin
-              ? "Use a persistent Cloudflare tunnel with a stable hostname. Quick Tunnels do not support chat streaming."
-              : "The address must be an https:// origin, such as https://dream.example.com.",
-            url: null,
-          };
+          problem = requestedOrigin
+            ? {
+                code: "quick-tunnel",
+                message:
+                  "Use a persistent Cloudflare tunnel with a stable hostname. Quick Tunnels do not support chat streaming.",
+                url: null,
+                refused: true,
+              }
+            : {
+                code: "needs-origin",
+                message:
+                  "The address must be an https:// origin, such as https://dream.example.com.",
+                url: null,
+                refused: true,
+              };
           return status();
         }
-        if (mode === "cloudflare")
-          await cloudflare.configure({ token: options.cloudflareToken });
+        if (mode === "cloudflare") {
+          try {
+            await cloudflare.configure({ token: options.cloudflareToken });
+          } catch (error) {
+            // A token that is not one is refused like an address: nothing saved.
+            if (error?.problemCode !== "cloudflare-token") throw error;
+            problem = { ...asProblem(error), refused: true };
+            return status();
+          }
+        }
         closing = false;
         save({
           enabled: true,

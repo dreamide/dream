@@ -69,19 +69,25 @@ export const runTailscaleCli = (cli, args, { timeoutMs = 20_000 } = {}) =>
     );
   });
 
-/** A setup problem, with what the user can do about it. */
+/**
+ * A setup problem, with what the user can do about it. `code` is the
+ * contract (clients show their own words for it); `message` is the English
+ * text for the command line and for codes a client does not know; `params`
+ * are the values a client's words need.
+ */
 export class TailscaleProblem extends Error {
   /**
-   * @param {"not-installed" | "not-running" | "needs-login" | "https-disabled" | "port-taken" | "permission" | "failed"} code
+   * @param {"not-installed" | "not-running" | "needs-login" | "needs-approval" | "https-disabled" | "port-taken" | "permission" | "failed"} code
    * @param {string} message
-   * @param {{ url?: string | null, detail?: string }} [options]
+   * @param {{ url?: string | null, detail?: string, params?: Record<string, string | number> }} [options]
    */
-  constructor(code, message, { url = null, detail = "" } = {}) {
+  constructor(code, message, { url = null, detail = "", params } = {}) {
     super(message);
     this.name = "TailscaleProblem";
     this.code = code;
     this.url = url;
     this.detail = detail;
+    this.params = params;
   }
 }
 
@@ -174,7 +180,7 @@ export function createTailscale({
     const state = status.BackendState;
     if (state === "NeedsLogin" || state === "NeedsMachineAuth") {
       throw new TailscaleProblem(
-        "needs-login",
+        state === "NeedsLogin" ? "needs-login" : "needs-approval",
         state === "NeedsLogin"
           ? "Sign in to Tailscale on this computer, then try again."
           : "This computer is waiting for approval in the Tailscale admin console.",
@@ -282,6 +288,7 @@ export function createTailscale({
         throw new TailscaleProblem(
           "port-taken",
           `Tailscale already serves something else on HTTPS port ${httpsPort} (${existing.description}). Choose another port; Dream does not change it.`,
+          { params: { port: httpsPort } },
         );
       }
       if (!existing) {

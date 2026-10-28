@@ -22,7 +22,7 @@
     "pairCodeHint": "Trong cài đặt truy cập từ xa của máy chủ, chọn “Ghép nối thiết bị”, rồi nhập địa chỉ máy chủ và mã hiển thị vào đây.",
     "hostAddress": "Địa chỉ máy chủ",
     "pairingCode": "Mã ghép nối",
-    "waitingForConfirm": "Đang chờ xác nhận “{device}” trong cài đặt truy cập từ xa của máy chủ…",
+    "waitingForConfirm": "Đang chờ xác nhận máy tính này trong cài đặt truy cập từ xa của máy chủ…",
     "name": "Tên (tùy chọn)",
     "cancel": "Hủy",
     "pairing": "Đang ghép đôi…",
@@ -1201,6 +1201,22 @@
     "cloudflareSelfManaged": "Tôi tự chạy cloudflared",
     "needsOrigin": "Nhập địa chỉ công khai.",
     "needsToken": "Dán token đường hầm.",
-    "save": "Lưu"
+    "save": "Lưu",
+    "problems": {
+      "notInstalled": "Tailscale chưa được cài đặt trên máy tính này.",
+      "notRunning": "Tailscale chưa chạy hoặc chưa kết nối trên máy tính này. Hãy khởi động rồi kiểm tra lại.",
+      "needsLogin": "Hãy đăng nhập Tailscale trên máy tính này rồi kiểm tra lại.",
+      "needsApproval": "Máy tính này đang chờ được phê duyệt trong bảng quản trị Tailscale.",
+      "httpsDisabled": "Hãy bật MagicDNS và chứng chỉ HTTPS cho tailnet trong bảng quản trị Tailscale rồi kiểm tra lại.",
+      "portTaken": "Tailscale đã phục vụ nội dung khác trên cổng HTTPS {port}. Hãy chọn cổng HTTPS khác trong Nâng cao.",
+      "permission": "Tailscale không cho người dùng này thay đổi cài đặt Serve. Trên Linux, hãy chạy sudo tailscale set --operator=$USER một lần rồi kiểm tra lại.",
+      "cloudflareToken": "Chỉ dán token đường hầm, không dán lệnh cài đặt.",
+      "cloudflareConnecting": "Đang chờ trình kết nối Cloudflare kết nối.",
+      "needsOrigin": "Nhập tên máy chủ Cloudflare dưới dạng địa chỉ https://, ví dụ https://dream.example.com.",
+      "quickTunnel": "Hãy dùng đường hầm Cloudflare cố định với tên máy chủ ổn định. Quick Tunnel không hỗ trợ truyền phát trò chuyện.",
+      "portInUse": "Cổng {port} trên máy tính này đang được sử dụng. Hãy chọn cổng cục bộ khác trong Nâng cao.",
+      "unreachableTailscale": "Không thể truy cập máy tính này qua {origin}. Có thể Tailscale vẫn đang lấy chứng chỉ; hãy kiểm tra lại sau một phút.",
+      "unreachableCloudflare": "Không thể truy cập máy tính này qua {origin}. Trong Cloudflare, hãy đặt URL dịch vụ của tên máy chủ này là http://127.0.0.1:{port}."
+    }
   }
 }

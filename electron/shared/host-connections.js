@@ -35,6 +35,9 @@ import { hostProtocolProblem } from "../host/protocol.js";
 
 export const HOST_CONNECTION_RECORD_VERSION = 1;
 
+/** The most routes one saved connection may have. */
+export const MAX_HOST_ROUTES = 8;
+
 /** The connection id of the host inside this app. */
 const LOCAL_CONNECTION_ID = "local";
 

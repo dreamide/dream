@@ -22,7 +22,7 @@
     "pairCodeHint": "在主机的远程访问设置中选择“配对设备”，然后在此输入主机地址和显示的配对码。",
     "hostAddress": "主机地址",
     "pairingCode": "配对码",
-    "waitingForConfirm": "正在等待在主机的远程访问设置中确认“{device}”…",
+    "waitingForConfirm": "正在等待在主机的远程访问设置中确认此桌面端…",
     "name": "名称（可选）",
     "cancel": "取消",
     "pairing": "正在配对…",
@@ -1201,6 +1201,22 @@
     "cloudflareSelfManaged": "我自己运行 cloudflared",
     "needsOrigin": "请输入公开地址。",
     "needsToken": "请粘贴隧道令牌。",
-    "save": "保存"
+    "save": "保存",
+    "problems": {
+      "notInstalled": "这台电脑未安装 Tailscale。",
+      "notRunning": "Tailscale 未在这台电脑上运行或未连接。请启动它，然后重新检查。",
+      "needsLogin": "请在这台电脑上登录 Tailscale，然后重新检查。",
+      "needsApproval": "这台电脑正在等待 Tailscale 管理控制台中的批准。",
+      "httpsDisabled": "请在 Tailscale 管理控制台中为你的 tailnet 开启 MagicDNS 和 HTTPS 证书，然后重新检查。",
+      "portTaken": "Tailscale 已在 HTTPS 端口 {port} 上提供其他内容。请在“高级”中选择其他 HTTPS 端口。",
+      "permission": "Tailscale 不允许此用户更改其 Serve 设置。在 Linux 上，请运行一次 sudo tailscale set --operator=$USER，然后重新检查。",
+      "cloudflareToken": "只粘贴隧道令牌，不要粘贴安装命令。",
+      "cloudflareConnecting": "正在等待 Cloudflare 连接器连接。",
+      "needsOrigin": "请以 https:// 地址输入你的 Cloudflare 主机名，例如 https://dream.example.com。",
+      "quickTunnel": "请使用具有固定主机名的持久 Cloudflare 隧道。Quick Tunnel 不支持聊天流式传输。",
+      "portInUse": "这台电脑上的端口 {port} 已被占用。请在“高级”中选择其他本地端口。",
+      "unreachableTailscale": "无法通过 {origin} 访问这台电脑。Tailscale 可能仍在获取证书；请一分钟后重新检查。",
+      "unreachableCloudflare": "无法通过 {origin} 访问这台电脑。请在 Cloudflare 中将此主机名的服务 URL 设置为 http://127.0.0.1:{port}。"
+    }
   }
 }

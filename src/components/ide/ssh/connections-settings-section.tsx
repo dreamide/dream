@@ -48,16 +48,18 @@ import { Spinner } from "@/components/ui/spinner";
 import { StatusDot, type StatusDotColor } from "@/components/ui/status-dot";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getClientPlatform } from "@/lib/connections/platform";
-import { getDesktopApi } from "@/lib/electron";
+import { desktopErrorMessage, getDesktopApi } from "@/lib/electron";
 import type {
   HostConnectionState,
   HostRoute,
   SavedHostConnection,
 } from "@/types/ide";
-import { listHostChoices } from "../../../../electron/shared/host-connections.js";
+import {
+  listHostChoices,
+  MAX_HOST_ROUTES,
+} from "../../../../electron/shared/host-connections.js";
 import { useIdeStore } from "../ide-store";
 import { SettingsGroup } from "../settings/settings-shared";
-import { DESKTOP_DEVICE_NAME } from "../store/host-actions";
 import type { HostPairing, HostRuntimeState } from "../store/ide-store-types";
 import {
   EMPTY_HOST_FORM,
@@ -78,17 +80,6 @@ const STATE_DOTS: Record<
   idle: { color: "neutral", pulse: false },
   reconnecting: { color: "amber", pulse: true },
 };
-
-/** Routes a host may have at most. */
-const MAX_ROUTES = 8;
-
-const errorText = (reason: unknown) =>
-  reason instanceof Error
-    ? reason.message.replace(
-        /^Error invoking remote method '[^']*': (?:\w*Error: )?/,
-        "",
-      )
-    : String(reason);
 
 /** One host as the page shows it. */
 interface HostView {
@@ -179,7 +170,7 @@ export function ConnectionsSettingsSection() {
     try {
       await work();
     } catch (reason) {
-      setError(errorText(reason));
+      setError(desktopErrorMessage(reason));
     } finally {
       setBusy(false);
     }
@@ -489,7 +480,7 @@ function HostRoutesDialog({
         i === index ? routes[other] : i === other ? routes[index] : item,
       ) as HostRoute[],
     );
-  const full = routes.length >= MAX_ROUTES;
+  const full = routes.length >= MAX_HOST_ROUTES;
   return (
     <Dialog
       open
@@ -682,7 +673,7 @@ function PairHostDialog({
     void onPair(how, label)
       .catch((reason) => {
         if (how.kind === "code" && cancelled.current === how.attemptId) return;
-        setError(errorText(reason));
+        setError(desktopErrorMessage(reason));
       })
       .finally(() => {
         if (how.kind === "code" && cancelled.current === how.attemptId) return;
@@ -721,7 +712,7 @@ function PairHostDialog({
           {waiting ? (
             <div className="flex items-start gap-2 py-2 text-sm">
               <Spinner className="mt-0.5 size-4 shrink-0" />
-              <p>{t("waitingForConfirm", { device: DESKTOP_DEVICE_NAME })}</p>
+              <p>{t("waitingForConfirm")}</p>
             </div>
           ) : (
             <>

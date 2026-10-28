@@ -64,6 +64,8 @@ import { Switch } from "@/components/ui/switch";
 import {
   type ApiRequestOf,
   getApiErrorMessage,
+  type RemoteAccessProblem,
+  type RemoteAccessProblemCode,
   type RemoteAccessStatus,
   type RemoteDeviceSession,
 } from "@/lib/api-client";
@@ -81,20 +83,12 @@ const isValidPort = (value: string) => {
   return Number.isInteger(port) && port >= 1 && port <= 65_535;
 };
 
-/** Whether the saved settings are complete enough to turn access on as is. */
-const isConfigured = (status: RemoteAccessStatus) =>
-  status.mode === "tailscale" ||
-  (Boolean(status.requestedOrigin) &&
-    (!status.cloudflare?.managed || status.cloudflare.tokenSaved));
-
 type ScopeChoice = "view" | "operate" | "manage";
-const SCOPES_FOR: Record<ScopeChoice, string[]> = {
-  manage: ["view", "operate", "manage"],
-  operate: ["view", "operate"],
-  view: ["view"],
-};
 
-/** The access levels a pairing can grant, lowest first. */
+/**
+ * The access levels a pairing can grant, lowest first. A pairing names only
+ * its level; the host adds the levels below it (host/auth/scopes.js).
+ */
 const SCOPE_CHOICES = [
   { value: "view", label: "scopeView", hint: "scopeViewHint" },
   { value: "operate", label: "scopeOperate", hint: "scopeOperateHint" },
@@ -104,6 +98,49 @@ const SCOPE_CHOICES = [
   label: string;
   hint: string;
 }[];
+
+/** The words for each problem code the host reports; others use its text. */
+const PROBLEM_KEYS = {
+  "not-installed": "notInstalled",
+  "not-running": "notRunning",
+  "needs-login": "needsLogin",
+  "needs-approval": "needsApproval",
+  "https-disabled": "httpsDisabled",
+  "port-taken": "portTaken",
+  permission: "permission",
+  "cloudflare-token": "cloudflareToken",
+  "cloudflare-connecting": "cloudflareConnecting",
+  "needs-origin": "needsOrigin",
+  "quick-tunnel": "quickTunnel",
+  "port-in-use": "portInUse",
+} as const satisfies Partial<Record<RemoteAccessProblemCode, string>>;
+
+/** A problem in the user's language, from its code and values. */
+const useProblemText = () => {
+  const t = useTranslations("remote.problems");
+  return (problem: RemoteAccessProblem, mode: Mode) => {
+    const { origin, port } = problem.params ?? {};
+    // A host older than these words sends no values: use its own text.
+    if (problem.code === "unreachable")
+      return origin && port
+        ? t(
+            mode === "cloudflare"
+              ? "unreachableCloudflare"
+              : "unreachableTailscale",
+            { origin, port: String(port) },
+          )
+        : problem.message;
+    if (
+      (problem.code === "port-taken" || problem.code === "port-in-use") &&
+      !port
+    )
+      return problem.message;
+    const key = PROBLEM_KEYS[problem.code as keyof typeof PROBLEM_KEYS];
+    return key
+      ? t(key, { origin: origin ?? "", port: String(port) })
+      : problem.message;
+  };
+};
 
 /** The QR code of `text`, as an SVG drawn from its modules. */
 const QrImage = ({ text, label }: { text: string; label: string }) => {
@@ -193,14 +230,14 @@ export const RemoteAccessSection = () => {
   const [pendingRevoke, setPendingRevoke] =
     useState<RemoteDeviceSession | null>(null);
   const enabled = status?.enabled ?? false;
-  const configured = status ? isConfigured(status) : false;
+  // A host older than `configured` was set up if it is on.
+  const configured = status?.configured ?? status?.enabled ?? false;
+  const problemText = useProblemText();
+  // A refused save is the setup dialog's to show; it changed nothing here.
+  const problem = status?.problem?.refused ? null : (status?.problem ?? null);
   const save = async (options: ApiRequestOf<"remoteAccessEnable">) => {
     const changed = await remote.enable(options);
-    // A missing or unusable address is refused without saving: stay open.
-    if (
-      changed &&
-      remote.getSnapshot().status?.problem?.code !== "needs-origin"
-    )
+    if (changed && !remote.getSnapshot().status?.problem?.refused)
       setSetupOpen(false);
   };
   const scopeLabel = (scopes: string[]) =>
@@ -243,10 +280,10 @@ export const RemoteAccessSection = () => {
               ) : (
                 <Badge className="gap-1.5" variant="outline">
                   <StatusDot
-                    color={status.problem ? "red" : "amber"}
-                    pulse={!status.problem}
+                    color={problem ? "red" : "amber"}
+                    pulse={!problem}
                   />
-                  {status.problem ? t("statusNotReady") : t("statusChecking")}
+                  {problem ? t("statusNotReady") : t("statusChecking")}
                 </Badge>
               )}
             </div>
@@ -309,15 +346,20 @@ export const RemoteAccessSection = () => {
               {configured ? t("change") : t("setUp")}
             </Button>
           </div>
-          {enabled && status?.problem ? (
+          {enabled && status && problem ? (
             <div className="grid gap-2 rounded-md border border-destructive-border bg-destructive-surface px-3 py-2 text-destructive text-sm">
               <span className="select-text break-words">
-                {status.problem.message}
+                {problemText(problem, status.mode)}
               </span>
-              {status.problem.url ? (
+              {problem.params?.detail ? (
+                <span className="select-text break-words text-xs opacity-80">
+                  {problem.params.detail}
+                </span>
+              ) : null}
+              {problem.url ? (
                 <Button
                   className="w-fit"
-                  onClick={() => openExternalUrl(status.problem?.url ?? "")}
+                  onClick={() => openExternalUrl(problem.url ?? "")}
                   size="sm"
                   type="button"
                   variant="outline"
@@ -507,7 +549,12 @@ export const RemoteAccessSection = () => {
                 value={scope}
               >
                 <SelectTrigger className="w-full" id="remote-access-scope">
-                  <SelectValue>{scopeLabel(SCOPES_FOR[scope])}</SelectValue>
+                  <SelectValue>
+                    {t(
+                      SCOPE_CHOICES.find((choice) => choice.value === scope)
+                        ?.label ?? "scopeOperate",
+                    )}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent align="start" alignItemWithTrigger={false}>
                   {SCOPE_CHOICES.map(({ value, label, hint }) => (
@@ -540,7 +587,7 @@ export const RemoteAccessSection = () => {
                 </Button>
                 <Button
                   disabled={busy}
-                  onClick={() => void remote.createPairing(SCOPES_FOR[scope])}
+                  onClick={() => void remote.createPairing([scope])}
                   type="button"
                 >
                   {t("createPairing")}
@@ -642,8 +689,13 @@ const RemoteAccessSetupDialog = ({
   const shownPort = String(
     status.port ?? (localPort || status.cloudflare?.defaultPort || "—"),
   );
+  const problemText = useProblemText();
+  // Only a save made in this dialog can have been refused here.
+  const [attempted, setAttempted] = useState(false);
   const refused =
-    status.problem?.code === "needs-origin" ? status.problem.message : null;
+    attempted && status.problem?.refused
+      ? problemText(status.problem, mode)
+      : null;
 
   return (
     <Dialog
@@ -658,6 +710,7 @@ const RemoteAccessSetupDialog = ({
           onSubmit={(event) => {
             event.preventDefault();
             if (blocker) return;
+            setAttempted(true);
             void onSave(
               mode === "tailscale"
                 ? { httpsPort: Number(httpsPort), mode, port }

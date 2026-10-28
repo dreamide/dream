@@ -10,6 +10,7 @@
 // register themselves on the same table's channels.
 import path from "node:path";
 import { DESKTOP_METHODS } from "./shared/desktop-channels.js";
+import { MAX_HOST_ROUTES } from "./shared/host-connections.js";
 
 /** @typedef {import("./shared/desktop-channels.js").DesktopMethod} DesktopMethod */
 
@@ -40,6 +41,15 @@ export const isPngBytes = (bytes) =>
 export const isHttpUrl = (value) => /^https?:\/\//i.test(value.trim());
 
 /**
+ * How this desktop names itself to a host it pairs with: the computer, then
+ * the client, as a browser does ("iPhone · Safari"). The host lists paired
+ * devices by this name.
+ * @param {string} hostname The OS host name, e.g. `Mikes-MacBook-Pro.local`.
+ */
+export const desktopDeviceName = (hostname) =>
+  `${hostname.trim().split(".")[0] || "Computer"} · Dream desktop`;
+
+/**
  * @param {any} payload
  * @returns {Record<string, any>}
  */
@@ -50,7 +60,7 @@ const fields = (payload) =>
  * What a pairing request may say about the host it expects and this
  * device: the saved identities to recognise, and the device's name.
  */
-const pairingIdentity = (payload) => {
+const pairingIdentity = (payload, fallbackName) => {
   const { deviceName, expectedHostId, expectedFingerprint, knownIdentities } =
     fields(payload);
   return {
@@ -64,8 +74,10 @@ const pairingIdentity = (payload) => {
           )
           .slice(0, 1000)
       : [],
-    deviceName:
-      typeof deviceName === "string" ? deviceName.slice(0, 200) : undefined,
+    deviceName: (
+      (typeof deviceName === "string" && deviceName) ||
+      fallbackName
+    ).slice(0, 200),
     expectedIdentity:
       typeof expectedHostId === "string" && expectedHostId
         ? { hostId: expectedHostId, fingerprint: expectedFingerprint }
@@ -88,6 +100,8 @@ const pairingIdentity = (payload) => {
  * @param {{ exists: (path: string) => boolean, writeFile: (path: string, contents: string) => Promise<void> }} deps.files
  * @param {ReturnType<typeof import("./theme-store.js").createThemeStore>} deps.themes
  * @param {() => boolean} deps.systemPrefersDark
+ * @param {() => string} deps.hostname The OS host name, for naming this
+ *   desktop to a host it pairs with.
  * @param {{ loadWorkspace: () => unknown, saveWorkspaceChanges: (changes: unknown) => unknown }} deps.state
  * @param {{ connect: (options: { hostCommand?: string, hostId: string, target: string, expectedIdentity?: { hostId: string, fingerprint?: string | null } | null }) => Promise<{ hostProtocolVersion: number, version?: string | null, hostId?: string | null, fingerprint?: string | null }>, disconnect: (hostId: string) => void, getState: (hostId: string) => unknown, forwardPort: (hostId: string, port: number) => unknown }} deps.sshHosts
  * @param {() => Promise<string[]>} deps.sshConfigHosts The aliases in the
@@ -105,6 +119,7 @@ export const createDesktopHandlers = ({
   files,
   getPath,
   getWindow,
+  hostname,
   sendToRenderer,
   sshConfigHosts,
   sshHosts,
@@ -332,7 +347,10 @@ export const createDesktopHandlers = ({
         (deviceName !== undefined && typeof deviceName !== "string")
       )
         throw new Error("A pairing link and device name are required.");
-      return sshHosts.pair({ url, ...pairingIdentity(payload) });
+      return sshHosts.pair({
+        url,
+        ...pairingIdentity(payload, desktopDeviceName(hostname())),
+      });
     },
     pairHostWithCode: async (payload) => {
       const { address, code, attemptId, deviceName } = fields(payload);
@@ -356,7 +374,7 @@ export const createDesktopHandlers = ({
           address,
           code,
           signal: controller.signal,
-          ...pairingIdentity(payload),
+          ...pairingIdentity(payload, desktopDeviceName(hostname())),
         });
       } finally {
         codePairings.delete(attemptId);
@@ -397,9 +415,11 @@ export const createDesktopHandlers = ({
         if (
           !Array.isArray(configuredRoutes) ||
           !configuredRoutes.length ||
-          configuredRoutes.length > 8
+          configuredRoutes.length > MAX_HOST_ROUTES
         )
-          throw new Error("A connection needs between one and eight routes.");
+          throw new Error(
+            `A connection needs between 1 and ${MAX_HOST_ROUTES} routes.`,
+          );
         routes = configuredRoutes.map((route) => {
           if (typeof route?.id !== "string" || !route.id.trim())
             throw new Error("A route needs an id.");
@@ -437,10 +457,10 @@ export const createDesktopHandlers = ({
         if (
           !Array.isArray(sshRoutes) ||
           sshRoutes.length === 0 ||
-          sshRoutes.length > 8
+          sshRoutes.length > MAX_HOST_ROUTES
         )
           throw new Error(
-            "A connection needs between one and eight SSH routes.",
+            `A connection needs between 1 and ${MAX_HOST_ROUTES} SSH routes.`,
           );
         routes = sshRoutes.map((route) => {
           if (

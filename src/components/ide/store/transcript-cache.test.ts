@@ -109,3 +109,14 @@ test("refresh preserves the loaded window and partial saves request a transactio
     true,
   ]);
 });
+
+test("another window's chat is counted from the host's notification, without loading it", async () => {
+  // A chat started elsewhere arrives empty: its turn's messages are written
+  // on the host afterwards, and this window has not loaded them.
+  const { get, id } = setup();
+  assert.equal(get().chats[0].messageCount, 0);
+  await get().applyCatalogTranscript(id, { messageCount: 2 });
+  assert.equal(get().chats[0].messageCount, 2);
+  assert.equal(Object.hasOwn(get().messagesByChatId, id), false);
+  assert.equal(vi.mocked(apiClient.catalogTranscriptPage).mock.calls.length, 0);
+});
