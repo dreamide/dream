@@ -31,6 +31,7 @@ const status: RemoteAccessStatus = {
   httpsPort: 443,
   origin: "https://host.example",
   requestedOrigin: "https://host.example",
+  configured: true,
   checkedAt: "2026-10-25",
   problem: null,
 };

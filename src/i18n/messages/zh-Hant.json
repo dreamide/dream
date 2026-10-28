@@ -1195,6 +1195,22 @@
     "cloudflareSelfManaged": "我自行執行 cloudflared",
     "needsOrigin": "請輸入公開位址。",
     "needsToken": "請貼上通道權杖。",
-    "save": "儲存"
+    "save": "儲存",
+    "problems": {
+      "notInstalled": "這台電腦未安裝 Tailscale。",
+      "notRunning": "Tailscale 未在這台電腦上執行或未連線。請啟動它，然後重新檢查。",
+      "needsLogin": "請在這台電腦上登入 Tailscale，然後重新檢查。",
+      "needsApproval": "這台電腦正在等待 Tailscale 管理主控台中的核准。",
+      "httpsDisabled": "請在 Tailscale 管理主控台中為你的 tailnet 開啟 MagicDNS 和 HTTPS 憑證，然後重新檢查。",
+      "portTaken": "Tailscale 已在 HTTPS 連接埠 {port} 上提供其他內容。請在「進階」中選擇其他 HTTPS 連接埠。",
+      "permission": "Tailscale 不允許此使用者變更其 Serve 設定。在 Linux 上，請執行一次 sudo tailscale set --operator=$USER，然後重新檢查。",
+      "cloudflareToken": "只貼上通道權杖，不要貼上安裝指令。",
+      "cloudflareConnecting": "正在等待 Cloudflare 連接器連線。",
+      "needsOrigin": "請以 https:// 位址輸入你的 Cloudflare 主機名稱，例如 https://dream.example.com。",
+      "quickTunnel": "請使用具有固定主機名稱的永久 Cloudflare 通道。Quick Tunnel 不支援聊天串流。",
+      "portInUse": "這台電腦上的連接埠 {port} 已被占用。請在「進階」中選擇其他本機連接埠。",
+      "unreachableTailscale": "無法透過 {origin} 連到這台電腦。Tailscale 可能仍在取得憑證；請一分鐘後重新檢查。",
+      "unreachableCloudflare": "無法透過 {origin} 連到這台電腦。請在 Cloudflare 中將此主機名稱的服務 URL 設為 http://127.0.0.1:{port}。"
+    }
   }
 }

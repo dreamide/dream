@@ -812,6 +812,31 @@ whose externally managed connector still covers a connector the user runs.
 Validation: `remote-access.test.js` covers the saved-mode migration and the
 schema refusal; settings state tests pass with a Cloudflare status.
 
+Follow-up (2026-10-28), the host owns remote-access rules the settings screen
+used to copy:
+- Status reports `configured`: whether the saved settings can be turned on as
+  they are (Tailscale, or a Cloudflare address plus a token when Dream runs the
+  connector). The switch and the Set up/Change button read it.
+- A problem is `{ code, message, url, params?, refused? }`. `code` is the
+  contract (`RemoteAccessProblemCode` in `api-client.ts`); clients show their
+  own words for known codes with `params` (`port`, `origin`, `detail`), and
+  the host's English `message` otherwise. The command line still prints
+  `message`. New codes: `needs-approval` (was part of `needs-login`),
+  `quick-tunnel` (was part of `needs-origin`) and `cloudflare-connecting`
+  (`cloudflare-connector` now always carries the connector's own error).
+- `refused: true` marks an enable request refused before saving (no address,
+  a Quick Tunnel, a pasted install command instead of a token). A bad token
+  is now such a problem instead of a request error.
+- Pairing from Settings names only the chosen level; the host fills in the
+  levels below (`normalizeScopes`).
+- `MAX_HOST_ROUTES` (`electron/shared/host-connections.js`) is the one route
+  limit for the store, the desktop handlers, the route supervisor and the
+  routes dialog. `desktopErrorMessage` (`src/lib/electron.ts`) is the one place
+  that strips Electron's IPC error prefix.
+
+Validation: `remote-access.test.js` adds `configured` and the three refusals
+(nothing saved, access still off).
+
 ## CONN-06: Host lifecycle independent of the desktop
 
 Status: all four implementation slices complete. Native macOS service updates,

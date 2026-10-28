@@ -43,3 +43,15 @@ export const getDesktopApi = (): DesktopApi | null => {
 
   return developmentApi ?? window.dream ?? null;
 };
+
+// Electron prefixes errors thrown across ipcRenderer.invoke with where they
+// came from; the user wants only what went wrong.
+const IPC_ERROR_PREFIX =
+  /^Error invoking remote method '[^']*': (?:\w*Error: )?/;
+
+/** What went wrong in a desktop call, without Electron's IPC prefix. */
+export const desktopErrorMessage = (error: unknown) =>
+  (error instanceof Error ? error.message : String(error)).replace(
+    IPC_ERROR_PREFIX,
+    "",
+  );

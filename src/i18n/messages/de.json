@@ -1195,6 +1195,22 @@
     "cloudflareSelfManaged": "Ich betreibe cloudflared selbst",
     "needsOrigin": "Gib die öffentliche Adresse ein.",
     "needsToken": "Füge das Tunnel-Token ein.",
-    "save": "Speichern"
+    "save": "Speichern",
+    "problems": {
+      "notInstalled": "Tailscale ist auf diesem Computer nicht installiert.",
+      "notRunning": "Tailscale läuft nicht oder ist auf diesem Computer nicht verbunden. Starte es und prüfe dann erneut.",
+      "needsLogin": "Melde dich auf diesem Computer bei Tailscale an und prüfe dann erneut.",
+      "needsApproval": "Dieser Computer wartet in der Tailscale-Verwaltungskonsole auf Freigabe.",
+      "httpsDisabled": "Aktiviere MagicDNS und HTTPS-Zertifikate für dein Tailnet in der Tailscale-Verwaltungskonsole und prüfe dann erneut.",
+      "portTaken": "Tailscale stellt auf HTTPS-Port {port} bereits etwas anderes bereit. Wähle unter „Erweitert“ einen anderen HTTPS-Port.",
+      "permission": "Tailscale lässt diesen Benutzer die Serve-Einstellungen nicht ändern. Führe unter Linux einmal sudo tailscale set --operator=$USER aus und prüfe dann erneut.",
+      "cloudflareToken": "Füge nur das Tunnel-Token ein, nicht den Installationsbefehl.",
+      "cloudflareConnecting": "Warte darauf, dass sich der Cloudflare-Connector verbindet.",
+      "needsOrigin": "Gib deinen Cloudflare-Hostnamen als https://-Adresse ein, zum Beispiel https://dream.example.com.",
+      "quickTunnel": "Verwende einen dauerhaften Cloudflare-Tunnel mit festem Hostnamen. Quick Tunnels unterstützen kein Chat-Streaming.",
+      "portInUse": "Port {port} ist auf diesem Computer bereits belegt. Wähle unter „Erweitert“ einen anderen lokalen Port.",
+      "unreachableTailscale": "Dieser Computer ist über {origin} nicht erreichbar. Tailscale ruft das Zertifikat möglicherweise noch ab; prüfe in einer Minute erneut.",
+      "unreachableCloudflare": "Dieser Computer ist über {origin} nicht erreichbar. Setze in Cloudflare die Dienst-URL dieses Hostnamens auf http://127.0.0.1:{port}."
+    }
   }
 }

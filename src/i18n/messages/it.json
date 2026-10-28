@@ -1195,6 +1195,22 @@
     "cloudflareSelfManaged": "Eseguo cloudflared per conto mio",
     "needsOrigin": "Inserisci l’indirizzo pubblico.",
     "needsToken": "Incolla il token del tunnel.",
-    "save": "Salva"
+    "save": "Salva",
+    "problems": {
+      "notInstalled": "Tailscale non è installato su questo computer.",
+      "notRunning": "Tailscale non è in esecuzione o non è connesso su questo computer. Avvialo, poi controlla di nuovo.",
+      "needsLogin": "Accedi a Tailscale su questo computer, poi controlla di nuovo.",
+      "needsApproval": "Questo computer è in attesa di approvazione nella console di amministrazione di Tailscale.",
+      "httpsDisabled": "Attiva MagicDNS e i certificati HTTPS della tua tailnet nella console di amministrazione di Tailscale, poi controlla di nuovo.",
+      "portTaken": "Tailscale serve già qualcos’altro sulla porta HTTPS {port}. Scegli un’altra porta HTTPS in Avanzate.",
+      "permission": "Tailscale non consente a questo utente di modificare le impostazioni di Serve. Su Linux, esegui una volta sudo tailscale set --operator=$USER, poi controlla di nuovo.",
+      "cloudflareToken": "Incolla solo il token del tunnel, non il comando di installazione.",
+      "cloudflareConnecting": "In attesa che il connettore Cloudflare si connetta.",
+      "needsOrigin": "Inserisci il nome host Cloudflare come indirizzo https://, ad esempio https://dream.example.com.",
+      "quickTunnel": "Usa un tunnel Cloudflare persistente con un nome host stabile. I Quick Tunnel non supportano lo streaming della chat.",
+      "portInUse": "La porta {port} è già in uso su questo computer. Scegli un’altra porta locale in Avanzate.",
+      "unreachableTailscale": "Impossibile raggiungere questo computer tramite {origin}. Tailscale potrebbe star ancora ottenendo il certificato; controlla di nuovo tra un minuto.",
+      "unreachableCloudflare": "Impossibile raggiungere questo computer tramite {origin}. In Cloudflare, imposta l’URL del servizio di questo nome host su http://127.0.0.1:{port}."
+    }
   }
 }

@@ -1195,6 +1195,22 @@
     "cloudflareSelfManaged": "Ejecuto cloudflared por mi cuenta",
     "needsOrigin": "Introduce la dirección pública.",
     "needsToken": "Pega el token del túnel.",
-    "save": "Guardar"
+    "save": "Guardar",
+    "problems": {
+      "notInstalled": "Tailscale no está instalado en este equipo.",
+      "notRunning": "Tailscale no se está ejecutando o no está conectado en este equipo. Inícialo y vuelve a comprobar.",
+      "needsLogin": "Inicia sesión en Tailscale en este equipo y vuelve a comprobar.",
+      "needsApproval": "Este equipo está esperando aprobación en la consola de administración de Tailscale.",
+      "httpsDisabled": "Activa MagicDNS y los certificados HTTPS de tu tailnet en la consola de administración de Tailscale y vuelve a comprobar.",
+      "portTaken": "Tailscale ya sirve otra cosa en el puerto HTTPS {port}. Elige otro puerto HTTPS en Avanzado.",
+      "permission": "Tailscale no permite que este usuario cambie su configuración de Serve. En Linux, ejecuta una vez sudo tailscale set --operator=$USER y vuelve a comprobar.",
+      "cloudflareToken": "Pega solo el token del túnel, no el comando de instalación.",
+      "cloudflareConnecting": "Esperando a que se conecte el conector de Cloudflare.",
+      "needsOrigin": "Introduce tu nombre de host de Cloudflare como dirección https://, por ejemplo https://dream.example.com.",
+      "quickTunnel": "Usa un túnel persistente de Cloudflare con un nombre de host estable. Los Quick Tunnels no admiten la transmisión del chat.",
+      "portInUse": "El puerto {port} ya está en uso en este equipo. Elige otro puerto local en Avanzado.",
+      "unreachableTailscale": "No se pudo llegar a este equipo a través de {origin}. Puede que Tailscale aún esté obteniendo su certificado; vuelve a comprobar en un minuto.",
+      "unreachableCloudflare": "No se pudo llegar a este equipo a través de {origin}. En Cloudflare, configura la URL del servicio de este nombre de host como http://127.0.0.1:{port}."
+    }
   }
 }

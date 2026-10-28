@@ -17,7 +17,7 @@ import {
   connectionSupervisor,
 } from "@/lib/connections/runtime";
 import type { ConnectionStatus } from "@/lib/connections/supervisor";
-import { getDesktopApi } from "@/lib/electron";
+import { desktopErrorMessage, getDesktopApi } from "@/lib/electron";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import { forgetHostSocketClient } from "@/lib/host-socket";
 import type { DesktopApi, HostConnectionState, HostRoute } from "@/types/ide";
@@ -25,6 +25,7 @@ import {
   findHostConnection,
   forgetHostConnection,
   listHostChoices,
+  MAX_HOST_ROUTES,
 } from "../../../../electron/shared/host-connections.js";
 import { terminalSessions } from "../terminal-session";
 import {
@@ -41,17 +42,6 @@ import type {
 import { applyWorkspaceRemoval } from "./project-runtime-state";
 import { settleSettings } from "./settings-actions";
 import * as workspace from "./workspace-document";
-
-// Electron prefixes errors thrown across ipcRenderer.invoke with where they
-// came from; the user wants only what went wrong.
-const IPC_ERROR_PREFIX =
-  /^Error invoking remote method '[^']*': (?:\w*Error: )?/;
-
-const errorMessage = (error: unknown) =>
-  (error instanceof Error ? error.message : String(error)).replace(
-    IPC_ERROR_PREFIX,
-    "",
-  );
 
 /** How long removing a host waits for its terminals to stop. */
 const TERMINAL_STOP_WAIT_MS = 5_000;
@@ -261,9 +251,9 @@ export const createHostActions = (
                 (route) => !other.routes.some((known) => known.id === route.id),
               ),
             ];
-            if (merged.length > 8)
+            if (merged.length > MAX_HOST_ROUTES)
               throw new Error(
-                "A connection supports at most eight routes. Remove a route first.",
+                `A connection supports at most ${MAX_HOST_ROUTES} routes. Remove a route first.`,
               );
             set((state) => ({
               ...workspace.reassignHost(state, hostId, other.id),
@@ -304,7 +294,7 @@ export const createHostActions = (
         }
         if (current())
           setHost(hostId, {
-            error: errorMessage(error),
+            error: desktopErrorMessage(error),
             loaded: false,
             state:
               get().hosts[hostId]?.state === "connected"
@@ -357,10 +347,10 @@ export const createHostActions = (
           route.id === replaceRouteId ||
           (route.kind === "https" && route.origin === paired.origin),
       );
-      if (!replaced && (other?.routes.length ?? 0) >= 8) {
+      if (!replaced && (other?.routes.length ?? 0) >= MAX_HOST_ROUTES) {
         await api.forgetHostCredential(paired.credentialId);
         throw new Error(
-          "Remove a route before adding another; a connection supports eight routes.",
+          `Remove a route before adding another; a connection supports ${MAX_HOST_ROUTES} routes.`,
         );
       }
       const route: HostRoute = {
@@ -410,8 +400,10 @@ export const createHostActions = (
       const api = getDesktopApi();
       if (!saved || !api)
         throw new Error("Connect this host before adding routes.");
-      if (saved.routes.length >= 8)
-        throw new Error("A connection supports at most eight routes.");
+      if (saved.routes.length >= MAX_HOST_ROUTES)
+        throw new Error(
+          `A connection supports at most ${MAX_HOST_ROUTES} routes.`,
+        );
       const id = crypto.randomUUID();
       try {
         await api.connectHost({
@@ -451,7 +443,7 @@ export const createHostActions = (
       if (
         !saved ||
         !routes.length ||
-        routes.length > 8 ||
+        routes.length > MAX_HOST_ROUTES ||
         new Set(routes.map((route) => route.id)).size !== routes.length ||
         routes.some((route) => !saved.routes.includes(route))
       )

@@ -10,6 +10,7 @@
 // register themselves on the same table's channels.
 import path from "node:path";
 import { DESKTOP_METHODS } from "./shared/desktop-channels.js";
+import { MAX_HOST_ROUTES } from "./shared/host-connections.js";
 
 /** @typedef {import("./shared/desktop-channels.js").DesktopMethod} DesktopMethod */
 
@@ -355,9 +356,11 @@ export const createDesktopHandlers = ({
         if (
           !Array.isArray(configuredRoutes) ||
           !configuredRoutes.length ||
-          configuredRoutes.length > 8
+          configuredRoutes.length > MAX_HOST_ROUTES
         )
-          throw new Error("A connection needs between one and eight routes.");
+          throw new Error(
+            `A connection needs between 1 and ${MAX_HOST_ROUTES} routes.`,
+          );
         routes = configuredRoutes.map((route) => {
           if (typeof route?.id !== "string" || !route.id.trim())
             throw new Error("A route needs an id.");
@@ -395,10 +398,10 @@ export const createDesktopHandlers = ({
         if (
           !Array.isArray(sshRoutes) ||
           sshRoutes.length === 0 ||
-          sshRoutes.length > 8
+          sshRoutes.length > MAX_HOST_ROUTES
         )
           throw new Error(
-            "A connection needs between one and eight SSH routes.",
+            `A connection needs between 1 and ${MAX_HOST_ROUTES} SSH routes.`,
           );
         routes = sshRoutes.map((route) => {
           if (
