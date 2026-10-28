@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { dismissBootScreen } from "@/lib/boot-screen";
 import {
   describeThisDevice,
   type PairingClaim,
@@ -42,6 +43,8 @@ export const PairingScreen = ({ host }: { host: string }) => {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const exchanged = useRef(false);
+
+  useEffect(dismissBootScreen, []);
 
   // A pairing link: exchanged at once (it works once; StrictMode's second
   // effect must not spend it again).

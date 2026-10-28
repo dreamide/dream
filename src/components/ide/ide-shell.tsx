@@ -3,6 +3,7 @@ import { lazy, Suspense, useDeferredValue, useEffect } from "react";
 import { AppLoadingScreen } from "@/components/dream-loading-screen";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
+import { dismissBootScreen } from "@/lib/boot-screen";
 import { getClientPlatform } from "@/lib/connections/platform";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
@@ -162,7 +163,7 @@ export const IdeShell = () => {
 
   useEffect(() => {
     if (!appReady) return;
-    document.querySelector(".boot-loading")?.remove();
+    dismissBootScreen();
   }, [appReady]);
 
   // Desktop-owned terminals stop on unload; service work outlives the page.
