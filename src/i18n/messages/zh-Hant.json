@@ -1,7 +1,7 @@
 {
   "connections": {
     "hosts": "遠端主機",
-    "description": "依優先順序透過 SSH 和 HTTPS 路由連線同一主機。",
+    "description": "可以開啟專案的電腦。",
     "pair": "配對主機",
     "empty": "新增 SSH 主機或貼上 HTTPS 配對連結。",
     "active": "目前路由",
@@ -19,7 +19,13 @@
     "pairLink": "配對連結",
     "name": "名稱（選填）",
     "cancel": "取消",
-    "pairing": "正在配對…"
+    "pairing": "正在配對…",
+    "addHost": "新增主機",
+    "addSsh": "SSH 主機",
+    "addPairing": "配對連結",
+    "otherRoutes": "{count, plural, other {+# 條路由}}",
+    "routesDescription": "依序嘗試路由，直到其中一條連線成功。",
+    "done": "完成"
   },
   "app": {
     "loadingDream": "正在載入 Dream",
@@ -1105,7 +1111,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "使用 Cloudflare 帳戶中的持久隧道和主機名稱。",
-    "cloudflareManaged": "在這台電腦上執行連接器",
     "cloudflareToken": "隧道權杖",
     "cloudflareTokenSaved": "已儲存 — 留空以保留",
     "cloudflareTokenHint": "僅貼上權杖。權杖僅保存在此主機上；輸入新權杖以輪替。",
@@ -1155,7 +1160,6 @@
     "portAutomatic": "自動",
     "localPortHint": "為每個執行中的應用程式選擇不同的連接埠。留空則自動選擇。",
     "portRange": "連接埠必須是 1 到 65535 之間的整數。",
-    "apply": "套用",
     "turnOn": "開啟",
     "checkAgain": "重新檢查",
     "openSetupPage": "開啟設定頁面",
@@ -1174,13 +1178,25 @@
     "copyLink": "複製連結",
     "pairingCodeHint": "或者在裝置上輸入 {code}，然後在這裡確認。",
     "accessLevel": "存取權限",
-    "accessLevelHint": "「檢視與工作」可以用你的身分在這台電腦上執行代理、終端機和 git。",
     "scopeView": "僅檢視",
+    "scopeViewHint": "讀取專案、聊天和終端機。",
     "scopeOperate": "檢視與工作",
+    "scopeOperateHint": "還能以你的身分執行代理、終端機和 Git。",
     "scopeManage": "完整存取，包括配對裝置",
+    "scopeManageHint": "還能配對和移除裝置。",
     "done": "完成",
     "createPairing": "建立配對",
     "loadFailed": "無法載入遠端存取。",
-    "changeFailed": "無法變更遠端存取。"
+    "changeFailed": "無法變更遠端存取。",
+    "connectionLabel": "連線",
+    "notSetUp": "尚未設定",
+    "setUp": "設定",
+    "change": "變更",
+    "setupTitle": "設定遠端存取",
+    "advanced": "進階",
+    "cloudflareSelfManaged": "我自行執行 cloudflared",
+    "needsOrigin": "請輸入公開位址。",
+    "needsToken": "請貼上通道權杖。",
+    "save": "儲存"
   }
 }

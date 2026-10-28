@@ -1,7 +1,7 @@
 {
   "connections": {
     "hosts": "Remote-Hosts",
-    "description": "Einen Host über geordnete SSH- und HTTPS-Routen erreichen.",
+    "description": "Computer, auf denen du Projekte öffnen kannst.",
     "pair": "Host koppeln",
     "empty": "SSH-Host hinzufügen oder HTTPS-Kopplungslink einfügen.",
     "active": "Aktive Route",
@@ -19,7 +19,13 @@
     "pairLink": "Kopplungslink",
     "name": "Name (optional)",
     "cancel": "Abbrechen",
-    "pairing": "Kopplung…"
+    "pairing": "Kopplung…",
+    "addHost": "Host hinzufügen",
+    "addSsh": "SSH-Host",
+    "addPairing": "Kopplungslink",
+    "otherRoutes": "{count, plural, one {+# Route} other {+# Routen}}",
+    "routesDescription": "Routen werden der Reihe nach versucht, bis eine verbindet.",
+    "done": "Fertig"
   },
   "app": {
     "loadingDream": "Dream wird geladen",
@@ -1105,7 +1111,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Einen dauerhaften Tunnel und Hostnamen aus deinem Cloudflare-Konto verwenden.",
-    "cloudflareManaged": "Connector auf diesem Computer ausführen",
     "cloudflareToken": "Tunnel-Token",
     "cloudflareTokenSaved": "Token gespeichert — leer lassen zum Beibehalten",
     "cloudflareTokenHint": "Nur das Token einfügen. Es bleibt privat auf diesem Host; zum Rotieren ein neues eingeben.",
@@ -1155,7 +1160,6 @@
     "portAutomatic": "Automatisch",
     "localPortHint": "Wähle für jede laufende App einen anderen Port. Leer lassen, um automatisch einen zu wählen.",
     "portRange": "Ports müssen ganze Zahlen zwischen 1 und 65535 sein.",
-    "apply": "Übernehmen",
     "turnOn": "Einschalten",
     "checkAgain": "Erneut prüfen",
     "openSetupPage": "Einrichtungsseite öffnen",
@@ -1174,13 +1178,25 @@
     "copyLink": "Link kopieren",
     "pairingCodeHint": "Oder gib {code} auf dem Gerät ein und bestätige es dann hier.",
     "accessLevel": "Zugriff",
-    "accessLevelHint": "Ansehen und arbeiten kann auf diesem Computer in deinem Namen Agenten, Terminals und Git ausführen.",
     "scopeView": "Nur ansehen",
+    "scopeViewHint": "Projekte, Chats und Terminals lesen.",
     "scopeOperate": "Ansehen und arbeiten",
+    "scopeOperateHint": "Zusätzlich Agenten, Terminals und Git als du ausführen.",
     "scopeManage": "Vollständig, einschließlich Geräte koppeln",
+    "scopeManageHint": "Zusätzlich Geräte koppeln und entfernen.",
     "done": "Fertig",
     "createPairing": "Kopplung erstellen",
     "loadFailed": "Fernzugriff konnte nicht geladen werden.",
-    "changeFailed": "Fernzugriff konnte nicht geändert werden."
+    "changeFailed": "Fernzugriff konnte nicht geändert werden.",
+    "connectionLabel": "Verbindung",
+    "notSetUp": "Nicht eingerichtet",
+    "setUp": "Einrichten",
+    "change": "Ändern",
+    "setupTitle": "Fernzugriff einrichten",
+    "advanced": "Erweitert",
+    "cloudflareSelfManaged": "Ich betreibe cloudflared selbst",
+    "needsOrigin": "Gib die öffentliche Adresse ein.",
+    "needsToken": "Füge das Tunnel-Token ein.",
+    "save": "Speichern"
   }
 }

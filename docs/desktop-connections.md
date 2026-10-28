@@ -1,6 +1,6 @@
 # Desktop connections
 
-In Settings > Connections, add an SSH host or choose **Pair host** and paste
+In Settings > Connections, choose **Add host**, then **SSH host**, or **Pairing link** and paste
 a complete HTTPS pairing link created in the host's Remote access settings.
 The link is single-use. The host must run a version with native identity proof
 support, and its HTTPS certificate must be trusted by the desktop's Node runtime.
@@ -8,12 +8,13 @@ Tailscale Serve's HTTPS origin works as a direct route; no Dream account is need
 
 Each verified host has one entry. Adding another route to the same authenticated
 host merges it into that entry and keeps the existing project, chat and workspace
-IDs. Use **Add SSH route** or **Add HTTPS route** on that entry to pin the new
+IDs. Edit that entry and use **Add SSH route** or **Add HTTPS route** to pin the new
 route to that host before pairing or loading its catalog. SSH routes can be edited;
 editing an HTTPS route requires a fresh pairing link. Re-pairing the same origin
 replaces its old desktop credential. A new origin gets its own device grant.
 
-Routes are tried from top to bottom. Arrow buttons change their preference.
+Routes are tried from top to bottom. In the entry's edit dialog, arrow buttons
+change their preference.
 The current route and failures appear beside each route. A healthy fallback
 continues serving while a preferred route proves identity, authorization and
 catalog readiness. Transient failures back off; revoked grants and incompatible

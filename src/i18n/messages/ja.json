@@ -1,7 +1,7 @@
 {
   "connections": {
     "hosts": "リモートホスト",
-    "description": "優先順に並べた SSH と HTTPS の経路でホストに接続します。",
+    "description": "プロジェクトを開けるコンピューター。",
     "pair": "ホストをペアリング",
     "empty": "SSH ホストを追加するか、HTTPS ペアリングリンクを貼り付けます。",
     "active": "使用中の経路",
@@ -19,7 +19,13 @@
     "pairLink": "ペアリングリンク",
     "name": "名前（任意）",
     "cancel": "キャンセル",
-    "pairing": "ペアリング中…"
+    "pairing": "ペアリング中…",
+    "addHost": "ホストを追加",
+    "addSsh": "SSH ホスト",
+    "addPairing": "ペアリングリンク",
+    "otherRoutes": "{count, plural, other {+# 経路}}",
+    "routesDescription": "接続できるまで経路を順番に試します。",
+    "done": "完了"
   },
   "app": {
     "loadingDream": "Dream を読み込み中",
@@ -1105,7 +1111,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Cloudflare アカウントの永続トンネルとホスト名を使用します。",
-    "cloudflareManaged": "このコンピューターでコネクターを実行",
     "cloudflareToken": "トンネルトークン",
     "cloudflareTokenSaved": "保存済み — 変更しない場合は空欄",
     "cloudflareTokenHint": "トークンのみ貼り付けてください。このホストに非公開で保存されます。更新する場合は新しいトークンを入力します。",
@@ -1155,7 +1160,6 @@
     "portAutomatic": "自動",
     "localPortHint": "実行中のアプリごとに異なるポートを指定してください。空欄にすると自動で選択します。",
     "portRange": "ポートは 1～65535 の整数で指定してください。",
-    "apply": "適用",
     "turnOn": "オンにする",
     "checkAgain": "再確認",
     "openSetupPage": "設定ページを開く",
@@ -1174,13 +1178,25 @@
     "copyLink": "リンクをコピー",
     "pairingCodeHint": "またはデバイスで {code} を入力し、ここで承認してください。",
     "accessLevel": "アクセス",
-    "accessLevelHint": "「表示と作業」は、このコンピュータ上であなたとしてエージェント、ターミナル、git を実行できます。",
     "scopeView": "表示のみ",
+    "scopeViewHint": "プロジェクト、チャット、ターミナルを閲覧します。",
     "scopeOperate": "表示と作業",
+    "scopeOperateHint": "さらに、あなたとしてエージェント、ターミナル、Git を実行します。",
     "scopeManage": "すべて（デバイスのペアリングを含む）",
+    "scopeManageHint": "さらに、デバイスのペアリングと削除を行います。",
     "done": "完了",
     "createPairing": "ペアリングを作成",
     "loadFailed": "リモートアクセスを読み込めませんでした。",
-    "changeFailed": "リモートアクセスを変更できませんでした。"
+    "changeFailed": "リモートアクセスを変更できませんでした。",
+    "connectionLabel": "接続",
+    "notSetUp": "未設定",
+    "setUp": "設定",
+    "change": "変更",
+    "setupTitle": "リモートアクセスを設定",
+    "advanced": "詳細設定",
+    "cloudflareSelfManaged": "cloudflared を自分で実行する",
+    "needsOrigin": "公開アドレスを入力してください。",
+    "needsToken": "トンネルトークンを貼り付けてください。",
+    "save": "保存"
   }
 }

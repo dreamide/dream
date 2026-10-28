@@ -1,7 +1,7 @@
 {
   "connections": {
     "hosts": "Hôtes distants",
-    "description": "Accédez à un hôte via des routes SSH et HTTPS ordonnées.",
+    "description": "Ordinateurs sur lesquels vous pouvez ouvrir des projets.",
     "pair": "Associer un hôte",
     "empty": "Ajoutez un hôte SSH ou collez un lien d’association HTTPS.",
     "active": "Route active",
@@ -19,7 +19,13 @@
     "pairLink": "Lien d’association",
     "name": "Nom (facultatif)",
     "cancel": "Annuler",
-    "pairing": "Association…"
+    "pairing": "Association…",
+    "addHost": "Ajouter un hôte",
+    "addSsh": "Hôte SSH",
+    "addPairing": "Lien d’appairage",
+    "otherRoutes": "{count, plural, one {+# route} other {+# routes}}",
+    "routesDescription": "Les routes sont essayées dans l’ordre jusqu’à ce qu’une se connecte.",
+    "done": "Terminé"
   },
   "app": {
     "loadingDream": "Chargement de Dream",
@@ -1105,7 +1111,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Utilisez un tunnel et un nom d’hôte persistants de votre compte Cloudflare.",
-    "cloudflareManaged": "Exécuter le connecteur sur cet ordinateur",
     "cloudflareToken": "Jeton du tunnel",
     "cloudflareTokenSaved": "Jeton enregistré — laissez vide pour le conserver",
     "cloudflareTokenHint": "Collez uniquement le jeton. Il reste privé sur cet hôte ; saisissez un nouveau jeton pour le renouveler.",
@@ -1155,7 +1160,6 @@
     "portAutomatic": "Automatique",
     "localPortHint": "Choisissez un port différent pour chaque application en cours. Laissez vide pour en choisir un automatiquement.",
     "portRange": "Les ports doivent être des nombres entiers entre 1 et 65535.",
-    "apply": "Appliquer",
     "turnOn": "Activer",
     "checkAgain": "Vérifier à nouveau",
     "openSetupPage": "Ouvrir la page de configuration",
@@ -1174,13 +1178,25 @@
     "copyLink": "Copier le lien",
     "pairingCodeHint": "Ou saisissez {code} sur l’appareil, puis confirmez-le ici.",
     "accessLevel": "Accès",
-    "accessLevelHint": "Consulter et travailler peut exécuter des agents, des terminaux et git sur cet ordinateur en votre nom.",
     "scopeView": "Consultation seule",
+    "scopeViewHint": "Lire les projets, les chats et les terminaux.",
     "scopeOperate": "Consulter et travailler",
+    "scopeOperateHint": "Exécuter aussi des agents, des terminaux et Git en votre nom.",
     "scopeManage": "Complet, y compris l’association d’appareils",
+    "scopeManageHint": "Appairer et retirer aussi des appareils.",
     "done": "Terminé",
     "createPairing": "Créer une association",
     "loadFailed": "Impossible de charger l’accès à distance.",
-    "changeFailed": "Impossible de modifier l’accès à distance."
+    "changeFailed": "Impossible de modifier l’accès à distance.",
+    "connectionLabel": "Connexion",
+    "notSetUp": "Non configuré",
+    "setUp": "Configurer",
+    "change": "Modifier",
+    "setupTitle": "Configurer l’accès à distance",
+    "advanced": "Avancé",
+    "cloudflareSelfManaged": "J’exécute cloudflared moi-même",
+    "needsOrigin": "Saisissez l’adresse publique.",
+    "needsToken": "Collez le jeton du tunnel.",
+    "save": "Enregistrer"
   }
 }

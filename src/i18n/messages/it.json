@@ -1,7 +1,7 @@
 {
   "connections": {
     "hosts": "Host remoti",
-    "description": "Accedi a un host tramite percorsi SSH e HTTPS ordinati.",
+    "description": "Computer su cui puoi aprire progetti.",
     "pair": "Associa host",
     "empty": "Aggiungi un host SSH o incolla un link di associazione HTTPS.",
     "active": "Percorso attivo",
@@ -19,7 +19,13 @@
     "pairLink": "Link di associazione",
     "name": "Nome (facoltativo)",
     "cancel": "Annulla",
-    "pairing": "Associazione…"
+    "pairing": "Associazione…",
+    "addHost": "Aggiungi host",
+    "addSsh": "Host SSH",
+    "addPairing": "Link di abbinamento",
+    "otherRoutes": "{count, plural, one {+# percorso} other {+# percorsi}}",
+    "routesDescription": "I percorsi vengono provati in ordine finché uno si connette.",
+    "done": "Fine"
   },
   "app": {
     "loadingDream": "Caricamento di Dream",
@@ -1105,7 +1111,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Usa un tunnel e un nome host persistenti del tuo account Cloudflare.",
-    "cloudflareManaged": "Esegui il connettore su questo computer",
     "cloudflareToken": "Token del tunnel",
     "cloudflareTokenSaved": "Token salvato — lascia vuoto per mantenerlo",
     "cloudflareTokenHint": "Incolla solo il token. Rimane privato su questo host; inseriscine uno nuovo per ruotarlo.",
@@ -1155,7 +1160,6 @@
     "portAutomatic": "Automatica",
     "localPortHint": "Scegli una porta diversa per ogni app in esecuzione. Lascia vuoto per sceglierne una automaticamente.",
     "portRange": "Le porte devono essere numeri interi compresi tra 1 e 65535.",
-    "apply": "Applica",
     "turnOn": "Attiva",
     "checkAgain": "Verifica di nuovo",
     "openSetupPage": "Apri la pagina di configurazione",
@@ -1174,13 +1178,25 @@
     "copyLink": "Copia link",
     "pairingCodeHint": "Oppure inserisci {code} sul dispositivo, poi confermalo qui.",
     "accessLevel": "Accesso",
-    "accessLevelHint": "Visualizza e lavora può eseguire agenti, terminali e git su questo computer a tuo nome.",
     "scopeView": "Solo visualizzazione",
+    "scopeViewHint": "Leggere progetti, chat e terminali.",
     "scopeOperate": "Visualizza e lavora",
+    "scopeOperateHint": "Anche eseguire agenti, terminali e Git come te.",
     "scopeManage": "Completo, inclusa l’associazione di dispositivi",
+    "scopeManageHint": "Anche abbinare e rimuovere dispositivi.",
     "done": "Fatto",
     "createPairing": "Crea associazione",
     "loadFailed": "Impossibile caricare l’accesso remoto.",
-    "changeFailed": "Impossibile modificare l’accesso remoto."
+    "changeFailed": "Impossibile modificare l’accesso remoto.",
+    "connectionLabel": "Connessione",
+    "notSetUp": "Non configurato",
+    "setUp": "Configura",
+    "change": "Modifica",
+    "setupTitle": "Configura l’accesso remoto",
+    "advanced": "Avanzate",
+    "cloudflareSelfManaged": "Eseguo cloudflared per conto mio",
+    "needsOrigin": "Inserisci l’indirizzo pubblico.",
+    "needsToken": "Incolla il token del tunnel.",
+    "save": "Salva"
   }
 }

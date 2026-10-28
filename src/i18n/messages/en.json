@@ -1,7 +1,7 @@
 {
   "connections": {
     "hosts": "Remote hosts",
-    "description": "Reach one host through ordered SSH and HTTPS routes.",
+    "description": "Computers you can open projects on.",
     "pair": "Pair host",
     "empty": "Add an SSH host or paste an HTTPS pairing link.",
     "active": "Active route",
@@ -19,7 +19,13 @@
     "pairLink": "Pairing link",
     "name": "Name (optional)",
     "cancel": "Cancel",
-    "pairing": "Pairing…"
+    "pairing": "Pairing…",
+    "addHost": "Add host",
+    "addSsh": "SSH host",
+    "addPairing": "Pairing link",
+    "otherRoutes": "{count, plural, one {+# route} other {+# routes}}",
+    "routesDescription": "Routes are tried in order until one connects.",
+    "done": "Done"
   },
   "app": {
     "loadingDream": "Loading Dream",
@@ -1105,7 +1111,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Use a persistent tunnel and hostname from your Cloudflare account.",
-    "cloudflareManaged": "Run the connector on this computer",
     "cloudflareToken": "Tunnel token",
     "cloudflareTokenSaved": "Saved token — leave blank to keep",
     "cloudflareTokenHint": "Paste only the token. It stays private on this host; enter a replacement to rotate it.",
@@ -1155,7 +1160,6 @@
     "portAutomatic": "Automatic",
     "localPortHint": "Choose a different port for each running app. Leave empty to choose automatically.",
     "portRange": "Ports must be whole numbers between 1 and 65535.",
-    "apply": "Apply",
     "turnOn": "Turn on",
     "checkAgain": "Check again",
     "openSetupPage": "Open setup page",
@@ -1174,13 +1178,25 @@
     "copyLink": "Copy link",
     "pairingCodeHint": "Or enter {code} on the device, then confirm it here.",
     "accessLevel": "Access",
-    "accessLevelHint": "View and work can run agents, terminals and git on this computer as you.",
     "scopeView": "View only",
+    "scopeViewHint": "Read projects, chats and terminals.",
     "scopeOperate": "View and work",
+    "scopeOperateHint": "Also run agents, terminals and Git as you.",
     "scopeManage": "Full, including pairing devices",
+    "scopeManageHint": "Also pair and remove devices.",
     "done": "Done",
     "createPairing": "Create pairing",
     "loadFailed": "Could not load remote access.",
-    "changeFailed": "Could not change remote access."
+    "changeFailed": "Could not change remote access.",
+    "connectionLabel": "Connection",
+    "notSetUp": "Not set up",
+    "setUp": "Set up",
+    "change": "Change",
+    "setupTitle": "Set up remote access",
+    "advanced": "Advanced",
+    "cloudflareSelfManaged": "I run cloudflared myself",
+    "needsOrigin": "Enter the public address.",
+    "needsToken": "Paste the tunnel token.",
+    "save": "Save"
   }
 }

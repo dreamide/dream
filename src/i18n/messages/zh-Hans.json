@@ -1,7 +1,7 @@
 {
   "connections": {
     "hosts": "远程主机",
-    "description": "按优先顺序通过 SSH 和 HTTPS 路由连接同一主机。",
+    "description": "可以打开项目的计算机。",
     "pair": "配对主机",
     "empty": "添加 SSH 主机或粘贴 HTTPS 配对链接。",
     "active": "当前路由",
@@ -19,7 +19,13 @@
     "pairLink": "配对链接",
     "name": "名称（可选）",
     "cancel": "取消",
-    "pairing": "正在配对…"
+    "pairing": "正在配对…",
+    "addHost": "添加主机",
+    "addSsh": "SSH 主机",
+    "addPairing": "配对链接",
+    "otherRoutes": "{count, plural, other {+# 条路由}}",
+    "routesDescription": "按顺序尝试路由，直到其中一条连接成功。",
+    "done": "完成"
   },
   "app": {
     "loadingDream": "正在加载 Dream",
@@ -1105,7 +1111,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "使用 Cloudflare 账户中的持久隧道和主机名。",
-    "cloudflareManaged": "在这台电脑上运行连接器",
     "cloudflareToken": "隧道令牌",
     "cloudflareTokenSaved": "已保存 — 留空以保留",
     "cloudflareTokenHint": "仅粘贴令牌。令牌仅保存在此主机上；输入新令牌以轮换。",
@@ -1155,7 +1160,6 @@
     "portAutomatic": "自动",
     "localPortHint": "为每个正在运行的应用选择不同的端口。留空则自动选择。",
     "portRange": "端口必须是 1 到 65535 之间的整数。",
-    "apply": "应用",
     "turnOn": "开启",
     "checkAgain": "重新检查",
     "openSetupPage": "打开设置页面",
@@ -1174,13 +1178,25 @@
     "copyLink": "复制链接",
     "pairingCodeHint": "或者在设备上输入 {code}，然后在这里确认。",
     "accessLevel": "访问权限",
-    "accessLevelHint": "“查看和工作”可以以你的身份在这台电脑上运行代理、终端和 git。",
     "scopeView": "仅查看",
+    "scopeViewHint": "读取项目、聊天和终端。",
     "scopeOperate": "查看和工作",
+    "scopeOperateHint": "还能以你的身份运行代理、终端和 Git。",
     "scopeManage": "完全访问，包括配对设备",
+    "scopeManageHint": "还能配对和移除设备。",
     "done": "完成",
     "createPairing": "创建配对",
     "loadFailed": "无法加载远程访问。",
-    "changeFailed": "无法更改远程访问。"
+    "changeFailed": "无法更改远程访问。",
+    "connectionLabel": "连接",
+    "notSetUp": "未设置",
+    "setUp": "设置",
+    "change": "更改",
+    "setupTitle": "设置远程访问",
+    "advanced": "高级",
+    "cloudflareSelfManaged": "我自己运行 cloudflared",
+    "needsOrigin": "请输入公开地址。",
+    "needsToken": "请粘贴隧道令牌。",
+    "save": "保存"
   }
 }

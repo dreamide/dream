@@ -32,19 +32,19 @@ are unsupported: their addresses change and they do not support SSE chat streams
 
 ## Desktop setup
 
-Open **Settings > Connections > Remote access** and select **Cloudflare Tunnel**.
-Enter the public HTTPS address, keep **Run the connector on this computer** enabled,
-and paste the tunnel token. Choose **Install cloudflared** if needed, then
+Open **Settings > Connections > Remote access**, choose **Set up** (or **Change**)
+and select **Cloudflare Tunnel**. Enter the public HTTPS address and paste the
+tunnel token. Choose **Install cloudflared** if needed, then
 **Turn on**. Configure the same local port in Cloudflare.
 
 Dream checks the connector and requests a fresh signed host proof through the
-public address before showing **Ready**. Use **Check again** after correcting
+public address before showing **Ready**. Use **Check again** (the refresh button) after correcting
 the hostname, service URL, token or network. Startup can take a few seconds;
 the host keeps checking even when Settings is closed.
 
 Choose **Pair a device** and use its one-time link or confirmed code. QR is an
 optional way to open the same link. Open a link in the browser client or paste
-it into **Pair host** on another Dream desktop. Normal reconnection reuses the
+it into **Add host > Pairing link** on another Dream desktop. Normal reconnection reuses the
 device grant. SSH and other HTTPS routes can belong to that same host.
 
 ## Headless setup
@@ -79,7 +79,7 @@ directory with its usual Windows access controls. Tokens stay out of ordinary
 settings, workspace exports, status, logs, command arguments and child environment
 variables. The connector receives the private file path through `--token-file`.
 
-Paste a replacement token and choose **Apply**, or repeat `remote on` with a
+Choose **Change**, paste a replacement token and choose **Save**, or repeat `remote on` with a
 new `--token-file`. Dream replaces the private token and restarts only its own
 connector. Leaving the token input blank keeps the saved token. Rotate in
 Cloudflare as well; Cloudflare token rotation alone does not disconnect already
@@ -96,7 +96,7 @@ runtime.
 
 ## External connectors, shutdown and recovery
 
-Turn off **Run the connector on this computer**, or use:
+In the setup dialog, open **Advanced** and select **I run cloudflared myself**, or use:
 
 ```sh
 dream-host remote on --cloudflare --external --origin https://dream.example.com --port 5410

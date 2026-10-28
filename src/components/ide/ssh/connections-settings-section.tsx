@@ -1,4 +1,19 @@
-import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
+/**
+ * Settings > Remote hosts: one row per host this client can open projects
+ * on, with its connection state and the route it uses. A host reached more
+ * than one way keeps its ordered routes in a dialog, not on the page.
+ */
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  Pencil,
+  Plug,
+  PlugZap,
+  Plus,
+  Server,
+  Trash2,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import {
@@ -11,18 +26,33 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
+import { StatusDot, type StatusDotColor } from "@/components/ui/status-dot";
 import { getClientPlatform } from "@/lib/connections/platform";
 import { getDesktopApi } from "@/lib/electron";
+import type {
+  HostConnectionState,
+  HostRoute,
+  SavedHostConnection,
+} from "@/types/ide";
 import { listHostChoices } from "../../../../electron/shared/host-connections.js";
 import { useIdeStore } from "../ide-store";
 import { SettingsGroup } from "../settings/settings-shared";
@@ -35,10 +65,58 @@ import {
   useHostStateLabel,
 } from "./ssh-hosts-settings-section";
 
+const STATE_DOTS: Record<
+  HostConnectionState,
+  { color: StatusDotColor; pulse: boolean }
+> = {
+  connected: { color: "green", pulse: false },
+  connecting: { color: "amber", pulse: true },
+  disconnected: { color: "neutral", pulse: false },
+  failed: { color: "red", pulse: false },
+  idle: { color: "neutral", pulse: false },
+  reconnecting: { color: "amber", pulse: true },
+};
+
+/** Routes a host may have at most. */
+const MAX_ROUTES = 8;
+
+const errorText = (reason: unknown) =>
+  reason instanceof Error
+    ? reason.message.replace(
+        /^Error invoking remote method '[^']*': (?:\w*Error: )?/,
+        "",
+      )
+    : String(reason);
+
+/** One host as the page shows it. */
+interface HostView {
+  id: string;
+  label: string;
+  /** Its saved connection; only a saved host can reorder or add routes. */
+  saved: SavedHostConnection | undefined;
+  isHome: boolean;
+  runtime: HostRuntimeState | undefined;
+  routes: HostRoute[];
+}
+
+/** Where one route goes, for display: an address or the local machine. */
+const useRouteTarget = () => {
+  const sshT = useTranslations("sshHosts");
+  const sshHosts = useIdeStore((state) => state.settings.sshHosts);
+  return (route: HostRoute) =>
+    route.kind === "ssh"
+      ? (sshHosts.find((host) => host.id === route.sshHostId)?.target ?? "")
+      : route.kind === "local"
+        ? sshT("localMachine")
+        : route.origin;
+};
+
+const routeKindLabel = (route: HostRoute) =>
+  route.kind === "ssh" ? "SSH" : route.kind === "local" ? null : "HTTPS";
+
 export function ConnectionsSettingsSection() {
   const t = useTranslations("connections");
   const sshT = useTranslations("sshHosts");
-  const stateLabel = useHostStateLabel();
   const connections = useIdeStore((state) => state.hostConnections);
   const sshHosts = useIdeStore((state) => state.settings.sshHosts);
   const hosts = useIdeStore((state) => state.hosts);
@@ -51,15 +129,36 @@ export function ConnectionsSettingsSection() {
       : []),
     ...listHostChoices(connections, sshHosts),
   ];
+  const views: HostView[] = choices.map((choice) => {
+    const saved = connections.find((host) => host.id === choice.id);
+    const isHome = choice.id === "local";
+    return {
+      id: choice.id,
+      label: choice.label,
+      saved,
+      isHome,
+      runtime: isHome
+        ? { state: "connected", loaded: true, error: null, routeId: "local" }
+        : hosts[choice.id],
+      routes: saved?.routes ?? [
+        { id: `ssh:${choice.id}`, kind: "ssh", sshHostId: choice.id },
+      ],
+    };
+  });
   const saveSsh = useAddSshHost();
+  // An SSH form: a new host, a new route of `owner`, or editing `edit`.
+  // `back` reopens that host's routes dialog when the form closes.
   const [sshForm, setSshForm] = useState<{
     owner?: string;
     edit?: string;
+    back?: string;
   } | null>(null);
   const [pairing, setPairing] = useState<{
     owner?: string;
     routeId?: string;
+    back?: string;
   } | null>(null);
+  const [routesOf, setRoutesOf] = useState<string | null>(null);
   const [pendingRemove, setPendingRemove] = useState<{
     id: string;
     label: string;
@@ -72,22 +171,23 @@ export function ConnectionsSettingsSection() {
     try {
       await work();
     } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message.replace(
-              /^Error invoking remote method '[^']*': (?:\w*Error: )?/,
-              "",
-            )
-          : String(reason),
-      );
+      setError(errorText(reason));
     } finally {
       setBusy(false);
     }
   };
   const edit = sshHosts.find((host) => host.id === sshForm?.edit);
+  const closeSshForm = () => {
+    if (sshForm?.back) setRoutesOf(sshForm.back);
+    setSshForm(null);
+  };
+  const closePairing = () => {
+    if (pairing?.back) setRoutesOf(pairing.back);
+    setPairing(null);
+  };
   const save = (values: HostFormValues) => {
     const form = sshForm;
-    setSshForm(null);
+    closeSshForm();
     void run(async () => {
       const state = useIdeStore.getState();
       if (form?.edit) await state.updateSshHost(form.edit, values);
@@ -98,6 +198,13 @@ export function ConnectionsSettingsSection() {
       }
     });
   };
+  const openEdit = (view: HostView) => {
+    setError(null);
+    if (view.saved) setRoutesOf(view.id);
+    else setSshForm({ edit: view.id });
+  };
+  const routesView = views.find((view) => view.id === routesOf);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -105,261 +212,101 @@ export function ConnectionsSettingsSection() {
           <h3 className="font-medium text-base">{t("hosts")}</h3>
           <p className="text-muted-foreground text-sm">{t("description")}</p>
         </div>
-        <div className="flex gap-2">
-          <Button
+        <DropdownMenu>
+          <DropdownMenuTrigger
             disabled={busy}
-            onClick={() => setSshForm({})}
-            size="sm"
-            variant="outline"
+            render={<Button size="sm" type="button" />}
           >
             <Plus className="size-4" />
-            {sshT("add")}
-          </Button>
-          <Button disabled={busy} onClick={() => setPairing({})} size="sm">
-            {t("pair")}
-          </Button>
-        </div>
+            {t("addHost")}
+            <ChevronDown className="size-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-auto min-w-44">
+            <DropdownMenuItem onClick={() => setSshForm({})}>
+              {t("addSsh")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setPairing({})}>
+              {t("addPairing")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-      {error ? (
+      {error && !routesView ? (
         <p role="alert" className="break-words text-destructive text-sm">
           {error}
         </p>
       ) : null}
       <SettingsGroup>
-        {choices.length === 0 ? (
+        {views.length === 0 ? (
           <p className="px-4 py-3 text-muted-foreground text-sm">
             {t("empty")}
           </p>
         ) : null}
-        {choices.map((choice) => {
-          const saved = connections.find((host) => host.id === choice.id);
-          const isHome = choice.id === "local";
-          const runtime: HostRuntimeState | undefined = isHome
-            ? {
-                state: "connected",
-                loaded: true,
-                error: null,
-                routeId: "local",
-              }
-            : hosts[choice.id];
-          const live =
-            runtime?.state === "connected" || runtime?.state === "reconnecting";
-          const routes = saved?.routes ?? [
-            {
-              id: `ssh:${choice.id}`,
-              kind: "ssh" as const,
-              sshHostId: choice.id,
-            },
-          ];
-          return (
-            <div key={choice.id} className="space-y-3 px-4 py-3">
-              <div className="flex items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-sm">{choice.label}</p>
-                  <p className="text-muted-foreground text-xs">
-                    {stateLabel(runtime?.state)}
-                  </p>
-                </div>
-                <Button
-                  disabled={busy || isHome || runtime?.state === "connecting"}
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    void run(() =>
-                      live
-                        ? useIdeStore.getState().disconnectHost(choice.id)
-                        : useIdeStore.getState().connectHost(choice.id),
-                    )
-                  }
-                >
-                  {live ? sshT("disconnect") : sshT("connect")}
-                </Button>
-                <Button
-                  aria-label={sshT("remove")}
-                  disabled={busy || isHome}
-                  size="icon-sm"
-                  variant="ghost"
-                  onClick={() => setPendingRemove(choice)}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </div>
-              {runtime?.error ? (
-                <p className="select-text break-words text-destructive text-xs">
-                  {runtime.error}
-                </p>
-              ) : null}
-              <ol className="space-y-2">
-                {routes.map((route, index) => {
-                  const config =
-                    route.kind === "ssh"
-                      ? sshHosts.find((host) => host.id === route.sshHostId)
-                      : null;
-                  const status = runtime?.routes?.find(
-                    (item) => item.routeId === route.id,
-                  );
-                  const target =
-                    route.kind === "https"
-                      ? route.origin
-                      : (config?.target ?? "");
-                  return (
-                    <li
-                      key={route.id}
-                      className="flex items-start gap-1 rounded-md border px-2 py-2"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm" title={target}>
-                          {index + 1}.{" "}
-                          {route.kind === "local"
-                            ? sshT("localMachine")
-                            : route.kind === "ssh"
-                              ? "SSH"
-                              : "HTTPS"}{" "}
-                          · {target}
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                          {runtime?.routeId === route.id
-                            ? t("active")
-                            : status
-                              ? t(status.state)
-                              : t("idle")}
-                        </p>
-                        {status?.error ? (
-                          <p className="select-text break-words text-destructive text-xs">
-                            {status.error}
-                          </p>
-                        ) : null}
-                      </div>
-                      {saved && !isHome ? (
-                        <>
-                          <Button
-                            aria-label={t("up")}
-                            disabled={busy || index === 0}
-                            size="icon-sm"
-                            variant="ghost"
-                            onClick={() =>
-                              void run(() =>
-                                useIdeStore.getState().setHostRoutes(
-                                  choice.id,
-                                  routes.map((item, i) =>
-                                    i === index - 1
-                                      ? route
-                                      : i === index
-                                        ? routes[index - 1]
-                                        : item,
-                                  ),
-                                ),
-                              )
-                            }
-                          >
-                            <ArrowUp className="size-3.5" />
-                          </Button>
-                          <Button
-                            aria-label={t("down")}
-                            disabled={busy || index === routes.length - 1}
-                            size="icon-sm"
-                            variant="ghost"
-                            onClick={() =>
-                              void run(() =>
-                                useIdeStore.getState().setHostRoutes(
-                                  choice.id,
-                                  routes.map((item, i) =>
-                                    i === index + 1
-                                      ? route
-                                      : i === index
-                                        ? routes[index + 1]
-                                        : item,
-                                  ),
-                                ),
-                              )
-                            }
-                          >
-                            <ArrowDown className="size-3.5" />
-                          </Button>
-                        </>
-                      ) : null}
-                      <Button
-                        aria-label={sshT("edit")}
-                        disabled={busy || route.kind === "local"}
-                        size="icon-sm"
-                        variant="ghost"
-                        onClick={() =>
-                          config
-                            ? setSshForm({ edit: config.id })
-                            : setPairing({
-                                owner: choice.id,
-                                routeId: route.id,
-                              })
-                        }
-                      >
-                        <Pencil className="size-3.5" />
-                      </Button>
-                      {saved ? (
-                        <Button
-                          aria-label={t("removeRoute")}
-                          disabled={
-                            busy ||
-                            routes.length === 1 ||
-                            route.kind === "local"
-                          }
-                          size="icon-sm"
-                          variant="ghost"
-                          onClick={() =>
-                            void run(() =>
-                              useIdeStore.getState().setHostRoutes(
-                                choice.id,
-                                routes.filter((item) => item.id !== route.id),
-                              ),
-                            )
-                          }
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ol>
-              {saved ? (
-                <div className="flex gap-2">
-                  <Button
-                    disabled={busy || routes.length >= 8}
-                    size="xs"
-                    variant="outline"
-                    onClick={() => setSshForm({ owner: choice.id })}
-                  >
-                    {t("addSshRoute")}
-                  </Button>
-                  <Button
-                    disabled={busy || routes.length >= 8}
-                    size="xs"
-                    variant="outline"
-                    onClick={() => setPairing({ owner: choice.id })}
-                  >
-                    {t("addHttpsRoute")}
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
+        {views.map((view) => (
+          <HostRow
+            busy={busy}
+            key={view.id}
+            onEdit={() => openEdit(view)}
+            onRemove={() => setPendingRemove(view)}
+            onToggle={(live) =>
+              void run(() =>
+                live
+                  ? useIdeStore.getState().disconnectHost(view.id)
+                  : useIdeStore.getState().connectHost(view.id),
+              )
+            }
+            view={view}
+          />
+        ))}
       </SettingsGroup>
+      {routesView ? (
+        <HostRoutesDialog
+          busy={busy}
+          error={error}
+          onAddHttps={() => {
+            setRoutesOf(null);
+            setPairing({ owner: routesView.id, back: routesView.id });
+          }}
+          onAddSsh={() => {
+            setRoutesOf(null);
+            setSshForm({ owner: routesView.id, back: routesView.id });
+          }}
+          onClose={() => setRoutesOf(null)}
+          onEditRoute={(route) => {
+            setRoutesOf(null);
+            if (route.kind === "ssh")
+              setSshForm({ edit: route.sshHostId, back: routesView.id });
+            else
+              setPairing({
+                owner: routesView.id,
+                routeId: route.id,
+                back: routesView.id,
+              });
+          }}
+          onSetRoutes={(routes) =>
+            void run(() =>
+              useIdeStore.getState().setHostRoutes(routesView.id, routes),
+            )
+          }
+          view={routesView}
+        />
+      ) : null}
       {sshForm ? (
         <SshHostDialog
           initial={edit ?? EMPTY_HOST_FORM}
           isNew={!edit}
-          onCancel={() => setSshForm(null)}
+          onCancel={closeSshForm}
           onSave={save}
         />
       ) : null}
       {pairing ? (
         <PairHostDialog
-          onCancel={() => setPairing(null)}
+          onCancel={closePairing}
           onPair={async (url, label) => {
             await useIdeStore
               .getState()
               .pairHost(url, label, pairing.owner, pairing.routeId);
-            setPairing(null);
+            closePairing();
           }}
         />
       ) : null}
@@ -399,6 +346,278 @@ export function ConnectionsSettingsSection() {
   );
 }
 
+/** One host: its name, the address it uses, its state, and its actions. */
+function HostRow({
+  busy,
+  onEdit,
+  onRemove,
+  onToggle,
+  view,
+}: {
+  busy: boolean;
+  onEdit: () => void;
+  onRemove: () => void;
+  onToggle: (live: boolean) => void;
+  view: HostView;
+}) {
+  const t = useTranslations("connections");
+  const sshT = useTranslations("sshHosts");
+  const stateLabel = useHostStateLabel();
+  const routeTarget = useRouteTarget();
+  const { runtime, routes, isHome } = view;
+  const state = runtime?.state ?? "idle";
+  const live = state === "connected" || state === "reconnecting";
+  const connecting = state === "connecting";
+  const shown =
+    routes.find((route) => route.id === runtime?.routeId) ?? routes[0];
+  const target = shown ? routeTarget(shown) : "";
+  const dot = STATE_DOTS[state];
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <Server className="size-4 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-medium text-sm">{view.label}</div>
+        <div className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
+          <span className="truncate" title={target}>
+            {target}
+          </span>
+          {routes.length > 1 ? (
+            <span className="shrink-0">
+              {t("otherRoutes", { count: routes.length - 1 })}
+            </span>
+          ) : null}
+          <Badge className="shrink-0 gap-1.5" variant="outline">
+            <StatusDot color={dot.color} pulse={dot.pulse} />
+            {stateLabel(state)}
+          </Badge>
+        </div>
+        {runtime?.error ? (
+          <div className="mt-1 select-text whitespace-pre-wrap break-words text-destructive text-xs">
+            {runtime.error}
+          </div>
+        ) : null}
+      </div>
+      {isHome ? null : (
+        <Button
+          aria-busy={connecting}
+          disabled={busy || connecting}
+          onClick={() => onToggle(live)}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          {connecting ? (
+            <Spinner className="size-3.5" />
+          ) : live ? (
+            <Plug className="size-3.5" />
+          ) : (
+            <PlugZap className="size-3.5" />
+          )}
+          {connecting
+            ? sshT("stateConnecting")
+            : live
+              ? sshT("disconnect")
+              : sshT("connect")}
+        </Button>
+      )}
+      <div className="flex shrink-0 items-center">
+        <Button
+          aria-label={sshT("edit")}
+          disabled={busy}
+          onClick={onEdit}
+          size="icon-sm"
+          title={sshT("edit")}
+          type="button"
+          variant="ghost"
+        >
+          <Pencil className="size-3.5" />
+        </Button>
+        {isHome ? null : (
+          <Button
+            aria-label={sshT("remove")}
+            disabled={busy}
+            onClick={onRemove}
+            size="icon-sm"
+            title={sshT("remove")}
+            type="button"
+            variant="ghost"
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** A saved host's routes, tried in order: reorder, edit, add and remove. */
+function HostRoutesDialog({
+  busy,
+  error,
+  onAddHttps,
+  onAddSsh,
+  onClose,
+  onEditRoute,
+  onSetRoutes,
+  view,
+}: {
+  busy: boolean;
+  error: string | null;
+  onAddHttps: () => void;
+  onAddSsh: () => void;
+  onClose: () => void;
+  onEditRoute: (route: Exclude<HostRoute, { kind: "local" }>) => void;
+  onSetRoutes: (routes: HostRoute[]) => void;
+  view: HostView;
+}) {
+  const t = useTranslations("connections");
+  const sshT = useTranslations("sshHosts");
+  const routeTarget = useRouteTarget();
+  const { routes, runtime, isHome } = view;
+  const swap = (index: number, other: number) =>
+    onSetRoutes(
+      routes.map((item, i) =>
+        i === index ? routes[other] : i === other ? routes[index] : item,
+      ) as HostRoute[],
+    );
+  const full = routes.length >= MAX_ROUTES;
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-base leading-6">
+            {view.label}
+          </DialogTitle>
+          <DialogDescription>{t("routesDescription")}</DialogDescription>
+        </DialogHeader>
+        <ol className="divide-y rounded-md border">
+          {routes.map((route, index) => {
+            const status = runtime?.routes?.find(
+              (item) => item.routeId === route.id,
+            );
+            const target = routeTarget(route);
+            const kind = routeKindLabel(route);
+            return (
+              <li key={route.id} className="flex items-center gap-1 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm" title={target}>
+                    {kind ? `${kind} · ${target}` : target}
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    {runtime?.routeId === route.id
+                      ? t("active")
+                      : status
+                        ? t(status.state)
+                        : t("idle")}
+                  </p>
+                  {status?.error ? (
+                    <p className="select-text break-words text-destructive text-xs">
+                      {status.error}
+                    </p>
+                  ) : null}
+                </div>
+                {!isHome && routes.length > 1 ? (
+                  <>
+                    <Button
+                      aria-label={t("up")}
+                      disabled={busy || index === 0}
+                      onClick={() => swap(index, index - 1)}
+                      size="icon-sm"
+                      title={t("up")}
+                      type="button"
+                      variant="ghost"
+                    >
+                      <ArrowUp className="size-3.5" />
+                    </Button>
+                    <Button
+                      aria-label={t("down")}
+                      disabled={busy || index === routes.length - 1}
+                      onClick={() => swap(index, index + 1)}
+                      size="icon-sm"
+                      title={t("down")}
+                      type="button"
+                      variant="ghost"
+                    >
+                      <ArrowDown className="size-3.5" />
+                    </Button>
+                  </>
+                ) : null}
+                {route.kind === "local" ? null : (
+                  <>
+                    <Button
+                      aria-label={sshT("edit")}
+                      disabled={busy}
+                      onClick={() => onEditRoute(route)}
+                      size="icon-sm"
+                      title={sshT("edit")}
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Pencil className="size-3.5" />
+                    </Button>
+                    <Button
+                      aria-label={t("removeRoute")}
+                      disabled={busy || routes.length === 1}
+                      onClick={() =>
+                        onSetRoutes(
+                          routes.filter((item) => item.id !== route.id),
+                        )
+                      }
+                      size="icon-sm"
+                      title={t("removeRoute")}
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+        {error ? (
+          <p role="alert" className="break-words text-destructive text-sm">
+            {error}
+          </p>
+        ) : null}
+        <DialogFooter className="sm:justify-between">
+          <div className="flex gap-2">
+            <Button
+              disabled={busy || full}
+              onClick={onAddSsh}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <Plus className="size-3.5" />
+              {t("addSshRoute")}
+            </Button>
+            <Button
+              disabled={busy || full}
+              onClick={onAddHttps}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <Plus className="size-3.5" />
+              {t("addHttpsRoute")}
+            </Button>
+          </div>
+          <Button onClick={onClose} type="button">
+            {t("done")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PairHostDialog({
   onCancel,
   onPair,
@@ -426,16 +645,7 @@ function PairHostDialog({
             setBusy(true);
             setError(null);
             void onPair(url.trim(), label)
-              .catch((reason) =>
-                setError(
-                  reason instanceof Error
-                    ? reason.message.replace(
-                        /^Error invoking remote method '[^']*': (?:\w*Error: )?/,
-                        "",
-                      )
-                    : String(reason),
-                ),
-              )
+              .catch((reason) => setError(errorText(reason)))
               .finally(() => setBusy(false));
           }}
         >

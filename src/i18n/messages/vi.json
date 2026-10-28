@@ -1,7 +1,7 @@
 {
   "connections": {
     "hosts": "Máy chủ từ xa",
-    "description": "Kết nối một máy chủ qua các tuyến SSH và HTTPS theo thứ tự ưu tiên.",
+    "description": "Các máy tính bạn có thể mở dự án.",
     "pair": "Ghép đôi máy chủ",
     "empty": "Thêm máy chủ SSH hoặc dán liên kết ghép đôi HTTPS.",
     "active": "Tuyến đang dùng",
@@ -19,7 +19,13 @@
     "pairLink": "Liên kết ghép đôi",
     "name": "Tên (tùy chọn)",
     "cancel": "Hủy",
-    "pairing": "Đang ghép đôi…"
+    "pairing": "Đang ghép đôi…",
+    "addHost": "Thêm máy chủ",
+    "addSsh": "Máy chủ SSH",
+    "addPairing": "Liên kết ghép nối",
+    "otherRoutes": "{count, plural, other {+# tuyến}}",
+    "routesDescription": "Các tuyến được thử lần lượt cho đến khi một tuyến kết nối được.",
+    "done": "Xong"
   },
   "app": {
     "loadingDream": "Đang tải Dream",
@@ -1105,7 +1111,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Dùng đường hầm và tên máy chủ cố định từ tài khoản Cloudflare của bạn.",
-    "cloudflareManaged": "Chạy trình kết nối trên máy tính này",
     "cloudflareToken": "Mã token đường hầm",
     "cloudflareTokenSaved": "Đã lưu — để trống để giữ nguyên",
     "cloudflareTokenHint": "Chỉ dán mã token. Mã được giữ riêng trên máy chủ này; nhập mã mới để thay thế.",
@@ -1155,7 +1160,6 @@
     "portAutomatic": "Tự động",
     "localPortHint": "Chọn cổng khác nhau cho mỗi ứng dụng đang chạy. Để trống để chọn tự động.",
     "portRange": "Cổng phải là số nguyên từ 1 đến 65535.",
-    "apply": "Áp dụng",
     "turnOn": "Bật",
     "checkAgain": "Kiểm tra lại",
     "openSetupPage": "Mở trang thiết lập",
@@ -1174,13 +1178,25 @@
     "copyLink": "Sao chép liên kết",
     "pairingCodeHint": "Hoặc nhập {code} trên thiết bị, rồi xác nhận tại đây.",
     "accessLevel": "Quyền truy cập",
-    "accessLevelHint": "Xem và làm việc có thể chạy agent, terminal và git trên máy tính này dưới danh nghĩa của bạn.",
     "scopeView": "Chỉ xem",
+    "scopeViewHint": "Đọc dự án, cuộc trò chuyện và terminal.",
     "scopeOperate": "Xem và làm việc",
+    "scopeOperateHint": "Thêm quyền chạy agent, terminal và Git với tư cách của bạn.",
     "scopeManage": "Toàn quyền, gồm cả ghép nối thiết bị",
+    "scopeManageHint": "Thêm quyền ghép nối và gỡ thiết bị.",
     "done": "Xong",
     "createPairing": "Tạo ghép nối",
     "loadFailed": "Không thể tải truy cập từ xa.",
-    "changeFailed": "Không thể thay đổi truy cập từ xa."
+    "changeFailed": "Không thể thay đổi truy cập từ xa.",
+    "connectionLabel": "Kết nối",
+    "notSetUp": "Chưa thiết lập",
+    "setUp": "Thiết lập",
+    "change": "Thay đổi",
+    "setupTitle": "Thiết lập truy cập từ xa",
+    "advanced": "Nâng cao",
+    "cloudflareSelfManaged": "Tôi tự chạy cloudflared",
+    "needsOrigin": "Nhập địa chỉ công khai.",
+    "needsToken": "Dán token đường hầm.",
+    "save": "Lưu"
   }
 }

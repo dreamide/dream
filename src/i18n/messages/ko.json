@@ -1,7 +1,7 @@
 {
   "connections": {
     "hosts": "원격 호스트",
-    "description": "우선순위에 따라 SSH 및 HTTPS 경로로 호스트에 연결합니다.",
+    "description": "프로젝트를 열 수 있는 컴퓨터입니다.",
     "pair": "호스트 페어링",
     "empty": "SSH 호스트를 추가하거나 HTTPS 페어링 링크를 붙여넣으세요.",
     "active": "사용 중인 경로",
@@ -19,7 +19,13 @@
     "pairLink": "페어링 링크",
     "name": "이름 (선택 사항)",
     "cancel": "취소",
-    "pairing": "페어링 중…"
+    "pairing": "페어링 중…",
+    "addHost": "호스트 추가",
+    "addSsh": "SSH 호스트",
+    "addPairing": "페어링 링크",
+    "otherRoutes": "{count, plural, other {+#개 경로}}",
+    "routesDescription": "연결될 때까지 경로를 순서대로 시도합니다.",
+    "done": "완료"
   },
   "app": {
     "loadingDream": "Dream 로드 중",
@@ -1105,7 +1111,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Cloudflare 계정의 고정 터널과 호스트 이름을 사용합니다.",
-    "cloudflareManaged": "이 컴퓨터에서 커넥터 실행",
     "cloudflareToken": "터널 토큰",
     "cloudflareTokenSaved": "저장됨 — 유지하려면 비워 두세요",
     "cloudflareTokenHint": "토큰만 붙여넣으세요. 이 호스트에 비공개로 저장되며 교체하려면 새 토큰을 입력하세요.",
@@ -1155,7 +1160,6 @@
     "portAutomatic": "자동",
     "localPortHint": "실행 중인 앱마다 다른 포트를 지정하세요. 비워 두면 자동으로 선택합니다.",
     "portRange": "포트는 1에서 65535 사이의 정수여야 합니다.",
-    "apply": "적용",
     "turnOn": "켜기",
     "checkAgain": "다시 확인",
     "openSetupPage": "설정 페이지 열기",
@@ -1174,13 +1178,25 @@
     "copyLink": "링크 복사",
     "pairingCodeHint": "또는 기기에 {code}를 입력한 다음 여기에서 확인하세요.",
     "accessLevel": "액세스",
-    "accessLevelHint": "보기 및 작업은 이 컴퓨터에서 사용자로서 에이전트, 터미널, git을 실행할 수 있습니다.",
     "scopeView": "보기 전용",
+    "scopeViewHint": "프로젝트, 채팅, 터미널을 읽습니다.",
     "scopeOperate": "보기 및 작업",
+    "scopeOperateHint": "또한 사용자 권한으로 에이전트, 터미널, Git을 실행합니다.",
     "scopeManage": "전체(기기 페어링 포함)",
+    "scopeManageHint": "또한 기기를 페어링하고 제거합니다.",
     "done": "완료",
     "createPairing": "페어링 만들기",
     "loadFailed": "원격 액세스를 불러오지 못했습니다.",
-    "changeFailed": "원격 액세스를 변경하지 못했습니다."
+    "changeFailed": "원격 액세스를 변경하지 못했습니다.",
+    "connectionLabel": "연결",
+    "notSetUp": "설정되지 않음",
+    "setUp": "설정",
+    "change": "변경",
+    "setupTitle": "원격 액세스 설정",
+    "advanced": "고급",
+    "cloudflareSelfManaged": "cloudflared를 직접 실행합니다",
+    "needsOrigin": "공개 주소를 입력하세요.",
+    "needsToken": "터널 토큰을 붙여 넣으세요.",
+    "save": "저장"
   }
 }

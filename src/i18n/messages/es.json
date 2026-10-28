@@ -1,7 +1,7 @@
 {
   "connections": {
     "hosts": "Hosts remotos",
-    "description": "Accede a un host mediante rutas SSH y HTTPS ordenadas.",
+    "description": "Equipos en los que puedes abrir proyectos.",
     "pair": "Vincular host",
     "empty": "Añade un host SSH o pega un enlace de vinculación HTTPS.",
     "active": "Ruta activa",
@@ -19,7 +19,13 @@
     "pairLink": "Enlace de vinculación",
     "name": "Nombre (opcional)",
     "cancel": "Cancelar",
-    "pairing": "Vinculando…"
+    "pairing": "Vinculando…",
+    "addHost": "Añadir host",
+    "addSsh": "Host SSH",
+    "addPairing": "Enlace de emparejamiento",
+    "otherRoutes": "{count, plural, one {+# ruta} other {+# rutas}}",
+    "routesDescription": "Las rutas se prueban en orden hasta que una conecta.",
+    "done": "Listo"
   },
   "app": {
     "loadingDream": "Cargando Dream",
@@ -1105,7 +1111,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Usa un túnel y un nombre de host persistentes de tu cuenta de Cloudflare.",
-    "cloudflareManaged": "Ejecutar el conector en este equipo",
     "cloudflareToken": "Token del túnel",
     "cloudflareTokenSaved": "Token guardado — déjalo vacío para conservarlo",
     "cloudflareTokenHint": "Pega solo el token. Se guarda de forma privada en este host; introduce otro para rotarlo.",
@@ -1155,7 +1160,6 @@
     "portAutomatic": "Automático",
     "localPortHint": "Usa un puerto distinto para cada aplicación en ejecución. Déjalo vacío para elegir uno automáticamente.",
     "portRange": "Los puertos deben ser números enteros entre 1 y 65535.",
-    "apply": "Aplicar",
     "turnOn": "Activar",
     "checkAgain": "Comprobar de nuevo",
     "openSetupPage": "Abrir página de configuración",
@@ -1174,13 +1178,25 @@
     "copyLink": "Copiar enlace",
     "pairingCodeHint": "O introduce {code} en el dispositivo y confírmalo aquí.",
     "accessLevel": "Acceso",
-    "accessLevelHint": "Ver y trabajar puede ejecutar agentes, terminales y git en este equipo en tu nombre.",
     "scopeView": "Solo ver",
+    "scopeViewHint": "Leer proyectos, chats y terminales.",
     "scopeOperate": "Ver y trabajar",
+    "scopeOperateHint": "Además, ejecutar agentes, terminales y Git como tú.",
     "scopeManage": "Completo, incluida la vinculación de dispositivos",
+    "scopeManageHint": "Además, emparejar y quitar dispositivos.",
     "done": "Listo",
     "createPairing": "Crear vinculación",
     "loadFailed": "No se pudo cargar el acceso remoto.",
-    "changeFailed": "No se pudo cambiar el acceso remoto."
+    "changeFailed": "No se pudo cambiar el acceso remoto.",
+    "connectionLabel": "Conexión",
+    "notSetUp": "Sin configurar",
+    "setUp": "Configurar",
+    "change": "Cambiar",
+    "setupTitle": "Configurar el acceso remoto",
+    "advanced": "Avanzado",
+    "cloudflareSelfManaged": "Ejecuto cloudflared por mi cuenta",
+    "needsOrigin": "Introduce la dirección pública.",
+    "needsToken": "Pega el token del túnel.",
+    "save": "Guardar"
   }
 }
