@@ -41,6 +41,15 @@ export const isPngBytes = (bytes) =>
 export const isHttpUrl = (value) => /^https?:\/\//i.test(value.trim());
 
 /**
+ * How this desktop names itself to a host it pairs with: the computer, then
+ * the client, as a browser does ("iPhone · Safari"). The host lists paired
+ * devices by this name.
+ * @param {string} hostname The OS host name, e.g. `Mikes-MacBook-Pro.local`.
+ */
+export const desktopDeviceName = (hostname) =>
+  `${hostname.trim().split(".")[0] || "Computer"} · Dream desktop`;
+
+/**
  * @param {any} payload
  * @returns {Record<string, any>}
  */
@@ -62,6 +71,8 @@ const fields = (payload) =>
  * @param {{ exists: (path: string) => boolean, writeFile: (path: string, contents: string) => Promise<void> }} deps.files
  * @param {ReturnType<typeof import("./theme-store.js").createThemeStore>} deps.themes
  * @param {() => boolean} deps.systemPrefersDark
+ * @param {() => string} deps.hostname The OS host name, for naming this
+ *   desktop to a host it pairs with.
  * @param {{ loadWorkspace: () => unknown, saveWorkspaceChanges: (changes: unknown) => unknown }} deps.state
  * @param {{ connect: (options: { hostCommand?: string, hostId: string, target: string, expectedIdentity?: { hostId: string, fingerprint?: string | null } | null }) => Promise<{ hostProtocolVersion: number, version?: string | null, hostId?: string | null, fingerprint?: string | null }>, disconnect: (hostId: string) => void, getState: (hostId: string) => unknown, forwardPort: (hostId: string, port: number) => unknown }} deps.sshHosts
  * @param {() => Promise<string[]>} deps.sshConfigHosts The aliases in the
@@ -79,6 +90,7 @@ export const createDesktopHandlers = ({
   files,
   getPath,
   getWindow,
+  hostname,
   sendToRenderer,
   sshConfigHosts,
   sshHosts,
@@ -322,7 +334,7 @@ export const createDesktopHandlers = ({
               )
               .slice(0, 1000)
           : [],
-        deviceName: deviceName?.slice(0, 200),
+        deviceName: (deviceName || desktopDeviceName(hostname())).slice(0, 200),
         expectedIdentity: expectedHostId
           ? { hostId: expectedHostId, fingerprint: expectedFingerprint }
           : null,

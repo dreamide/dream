@@ -325,7 +325,6 @@ export const createHostActions = (
         knownIdentities: get().hostConnections.map(
           ({ hostId, fingerprint }) => ({ hostId, fingerprint }),
         ),
-        deviceName: "Dream desktop",
         ...(saved
           ? {
               expectedHostId: saved.hostId,

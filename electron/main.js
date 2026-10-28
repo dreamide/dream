@@ -663,6 +663,7 @@ const desktop = createDesktopHandlers({
   },
   getPath: (name) => app.getPath(name),
   getWindow: getAliveMainWindow,
+  hostname: () => os.hostname(),
   sendToRenderer,
   sshConfigHosts: () => readSshConfigHosts(),
   sshHosts: desktopConnections,

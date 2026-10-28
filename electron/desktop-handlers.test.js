@@ -6,6 +6,7 @@ import path from "node:path";
 import { test } from "vitest";
 import {
   createDesktopHandlers,
+  desktopDeviceName,
   registerDesktopHandlers,
 } from "./desktop-handlers.js";
 import { DESKTOP_METHODS } from "./shared/desktop-channels.js";
@@ -99,6 +100,7 @@ const createFakes = ({ window = true } = {}) => {
     },
     getPath: () => "/pictures",
     getWindow: () => (window ? fakeWindow : null),
+    hostname: () => "Mikes-MacBook-Pro.local",
     sendToRenderer: record("renderer"),
     sshConfigHosts: async () => ["devbox"],
     sshHosts: {
@@ -107,6 +109,10 @@ const createFakes = ({ window = true } = {}) => {
         return { hostProtocolVersion: 3, token: "secret", version: "1.2" };
       },
       disconnect: record("disconnect"),
+      pair: async (options) => {
+        log.push(["pair", options.deviceName]);
+        return { connectionId: "paired" };
+      },
       forwardPort: (_hostId, port) => 40000 + port,
       getState: () => "connected",
     },
@@ -263,6 +269,18 @@ const REGISTERED_ELSEWHERE = [
   "reportBrowserGuestDetached",
   "sendBrowserCommandResult",
 ];
+
+test("a pairing names this desktop by its computer, then the client", async () => {
+  const { handlers, log } = createFakes();
+  const url = "https://host.example/pair#pair=secret";
+  await handlers.pairHost({ url });
+  await handlers.pairHost({ url, deviceName: "Studio" });
+  assert.deepEqual(log, [
+    ["pair", "Mikes-MacBook-Pro · Dream desktop"],
+    ["pair", "Studio"],
+  ]);
+  assert.equal(desktopDeviceName(""), "Computer · Dream desktop");
+});
 
 test("every method the renderer calls is handled once, on its channel", () => {
   const { handlers } = createFakes();
