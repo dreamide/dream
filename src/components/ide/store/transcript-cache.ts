@@ -340,12 +340,27 @@ export const createTranscriptCache = (
       if (entry && clean) entry.persisted = true;
       schedulePrune();
     },
-    applyCatalogTranscript: async (id) => {
+    applyCatalogTranscript: async (id, { messageCount } = {}) => {
       const state = get();
-      if (!canLoad(id, state)) return;
       const pending = loads.get(id);
       // Stay lazy, but don't lose a notification during the initial load.
-      if (!pending && !Object.hasOwn(state.messagesByChatId, id)) return;
+      if (!pending && !Object.hasOwn(state.messagesByChatId, id)) {
+        // Not loaded here (often a chat another window started): the host's
+        // count is what lists go by, so the chat shows without loading it.
+        if (
+          typeof messageCount === "number" &&
+          state.chats.some(
+            (chat) => chat.id === id && chat.messageCount !== messageCount,
+          )
+        )
+          set({
+            chats: state.chats.map((chat) =>
+              chat.id === id ? { ...chat, messageCount } : chat,
+            ),
+          });
+        return;
+      }
+      if (!canLoad(id, state)) return;
       if (pending) pending.refreshRequested = true;
       try {
         await load(id, Boolean(get().transcriptPageByChatId[id]));

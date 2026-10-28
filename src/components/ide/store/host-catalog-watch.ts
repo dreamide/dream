@@ -56,7 +56,11 @@ export const watchHostCatalog = (hostId: string) => {
       event.kind === "transcript" &&
       typeof event.chatId === "string"
     ) {
-      void store.applyCatalogTranscript(event.chatId);
+      void store.applyCatalogTranscript(event.chatId, {
+        ...(typeof event.messageCount === "number"
+          ? { messageCount: event.messageCount }
+          : {}),
+      });
     } else if (event.kind === "turn" && typeof event.chatId === "string") {
       store.setHostTurnRunning(event.chatId, event.running === true);
     }

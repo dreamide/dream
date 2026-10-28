@@ -564,7 +564,14 @@ export interface IdeState {
     hostId?: string,
   ) => void;
   /** A host transcript changed; refreshes a cached or currently loading chat. */
-  applyCatalogTranscript: (chatId: string) => Promise<void>;
+  /**
+   * The host saved a chat's transcript. `messageCount` is the host's count
+   * after the save, absent when the save only merged messages.
+   */
+  applyCatalogTranscript: (
+    chatId: string,
+    notice?: { messageCount?: number },
+  ) => Promise<void>;
   /** Re-reads a host's whole catalog (after its host socket says to). */
   refreshHostCatalog: (hostId?: string) => Promise<void>;
   /** Internal reload projection, called by the host catalog lifecycle. */
