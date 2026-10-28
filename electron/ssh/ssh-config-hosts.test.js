@@ -20,7 +20,8 @@ test("only Host names that name one host are aliases", () => {
 });
 
 test("includes are followed once, relative to ~/.ssh, with globs", async () => {
-  const home = "/home/me";
+  // Absolute on every platform: on Windows, path.resolve adds the drive.
+  const home = path.resolve("/home/me");
   const files = {
     [path.join(home, ".ssh/config")]:
       "Host a\nInclude config.d/*.conf ~/other/config\nInclude config",

@@ -95,7 +95,7 @@ test("an older model fetch finishing last keeps the newer CLI version", async ()
   });
   let finishAll: () => void = () => {};
   const { client } = createFakeApiClient({
-    cliUpdates: () => ({ latest: {} }),
+    cliUpdates: () => ({ checkedAt: "2026-10-26T21:06:30.000Z", latest: {} }),
     providerModels: (request) =>
       request?.provider === "openai"
         ? { fetchedAt: "2026-10-26T21:06:30.000Z", openai: listing("0.164.0") }
