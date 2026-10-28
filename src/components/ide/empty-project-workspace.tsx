@@ -4,6 +4,7 @@ import {
   FolderOpen,
   FolderTree,
   History,
+  Laptop,
   Plug,
   Server,
   Settings,
@@ -33,6 +34,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { SearchInput } from "@/components/ui/search-input";
+import { getClientPlatform } from "@/lib/connections/platform";
 import { getConnectedProviders } from "@/lib/ide-defaults";
 import type { ProjectConfig } from "@/types/ide";
 import { ProjectTabIcon } from "./header/project-tab-icon";
@@ -130,6 +132,7 @@ export const EmptyProjectWorkspace = () => {
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
   const [recentProjectQuery, setRecentProjectQuery] = useState("");
   const commonT = useTranslations("common");
+  const sshT = useTranslations("sshHosts");
   const forgetClosedProject = useIdeStore((s) => s.forgetClosedProject);
   // The closed project whose removal awaits confirmation.
   const [pendingRemove, setPendingRemove] = useState<ProjectConfig | null>(
@@ -180,6 +183,23 @@ export const EmptyProjectWorkspace = () => {
         .map(({ project }) => project),
     [chatLastUsedAtByProject, closedProjects],
   );
+  // Where each project lives, named the same way as the project host label:
+  // an SSH host's label, or the home host ("Local" on the desktop).
+  const getLocationLabel = useCallback(
+    (project: ProjectConfig) => {
+      if (project.hostId) {
+        return (
+          sshHosts.find((host) => host.id === project.hostId)?.label ??
+          project.hostId
+        );
+      }
+      const platform = getClientPlatform();
+      return platform.kind === "web"
+        ? platform.homeLabel
+        : sshT("localMachine");
+    },
+    [sshHosts, sshT],
+  );
   const filteredRecentProjects = useMemo(() => {
     const query = recentProjectQuery.trim().toLocaleLowerCase();
     if (!query) {
@@ -189,9 +209,10 @@ export const EmptyProjectWorkspace = () => {
     return recentProjects.filter(
       (project) =>
         project.name.toLocaleLowerCase().includes(query) ||
-        project.path.toLocaleLowerCase().includes(query),
+        project.path.toLocaleLowerCase().includes(query) ||
+        getLocationLabel(project).toLocaleLowerCase().includes(query),
     );
-  }, [recentProjectQuery, recentProjects]);
+  }, [getLocationLabel, recentProjectQuery, recentProjects]);
 
   const handleOpenProviders = useCallback(() => {
     setSettingsSection("providers");
@@ -286,15 +307,15 @@ export const EmptyProjectWorkspace = () => {
                   const isWorktree = project.worktree?.kind === "worktree";
                   // A project on an SSH host reopens there (connecting first
                   // if needed), never as a local folder at the same path.
-                  const hostLabel = project.hostId
-                    ? (sshHosts.find((host) => host.id === project.hostId)
-                        ?.label ?? project.hostId)
-                    : null;
-                  const placeholderIcon = hostLabel ? (
-                    <Server className="size-4" />
-                  ) : (
-                    <Folder className="size-4" />
-                  );
+                  const locationLabel = getLocationLabel(project);
+                  // Same icons as the project host label: this computer is
+                  // a laptop; an SSH host, or the home host in a browser, a
+                  // server.
+                  const LocationIcon =
+                    !project.hostId && getClientPlatform().kind === "desktop"
+                      ? Laptop
+                      : Server;
+                  const placeholderIcon = <Folder className="size-4" />;
                   const lastUsedAt =
                     project.lastUsedAt ??
                     chatLastUsedAtByProject.get(project.id) ??
@@ -349,12 +370,13 @@ export const EmptyProjectWorkspace = () => {
                               {lastUsedLabel}
                             </span>
                           ) : null}
-                          <span className="col-start-1 block truncate text-muted-foreground text-xs">
-                            {isWorktree
-                              ? emptyT("worktree")
-                              : hostLabel
-                                ? `${hostLabel} · ${project.path}`
-                                : project.path}
+                          <span className="col-start-1 flex min-w-0 items-center gap-1 text-muted-foreground text-xs">
+                            <LocationIcon className="size-3 shrink-0" />
+                            <span className="truncate">
+                              {`${locationLabel} · ${
+                                isWorktree ? emptyT("worktree") : project.path
+                              }`}
+                            </span>
                           </span>
                         </span>
                       </button>
