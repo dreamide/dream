@@ -102,3 +102,5 @@ Module names and current ownership live in ../../GLOSSARY.md.
 - `tasks/review-20261026.md` tracks D26-01 through D26-03: Host-bound
   Generated git text, Terminal session command observation, and Project-opening
   attempt lifetime.
+- `tasks/antigravity-provider.md` tracks AGY-01: Google Antigravity CLI as a
+  first-class AI coding-agent provider in Dream.

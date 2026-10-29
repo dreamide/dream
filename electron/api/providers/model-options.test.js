@@ -58,6 +58,30 @@ test("limits Grok reasoning efforts to grok models without composer", () => {
   assert.deepEqual(getModelReasoningEfforts("cursor", "grok-4"), []);
 });
 
+test("offers reasoning efforts for Antigravity models appropriately", () => {
+  assert.deepEqual(
+    getModelReasoningEfforts("antigravity", "gemini-3.8-flash"),
+    ["low", "medium", "high", "xhigh", "max"],
+  );
+  assert.deepEqual(
+    getModelReasoningEfforts("antigravity", "gemini-3.8-flash-high"),
+    [],
+  );
+  assert.deepEqual(
+    getModelReasoningEfforts("antigravity", "gemini-3.8-flash-low"),
+    [],
+  );
+  assert.deepEqual(
+    getModelReasoningEfforts("antigravity", "claude-sonnet-4-6"),
+    [],
+  );
+  assert.deepEqual(
+    getModelReasoningEfforts("antigravity", "gpt-oss-120b-medium"),
+    [],
+  );
+  assert.deepEqual(getModelReasoningEfforts("antigravity", ""), []);
+});
+
 test("offers speed tiers only for OpenAI gpt-5.4 and gpt-5.5 families", () => {
   assert.deepEqual(getModelSpeedTiers("openai", "gpt-5.4"), [
     "standard",

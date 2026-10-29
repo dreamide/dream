@@ -26,7 +26,11 @@ import {
 import anthropicLogo from "@/assets/anthropic.svg";
 import openAiLogo from "@/assets/openai.svg";
 import openCodeLogo from "@/assets/opencode.svg";
-import { CursorIcon, GrokIcon } from "@/components/ai-elements/provider-icons";
+import {
+  AntigravityIcon,
+  CursorIcon,
+  GrokIcon,
+} from "@/components/ai-elements/provider-icons";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -305,6 +309,10 @@ export const SettingsWorkspace = () => {
     () => getModelsForProvider("grok", settings),
     [settings],
   );
+  const antigravityModels = useMemo(
+    () => getModelsForProvider("antigravity", settings),
+    [settings],
+  );
   const availableOpenAiModels = providerModels.openai.models;
   const availableAnthropicModels = providerModels.anthropic.models;
   const availableOpenCodeModels = providerModels.opencode.models;
@@ -323,6 +331,7 @@ export const SettingsWorkspace = () => {
     : (openCodeModelGroups[0]?.id ?? DEFAULT_OPENCODE_MODEL_GROUP);
   const availableCursorModels = providerModels.cursor.models;
   const availableGrokModels = providerModels.grok.models;
+  const availableAntigravityModels = providerModels.antigravity.models;
 
   const openAiModelOptions = useMemo(
     () => getModelOptionsForProvider("openai", settings, availableOpenAiModels),
@@ -350,6 +359,15 @@ export const SettingsWorkspace = () => {
     () => getModelOptionsForProvider("grok", settings, availableGrokModels),
     [availableGrokModels, settings],
   );
+  const antigravityModelOptions = useMemo(
+    () =>
+      getModelOptionsForProvider(
+        "antigravity",
+        settings,
+        availableAntigravityModels,
+      ),
+    [availableAntigravityModels, settings],
+  );
   const groupedDefaultModelOptions = useMemo(
     () =>
       [
@@ -358,9 +376,11 @@ export const SettingsWorkspace = () => {
         { models: openCodeModelOptions, provider: "opencode" as const },
         { models: cursorModelOptions, provider: "cursor" as const },
         { models: grokModelOptions, provider: "grok" as const },
+        { models: antigravityModelOptions, provider: "antigravity" as const },
       ].filter((group) => group.models.length > 0),
     [
       anthropicModelOptions,
+      antigravityModelOptions,
       cursorModelOptions,
       grokModelOptions,
       openAiModelOptions,
@@ -491,6 +511,10 @@ export const SettingsWorkspace = () => {
 
   const handleRefreshGrokProvider = () => {
     void refreshProviderModels({ force: true, provider: "grok" });
+  };
+
+  const handleRefreshAntigravityProvider = () => {
+    void refreshProviderModels({ force: true, provider: "antigravity" });
   };
   const setProviderEnabled = (provider: AiProvider, enabled: boolean) =>
     setSettings((previous) => {
@@ -1518,6 +1542,90 @@ export const SettingsWorkspace = () => {
                                     if (checked !== isSelected) {
                                       toggleProviderModel(
                                         "grok",
+                                        model.id,
+                                        checked,
+                                      );
+                                    }
+                                  }}
+                                />
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </ProviderStatusCard>
+
+                    <ProviderStatusCard
+                      action={
+                        <Button
+                          aria-label={settingsT("refreshProvider", {
+                            provider: "Antigravity",
+                          })}
+                          disabled={providerModels.antigravity.loading}
+                          onClick={handleRefreshAntigravityProvider}
+                          size="icon-xs"
+                          title={settingsT("refreshProvider", {
+                            provider: "Antigravity",
+                          })}
+                          type="button"
+                          variant="ghost"
+                        >
+                          <RotateCw className="size-3.5" />
+                        </Button>
+                      }
+                      enabled={isProviderEnabled("antigravity", settings)}
+                      error={getProviderError(providerModels.antigravity.error)}
+                      icon={
+                        <AntigravityIcon
+                          aria-hidden="true"
+                          className="size-4"
+                          role="presentation"
+                        />
+                      }
+                      installed={providerModels.antigravity.installed}
+                      label="Antigravity"
+                      loading={providerModels.antigravity.loading}
+                      onEnabledChange={(enabled) =>
+                        setProviderEnabled("antigravity", enabled)
+                      }
+                      runtimeLabel="Antigravity CLI"
+                      latestVersion={cliLatestVersions.antigravity}
+                      onUpgrade={() => upgradeCli("antigravity")}
+                      upgrading={cliUpgrades.antigravity === true}
+                      version={providerModels.antigravity.version}
+                    >
+                      <div className="space-y-1 rounded-md p-1">
+                        {availableAntigravityModels.length === 0 ? (
+                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
+                            {settingsT("noCliModels")}
+                          </p>
+                        ) : (
+                          availableAntigravityModels.map((model) => {
+                            const isSelected = antigravityModels.includes(
+                              model.id,
+                            );
+
+                            return (
+                              <div
+                                className="flex h-9 items-center justify-between rounded-md bg-muted/50 px-3 hover:bg-muted"
+                                key={model.id}
+                              >
+                                <Label
+                                  className={cn(
+                                    "truncate pr-3 text-sm",
+                                    isSelected
+                                      ? "text-foreground"
+                                      : "text-muted-foreground",
+                                  )}
+                                >
+                                  {model.label}
+                                </Label>
+                                <Switch
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    if (checked !== isSelected) {
+                                      toggleProviderModel(
+                                        "antigravity",
                                         model.id,
                                         checked,
                                       );

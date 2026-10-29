@@ -1,9 +1,34 @@
 import { describe, expect, it } from "vitest";
 import {
+  parseAntigravityLatestVersion,
   parseCursorInstallScriptVersion,
   parseGrokChannel,
   summarizeUpgradeOutput,
 } from "./cli-updates.js";
+
+describe("parseAntigravityLatestVersion", () => {
+  it("extracts version from tag_name", () => {
+    expect(parseAntigravityLatestVersion({ tag_name: "v1.4.5" })).toBe("1.4.5");
+    expect(parseAntigravityLatestVersion({ tag_name: "1.4.6" })).toBe("1.4.6");
+    expect(
+      parseAntigravityLatestVersion({ tag_name: "v1.5.0-preview.1" }),
+    ).toBe("1.5.0-preview.1");
+  });
+
+  it("extracts version from name when tag_name is missing", () => {
+    expect(parseAntigravityLatestVersion({ name: "Release 1.4.5" })).toBe(
+      "1.4.5",
+    );
+  });
+
+  it("returns null for invalid inputs", () => {
+    expect(parseAntigravityLatestVersion(null)).toBeNull();
+    expect(parseAntigravityLatestVersion({})).toBeNull();
+    expect(
+      parseAntigravityLatestVersion({ tag_name: "not-a-version" }),
+    ).toBeNull();
+  });
+});
 
 describe("parseCursorInstallScriptVersion", () => {
   it("reads the pinned version from the macOS/Linux installer", () => {

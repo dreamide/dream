@@ -57,6 +57,11 @@ test("title models follow each provider's cheap-title policy", () => {
   assert.equal(getProvider("cursor").titleModel("composer"), null);
   assert.equal(getProvider("grok").titleModel(""), null);
   assert.equal(getProvider("grok").titleModel("grok-4"), "grok-4");
+  assert.equal(getProvider("antigravity").titleModel(""), null);
+  assert.equal(
+    getProvider("antigravity").titleModel("gemini-3.8-pro-high"),
+    "gemini-3.8-pro-high",
+  );
   assert.throws(
     () => getProvider("openai").titleModel(""),
     /No OpenAI title model/,

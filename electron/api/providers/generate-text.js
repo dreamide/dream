@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import { createOpencode } from "@opencode-ai/sdk";
 import { generateText } from "ai";
 import { claudeCode } from "ai-sdk-provider-claude-code";
+import { stopChildProcess } from "../../process-tree.js";
 import {
   CLAUDE_REASONING_EFFORT_MAP,
   getModelReasoningEfforts,
@@ -19,6 +20,12 @@ import {
 import { getCodexReasoningEffort } from "../chat/codex-common.js";
 import { getCodexErrorDetail } from "../chat/codex-prompt.js";
 import { resolveCliCommandPath } from "../shared/cli.js";
+import {
+  assertSafeAntigravityArg,
+  getAntigravityCliSpawnErrorMessage,
+  resolveAntigravityCliLaunch,
+  resolveAntigravityEffort,
+} from "./antigravity-cli.js";
 import {
   getCursorCliSpawnErrorMessage,
   normalizeCursorCliModel,
@@ -406,4 +413,155 @@ export const runGrokTextPrompt = ({
     model,
     prompt: inlineSystemPrompt(system, prompt),
     ...(timeoutMs ? { timeoutMs } : {}),
+  });
+
+export const runAntigravityPrompt = ({
+  model,
+  prompt,
+  projectPath,
+  reasoningEffort,
+  system,
+  timeoutMs = 120_000,
+}) =>
+  new Promise((resolve, reject) => {
+    let latestText = "";
+    let errorDetails = "";
+    let timeoutTimer = null;
+    const reader = createJsonLineReader((event) => {
+      if (!event || typeof event !== "object") return;
+      if (event.event === "step_update") {
+        const update = event.step_update;
+        if (
+          update?.step_type === "agent_response" &&
+          typeof update.text_delta === "string"
+        ) {
+          latestText += update.text_delta;
+        }
+      }
+      if (event.event === "result") {
+        if (typeof event.result?.response === "string") {
+          latestText = event.result.response;
+        }
+        if (event.result?.status && event.result.status !== "SUCCESS") {
+          const rawErr = event.result.error;
+          const msg =
+            (typeof rawErr === "object" && rawErr !== null
+              ? rawErr.message || JSON.stringify(rawErr)
+              : rawErr) ||
+            event.result.response ||
+            `Antigravity request ended with status ${event.result.status}.`;
+          errorDetails = msg;
+          reader.pushStderr(errorDetails);
+        }
+      }
+      if (typeof event.response === "string") {
+        latestText = event.response;
+      }
+      if (event.status === "ERROR" || event.error) {
+        const rawErr = event.error;
+        errorDetails =
+          (typeof rawErr === "object" && rawErr !== null
+            ? rawErr.message || JSON.stringify(rawErr)
+            : rawErr) || "Antigravity generation failed.";
+        reader.pushStderr(errorDetails);
+      }
+    });
+
+    void resolveAntigravityCliLaunch()
+      .then((launch) => {
+        assertSafeAntigravityArg(launch, model, "model");
+        const effectiveEffort = resolveAntigravityEffort(
+          model,
+          reasoningEffort,
+        );
+        const finalPrompt = inlineSystemPrompt(system, prompt);
+        const maxCommandLineLength = launch.shell ? 8000 : 30000;
+        const useStdin =
+          Boolean(launch.shell) || finalPrompt.length > maxCommandLineLength;
+        const timeoutArgs =
+          typeof timeoutMs === "number" && timeoutMs > 0
+            ? ["--print-timeout", `${Math.ceil(timeoutMs / 1000)}s`]
+            : [];
+        const child = spawn(
+          launch.command,
+          [
+            ...launch.argsPrefix,
+            "--output-format",
+            "stream-json",
+            "--mode",
+            "plan",
+            "--disable-slash-commands",
+            ...timeoutArgs,
+            ...(model ? ["--model", model] : []),
+            ...(effectiveEffort ? ["--effort", effectiveEffort] : []),
+            ...(useStdin
+              ? ["--input-format", "stream-json"]
+              : ["-p", finalPrompt]),
+          ],
+          {
+            cwd: projectPath,
+            env: process.env,
+            shell: launch.shell ?? false,
+            stdio: [useStdin ? "pipe" : "ignore", "pipe", "pipe"],
+            windowsHide: true,
+          },
+        );
+
+        if (typeof timeoutMs === "number" && timeoutMs > 0) {
+          timeoutTimer = setTimeout(() => {
+            void stopChildProcess(child, { waitTimeoutMs: 3000 }).catch(
+              () => {},
+            );
+            reject(
+              new Error(`Antigravity request timed out after ${timeoutMs}ms.`),
+            );
+          }, timeoutMs);
+        }
+
+        if (useStdin && child.stdin) {
+          child.stdin.on("error", () => {});
+          const payload = `${JSON.stringify({
+            event: "user",
+            message: { content: finalPrompt },
+          })}\n`;
+          child.stdin.end(payload);
+        }
+
+        child.stdout.setEncoding("utf8");
+        child.stderr.setEncoding("utf8");
+        child.stdout.on("data", reader.appendStdout);
+        child.stderr.on("data", reader.appendStderr);
+        child.on("error", (error) => {
+          if (timeoutTimer) clearTimeout(timeoutTimer);
+          reject(new Error(getAntigravityCliSpawnErrorMessage(error)));
+        });
+        child.on("close", (code) => {
+          if (timeoutTimer) clearTimeout(timeoutTimer);
+          reader.flush();
+          if (code === 0) {
+            if (errorDetails) {
+              reject(new Error(errorDetails));
+              return;
+            }
+            resolve(latestText);
+            return;
+          }
+          reject(
+            new Error(
+              reader.stderr.trim() ||
+                `Antigravity CLI exited with code ${code}.`,
+            ),
+          );
+        });
+      })
+      .catch((error) => {
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+        reject(
+          new Error(
+            error instanceof Error
+              ? error.message
+              : "Antigravity CLI request failed.",
+          ),
+        );
+      });
   });

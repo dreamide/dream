@@ -1,4 +1,5 @@
 import { cliCatalog, execCliCommand, getCliVersion } from "../shared/cli.js";
+import { execAntigravityCliCommand } from "./antigravity-cli.js";
 import { execCursorCliCommand } from "./cursor-cli.js";
 import { CLI_UPDATE_PROVIDERS } from "./schemas.js";
 
@@ -59,6 +60,33 @@ const fetchNpmLatestVersion = async (packageName) => {
 export const parseCursorInstallScriptVersion = (script) =>
   String(script ?? "").match(CURSOR_VERSION_PATTERN)?.[1] ?? null;
 
+export const parseAntigravityLatestVersion = (payload) => {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const tag =
+    typeof payload.tag_name === "string"
+      ? payload.tag_name
+      : typeof payload.name === "string"
+        ? payload.name
+        : "";
+  const match = tag.match(/(\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?)/);
+  return match ? match[1] : null;
+};
+
+const fetchAntigravityLatestVersion = async () => {
+  const text = await fetchText(
+    "https://api.github.com/repos/google-antigravity/antigravity-cli/releases/latest",
+    {
+      headers: {
+        Accept: "application/vnd.github.v3+json",
+        "User-Agent": "Dream-IDE",
+      },
+    },
+  );
+  return parseAntigravityLatestVersion(JSON.parse(text));
+};
+
 const fetchCursorLatestVersion = async () =>
   parseCursorInstallScriptVersion(await fetchText(CURSOR_INSTALL_SCRIPT_URL));
 
@@ -88,6 +116,10 @@ const fetchGrokLatestVersion = async (channel) => {
 const resolveLatestVersionLookup = async (provider) => {
   if (provider === "cursor") {
     return { cacheKey: provider, lookup: fetchCursorLatestVersion };
+  }
+
+  if (provider === "antigravity") {
+    return { cacheKey: provider, lookup: fetchAntigravityLatestVersion };
   }
 
   if (provider === "grok") {
@@ -155,6 +187,7 @@ export const fetchLatestCliVersions = async ({ force = false, providers }) => {
 // pnpm, Homebrew, native installer, ...), so Dream never has to guess.
 const UPGRADE_COMMANDS = {
   anthropic: { command: "claude", args: ["update"] },
+  antigravity: { command: "agy", args: ["update"] },
   cursor: { args: ["update"] },
   grok: { command: "grok", args: ["update"] },
   openai: { command: "codex", args: ["update"] },
@@ -194,7 +227,9 @@ const runUpgrade = async (provider) => {
     const result =
       provider === "cursor"
         ? await execCursorCliCommand(args, options)
-        : await execCliCommand(command, args, options);
+        : provider === "antigravity"
+          ? await execAntigravityCliCommand(args, options)
+          : await execCliCommand(command, args, options);
     return {
       ok: true,
       output: summarizeUpgradeOutput(result.stdout, result.stderr),

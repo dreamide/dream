@@ -83,6 +83,19 @@ test("getModelReasoningEfforts recognizes anthropic and grok model formats", () 
     "high",
   ]);
   assert.deepEqual(getModelReasoningEfforts("grok", "grok-composer"), []);
+  assert.deepEqual(
+    getModelReasoningEfforts("antigravity", "gemini-3.8-flash"),
+    ["low", "medium", "high", "xhigh", "max"],
+  );
+  assert.deepEqual(
+    getModelReasoningEfforts("antigravity", "gemini-3.8-flash-low"),
+    [],
+  );
+  assert.deepEqual(
+    getModelReasoningEfforts("antigravity", "claude-sonnet-4-6"),
+    [],
+  );
+  assert.deepEqual(getModelReasoningEfforts("antigravity", ""), []);
 });
 
 test("getModelSpeedTiers only exposes fast tier for gpt-5.4/5.5 on openai", () => {

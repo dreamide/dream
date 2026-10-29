@@ -62,6 +62,9 @@ const CONTEXT_WINDOW_ENTRIES: [RegExp, number][] = [
   // xAI
   [/^grok-4(?:\.\d+)?-fast/, 2_000_000],
   [/^grok-/, 256_000],
+
+  // Google
+  [/^gemini-/, 1_000_000],
 ];
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;
