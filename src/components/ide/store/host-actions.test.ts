@@ -255,3 +255,43 @@ test("removing an SSH host that is not connected does not ask it to stop anythin
   ]);
   expect(store.getState().projectTerminalSessionIds).toEqual({});
 });
+
+test("renaming a saved connection keeps its name, and an empty name goes back to its route's", () => {
+  const { store } = createTestStore();
+  const persist = vi.fn();
+  store.setState({
+    persist,
+    hostConnections: [
+      {
+        version: 1,
+        id: "paired",
+        hostId: "host-1",
+        fingerprint: "fp",
+        label: "https://caozilla.example",
+        verifiedAt: null,
+        routes: [
+          {
+            id: "r1",
+            kind: "https",
+            origin: "https://caozilla.example",
+            credentialId: "c1",
+          },
+        ],
+      },
+    ],
+  } as Partial<IdeState>);
+  const { renameHostConnection } = store.getState();
+
+  renameHostConnection("paired", "  caozilla  ");
+  expect(store.getState().hostConnections[0]?.label).toBe("caozilla");
+  expect(persist).toHaveBeenCalledTimes(1);
+
+  renameHostConnection("paired", "caozilla");
+  expect(persist).toHaveBeenCalledTimes(1);
+
+  renameHostConnection("paired", " ");
+  expect(store.getState().hostConnections[0]).not.toHaveProperty("label");
+  expect(persist).toHaveBeenCalledTimes(2);
+
+  expect(() => renameHostConnection("unknown", "x")).toThrow();
+});
