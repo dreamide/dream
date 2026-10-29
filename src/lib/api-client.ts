@@ -149,11 +149,7 @@ export type RemoteAccessProblemCode =
   | "https-disabled"
   | "port-taken"
   | "permission"
-  // Cloudflare (cloudflare.js, cloudflared-runtime.js)
-  | "cloudflare-token"
-  | "cloudflare-connecting"
-  | "cloudflare-connector"
-  | "cloudflared-install"
+  // Cloudflare (remote-access.js; the user runs cloudflared)
   | "needs-origin"
   | "quick-tunnel"
   // Either route (remote-access.js)
@@ -179,13 +175,6 @@ export interface RemoteAccessStatus {
   enabled: boolean;
   mode: "tailscale" | "cloudflare";
   cloudflare?: {
-    managed: boolean;
-    installed: boolean;
-    version: string | null;
-    tokenSaved: boolean;
-    state: "idle" | "starting" | "connected" | "reconnecting" | "failed";
-    error: string | null;
-    retryAt: number | null;
     /** The loopback port used when none is saved and it is free. */
     defaultPort: number;
   };
@@ -750,9 +739,6 @@ export const API_ROUTES = {
   ),
   remoteAccessCheck: post<Record<string, never>, RemoteAccessStatus>(
     "/api/remote/access/check",
-  ),
-  remoteCloudflareInstall: post<Record<string, never>, RemoteAccessStatus>(
-    "/api/remote/access/cloudflare/install",
   ),
   remotePairingCreate: post<
     Input<typeof remotePairingCreateRequestSchema>,

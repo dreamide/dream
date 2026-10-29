@@ -18,8 +18,6 @@ interface RemoteAccessSnapshot {
   pairing: RemotePairing | null;
   pairingUrl: string | null;
   busy: boolean;
-  /** A cloudflared download, which can take minutes; it leaves the other controls free. */
-  installing: boolean;
   error: { kind: "load" | "change" | "pair"; cause: unknown } | null;
 }
 
@@ -29,7 +27,6 @@ type RemoteAccessClient = Pick<
   | "remoteAccessEnable"
   | "remoteAccessDisable"
   | "remoteAccessCheck"
-  | "remoteCloudflareInstall"
   | "remoteClaims"
   | "remoteClaimAnswer"
   | "remoteSessions"
@@ -52,7 +49,6 @@ export const createRemoteAccessState = ({
     pairing: null,
     pairingUrl: null,
     busy: false,
-    installing: false,
     error: null,
   };
   const listeners = new Set<() => void>();
@@ -165,7 +161,7 @@ export const createRemoteAccessState = ({
       pairingId += 1;
       mutation = null;
       invalidateRead();
-      publish({ busy: false, installing: false, pairing: null });
+      publish({ busy: false, pairing: null });
     },
     refresh,
     enable: (options: ApiRequestOf<"remoteAccessEnable">) =>
@@ -180,26 +176,6 @@ export const createRemoteAccessState = ({
       write("change", async () => ({
         status: await api.remoteAccessCheck({}),
       })),
-    async installCloudflare() {
-      if (!active || snapshot.installing) return false;
-      const era = generation;
-      const current = () => active && generation === era;
-      publish({ installing: true, error: null });
-      try {
-        const status = await api.remoteCloudflareInstall({});
-        if (!current()) return false;
-        publish({ status });
-        return true;
-      } catch (cause) {
-        if (current()) publish({ error: { kind: "change", cause } });
-        return false;
-      } finally {
-        if (current()) {
-          publish({ installing: false });
-          void refresh();
-        }
-      }
-    },
     createPairing(scopes: string[]) {
       const id = pairingId;
       return write("pair", async () => {

@@ -1124,20 +1124,9 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Utilisez un tunnel et un nom d’hôte persistants de votre compte Cloudflare.",
-    "cloudflareToken": "Jeton du tunnel",
-    "cloudflareTokenSaved": "Jeton enregistré — laissez vide pour le conserver",
-    "cloudflareTokenHint": "Collez uniquement le jeton. Il reste privé sur cet hôte ; saisissez un nouveau jeton pour le renouveler.",
-    "cloudflareInstall": "Installer cloudflared",
-    "cloudflareUpdate": "Mettre à jour cloudflared",
-    "cloudflareMissing": "Non installé",
-    "cloudflareExternal": "Vous gérez ce connecteur séparément. Il n’est ni démarré, ni arrêté, ni supprimé ici.",
-    "cloudflareRouteHint": "Dans Cloudflare, dirigez ce nom d’hôte vers http://127.0.0.1:{port}. Utilisez un tunnel dédié et désactivez le cache pour /api/*.",
-    "cloudflareState": "Connecteur : {state}",
-    "cloudflare_idle": "Arrêté",
-    "cloudflare_starting": "Démarrage",
-    "cloudflare_connected": "Connecté",
-    "cloudflare_reconnecting": "Reconnexion",
-    "cloudflare_failed": "Action requise",
+    "cloudflareStepTunnel": "Dans Cloudflare, créez un tunnel et exécutez sa commande d’installation sur cet ordinateur.",
+    "cloudflareStepRoute": "Dirigez un nom d’hôte de votre domaine vers http://127.0.0.1:{port} et désactivez le cache pour /api/*.",
+    "cloudflareStepAddress": "Saisissez ce nom d’hôte ci-dessous.",
     "pairTitle": "Associer cet appareil",
     "pairDescription": "Utilisez le lien d’association de {host} ou saisissez le code qu’il affiche.",
     "pairing": "Association…",
@@ -1205,9 +1194,7 @@
     "change": "Modifier",
     "setupTitle": "Configurer l’accès à distance",
     "advanced": "Avancé",
-    "cloudflareSelfManaged": "J’exécute cloudflared moi-même",
     "needsOrigin": "Saisissez l’adresse publique.",
-    "needsToken": "Collez le jeton du tunnel.",
     "save": "Enregistrer",
     "problems": {
       "notInstalled": "Tailscale n’est pas installé sur cet ordinateur.",
@@ -1217,13 +1204,11 @@
       "httpsDisabled": "Activez MagicDNS et les certificats HTTPS de votre tailnet dans la console d’administration Tailscale, puis vérifiez à nouveau.",
       "portTaken": "Tailscale sert déjà autre chose sur le port HTTPS {port}. Choisissez un autre port HTTPS dans Avancé.",
       "permission": "Tailscale n’autorise pas cet utilisateur à modifier ses réglages Serve. Sous Linux, exécutez une fois sudo tailscale set --operator=$USER, puis vérifiez à nouveau.",
-      "cloudflareToken": "Collez uniquement le jeton du tunnel, pas la commande d’installation.",
-      "cloudflareConnecting": "En attente de la connexion du connecteur Cloudflare.",
       "needsOrigin": "Saisissez votre nom d’hôte Cloudflare sous forme d’adresse https://, par exemple https://dream.example.com.",
       "quickTunnel": "Utilisez un tunnel Cloudflare persistant avec un nom d’hôte stable. Les Quick Tunnels ne prennent pas en charge le streaming du chat.",
       "portInUse": "Le port {port} est déjà utilisé sur cet ordinateur. Choisissez un autre port local dans Avancé.",
       "unreachableTailscale": "Impossible de joindre cet ordinateur via {origin}. Tailscale est peut-être encore en train d’obtenir son certificat ; vérifiez à nouveau dans une minute.",
-      "unreachableCloudflare": "Impossible de joindre cet ordinateur via {origin}. Dans Cloudflare, définissez l’URL de service de ce nom d’hôte sur http://127.0.0.1:{port}."
+      "unreachableCloudflare": "Impossible de joindre cet ordinateur via {origin}. Vérifiez que cloudflared est en cours d’exécution pour votre tunnel et que l’URL de service de ce nom d’hôte est http://127.0.0.1:{port}."
     }
   }
 }

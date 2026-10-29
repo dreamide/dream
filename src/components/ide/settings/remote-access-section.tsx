@@ -34,7 +34,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Collapsible,
   CollapsibleContent,
@@ -108,8 +107,6 @@ const PROBLEM_KEYS = {
   "https-disabled": "httpsDisabled",
   "port-taken": "portTaken",
   permission: "permission",
-  "cloudflare-token": "cloudflareToken",
-  "cloudflare-connecting": "cloudflareConnecting",
   "needs-origin": "needsOrigin",
   "quick-tunnel": "quickTunnel",
   "port-in-use": "portInUse",
@@ -192,7 +189,6 @@ export const RemoteAccessSection = () => {
   const {
     status,
     busy,
-    installing,
     error: failure,
     claims,
     devices,
@@ -247,12 +243,6 @@ export const RemoteAccessSection = () => {
         ? t("scopeOperate")
         : t("scopeView");
   const address = status?.ready ? status.origin : status?.requestedOrigin;
-  const connector =
-    status?.mode === "cloudflare" && status.cloudflare?.managed
-      ? t("cloudflareState", {
-          state: t(`cloudflare_${status.cloudflare.state}`),
-        })
-      : null;
 
   return (
     <div className="space-y-4">
@@ -316,7 +306,6 @@ export const RemoteAccessSection = () => {
                         </span>
                       </>
                     ) : null}
-                    {connector ? ` · ${connector}` : null}
                   </>
                 ) : (
                   t("notSetUp")
@@ -383,9 +372,7 @@ export const RemoteAccessSection = () => {
           busy={busy}
           error={error}
           initial={status}
-          installing={installing}
           onCancel={() => setSetupOpen(false)}
-          onInstallCloudflare={() => void remote.installCloudflare()}
           onOpenUrl={openExternalUrl}
           onSave={save}
           status={status}
@@ -635,16 +622,14 @@ export const RemoteAccessSection = () => {
 /**
  * How paired devices reach this computer. Drafts start from `initial` (the
  * status when it opened), so later polls never overwrite an edit; `status`
- * is the live one, for cloudflared's install state and a refused save.
- * Saving turns access on with these settings.
+ * is the live one, for a refused save. Saving turns access on with these
+ * settings. A Cloudflare route goes through the user's own cloudflared.
  */
 const RemoteAccessSetupDialog = ({
   busy,
   error,
   initial,
-  installing,
   onCancel,
-  onInstallCloudflare,
   onOpenUrl,
   onSave,
   status,
@@ -652,9 +637,7 @@ const RemoteAccessSetupDialog = ({
   busy: boolean;
   error: string | null;
   initial: RemoteAccessStatus;
-  installing: boolean;
   onCancel: () => void;
-  onInstallCloudflare: () => void;
   onOpenUrl: (url: string) => void;
   onSave: (options: ApiRequestOf<"remoteAccessEnable">) => Promise<void>;
   status: RemoteAccessStatus;
@@ -663,8 +646,6 @@ const RemoteAccessSetupDialog = ({
   const modeText = useModeText();
   const [mode, setMode] = useState<Mode>(initial.mode);
   const [origin, setOrigin] = useState(initial.requestedOrigin ?? "");
-  const [managed, setManaged] = useState(initial.cloudflare?.managed ?? true);
-  const [token, setToken] = useState("");
   const [httpsPort, setHttpsPort] = useState(String(initial.httpsPort));
   const [localPort, setLocalPort] = useState(
     initial.port == null ? "" : String(initial.port),
@@ -673,18 +654,11 @@ const RemoteAccessSetupDialog = ({
     (localPort === "" || isValidPort(localPort)) &&
     (mode !== "tailscale" || isValidPort(httpsPort));
   const needsOrigin = mode === "cloudflare" && !origin.trim();
-  const needsToken =
-    mode === "cloudflare" &&
-    managed &&
-    !token.trim() &&
-    !status.cloudflare?.tokenSaved;
   const blocker = !portsValid
     ? t("portRange")
     : needsOrigin
       ? t("needsOrigin")
-      : needsToken
-        ? t("needsToken")
-        : null;
+      : null;
   const port = localPort === "" ? null : Number(localPort);
   const shownPort = String(
     status.port ?? (localPort || status.cloudflare?.defaultPort || "—"),
@@ -715,11 +689,11 @@ const RemoteAccessSetupDialog = ({
               mode === "tailscale"
                 ? { httpsPort: Number(httpsPort), mode, port }
                 : {
-                    cloudflareManaged: managed,
+                    // An older host would otherwise run a connector itself.
+                    cloudflareManaged: false,
                     mode,
                     origin: origin.trim(),
                     port,
-                    ...(token.trim() ? { cloudflareToken: token.trim() } : {}),
                   },
             );
           }}
@@ -762,72 +736,14 @@ const RemoteAccessSetupDialog = ({
 
           {mode === "cloudflare" ? (
             <>
-              <div className="grid gap-1.5">
-                <Label htmlFor="remote-access-origin">{t("originLabel")}</Label>
-                <Input
-                  className="font-mono"
-                  id="remote-access-origin"
-                  onChange={(event) => setOrigin(event.target.value)}
-                  placeholder="https://dream.example.com"
-                  spellCheck={false}
-                  value={origin}
-                />
-              </div>
-              {managed ? (
-                <>
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="remote-cloudflare-token">
-                      {t("cloudflareToken")}
-                    </Label>
-                    <Input
-                      autoComplete="off"
-                      id="remote-cloudflare-token"
-                      onChange={(event) => setToken(event.target.value)}
-                      placeholder={
-                        status.cloudflare?.tokenSaved
-                          ? t("cloudflareTokenSaved")
-                          : "eyJ…"
-                      }
-                      spellCheck={false}
-                      type="password"
-                      value={token}
-                    />
-                    <p className="text-muted-foreground text-xs">
-                      {t("cloudflareTokenHint")}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 rounded-md border px-3 py-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="font-mono text-sm">cloudflared</div>
-                      <div className="text-muted-foreground text-xs">
-                        {status.cloudflare?.version ?? t("cloudflareMissing")}
-                      </div>
-                    </div>
-                    <Button
-                      disabled={installing}
-                      onClick={onInstallCloudflare}
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                    >
-                      {installing ? <Spinner className="size-3.5" /> : null}
-                      {t(
-                        status.cloudflare?.installed
-                          ? "cloudflareUpdate"
-                          : "cloudflareInstall",
-                      )}
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <p className="text-muted-foreground text-xs">
-                  {t("cloudflareExternal")}
-                </p>
-              )}
-              <div className="grid gap-2">
-                <p className="select-text break-words text-muted-foreground text-xs">
-                  {t("cloudflareRouteHint", { port: shownPort })}
-                </p>
+              <div className="grid gap-2 rounded-md border px-3 py-2.5">
+                <ol className="grid list-decimal gap-1 pl-4 text-muted-foreground text-xs">
+                  <li>{t("cloudflareStepTunnel")}</li>
+                  <li className="select-text break-words">
+                    {t("cloudflareStepRoute", { port: shownPort })}
+                  </li>
+                  <li>{t("cloudflareStepAddress")}</li>
+                </ol>
                 <Button
                   className="w-fit"
                   onClick={() => onOpenUrl("https://one.dash.cloudflare.com/")}
@@ -838,6 +754,17 @@ const RemoteAccessSetupDialog = ({
                   <ExternalLink className="size-3.5" />
                   {t("openSetupPage")}
                 </Button>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="remote-access-origin">{t("originLabel")}</Label>
+                <Input
+                  className="font-mono"
+                  id="remote-access-origin"
+                  onChange={(event) => setOrigin(event.target.value)}
+                  placeholder="https://dream.example.com"
+                  spellCheck={false}
+                  value={origin}
+                />
               </div>
             </>
           ) : null}
@@ -884,15 +811,6 @@ const RemoteAccessSetupDialog = ({
                   {t("localPortHint")}
                 </span>
               </div>
-              {mode === "cloudflare" ? (
-                <Label className="flex items-center gap-2 font-normal">
-                  <Checkbox
-                    checked={!managed}
-                    onCheckedChange={(checked) => setManaged(!checked)}
-                  />
-                  {t("cloudflareSelfManaged")}
-                </Label>
-              ) : null}
             </CollapsibleContent>
           </Collapsible>
 

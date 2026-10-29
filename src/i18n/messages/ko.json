@@ -1124,20 +1124,9 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Cloudflare 계정의 고정 터널과 호스트 이름을 사용합니다.",
-    "cloudflareToken": "터널 토큰",
-    "cloudflareTokenSaved": "저장됨 — 유지하려면 비워 두세요",
-    "cloudflareTokenHint": "토큰만 붙여넣으세요. 이 호스트에 비공개로 저장되며 교체하려면 새 토큰을 입력하세요.",
-    "cloudflareInstall": "cloudflared 설치",
-    "cloudflareUpdate": "cloudflared 업데이트",
-    "cloudflareMissing": "설치되지 않음",
-    "cloudflareExternal": "이 커넥터는 별도로 관리합니다. 여기에서 시작, 중지 또는 삭제되지 않습니다.",
-    "cloudflareRouteHint": "Cloudflare에서 이 호스트 이름을 http://127.0.0.1:{port}로 연결하세요. 전용 터널을 사용하고 /api/* 캐시를 우회하세요.",
-    "cloudflareState": "커넥터: {state}",
-    "cloudflare_idle": "중지됨",
-    "cloudflare_starting": "시작 중",
-    "cloudflare_connected": "연결됨",
-    "cloudflare_reconnecting": "재연결 중",
-    "cloudflare_failed": "확인 필요",
+    "cloudflareStepTunnel": "Cloudflare에서 터널을 만들고 이 컴퓨터에서 설치 명령을 실행하세요.",
+    "cloudflareStepRoute": "도메인의 호스트 이름을 http://127.0.0.1:{port}(으)로 연결하고 /api/* 캐시를 우회하세요.",
+    "cloudflareStepAddress": "아래에 해당 호스트 이름을 입력하세요.",
     "pairTitle": "이 기기 페어링",
     "pairDescription": "{host}의 페어링 링크를 사용하거나 표시된 코드를 입력하세요.",
     "pairing": "페어링 중…",
@@ -1205,9 +1194,7 @@
     "change": "변경",
     "setupTitle": "원격 액세스 설정",
     "advanced": "고급",
-    "cloudflareSelfManaged": "cloudflared를 직접 실행합니다",
     "needsOrigin": "공개 주소를 입력하세요.",
-    "needsToken": "터널 토큰을 붙여 넣으세요.",
     "save": "저장",
     "problems": {
       "notInstalled": "이 컴퓨터에 Tailscale이 설치되어 있지 않습니다.",
@@ -1217,13 +1204,11 @@
       "httpsDisabled": "Tailscale 관리 콘솔에서 tailnet의 MagicDNS와 HTTPS 인증서를 켠 다음 다시 확인하세요.",
       "portTaken": "Tailscale이 HTTPS 포트 {port}에서 이미 다른 항목을 제공하고 있습니다. 고급에서 다른 HTTPS 포트를 선택하세요.",
       "permission": "Tailscale이 이 사용자의 Serve 설정 변경을 허용하지 않습니다. Linux에서는 sudo tailscale set --operator=$USER를 한 번 실행한 다음 다시 확인하세요.",
-      "cloudflareToken": "설치 명령이 아닌 터널 토큰만 붙여 넣으세요.",
-      "cloudflareConnecting": "Cloudflare 커넥터가 연결되기를 기다리는 중입니다.",
       "needsOrigin": "Cloudflare 호스트 이름을 https:// 주소로 입력하세요(예: https://dream.example.com).",
       "quickTunnel": "고정 호스트 이름이 있는 영구 Cloudflare 터널을 사용하세요. Quick Tunnel은 채팅 스트리밍을 지원하지 않습니다.",
       "portInUse": "이 컴퓨터의 포트 {port}이(가) 이미 사용 중입니다. 고급에서 다른 로컬 포트를 선택하세요.",
       "unreachableTailscale": "{origin}을(를) 통해 이 컴퓨터에 연결할 수 없습니다. Tailscale이 아직 인증서를 받는 중일 수 있으니 1분 후 다시 확인하세요.",
-      "unreachableCloudflare": "{origin}을(를) 통해 이 컴퓨터에 연결할 수 없습니다. Cloudflare에서 이 호스트 이름의 서비스 URL을 http://127.0.0.1:{port}(으)로 설정하세요."
+      "unreachableCloudflare": "{origin}을(를) 통해 이 컴퓨터에 연결할 수 없습니다. 터널의 cloudflared가 실행 중인지, 이 호스트 이름의 서비스 URL이 http://127.0.0.1:{port}인지 확인하세요."
     }
   }
 }

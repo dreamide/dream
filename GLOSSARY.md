@@ -262,10 +262,9 @@ It is the host's setting, saved beside its state database: on or off; through
 **Tailscale Serve** (HTTPS on the tailnet) or **Cloudflare Tunnel**; and a
 stable loopback port for the remote listener.
 An address is **ready** only once a request through it reached this host;
-Cloudflare also requires proof of the host's installation key. A **managed
-connector** is the cloudflared process owned by this host; an **external
-connector** is operated independently and left running when access is disabled.
-Dream changes only its own connector and the Serve entry it created (`servedBy`).
+Cloudflare also requires proof of the host's installation key. The user runs
+the tunnel's cloudflared connector; Dream never installs, starts or stops it.
+Dream changes only the Serve entry it created (`servedBy`).
 Configured in Settings > Connections on the desktop, or with `dream-host remote`
 on a headless machine.
 

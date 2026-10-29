@@ -41,7 +41,6 @@ import { acquireStateLock } from "./state-lock.js";
  *   resolveRemoteHost?: (hostId: string) => { baseUrl: string, token: string } | null,
  *   clientDirectory?: string | null,
  *   tailscale?: ReturnType<typeof createTailscale>,
- *   cloudflare?: ReturnType<typeof import("./remote-access/cloudflare.js").createCloudflareConnector>,
  *   kind?: string,
  *   onShutdownRequest?: (reason: string) => void,
  * }} options
@@ -80,7 +79,6 @@ export function createHost({
   resolveRemoteHost,
   clientDirectory = null,
   tailscale = createTailscale(),
-  cloudflare,
   kind = "host",
   onShutdownRequest,
 }) {
@@ -210,7 +208,6 @@ export function createHost({
       return { origins: remoteServer.origins, port: remoteServer.port };
     },
     tailscale,
-    cloudflare,
   });
 
   const services = () => ({

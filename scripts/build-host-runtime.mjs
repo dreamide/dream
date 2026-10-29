@@ -66,10 +66,6 @@ await build({
   bundle: true,
   define: { __DREAM_HOST_VERSION__: JSON.stringify(version) },
   entryPoints: {
-    "cloudflared-runner": path.join(
-      root,
-      "electron/host/remote-access/cloudflared-runner.js",
-    ),
     "dream-host": path.join(root, "electron/host/dream-host.js"),
     "persisted-state-read-worker": path.join(
       root,

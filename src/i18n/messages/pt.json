@@ -1124,20 +1124,9 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Use um túnel e nome de host persistentes da sua conta Cloudflare.",
-    "cloudflareToken": "Token do túnel",
-    "cloudflareTokenSaved": "Token salvo — deixe vazio para manter",
-    "cloudflareTokenHint": "Cole apenas o token. Ele fica privado neste host; insira um novo para substituí-lo.",
-    "cloudflareInstall": "Instalar cloudflared",
-    "cloudflareUpdate": "Atualizar cloudflared",
-    "cloudflareMissing": "Não instalado",
-    "cloudflareExternal": "Este conector é gerenciado separadamente. Ele não é iniciado, interrompido nem excluído aqui.",
-    "cloudflareRouteHint": "No Cloudflare, direcione este nome de host para http://127.0.0.1:{port}. Use um túnel dedicado e ignore o cache de /api/*.",
-    "cloudflareState": "Conector: {state}",
-    "cloudflare_idle": "Parado",
-    "cloudflare_starting": "Iniciando",
-    "cloudflare_connected": "Conectado",
-    "cloudflare_reconnecting": "Reconectando",
-    "cloudflare_failed": "Requer atenção",
+    "cloudflareStepTunnel": "No Cloudflare, crie um túnel e execute o comando de instalação dele neste computador.",
+    "cloudflareStepRoute": "Direcione um nome de host do seu domínio para http://127.0.0.1:{port} e ignore o cache de /api/*.",
+    "cloudflareStepAddress": "Digite esse nome de host abaixo.",
     "pairTitle": "Emparelhar este dispositivo",
     "pairDescription": "Use o link de emparelhamento de {host} ou digite o código exibido.",
     "pairing": "Emparelhando…",
@@ -1205,9 +1194,7 @@
     "change": "Alterar",
     "setupTitle": "Configurar acesso remoto",
     "advanced": "Avançado",
-    "cloudflareSelfManaged": "Eu executo o cloudflared por conta própria",
     "needsOrigin": "Digite o endereço público.",
-    "needsToken": "Cole o token do túnel.",
     "save": "Salvar",
     "problems": {
       "notInstalled": "O Tailscale não está instalado neste computador.",
@@ -1217,13 +1204,11 @@
       "httpsDisabled": "Ative o MagicDNS e os certificados HTTPS da sua tailnet no console de administração do Tailscale e verifique novamente.",
       "portTaken": "O Tailscale já serve outra coisa na porta HTTPS {port}. Escolha outra porta HTTPS em Avançado.",
       "permission": "O Tailscale não permite que este usuário altere as configurações do Serve. No Linux, execute uma vez sudo tailscale set --operator=$USER e verifique novamente.",
-      "cloudflareToken": "Cole apenas o token do túnel, não o comando de instalação.",
-      "cloudflareConnecting": "Aguardando o conector do Cloudflare se conectar.",
       "needsOrigin": "Digite o nome de host do Cloudflare como um endereço https://, como https://dream.example.com.",
       "quickTunnel": "Use um túnel persistente do Cloudflare com um nome de host estável. Quick Tunnels não oferecem suporte a streaming do chat.",
       "portInUse": "A porta {port} já está em uso neste computador. Escolha outra porta local em Avançado.",
       "unreachableTailscale": "Não foi possível alcançar este computador por {origin}. O Tailscale pode ainda estar obtendo o certificado; verifique novamente em um minuto.",
-      "unreachableCloudflare": "Não foi possível alcançar este computador por {origin}. No Cloudflare, defina a URL de serviço deste nome de host como http://127.0.0.1:{port}."
+      "unreachableCloudflare": "Não foi possível alcançar este computador por {origin}. Verifique se o cloudflared está em execução para o seu túnel e se a URL de serviço deste nome de host é http://127.0.0.1:{port}."
     }
   }
 }

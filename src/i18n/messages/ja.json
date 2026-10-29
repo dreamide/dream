@@ -1124,20 +1124,9 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Cloudflare アカウントの永続トンネルとホスト名を使用します。",
-    "cloudflareToken": "トンネルトークン",
-    "cloudflareTokenSaved": "保存済み — 変更しない場合は空欄",
-    "cloudflareTokenHint": "トークンのみ貼り付けてください。このホストに非公開で保存されます。更新する場合は新しいトークンを入力します。",
-    "cloudflareInstall": "cloudflared をインストール",
-    "cloudflareUpdate": "cloudflared を更新",
-    "cloudflareMissing": "未インストール",
-    "cloudflareExternal": "このコネクターは別途管理します。ここでは起動、停止、削除されません。",
-    "cloudflareRouteHint": "Cloudflare でこのホスト名を http://127.0.0.1:{port} に転送してください。専用トンネルを使用し、/api/* のキャッシュを無効にしてください。",
-    "cloudflareState": "コネクター: {state}",
-    "cloudflare_idle": "停止中",
-    "cloudflare_starting": "起動中",
-    "cloudflare_connected": "接続済み",
-    "cloudflare_reconnecting": "再接続中",
-    "cloudflare_failed": "確認が必要",
+    "cloudflareStepTunnel": "Cloudflare でトンネルを作成し、そのインストールコマンドをこのコンピューターで実行してください。",
+    "cloudflareStepRoute": "ドメインのホスト名を http://127.0.0.1:{port} に転送し、/api/* のキャッシュを無効にしてください。",
+    "cloudflareStepAddress": "そのホスト名を下に入力してください。",
     "pairTitle": "このデバイスをペアリング",
     "pairDescription": "{host} のペアリングリンクを使うか、表示されたコードを入力してください。",
     "pairing": "ペアリング中…",
@@ -1205,9 +1194,7 @@
     "change": "変更",
     "setupTitle": "リモートアクセスを設定",
     "advanced": "詳細設定",
-    "cloudflareSelfManaged": "cloudflared を自分で実行する",
     "needsOrigin": "公開アドレスを入力してください。",
-    "needsToken": "トンネルトークンを貼り付けてください。",
     "save": "保存",
     "problems": {
       "notInstalled": "このコンピューターに Tailscale がインストールされていません。",
@@ -1217,13 +1204,11 @@
       "httpsDisabled": "Tailscale 管理コンソールで tailnet の MagicDNS と HTTPS 証明書を有効にしてから再確認してください。",
       "portTaken": "Tailscale は HTTPS ポート {port} で既に別のものを提供しています。詳細設定で別の HTTPS ポートを選択してください。",
       "permission": "Tailscale はこのユーザーによる Serve 設定の変更を許可していません。Linux では sudo tailscale set --operator=$USER を一度実行してから再確認してください。",
-      "cloudflareToken": "インストールコマンドではなく、トンネルトークンだけを貼り付けてください。",
-      "cloudflareConnecting": "Cloudflare コネクターの接続を待っています。",
       "needsOrigin": "Cloudflare のホスト名を https:// アドレスで入力してください（例: https://dream.example.com）。",
       "quickTunnel": "固定ホスト名の永続的な Cloudflare トンネルを使用してください。Quick Tunnel はチャットのストリーミングに対応していません。",
       "portInUse": "このコンピューターのポート {port} は既に使用中です。詳細設定で別のローカルポートを選択してください。",
       "unreachableTailscale": "{origin} 経由でこのコンピューターに到達できませんでした。Tailscale がまだ証明書を取得中の可能性があります。1 分後に再確認してください。",
-      "unreachableCloudflare": "{origin} 経由でこのコンピューターに到達できませんでした。Cloudflare で、このホスト名のサービス URL を http://127.0.0.1:{port} に設定してください。"
+      "unreachableCloudflare": "{origin} 経由でこのコンピューターに到達できませんでした。トンネルの cloudflared が実行中であること、このホスト名のサービス URL が http://127.0.0.1:{port} であることを確認してください。"
     }
   }
 }

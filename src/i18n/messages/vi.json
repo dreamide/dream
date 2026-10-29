@@ -1124,20 +1124,9 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Dùng đường hầm và tên máy chủ cố định từ tài khoản Cloudflare của bạn.",
-    "cloudflareToken": "Mã token đường hầm",
-    "cloudflareTokenSaved": "Đã lưu — để trống để giữ nguyên",
-    "cloudflareTokenHint": "Chỉ dán mã token. Mã được giữ riêng trên máy chủ này; nhập mã mới để thay thế.",
-    "cloudflareInstall": "Cài đặt cloudflared",
-    "cloudflareUpdate": "Cập nhật cloudflared",
-    "cloudflareMissing": "Chưa cài đặt",
-    "cloudflareExternal": "Bạn quản lý trình kết nối này riêng. Nó không được khởi động, dừng hay xóa ở đây.",
-    "cloudflareRouteHint": "Trong Cloudflare, trỏ tên máy chủ này đến http://127.0.0.1:{port}. Dùng đường hầm riêng và bỏ qua bộ nhớ đệm cho /api/*.",
-    "cloudflareState": "Trình kết nối: {state}",
-    "cloudflare_idle": "Đã dừng",
-    "cloudflare_starting": "Đang khởi động",
-    "cloudflare_connected": "Đã kết nối",
-    "cloudflare_reconnecting": "Đang kết nối lại",
-    "cloudflare_failed": "Cần kiểm tra",
+    "cloudflareStepTunnel": "Trong Cloudflare, tạo một đường hầm và chạy lệnh cài đặt của nó trên máy tính này.",
+    "cloudflareStepRoute": "Trỏ một tên máy chủ thuộc tên miền của bạn đến http://127.0.0.1:{port} và bỏ qua bộ nhớ đệm cho /api/*.",
+    "cloudflareStepAddress": "Nhập tên máy chủ đó bên dưới.",
     "pairTitle": "Ghép nối thiết bị này",
     "pairDescription": "Dùng liên kết ghép nối từ {host} hoặc nhập mã được hiển thị.",
     "pairing": "Đang ghép nối…",
@@ -1205,9 +1194,7 @@
     "change": "Thay đổi",
     "setupTitle": "Thiết lập truy cập từ xa",
     "advanced": "Nâng cao",
-    "cloudflareSelfManaged": "Tôi tự chạy cloudflared",
     "needsOrigin": "Nhập địa chỉ công khai.",
-    "needsToken": "Dán token đường hầm.",
     "save": "Lưu",
     "problems": {
       "notInstalled": "Tailscale chưa được cài đặt trên máy tính này.",
@@ -1217,13 +1204,11 @@
       "httpsDisabled": "Hãy bật MagicDNS và chứng chỉ HTTPS cho tailnet trong bảng quản trị Tailscale rồi kiểm tra lại.",
       "portTaken": "Tailscale đã phục vụ nội dung khác trên cổng HTTPS {port}. Hãy chọn cổng HTTPS khác trong Nâng cao.",
       "permission": "Tailscale không cho người dùng này thay đổi cài đặt Serve. Trên Linux, hãy chạy sudo tailscale set --operator=$USER một lần rồi kiểm tra lại.",
-      "cloudflareToken": "Chỉ dán token đường hầm, không dán lệnh cài đặt.",
-      "cloudflareConnecting": "Đang chờ trình kết nối Cloudflare kết nối.",
       "needsOrigin": "Nhập tên máy chủ Cloudflare dưới dạng địa chỉ https://, ví dụ https://dream.example.com.",
       "quickTunnel": "Hãy dùng đường hầm Cloudflare cố định với tên máy chủ ổn định. Quick Tunnel không hỗ trợ truyền phát trò chuyện.",
       "portInUse": "Cổng {port} trên máy tính này đang được sử dụng. Hãy chọn cổng cục bộ khác trong Nâng cao.",
       "unreachableTailscale": "Không thể truy cập máy tính này qua {origin}. Có thể Tailscale vẫn đang lấy chứng chỉ; hãy kiểm tra lại sau một phút.",
-      "unreachableCloudflare": "Không thể truy cập máy tính này qua {origin}. Trong Cloudflare, hãy đặt URL dịch vụ của tên máy chủ này là http://127.0.0.1:{port}."
+      "unreachableCloudflare": "Không thể truy cập máy tính này qua {origin}. Hãy kiểm tra cloudflared đang chạy cho đường hầm của bạn và URL dịch vụ của tên máy chủ này là http://127.0.0.1:{port}."
     }
   }
 }

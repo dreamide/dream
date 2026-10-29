@@ -1,11 +1,17 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { expect, test } from "vitest";
 import { createRemoteAccess } from "./remote-access.js";
 
 /** Remote access over a data directory whose settings file says `saved`. */
-const withSaved = (saved, { tokenSaved = false, configure } = {}) => {
+const withSaved = (saved) => {
   const dataDirectory = mkdtempSync(path.join(os.tmpdir(), "dream-remote-"));
   const settingsFile = path.join(dataDirectory, "remote-access.json");
   writeFileSync(settingsFile, JSON.stringify(saved));
@@ -32,12 +38,6 @@ const withSaved = (saved, { tokenSaved = false, configure } = {}) => {
       disable: async () => {
         calls.push("tailscale");
       },
-    },
-    cloudflare: {
-      status: () => ({ state: "idle", tokenSaved }),
-      detect: async () => undefined,
-      stop: async () => undefined,
-      configure: configure ?? (async () => undefined),
     },
     pickPort: async () => 5410,
   });
@@ -93,21 +93,36 @@ test("the host says whether the saved settings can be turned on", async () => {
     origin: "https://dream.example.com",
     version: 1,
   };
-  const status = async (saved, options) =>
-    (await withSaved(saved, options).access.start()).configured;
+  const status = async (saved) =>
+    (await withSaved(saved).access.start()).configured;
   expect(await status({ mode: "tailscale", version: 1 })).toBe(true);
-  // A connector Dream runs needs its token.
-  expect(await status(cloudflare)).toBe(false);
-  expect(await status(cloudflare, { tokenSaved: true })).toBe(true);
-  // A connector the user runs needs only the address.
-  expect(await status({ ...cloudflare, cloudflareManaged: false })).toBe(true);
+  // The user runs the connector, so the address is all it needs, including
+  // a file saved when Dream ran the connector itself.
+  expect(await status(cloudflare)).toBe(true);
+  expect(await status({ ...cloudflare, cloudflareManaged: true })).toBe(true);
   expect(await status({ ...cloudflare, origin: null })).toBe(false);
+});
+
+test("startup removes the token and runtime Dream once kept for cloudflared", async () => {
+  const { access, settingsFile } = withSaved({
+    enabled: false,
+    mode: "cloudflare",
+    origin: "https://dream.example.com",
+    cloudflareManaged: true,
+    version: 1,
+  });
+  const retired = `${settingsFile}.cloudflare`;
+  mkdirSync(path.join(retired, "runtime"), { recursive: true });
+  writeFileSync(path.join(retired, "tunnel-token"), "eyJ-secret");
+  const status = await access.start();
+  expect(existsSync(retired)).toBe(false);
+  expect(status.cloudflare).toEqual({ managed: false, defaultPort: 5410 });
 });
 
 test("an unusable Cloudflare setup is refused and saves nothing", async () => {
   const saved = { mode: "tailscale", version: 1 };
-  const refusal = async (request, options) => {
-    const { access, settingsFile } = withSaved(saved, options);
+  const refusal = async (request) => {
+    const { access, settingsFile } = withSaved(saved);
     await access.start();
     const status = await access.enable(request);
     expect(JSON.parse(readFileSync(settingsFile, "utf8"))).toEqual(saved);
@@ -122,20 +137,4 @@ test("an unusable Cloudflare setup is refused and saves nothing", async () => {
       origin: "https://quiet-river.trycloudflare.com",
     }),
   ).toBe("quick-tunnel");
-  expect(
-    await refusal(
-      {
-        mode: "cloudflare",
-        origin: "https://dream.example.com",
-        cloudflareToken: "cloudflared service install eyJ",
-      },
-      {
-        configure: async () => {
-          throw Object.assign(new Error("Paste only the token."), {
-            problemCode: "cloudflare-token",
-          });
-        },
-      },
-    ),
-  ).toBe("cloudflare-token");
 });

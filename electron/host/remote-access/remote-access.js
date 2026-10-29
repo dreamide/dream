@@ -13,19 +13,28 @@
 //                  tunnel's configuration stays valid across restarts
 //     httpsPort    Tailscale's HTTPS port (443 by default)
 //     origin       the Cloudflare hostname's public origin
-//     cloudflareManaged  whether this host owns its cloudflared child
 //     servedBy     the Tailscale Serve entry Dream created, so turning
 //                  access off removes exactly that and nothing else
+//
+// The user runs cloudflared for their tunnel; Dream never installs, starts
+// or stops it. A file saved when Dream could run it may still say
+// `cloudflareManaged`; that is ignored, and the private directory that held
+// its token and runtime (<settings>.cloudflare) is removed at startup.
 //
 // A public address is reported ready only after a request through it
 // reached this host (Cloudflare also verifies its signed host-key proof): no address that
 // does not work is shown as one that does. The listener itself stays on
 // loopback; reaching it still requires pairing.
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import getPort from "get-port";
 import { createVerifiedHttps } from "../../connections/https-route.js";
-import { createCloudflareConnector } from "./cloudflare.js";
 import { TailscaleProblem } from "./tailscale.js";
 
 const SETTINGS_FILE = "remote-access.json";
@@ -40,7 +49,6 @@ const DEFAULTS = Object.freeze({
   origin: null,
   port: null,
   servedBy: null,
-  cloudflareManaged: true,
   version: 1,
 });
 
@@ -76,7 +84,6 @@ const readSettings = (file) => {
     enabled: raw.enabled === true && raw.mode !== "origin",
     httpsPort: validPort(raw.httpsPort) ?? DEFAULTS.httpsPort,
     mode: raw.mode === "cloudflare" ? "cloudflare" : "tailscale",
-    cloudflareManaged: raw.cloudflareManaged !== false,
     origin: httpsOrigin(raw.origin),
     port: validPort(raw.port),
     servedBy:
@@ -129,7 +136,6 @@ const asProblem = (error) =>
  *   listen: (options: { port: number, publicOrigins: string[], trustForwardedHost: boolean }) => Promise<{ port: number, origins: string[] }>,
  *   close: () => Promise<void>,
  *   tailscale: ReturnType<typeof import("./tailscale.js").createTailscale>,
- *   cloudflare?: ReturnType<typeof createCloudflareConnector>,
  *   hostIdentity?: () => { hostId: string, fingerprint?: string, publicKey?: string },
  *   fetchImpl?: typeof fetch,
  *   pickPort?: (preferred?: number) => Promise<number>,
@@ -145,9 +151,6 @@ export function createRemoteAccess({
   listen,
   close,
   tailscale,
-  cloudflare = createCloudflareConnector({
-    directory: `${settingsFile}.cloudflare`,
-  }),
   hostIdentity = () => ({ hostId: hostId() }),
   fetchImpl = (...args) => fetch(...args),
   pickPort = (preferred) => getPort({ host: "127.0.0.1", port: preferred }),
@@ -156,6 +159,8 @@ export function createRemoteAccess({
 }) {
   const file = settingsFile;
   let settings = readSettings(file);
+  // Where Dream once kept a connector's token and runtime; nothing uses it.
+  const retiredConnectorDirectory = `${settingsFile}.cloudflare`;
   let listening = null; // { port }
   let origin = null; // the verified public origin
   let problem = null;
@@ -185,25 +190,13 @@ export function createRemoteAccess({
     origin,
     port: listening?.port ?? settings.port,
     problem,
-    ready:
-      settings.enabled &&
-      listening !== null &&
-      origin !== null &&
-      (settings.mode !== "cloudflare" ||
-        !settings.cloudflareManaged ||
-        cloudflare.status().state === "connected"),
+    ready: settings.enabled && listening !== null && origin !== null,
     requestedOrigin: settings.mode === "cloudflare" ? settings.origin : null,
     // Whether the saved settings can be turned on as they are.
-    configured:
-      settings.mode === "tailscale" ||
-      (Boolean(settings.origin) &&
-        (!settings.cloudflareManaged ||
-          Boolean(cloudflare.status().tokenSaved))),
-    cloudflare: {
-      ...cloudflare.status(),
-      managed: settings.cloudflareManaged,
-      defaultPort: CLOUDFLARE_PORT,
-    },
+    configured: settings.mode === "tailscale" || Boolean(settings.origin),
+    // `managed: false` keeps a desktop older than 2026-10-28 on its
+    // user-run connector form instead of asking for a token.
+    cloudflare: { managed: false, defaultPort: CLOUDFLARE_PORT },
   });
 
   /** Verify reachability; Cloudflare must also prove the installation key. */
@@ -280,30 +273,12 @@ export function createRemoteAccess({
 
   const checkCloudflare = async () => {
     checkedAt = now();
-    if (settings.cloudflareManaged) {
-      const connector = await cloudflare.check();
-      if (connector.state !== "connected") {
-        origin = null;
-        problem = connector.error
-          ? {
-              code: "cloudflare-connector",
-              message: connector.error,
-              url: null,
-            }
-          : {
-              code: "cloudflare-connecting",
-              message: "Waiting for the Cloudflare connector to connect.",
-              url: null,
-            };
-        return;
-      }
-    }
     const unreachable = await verify(settings.origin);
     origin = unreachable ? null : settings.origin;
     problem = unreachable
       ? {
           code: "unreachable",
-          message: `${unreachable} Configure this hostname's Cloudflare service URL as http://127.0.0.1:${listening?.port ?? settings.port}.`,
+          message: `${unreachable} Check that cloudflared is running for this tunnel and that the hostname's Cloudflare service URL is http://127.0.0.1:${listening?.port ?? settings.port}.`,
           url: "https://one.dash.cloudflare.com/",
           params: {
             detail: unreachable,
@@ -345,13 +320,10 @@ export function createRemoteAccess({
     origin = null;
     problem = null;
     if (!settings.enabled) {
-      await cloudflare.stop();
       await stopListening();
       return status();
     }
     try {
-      if (settings.mode !== "cloudflare" || !settings.cloudflareManaged)
-        await cloudflare.stop();
       if (settings.mode === "cloudflare") {
         if (!settings.origin) {
           throw Object.assign(
@@ -365,7 +337,6 @@ export function createRemoteAccess({
           save({ servedBy: null });
         }
         await startListening(settings.origin);
-        if (settings.cloudflareManaged) await cloudflare.start({ retry: true });
         await checkCloudflare();
         armMonitor();
         return status();
@@ -417,42 +388,21 @@ export function createRemoteAccess({
     start: () =>
       serially(() => {
         closing = false;
-        // Show whether cloudflared is installed before a connector starts.
-        if (
-          !settings.enabled ||
-          settings.mode !== "cloudflare" ||
-          !settings.cloudflareManaged
-        )
-          void cloudflare.detect().catch(() => {});
+        // A saved tunnel token is a secret nothing reads any more.
+        try {
+          rmSync(retiredConnectorDirectory, { force: true, recursive: true });
+        } catch {
+          // A file still held open (Windows) goes on a later start.
+        }
         return apply();
       }),
 
     /** Checks again (after the user fixed a setup step). */
     refresh: () => serially(apply),
-    /** Starts the owned connector again; then checks the route. */
-    restartCloudflare: () =>
-      serially(async () => {
-        if (
-          !settings.enabled ||
-          settings.mode !== "cloudflare" ||
-          !settings.cloudflareManaged
-        ) {
-          return status();
-        }
-        await cloudflare.restart();
-        return apply();
-      }),
-    installCloudflare: () =>
-      serially(async () => {
-        await cloudflare.install();
-        return settings.enabled && settings.mode === "cloudflare"
-          ? apply()
-          : status();
-      }),
 
     /**
      * Turns remote access on with these settings.
-     * @param {{ mode?: "tailscale" | "cloudflare", origin?: string, httpsPort?: number, port?: number | null, cloudflareManaged?: boolean, cloudflareToken?: string }} options
+     * @param {{ mode?: "tailscale" | "cloudflare", origin?: string, httpsPort?: number, port?: number | null }} options
      */
     enable: (options = {}) =>
       serially(async () => {
@@ -487,24 +437,12 @@ export function createRemoteAccess({
               };
           return status();
         }
-        if (mode === "cloudflare") {
-          try {
-            await cloudflare.configure({ token: options.cloudflareToken });
-          } catch (error) {
-            // A token that is not one is refused like an address: nothing saved.
-            if (error?.problemCode !== "cloudflare-token") throw error;
-            problem = { ...asProblem(error), refused: true };
-            return status();
-          }
-        }
         closing = false;
         save({
           enabled: true,
           httpsPort: validPort(options.httpsPort) ?? settings.httpsPort,
           mode,
           origin: requestedOrigin,
-          cloudflareManaged:
-            options.cloudflareManaged ?? settings.cloudflareManaged,
           port:
             options.port === null
               ? null
@@ -522,7 +460,6 @@ export function createRemoteAccess({
       serially(async () => {
         save({ enabled: false });
         clearMonitor();
-        await cloudflare.stop();
         await stopListening();
         origin = null;
         problem = null;
@@ -544,10 +481,7 @@ export function createRemoteAccess({
     close: () => {
       closing = true;
       clearMonitor();
-      return serially(async () => {
-        await cloudflare.stop();
-        await stopListening();
-      });
+      return serially(stopListening);
     },
   };
 }

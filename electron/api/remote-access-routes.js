@@ -115,8 +115,9 @@ export { clearSessionCookie };
 export const remoteAccessEnableSchema = z.object({
   httpsPort: z.number().int().min(1).max(65_535).optional(),
   mode: z.enum(["tailscale", "cloudflare"]).optional(),
+  // Ignored: the user runs cloudflared. A desktop sends false so a host
+  // older than 2026-10-28 uses that connector instead of asking for a token.
   cloudflareManaged: z.boolean().optional(),
-  cloudflareToken: z.string().max(16_384).optional(),
   origin: z.string().max(500).optional(),
   port: z.number().int().min(1).max(65_535).nullable().optional(),
 });
@@ -301,21 +302,5 @@ export function registerRemoteAccessRoutes(
     handleJsonRoute(c, emptyRequestSchema, () => remoteAccess.refresh(), {
       missingBody: {},
     }),
-  );
-  app.post("/api/remote/access/cloudflare/install", (c) =>
-    handleJsonRoute(
-      c,
-      emptyRequestSchema,
-      () => remoteAccess.installCloudflare(),
-      { missingBody: {} },
-    ),
-  );
-  app.post("/api/remote/access/cloudflare/restart", (c) =>
-    handleJsonRoute(
-      c,
-      emptyRequestSchema,
-      () => remoteAccess.restartCloudflare(),
-      { missingBody: {} },
-    ),
   );
 }

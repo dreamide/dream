@@ -1124,20 +1124,9 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "使用 Cloudflare 账户中的持久隧道和主机名。",
-    "cloudflareToken": "隧道令牌",
-    "cloudflareTokenSaved": "已保存 — 留空以保留",
-    "cloudflareTokenHint": "仅粘贴令牌。令牌仅保存在此主机上；输入新令牌以轮换。",
-    "cloudflareInstall": "安装 cloudflared",
-    "cloudflareUpdate": "更新 cloudflared",
-    "cloudflareMissing": "未安装",
-    "cloudflareExternal": "此连接器由你单独管理。此处不会启动、停止或删除它。",
-    "cloudflareRouteHint": "在 Cloudflare 中将此主机名指向 http://127.0.0.1:{port}。使用专用隧道，并对 /api/* 绕过缓存。",
-    "cloudflareState": "连接器：{state}",
-    "cloudflare_idle": "已停止",
-    "cloudflare_starting": "正在启动",
-    "cloudflare_connected": "已连接",
-    "cloudflare_reconnecting": "正在重新连接",
-    "cloudflare_failed": "需要处理",
+    "cloudflareStepTunnel": "在 Cloudflare 中创建隧道，并在这台电脑上运行它的安装命令。",
+    "cloudflareStepRoute": "将你域名下的主机名指向 http://127.0.0.1:{port}，并对 /api/* 绕过缓存。",
+    "cloudflareStepAddress": "在下方输入该主机名。",
     "pairTitle": "配对此设备",
     "pairDescription": "使用 {host} 的配对链接，或输入其显示的代码。",
     "pairing": "正在配对…",
@@ -1205,9 +1194,7 @@
     "change": "更改",
     "setupTitle": "设置远程访问",
     "advanced": "高级",
-    "cloudflareSelfManaged": "我自己运行 cloudflared",
     "needsOrigin": "请输入公开地址。",
-    "needsToken": "请粘贴隧道令牌。",
     "save": "保存",
     "problems": {
       "notInstalled": "这台电脑未安装 Tailscale。",
@@ -1217,13 +1204,11 @@
       "httpsDisabled": "请在 Tailscale 管理控制台中为你的 tailnet 开启 MagicDNS 和 HTTPS 证书，然后重新检查。",
       "portTaken": "Tailscale 已在 HTTPS 端口 {port} 上提供其他内容。请在“高级”中选择其他 HTTPS 端口。",
       "permission": "Tailscale 不允许此用户更改其 Serve 设置。在 Linux 上，请运行一次 sudo tailscale set --operator=$USER，然后重新检查。",
-      "cloudflareToken": "只粘贴隧道令牌，不要粘贴安装命令。",
-      "cloudflareConnecting": "正在等待 Cloudflare 连接器连接。",
       "needsOrigin": "请以 https:// 地址输入你的 Cloudflare 主机名，例如 https://dream.example.com。",
       "quickTunnel": "请使用具有固定主机名的持久 Cloudflare 隧道。Quick Tunnel 不支持聊天流式传输。",
       "portInUse": "这台电脑上的端口 {port} 已被占用。请在“高级”中选择其他本地端口。",
       "unreachableTailscale": "无法通过 {origin} 访问这台电脑。Tailscale 可能仍在获取证书；请一分钟后重新检查。",
-      "unreachableCloudflare": "无法通过 {origin} 访问这台电脑。请在 Cloudflare 中将此主机名的服务 URL 设置为 http://127.0.0.1:{port}。"
+      "unreachableCloudflare": "无法通过 {origin} 访问这台电脑。请确认隧道的 cloudflared 正在运行，且此主机名的服务 URL 为 http://127.0.0.1:{port}。"
     }
   }
 }

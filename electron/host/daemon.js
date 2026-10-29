@@ -479,8 +479,8 @@ export async function runDaemonCli(
         scopes: { type: "string" },
         tailscale: { type: "boolean" },
         cloudflare: { type: "boolean" },
+        // Accepted for scripts written when Dream could run cloudflared.
         external: { type: "boolean" },
-        "token-file": { type: "string" },
         env: { multiple: true, type: "string" },
         "service-name": { type: "string" },
         archive: { type: "string" },

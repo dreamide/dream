@@ -1124,20 +1124,9 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Einen dauerhaften Tunnel und Hostnamen aus deinem Cloudflare-Konto verwenden.",
-    "cloudflareToken": "Tunnel-Token",
-    "cloudflareTokenSaved": "Token gespeichert — leer lassen zum Beibehalten",
-    "cloudflareTokenHint": "Nur das Token einfügen. Es bleibt privat auf diesem Host; zum Rotieren ein neues eingeben.",
-    "cloudflareInstall": "cloudflared installieren",
-    "cloudflareUpdate": "cloudflared aktualisieren",
-    "cloudflareMissing": "Nicht installiert",
-    "cloudflareExternal": "Diesen Connector verwaltest du separat. Er wird hier weder gestartet, gestoppt noch gelöscht.",
-    "cloudflareRouteHint": "In Cloudflare diesen Hostnamen an http://127.0.0.1:{port} weiterleiten. Einen eigenen Tunnel verwenden und den Cache für /api/* umgehen.",
-    "cloudflareState": "Connector: {state}",
-    "cloudflare_idle": "Gestoppt",
-    "cloudflare_starting": "Wird gestartet",
-    "cloudflare_connected": "Verbunden",
-    "cloudflare_reconnecting": "Verbindung wird wiederhergestellt",
-    "cloudflare_failed": "Aktion erforderlich",
+    "cloudflareStepTunnel": "Erstelle in Cloudflare einen Tunnel und führe seinen Installationsbefehl auf diesem Computer aus.",
+    "cloudflareStepRoute": "Leite einen Hostnamen deiner Domain an http://127.0.0.1:{port} weiter und umgehe den Cache für /api/*.",
+    "cloudflareStepAddress": "Gib diesen Hostnamen unten ein.",
     "pairTitle": "Dieses Gerät koppeln",
     "pairDescription": "Verwende den Kopplungslink von {host} oder gib den dort angezeigten Code ein.",
     "pairing": "Wird gekoppelt…",
@@ -1205,9 +1194,7 @@
     "change": "Ändern",
     "setupTitle": "Fernzugriff einrichten",
     "advanced": "Erweitert",
-    "cloudflareSelfManaged": "Ich betreibe cloudflared selbst",
     "needsOrigin": "Gib die öffentliche Adresse ein.",
-    "needsToken": "Füge das Tunnel-Token ein.",
     "save": "Speichern",
     "problems": {
       "notInstalled": "Tailscale ist auf diesem Computer nicht installiert.",
@@ -1217,13 +1204,11 @@
       "httpsDisabled": "Aktiviere MagicDNS und HTTPS-Zertifikate für dein Tailnet in der Tailscale-Verwaltungskonsole und prüfe dann erneut.",
       "portTaken": "Tailscale stellt auf HTTPS-Port {port} bereits etwas anderes bereit. Wähle unter „Erweitert“ einen anderen HTTPS-Port.",
       "permission": "Tailscale lässt diesen Benutzer die Serve-Einstellungen nicht ändern. Führe unter Linux einmal sudo tailscale set --operator=$USER aus und prüfe dann erneut.",
-      "cloudflareToken": "Füge nur das Tunnel-Token ein, nicht den Installationsbefehl.",
-      "cloudflareConnecting": "Warte darauf, dass sich der Cloudflare-Connector verbindet.",
       "needsOrigin": "Gib deinen Cloudflare-Hostnamen als https://-Adresse ein, zum Beispiel https://dream.example.com.",
       "quickTunnel": "Verwende einen dauerhaften Cloudflare-Tunnel mit festem Hostnamen. Quick Tunnels unterstützen kein Chat-Streaming.",
       "portInUse": "Port {port} ist auf diesem Computer bereits belegt. Wähle unter „Erweitert“ einen anderen lokalen Port.",
       "unreachableTailscale": "Dieser Computer ist über {origin} nicht erreichbar. Tailscale ruft das Zertifikat möglicherweise noch ab; prüfe in einer Minute erneut.",
-      "unreachableCloudflare": "Dieser Computer ist über {origin} nicht erreichbar. Setze in Cloudflare die Dienst-URL dieses Hostnamens auf http://127.0.0.1:{port}."
+      "unreachableCloudflare": "Dieser Computer ist über {origin} nicht erreichbar. Prüfe, ob cloudflared für deinen Tunnel läuft und die Dienst-URL dieses Hostnamens http://127.0.0.1:{port} ist."
     }
   }
 }

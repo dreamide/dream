@@ -1505,6 +1505,63 @@ broker, centrally provisioned tunnel fleets, cloud billing/quotas, native mobile
 applications and mobile push. Automated Cloudflare account/DNS provisioning can
 be considered separately from the initial token-and-hostname integration.
 
+### Revision (2026-10-28): the user runs the connector
+
+Status: implemented; real-tunnel walkthrough pending.
+
+Problem and trigger: setting up the managed connector was too complicated in
+practice. The form asked for a token that Cloudflare's dashboard shows only
+inside an install command, and offered a second connector mode under
+Advanced. A user who followed Cloudflare's own instructions already had a
+connector running as an OS service, so Dream's token and runtime were
+redundant.
+
+Scope: Dream no longer installs, runs, updates or restarts `cloudflared`. The
+user runs the connector for their tunnel (Cloudflare's install command, a
+service, or a container); Dream asks only for the public address and the
+local port, and is ready once its signed host proof arrives through that
+address (the existing external-connector check).
+
+- Remove the connector owner (`cloudflare.js`), the runtime installer
+  (`cloudflared-runtime.js`), the watchdog runner and its host-runtime bundle
+  entry, the install and restart routes, and the `remote install-cloudflared`
+  and `remote restart` commands and `--token-file`.
+- A saved `cloudflareManaged` is ignored. At startup the host deletes its
+  private `<settings>.cloudflare` directory (a saved token and downloaded
+  runtimes), so no tunnel secret is left on disk.
+- Status keeps `cloudflare: { managed: false, defaultPort }`, so a desktop
+  older than this change shows its external-connector form. The desktop sends
+  `cloudflareManaged: false`, so an older host it attaches to does not
+  expect a token. `--external` is accepted and has no effect.
+- Problems lose `cloudflare-token`, `cloudflare-connecting`,
+  `cloudflare-connector` and `cloudflared-install`. An unreachable Cloudflare
+  address also says to check that the connector is running.
+- Settings: Cloudflare asks for the public address only, with setup steps and
+  the Open setup page button. Advanced keeps the local port.
+
+Completion criteria:
+
+- The Cloudflare form has no token, installer or connector-ownership controls;
+  saving with only an address turns access on and checks it.
+- No host code starts, stops, downloads or bundles `cloudflared`; an existing
+  saved token directory is removed at startup.
+- An older desktop attached to this host, and this desktop attached to an
+  older host, both configure a user-run connector without asking for a token.
+- Docs, glossary and locales describe only the user-run connector.
+
+Validation (2026-10-28):
+- `pnpm check` passed scratch hygiene, lint, typecheck and all 1,269 tests
+  across 187 files. Host tests cover a saved managed file loading as
+  configured with its address alone, and startup deleting
+  `<settings>.cloudflare` with its token.
+- The setup dialog was rendered on the fixture page with a sample Cloudflare
+  status and inspected in light and dark themes, with Advanced open and
+  closed. That temporary fixture was removed afterwards.
+
+Remaining: turning access on against a real tunnel with a user-run
+`cloudflared` service; an older desktop attached to this host, and this
+desktop attached to an older host, were reasoned from the code and not run.
+
 Implementation references: [Cloudflare Tunnel setup](https://developers.cloudflare.com/tunnel/get-started/),
 [tunnel tokens](https://developers.cloudflare.com/tunnel/reference/tunnel-tokens/),
 and [Quick Tunnel limitations](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/#limitations).
