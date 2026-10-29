@@ -4,7 +4,7 @@ import {
   GitFork,
   UploadCloud,
 } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import type {
   ProjectGitStatusResponse,
 } from "@/types/ide";
 import { useIdeStore } from "../ide-store";
+import { GitCommitList } from "./commit-list";
 import { ActionError, DialogMetricRow, GitDialogHeader } from "./dialog-layout";
 import { hasPushableCommits } from "./utils";
 
@@ -39,7 +40,6 @@ export const PushDialog = ({
   status: ProjectGitStatusResponse | null;
 }) => {
   const commonT = useTranslations("common");
-  const format = useFormatter();
   const gitT = useTranslations("git");
   const gitBusy = useIdeStore((s) => s.gitWriteByProject[projectId] != null);
   const [submitting, setSubmitting] = useState(false);
@@ -196,40 +196,12 @@ export const PushDialog = ({
             />
           </div>
 
-          {preview && preview.commits.length > 0 ? (
-            <div className="overflow-hidden rounded-md border border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900">
-              <div className="max-h-[12.5rem] divide-y divide-surface-200 dark:divide-surface-800 overflow-y-auto">
-                {preview.commits.map((commit) => (
-                  <div
-                    className="grid h-10 grid-cols-[auto_1fr_auto] items-center gap-3 px-3 text-sm"
-                    key={commit.hash || commit.shortHash}
-                  >
-                    <span className="font-mono text-muted-foreground text-xs">
-                      {commit.shortHash}
-                    </span>
-                    <span className="min-w-0 truncate text-foreground">
-                      {commit.subject || gitT("noSubject")}
-                    </span>
-                    <span className="text-muted-foreground text-xs">
-                      {Number.isNaN(new Date(commit.authorDate).getTime())
-                        ? ""
-                        : format.dateTime(new Date(commit.authorDate), {
-                            day: "numeric",
-                            month: "short",
-                          })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              {preview.truncated ? (
-                <div className="border-surface-200 dark:border-surface-800 border-t px-3 py-2 text-muted-foreground text-xs">
-                  {gitT("showingCommits", {
-                    shown: preview.commits.length,
-                    total: preview.totalCommits,
-                  })}
-                </div>
-              ) : null}
-            </div>
+          {preview ? (
+            <GitCommitList
+              commits={preview.commits}
+              totalCommits={preview.totalCommits}
+              truncated={preview.truncated}
+            />
           ) : null}
           {previewError ? (
             <div className="text-destructive text-sm">{previewError}</div>

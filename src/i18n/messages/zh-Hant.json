@@ -790,6 +790,9 @@
     "fetchedFrom": "已從 {target} 擷取",
     "pull": "拉取",
     "pulledFrom": "已從 {target} 拉取 {count, plural, other {# 個提交}}",
+    "pulledChanges": "已拉取的變更",
+    "source": "來源",
+    "viewChanges": "檢視變更",
     "alreadyUpToDate": "已與 {target} 保持同步",
     "unableToFetch": "無法擷取變更。",
     "unableToPull": "無法拉取變更。",
@@ -978,6 +981,10 @@
     "tooManyFiles": "檔案太多，部分檔案未新增。"
   },
   "updates": {
+    "checkForUpdates": "檢查更新",
+    "upToDate": "已是最新版本",
+    "updateReady": "更新已準備好安裝",
+    "updatesDisabled": "此組建版本無法檢查更新",
     "checkingUpdate": "檢查更新",
     "downloadingPercent": "正在下載{percent}%",
     "downloadingUpdate": "正在下載更新",

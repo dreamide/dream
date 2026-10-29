@@ -1150,3 +1150,146 @@ export const getProjectGitBulkCachedDiff = async (projectPath, changes) => {
  */
 export const getProjectGitChangesFingerprint = (changes, options) =>
   hashContent(gitChangesKey(changes, options));
+
+// ---------------------------------------------------------------------------
+// Diff parsing
+// ---------------------------------------------------------------------------
+
+const mapNameStatusCode = (code) => {
+  switch (code?.[0]) {
+    case "A":
+      return "added";
+    case "D":
+      return "deleted";
+    case "R":
+      return "renamed";
+    case "C":
+      return "copied";
+    default:
+      return "modified";
+  }
+};
+
+export const parseGitNameStatusZ = (output) => {
+  const tokens = (output ?? "").split("\0");
+  const entries = [];
+
+  for (let index = 0; index < tokens.length; index++) {
+    const code = tokens[index];
+    if (!code) {
+      continue;
+    }
+
+    const status = mapNameStatusCode(code);
+    if (status === "renamed" || status === "copied") {
+      const previousPath = tokens[index + 1] ?? "";
+      const currentPath = tokens[index + 2] ?? "";
+      index += 2;
+      if (!currentPath) {
+        continue;
+      }
+      entries.push({
+        path: normalizePath(currentPath),
+        previousPath: previousPath ? normalizePath(previousPath) : null,
+        status,
+      });
+      continue;
+    }
+
+    const currentPath = tokens[index + 1] ?? "";
+    index += 1;
+    if (!currentPath) {
+      continue;
+    }
+    entries.push({
+      path: normalizePath(currentPath),
+      previousPath: null,
+      status,
+    });
+  }
+
+  return entries;
+};
+
+const parseNumstatCount = (value) => {
+  if (value === "-") {
+    return 0;
+  }
+  return Number.parseInt(value, 10) || 0;
+};
+
+export const parseGitNumstatZ = (output) => {
+  const tokens = (output ?? "").split("\0");
+  const stats = new Map();
+
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index];
+    if (!token) {
+      continue;
+    }
+
+    const [added = "0", removed = "0", inlinePath = ""] = token.split("\t");
+    const entry = {
+      addedLines: parseNumstatCount(added),
+      removedLines: parseNumstatCount(removed),
+    };
+
+    if (inlinePath) {
+      stats.set(normalizePath(inlinePath), entry);
+      continue;
+    }
+
+    // Rename/copy entries are emitted as "added\tremoved\t\0old\0new\0".
+    const currentPath = tokens[index + 2] ?? "";
+    index += 2;
+    if (currentPath) {
+      stats.set(normalizePath(currentPath), entry);
+    }
+  }
+
+  return stats;
+};
+
+/**
+ * The files changed from `fromRef` to `toRef`, with their line counts, as
+ * status entries sorted by path (the shape `git diff --stat` summarizes).
+ */
+export const readGitRangeFiles = async (repoRoot, fromRef, toRef = "HEAD") => {
+  const [nameStatusResult, numstatResult] = await Promise.all([
+    runGitCommand(repoRoot, [
+      "diff",
+      "--name-status",
+      "--find-renames",
+      "--no-ext-diff",
+      "-z",
+      fromRef,
+      toRef,
+    ]),
+    runGitCommand(repoRoot, [
+      "diff",
+      "--numstat",
+      "--find-renames",
+      "--no-ext-diff",
+      "-z",
+      fromRef,
+      toRef,
+    ]),
+  ]);
+  const stats = parseGitNumstatZ(numstatResult.stdout);
+
+  return parseGitNameStatusZ(nameStatusResult.stdout)
+    .map((entry) => {
+      const entryStats = stats.get(entry.path) ?? {
+        addedLines: 0,
+        removedLines: 0,
+      };
+      return {
+        ...entry,
+        addedLines: entryStats.addedLines,
+        removedLines: entryStats.removedLines,
+        staged: false,
+        unstaged: false,
+      };
+    })
+    .sort((left, right) => left.path.localeCompare(right.path));
+};

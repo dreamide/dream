@@ -817,6 +817,18 @@ export interface ProjectGitPushPreviewResponse {
   upstreamBranch: string | null;
 }
 
+export interface ProjectGitPullResponse {
+  commitCount: number;
+  upstreamBranch: string;
+  /**
+   * The commits the pull brought in, newest first and capped like the push
+   * preview, and the files they changed. Absent from older hosts.
+   */
+  commits?: ProjectGitPushPreviewCommit[];
+  files?: ProjectGitStatusEntry[];
+  truncated?: boolean;
+}
+
 export interface ProjectGitPushResponse {
   branch: string;
   commit: ProjectGitCommitResponse | null;

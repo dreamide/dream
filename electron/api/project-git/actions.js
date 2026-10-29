@@ -11,6 +11,7 @@ import {
   getProjectGitMetadata,
   gitRefExists,
   listProjectGitChanges,
+  readGitRangeFiles,
   resolveGitBranchUpstream,
   runGhCommand,
   runGitCommand,
@@ -103,6 +104,7 @@ export const pullProjectGitChanges = async (projectPath) => {
       "The local and remote branches have diverged. Merge or rebase them before pulling.",
     );
   }
+  const previousHead = await readGitHead(repoInfo.repoRoot);
   // Fetch followed by a fast-forward merge is a pull without implicit rebasing,
   // merge commits or auto-stashing from the user's Git configuration.
   await runGitCommand(repoInfo.repoRoot, [
@@ -112,7 +114,36 @@ export const pullProjectGitChanges = async (projectPath) => {
     "--no-squash",
     upstream.ref,
   ]);
-  return { commitCount: behindCount, upstreamBranch: upstream.upstream };
+  return {
+    commitCount: behindCount,
+    upstreamBranch: upstream.upstream,
+    ...(await readPulledChanges(repoInfo.repoRoot, previousHead, behindCount)),
+  };
+};
+
+const readGitHead = async (repoRoot) => {
+  const result = await runGitCommand(
+    repoRoot,
+    ["rev-parse", "--verify", "--quiet", "HEAD"],
+    { allowFailure: true },
+  );
+  return result.ok ? result.stdout.trim() || null : null;
+};
+
+/**
+ * What a fast-forward from `previousHead` brought in: its commits, newest
+ * first, and the files it changed, like the summary `git pull` prints.
+ * A branch with no commits before the pull has nothing to compare against.
+ */
+const readPulledChanges = async (repoRoot, previousHead, commitCount) => {
+  if (!previousHead || commitCount === 0) {
+    return { commits: [], files: [], truncated: false };
+  }
+  const [commits, files] = await Promise.all([
+    readGitPushPreviewCommits(repoRoot, `${previousHead}..HEAD`),
+    readGitRangeFiles(repoRoot, previousHead, "HEAD"),
+  ]);
+  return { commits, files, truncated: commits.length < commitCount };
 };
 
 export const getProjectGitRemoteUrl = async (projectPath) => {

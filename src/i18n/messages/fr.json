@@ -790,6 +790,9 @@
     "fetchedFrom": "Récupéré depuis {target}",
     "pull": "Pull",
     "pulledFrom": "{count, plural, one {# commit récupéré} other {# commits récupérés}} depuis {target}",
+    "pulledChanges": "Modifications récupérées",
+    "source": "Source",
+    "viewChanges": "Voir les modifications",
     "alreadyUpToDate": "Déjà à jour avec {target}",
     "unableToFetch": "Impossible de récupérer les changements.",
     "unableToPull": "Impossible d’intégrer les changements.",
@@ -978,6 +981,10 @@
     "tooManyFiles": "Trop de fichiers. Certains n'ont pas été ajoutés."
   },
   "updates": {
+    "checkForUpdates": "Rechercher des mises à jour",
+    "upToDate": "Vous êtes à jour",
+    "updateReady": "Mise à jour prête à installer",
+    "updatesDisabled": "La recherche de mises à jour est indisponible dans cette version",
     "checkingUpdate": "Vérification de la mise à jour",
     "downloadingPercent": "Téléchargement de {percent}%",
     "downloadingUpdate": "Téléchargement de la mise à jour",

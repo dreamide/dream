@@ -38,6 +38,7 @@ import type {
   ProjectGitDiffResponse,
   ProjectGitLogResponse,
   ProjectGitPullRequestDetailsResponse,
+  ProjectGitPullResponse,
   ProjectGitPushPreviewResponse,
   ProjectGitPushResponse,
   ProjectGitStatusResponse,
@@ -581,7 +582,7 @@ export const API_ROUTES = {
   >("/api/project-git-fetch"),
   gitPull: post<
     Input<typeof projectGitPullRequestSchema>,
-    { commitCount: number; upstreamBranch: string }
+    ProjectGitPullResponse
   >("/api/project-git-pull"),
   gitRemoteUrl: post<
     Input<typeof projectGitRemoteUrlRequestSchema>,

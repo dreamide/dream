@@ -790,6 +790,9 @@
     "fetchedFrom": "已从 {target} 获取",
     "pull": "拉取",
     "pulledFrom": "已从 {target} 拉取 {count, plural, other {# 个提交}}",
+    "pulledChanges": "已拉取的更改",
+    "source": "来源",
+    "viewChanges": "查看更改",
     "alreadyUpToDate": "已与 {target} 保持同步",
     "unableToFetch": "无法获取更改。",
     "unableToPull": "无法拉取更改。",
@@ -978,6 +981,10 @@
     "tooManyFiles": "文件太多。有些没有添加。"
   },
   "updates": {
+    "checkForUpdates": "检查更新",
+    "upToDate": "已是最新版本",
+    "updateReady": "更新已准备好安装",
+    "updatesDisabled": "此构建版本无法检查更新",
     "checkingUpdate": "检查更新",
     "downloadingPercent": "正在下载{percent}%",
     "downloadingUpdate": "正在下载更新",

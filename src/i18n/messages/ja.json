@@ -790,6 +790,9 @@
     "fetchedFrom": "{target} からフェッチしました",
     "pull": "プル",
     "pulledFrom": "{target} から {count, plural, other {# 件のコミット}}をプルしました",
+    "pulledChanges": "プルした変更",
+    "source": "取得元",
+    "viewChanges": "変更を表示",
     "alreadyUpToDate": "{target} と同期済みです",
     "unableToFetch": "変更をフェッチできませんでした。",
     "unableToPull": "変更をプルできませんでした。",
@@ -978,6 +981,10 @@
     "tooManyFiles": "ファイルが多すぎます。追加されていないものもあります。"
   },
   "updates": {
+    "checkForUpdates": "アップデートを確認",
+    "upToDate": "最新バージョンです",
+    "updateReady": "アップデートをインストールできます",
+    "updatesDisabled": "このビルドではアップデートを確認できません",
     "checkingUpdate": "アップデートを確認しています",
     "downloadingPercent": "{percent}% をダウンロード中",
     "downloadingUpdate": "アップデートをダウンロードしています",

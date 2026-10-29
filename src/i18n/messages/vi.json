@@ -790,6 +790,9 @@
     "fetchedFrom": "Đã lấy từ {target}",
     "pull": "Pull",
     "pulledFrom": "Đã kéo {count, plural, other {# commit}} từ {target}",
+    "pulledChanges": "Thay đổi đã kéo",
+    "source": "Nguồn",
+    "viewChanges": "Xem thay đổi",
     "alreadyUpToDate": "Đã cập nhật với {target}",
     "unableToFetch": "Không thể lấy thay đổi.",
     "unableToPull": "Không thể kéo thay đổi.",
@@ -978,6 +981,10 @@
     "tooManyFiles": "Quá nhiều tập tin. Một số không được thêm vào."
   },
   "updates": {
+    "checkForUpdates": "Kiểm tra cập nhật",
+    "upToDate": "Bạn đang dùng phiên bản mới nhất",
+    "updateReady": "Bản cập nhật đã sẵn sàng để cài đặt",
+    "updatesDisabled": "Không thể kiểm tra cập nhật trong bản dựng này",
     "checkingUpdate": "Đang kiểm tra cập nhật",
     "downloadingPercent": "Đang tải xuống {percent}%",
     "downloadingUpdate": "Đang tải xuống bản cập nhật",

@@ -90,6 +90,7 @@ import {
 } from "./settings";
 import { KeyboardShortcutsSection } from "./settings/keyboard-shortcuts-section";
 import { RemoteAccessSection } from "./settings/remote-access-section";
+import { SettingsVersionButton } from "./settings/settings-version-button";
 import { SkillsSettingsSection } from "./skills/skills-settings-section";
 import { SshHostsSettingsSection } from "./ssh/ssh-hosts-settings-section";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
@@ -715,7 +716,11 @@ export const SettingsWorkspace = () => {
               platform.kind === "desktop" && "mt-auto",
             )}
           >
-            v{appVersion}
+            {platform.kind === "desktop" ? (
+              <SettingsVersionButton version={appVersion} />
+            ) : (
+              `v${appVersion}`
+            )}
           </div>
         </nav>
 

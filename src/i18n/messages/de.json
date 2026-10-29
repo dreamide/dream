@@ -790,6 +790,9 @@
     "fetchedFrom": "Von {target} abgerufen",
     "pull": "Pull",
     "pulledFrom": "{count, plural, one {# Commit} other {# Commits}} von {target} übernommen",
+    "pulledChanges": "Übernommene Änderungen",
+    "source": "Quelle",
+    "viewChanges": "Änderungen anzeigen",
     "alreadyUpToDate": "Bereits auf dem Stand von {target}",
     "unableToFetch": "Änderungen konnten nicht abgerufen werden.",
     "unableToPull": "Änderungen konnten nicht übernommen werden.",
@@ -978,6 +981,10 @@
     "tooManyFiles": "Zu viele Dateien. Einige wurden nicht hinzugefügt."
   },
   "updates": {
+    "checkForUpdates": "Nach Updates suchen",
+    "upToDate": "Du bist auf dem neuesten Stand",
+    "updateReady": "Update bereit zur Installation",
+    "updatesDisabled": "Update-Prüfungen sind in dieser Version nicht verfügbar",
     "checkingUpdate": "Aktualisierung wird überprüft",
     "downloadingPercent": "Herunterladen von {percent}%",
     "downloadingUpdate": "Update wird heruntergeladen",

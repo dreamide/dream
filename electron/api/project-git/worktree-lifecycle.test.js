@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-const {
-  isUsableBaseBranchCandidate,
-  parseConflictingFiles,
-  parseGitNameStatusZ,
-  parseGitNumstatZ,
-} = await import("./worktree-lifecycle.js");
+const { isUsableBaseBranchCandidate, parseConflictingFiles } = await import(
+  "./worktree-lifecycle.js"
+);
+const { parseGitNameStatusZ, parseGitNumstatZ } = await import("./core.js");
 
 test("parses name-status output including renames and copies", () => {
   const output = [

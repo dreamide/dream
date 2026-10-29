@@ -790,6 +790,9 @@
     "fetchedFrom": "Fetched from {target}",
     "pull": "Pull",
     "pulledFrom": "Pulled {count, plural, one {# commit} other {# commits}} from {target}",
+    "pulledChanges": "Pulled changes",
+    "source": "Source",
+    "viewChanges": "View changes",
     "alreadyUpToDate": "Already up to date with {target}",
     "unableToFetch": "Unable to fetch changes.",
     "unableToPull": "Unable to pull changes.",
@@ -978,6 +981,10 @@
     "tooManyFiles": "Too many files. Some were not added."
   },
   "updates": {
+    "checkForUpdates": "Check for updates",
+    "upToDate": "You're up to date",
+    "updateReady": "Update ready to install",
+    "updatesDisabled": "Update checks are unavailable in this build",
     "checkingUpdate": "Checking update",
     "downloadingPercent": "Downloading {percent}%",
     "downloadingUpdate": "Downloading update",
