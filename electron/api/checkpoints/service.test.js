@@ -28,9 +28,11 @@ const { isCliCommandAvailable } = await import("../shared/cli.js");
 let gitAvailable = false;
 const temporaryDirectories = [];
 
+// On Windows the lookup starts PowerShell, which can take longer than the
+// default hook timeout on a busy CI runner.
 beforeAll(async () => {
   gitAvailable = await isCliCommandAvailable("git");
-});
+}, 30_000);
 
 afterEach(async () => {
   await Promise.all(
