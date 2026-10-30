@@ -166,12 +166,12 @@ export const IdeShell = () => {
     dismissBootScreen();
   }, [appReady]);
 
-  // Desktop-owned terminals stop on unload; service work outlives the page.
+  // Desktop-owned terminals stop on unload; a detached host's outlive the page.
   useEffect(() => {
     const desktop = getDesktopApi();
     if (
       !desktop ||
-      desktop.hostMode === "service" ||
+      desktop.hostMode === "detached" ||
       desktop.hostMode === "remote"
     )
       return;
@@ -208,11 +208,11 @@ export const IdeShell = () => {
           .getState()
           .hostConnections.find((host) => host.id === hostId)
           ?.routes.find((item) => item.id === routeId);
-        // SSH and service-hosted agents use this window's browser.
+        // SSH and detached hosts' agents use this window's browser.
         const stopBrowser =
           !desktop ||
           route?.kind === "https" ||
-          (hostId === LOCAL_HOST_ID && desktop.hostMode !== "service")
+          (hostId === LOCAL_HOST_ID && desktop.hostMode !== "detached")
             ? null
             : watchHostBrowser(hostId);
         watching.set(hostId, () => {
@@ -268,11 +268,11 @@ export const IdeShell = () => {
 
     const removeTerminalStatus = terminalClient.onStatus((event) => {
       if (
-        desktopApi?.hostMode === "service" &&
+        desktopApi?.hostMode === "detached" &&
         event.status === "running" &&
         !hasTerminalScrollback(event.sessionId)
       ) {
-        useIdeStore.getState().restoreServiceTerminal(event.sessionId);
+        useIdeStore.getState().restoreHostTerminal(event.sessionId);
       }
       if (!hasTerminalScrollback(event.sessionId)) {
         return;
@@ -306,9 +306,9 @@ export const IdeShell = () => {
     setBrowserError,
   ]);
 
-  // Discover service terminals after the workspace knows their projects.
+  // Discover a detached host's terminals after the workspace knows their projects.
   useEffect(() => {
-    if (getDesktopApi()?.hostMode !== "service") return;
+    if (getDesktopApi()?.hostMode !== "detached") return;
     let known = "";
     const discover = () => {
       const state = useIdeStore.getState();

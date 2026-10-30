@@ -279,15 +279,17 @@ export function registerRemoteAccessRoutes(
     ),
   );
 
-  // Whether and how paired devices reach this host (host/remote-access/):
-  // this machine's own business, so only on the local listener, for its
-  // local operator. A paired device never turns its own access on or off.
-  if (remote || !remoteAccess) return;
+  // Whether and how paired devices reach this host (host/remote-access/).
+  // A device with `manage` may read it; changing it is this machine's own
+  // business, so only on the local listener, for its local operator: a
+  // paired device never turns its own access on or off.
+  if (!remoteAccess) return;
   app.post("/api/remote/access", (c) =>
     handleJsonRoute(c, emptyRequestSchema, () => remoteAccess.status(), {
       missingBody: {},
     }),
   );
+  if (remote) return;
   app.post("/api/remote/access/enable", (c) =>
     handleJsonRoute(c, remoteAccessEnableSchema, (options) =>
       remoteAccess.enable(options),

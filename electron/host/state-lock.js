@@ -132,9 +132,12 @@ export function isStateLockHeld(stateDatabasePath, { alive = isAlive } = {}) {
  *   now?: () => string,
  *   alive?: (pid: number) => boolean,
  *   busyTimeoutMs?: number,
+ *   details?: Record<string, unknown>,
  * }} [options]
  *   `busyTimeoutMs`: how long to wait out a momentary holder (a probe by
- *   `isStateLockHeld`) before giving up.
+ *   `isStateLockHeld`) before giving up. `details`: more for the record
+ *   (a daemon's run directory and owner, so the host can be found from
+ *   its database).
  */
 export function acquireStateLock(
   stateDatabasePath,
@@ -144,6 +147,7 @@ export function acquireStateLock(
     now = () => new Date().toISOString(),
     alive = isAlive,
     busyTimeoutMs = 1_000,
+    details = {},
   } = {},
 ) {
   const paths = stateLockPaths(stateDatabasePath);
@@ -160,7 +164,7 @@ export function acquireStateLock(
   }
 
   // Held: whatever record is there describes a host that has gone.
-  const record = { kind, lock: "os", pid, startedAt: now() };
+  const record = { ...details, kind, lock: "os", pid, startedAt: now() };
   try {
     const temporary = `${paths.record}.${pid}.tmp`;
     writeFileSync(temporary, JSON.stringify(record), { mode: 0o600 });

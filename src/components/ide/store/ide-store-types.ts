@@ -471,7 +471,7 @@ export interface IdeState {
 
   // Actions - runtime
   setTerminalStatus: (projectId: string, status: "running" | "stopped") => void;
-  restoreServiceTerminal: (sessionId: string) => void;
+  restoreHostTerminal: (sessionId: string) => void;
   setTerminalTransport: (projectId: string, transport: "pty" | "pipe") => void;
   setTerminalShell: (projectId: string, shell: string) => void;
   setTerminalSessionName: (sessionId: string, name: string) => void;

@@ -4,7 +4,6 @@ import {
   useFileTreeSearch,
 } from "@pierre/trees/react";
 import {
-  ArrowLeft,
   FileIcon,
   Files,
   RotateCw,
@@ -52,7 +51,6 @@ import {
   getProjectFileRawUrl,
 } from "@/lib/api-client";
 import { getDesktopApi } from "@/lib/electron";
-import { useCompactLayout } from "@/lib/use-compact-layout";
 import { cn } from "@/lib/utils";
 import { isBufferDirty } from "./file-buffers";
 import {
@@ -607,18 +605,6 @@ const FileExplorerPanelImpl = ({
   );
 
   const selectedFilePath = snapshot.activePath;
-  // A phone-sized window shows the tree or the open file, full width:
-  // choosing a file opens it, Back returns to the tree.
-  const compact = useCompactLayout();
-  const [compactShowTree, setCompactShowTree] = useState(!selectedFilePath);
-  const previousSelectedFilePath = useRef(selectedFilePath);
-  useEffect(() => {
-    if (selectedFilePath === previousSelectedFilePath.current) return;
-    previousSelectedFilePath.current = selectedFilePath;
-    setCompactShowTree(!selectedFilePath);
-  }, [selectedFilePath]);
-  const showTreePane = !compact || compactShowTree;
-  const showContentPane = !compact || !compactShowTree;
   const selectedFileIsImage = selectedFilePath
     ? isImageFile(selectedFilePath)
     : false;
@@ -1022,20 +1008,12 @@ const FileExplorerPanelImpl = ({
         {/* File tree */}
         <div
           ref={treePaneRef}
-          className={cn(
-            "shrink-0 overflow-hidden",
-            compact && "min-w-0 flex-1",
-            !showTreePane && "hidden",
-          )}
-          style={
-            compact
-              ? undefined
-              : {
-                  width: `${treeWidthRef.current ?? FILE_TREE_MIN_WIDTH_PX}px`,
-                  minWidth: FILE_TREE_MIN_WIDTH_PX,
-                  maxWidth: `${FILE_TREE_MAX_WIDTH_RATIO * 100}%`,
-                }
-          }
+          className="shrink-0 overflow-hidden"
+          style={{
+            width: `${treeWidthRef.current ?? FILE_TREE_MIN_WIDTH_PX}px`,
+            minWidth: FILE_TREE_MIN_WIDTH_PX,
+            maxWidth: `${FILE_TREE_MAX_WIDTH_RATIO * 100}%`,
+          }}
         >
           <div className="flex h-full flex-col border-r border-surface-200 dark:border-surface-800 bg-background">
             {/* One switch for both modes, so its selection slides between
@@ -1077,36 +1055,16 @@ const FileExplorerPanelImpl = ({
           </div>
         </div>
 
-        {compact ? null : (
-          <PanelResizeHandle
-            side="right"
-            onResize={handleTreeResize}
-            onResizeStart={handleTreeResizeStart}
-          />
-        )}
+        <PanelResizeHandle
+          side="right"
+          onResize={handleTreeResize}
+          onResizeStart={handleTreeResizeStart}
+        />
 
         {/* File content */}
-        <div
-          className={cn(
-            "flex min-w-0 flex-1 flex-col overflow-hidden",
-            !showContentPane && "hidden",
-          )}
-        >
-          {fileTabItems.length > 0 || compact ? (
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {fileTabItems.length > 0 ? (
             <div className="flex shrink-0 items-center border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-900 px-2 py-1">
-              {compact ? (
-                <Button
-                  aria-label={commonT("files")}
-                  className="mr-1 shrink-0 text-muted-foreground"
-                  onClick={() => setCompactShowTree(true)}
-                  size="icon-xs"
-                  title={commonT("files")}
-                  type="button"
-                  variant="ghost"
-                >
-                  <ArrowLeft className="size-3.5" />
-                </Button>
-              ) : null}
               <StandardTabs
                 activeId={selectedFilePath}
                 ariaLabel={panelsT("openFiles")}

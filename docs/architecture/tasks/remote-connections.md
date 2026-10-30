@@ -37,6 +37,14 @@ native mobile development and mobile push delivery from this work. Existing
 phone-browser support remains part of the web client already implemented; it
 does not imply a native app, a selected mobile framework, or a mobile schedule.
 
+Scope decision (2026-10-30): Dream is not meant to be used on a phone, and
+connecting from one is no longer offered; mobile is a separate, future
+project. This reverses the phone layout of CONN-04 and the phone pairing aimed
+at by milestone 1. The removal is tracked as DH-17 in
+[detached-host.md](detached-host.md). The browser client remains, for a
+computer's browser. The same round removes CONN-06's service management
+(DH-10).
+
 Ship milestone 1 before adding tunnel management. It requires no Dream account
 or cloud backend. Initially the desktop-hosted machine must keep Dream running;
 an existing standalone daemon can also serve the client. Its current idle timeout

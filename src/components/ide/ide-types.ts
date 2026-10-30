@@ -27,7 +27,8 @@ export type SettingsSection =
   | "mcp"
   | "prompts"
   | "skills"
-  | "connections"
+  | "hosts"
+  | "sharing"
   | "chats";
 export type { RightPanelView };
 /** The Git panel's tab until the project picks another: its changes. */

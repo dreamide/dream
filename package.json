@@ -67,7 +67,6 @@
     "sonner": "^2.0.8",
     "space-separated-tokens": "2.0.2",
     "stringify-entities": "4.0.4",
-    "uqr": "^0.1.3",
     "ws": "^8.22.0",
     "zod": "^4.6.5",
     "zwitch": "2.0.4"

@@ -144,8 +144,9 @@ unverified or unsupported boundaries reconstruct from canonical history.
 The machine whose filesystem, agent CLIs and terminals a project uses. The
 **local host** is the machine Dream's window runs on; an **SSH host** is
 another machine Dream reaches over SSH. A **WSL host** is an SSH host whose
-target is `wsl:<distribution>` (`electron/ssh/wsl.js`): reached through
-wsl.exe instead of ssh, on the port WSL forwards to Windows. Not to be
+target is `wsl:<distribution>` (`electron/ssh/wsl.js`, added with **Add host >
+WSL distribution**): reached through wsl.exe instead of ssh, on the port WSL
+forwards to Windows. Not to be
 confused with a provider session, which lives on the provider's side
 whatever the host.
 
@@ -179,13 +180,16 @@ authorization, which is a separate concern.
 
 ## Home host
 
-The host a client's `local` connection reaches. On the desktop it is the
-desktop's own **child host** (a separate process running `dream-host serve` on
-the desktop's data, started by `createChildHostAttachment` in
-`electron/desktop-host.js`), an installed service that serves the desktop's
-data, or with `DREAM_HOST_MODE=in-process` the host inside the app (route
-`local`). Either attachment verifies the state database owner and the existing
-host identity before forwarding requests. In a browser it is the
+The host a client's `local` connection reaches. On the desktop it is the host
+running on the desktop's database, found from its state lock whoever started
+it, or else one the desktop starts (`createHomeHostAttachment` in
+`electron/desktop-host.js`: `dream-host serve --owner desktop` in its own
+process); with `DREAM_HOST_MODE=in-process` it is the host inside the app
+(route `local`). The desktop manages only its own process: a host a desktop
+started is stopped when it quits and replaced when its version differs; a
+host the user started with `dream-host` is attached to and left running. The
+attachment verifies the state database owner and the existing host identity
+before forwarding requests. In a browser it is the
 paired host serving the page (route `origin`), pinned like any address.
 Projects without a `hostId` live on the home host.
 A desktop in remote-only mode has no home execution host; its workspace stays
@@ -193,14 +197,32 @@ on that desktop and it connects to remote hosts.
 
 ## Desktop host preference
 
-How the user chose to run the desktop's home host, beside its state database
+Whether the desktop runs agents on this computer, beside its state database
 (`<state db>.desktop-host.json`, `electron/desktop-host-preference.js`):
-**local** or **remote** (remote only, from the next launch), and whether to
-**keep running** the child host after quitting. The **host mode** of a launch
-follows from it: `DREAM_HOST_MODE` first; the host in this process while the
-workspace shares the state database's writer; remote only if chosen; an
-installed service serving this desktop's data; otherwise the child host.
-Settings > Connections > This computer shows it.
+**local** or **remote** (remote hosts only), from the next launch. The **host
+mode** of a launch follows from it: `DREAM_HOST_MODE` (`auto`, `remote`,
+`in-process`) first; the host in this process while the workspace shares the
+state database's writer; remote only if chosen; otherwise **detached** (the
+Home host in its own process). Settings > Hosts > This app shows it.
+
+## Host options
+
+Every option a host starts with (`electron/host/options.js`): a flag and an
+environment variable each, resolved flag, then variable, then a setting the
+host saved (remote access), then the default, with the source of each value
+kept. `dream-host help` and the table in `docs/host-service.md` come from it.
+The host reports them (`POST /api/host/settings`,
+`electron/host/settings-report.js`) so Settings shows a value a flag or
+variable fixed as read-only, with its source.
+
+## Settings pages for hosts
+
+**Hosts** (desktop only) is this app's: whether it runs agents on this
+computer, and its saved hosts. **Sharing & access** is one host's, on any
+client: its identity and version, remote access and authorized clients
+(`src/components/ide/settings/sharing-access-section.tsx`). What a client may
+change follows from `/api/remote/session`: the host's own computer's operator
+may turn remote access on or off; a client with `manage` may pair and revoke.
 
 ## Connection runtime
 
@@ -235,8 +257,8 @@ Dream's renderer in a plain browser, served by a paired host's remote
 listener (`electron/api/client-assets.js`). Its home host is that origin;
 its workspace is in IndexedDB; it pairs on the pairing screen
 (`src/components/remote/`) and signs out from Settings. It has no SSH hosts
-and no webview browser. Below 640px wide it uses the **compact layout**: one
-chat, and the project's panels as full sheets (`use-compact-layout.ts`).
+and no webview browser. It is for a computer's browser: Dream has no phone
+layout (mobile is a separate, future project).
 
 ## Workspace database
 
@@ -252,30 +274,18 @@ holds it). One desktop runs per workspace database, by the same lock on that
 file. An existing workspace moved out of the
 state database once, from a backed-up copy, leaving the original untouched.
 
-## Host service
+## Edge listener
 
-The host installed to run without the desktop (`electron/host/service/`):
-its own `serve`, supervised by the platform's service manager (a
-`systemd --user` unit, a LaunchAgent, or a Task Scheduler logon task) and
-restarted if it fails. `dream-host service` installs, starts, stops,
-restarts, updates, recovers, reports and uninstalls it; `<home>/service.json` names the service
-of a host home, which `ensure` starts instead of spawning a second host.
-Uninstalling keeps the host's data and identity.
+The desktop's API port when its home host runs in another process
+(`electron/desktop-host.js`): it forwards the home host's HTTP/streams and
+socket, replacing the desktop token with the host's token. SSH forwarding and
+browser tool execution stay in the desktop. Closing the edge detaches its
+clients; host turns and terminals keep running in a host the user started. A
+fresh desktop discovers surviving terminals for its known projects.
 
-A **service runtime update** (`electron/host/service/update.js`) verifies and
-stages a packaged runtime, then replaces the service while preserving its
-captured environment, database and identity. Service runtimes are retained under
-`<home>/service-runtimes`, outside SSH's pruning. The private update journal
-survives interruption; recovery starts the previous binary only if its storage
-format and exact migration history remain compatible. No data is rolled back.
-
-A desktop attaches to a service installed for its data directory and state
-database without being told (Desktop host preference). The desktop's **edge
-listener** (`electron/desktop-host.js`) forwards its home host's HTTP/streams
-and socket, to a service or to its own child host, replacing the desktop token
-with the host's token. SSH forwarding and browser tool execution stay in the
-desktop. Closing the edge detaches its clients; host turns and terminals keep
-running. A fresh desktop discovers surviving terminals for its known projects.
+Keeping a host running without the desktop is the user's: `dream-host serve`
+under their own service manager (`docs/host-service.md`). Dream manages no
+services.
 
 ## Remote access
 
@@ -287,8 +297,10 @@ An address is **ready** only once a request through it reached this host;
 Cloudflare also requires proof of the host's installation key. The user runs
 the tunnel's cloudflared connector; Dream never installs, starts or stops it.
 Dream changes only the Serve entry it created (`servedBy`).
-Configured in Settings > Connections on the desktop, or with `dream-host remote`
-on a headless machine.
+Configured in Settings > Sharing & access on the host's own computer, or with
+`dream-host remote` on a headless machine. Started with `--remote-port` (and
+its variables), a host serves paired devices through the user's own reverse
+proxy for that run (`mode: "proxy"`), and Settings shows it read-only.
 
 ## Remote access state
 

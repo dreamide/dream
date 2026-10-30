@@ -1,7 +1,7 @@
 # Desktop connections
 
-In Settings > Connections, choose **Add host**, then **SSH host**, or **Pairing link** and paste
-a complete HTTPS pairing link created in the host's Remote access settings.
+In Settings > Hosts, choose **Add host**, then **SSH host**, or **Pairing link** and paste
+a complete HTTPS pairing link created on the host under Settings > Sharing & access.
 The link is single-use. The host must run a version with native identity proof
 support, and its HTTPS certificate must be trusted by the desktop's Node runtime.
 Tailscale Serve's HTTPS origin works as a direct route; no Dream account is needed.
@@ -40,8 +40,8 @@ are refused. Revocation on the host closes the device's live observers.
 ## WSL hosts
 
 On Windows, a WSL distribution can be added as a host: choose **Add host**,
-then **SSH host**, and enter `wsl:<distribution>` as the target (the dialog
-suggests the installed distributions). Dream installs the host runtime inside
+then **WSL distribution**, and pick one of the installed distributions. Dream
+installs the host runtime inside
 the distribution and starts it there with `wsl.exe` instead of `ssh`. Projects,
 terminals and agents then run in Linux.
 
@@ -55,11 +55,11 @@ project through it; others open it as `\\wsl.localhost\<distribution>\...`.
 
 ## Remote-only desktop
 
-Turn on **Remote hosts only** under Settings > Connections > This computer, and
-restart when asked. The desktop keeps local workspace storage and the desktop
+Turn off **Run agents on this computer** under Settings > Hosts, and restart
+when asked. The desktop keeps local workspace storage and the desktop
 UI/proxy, but starts no local execution host, scheduler, terminal owner or host
 remote-access listener. The project picker offers remote connections. Pair or
-connect a host in Connections before opening a folder there. Global provider
+connect a host in Settings > Hosts before opening a folder there. Global provider
 settings use the first connected remote host; project requests continue to name
 their own host.
 
@@ -72,9 +72,9 @@ DREAM_HOST_MODE=remote /Applications/Dream.app/Contents/MacOS/Dream
 
 Cached home projects remain unavailable until their original host is connected.
 Authenticating that former home host moves its cached workspace references to a
-remote connection without changing project or chat IDs. Returning to ordinary
-desktop hosting still requires stopping any service that owns the local host's
-database, as described in [Host service](host-service.md).
+remote connection without changing project or chat IDs. Turning **Run agents on
+this computer** back on uses the host running on this desktop's data, or starts
+one ([Run the host](host-service.md)).
 
 Arbitrary site port forwarding and the desktop browser relay require a selected
 SSH route. HTTPS-only clients can work with host projects, chats, files and

@@ -107,4 +107,8 @@ Module names and current ownership live in ../../GLOSSARY.md.
 - `tasks/detached-host.md` tracks DH-01 to DH-06 from the 2026-10-29 T3 Code
   `t3 serve` comparison: an OS-held state lock, the desktop's host in a child
   process, host mode in Settings, one-line installs, turn resume from a byte
-  offset, and headless pairing, the approval signal and WSL hosts.
+  offset, and headless pairing, the approval signal and WSL hosts. DH-07 to
+  DH-17 (proposed, 2026-10-30): one option table for starting `dream-host`,
+  settings with their sources, the desktop managing only its own host,
+  service management removed, Hosts and Sharing & access pages, and no phone
+  client.

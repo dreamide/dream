@@ -110,9 +110,11 @@ const pairingIdentity = (payload, fallbackName) => {
  * @param {{ update: (payload: unknown) => void, capturePage: (payload: unknown) => unknown }} deps.browserSessions
  * @param {{ detect: () => unknown, open: (options: { editorId: unknown, projectPath: unknown, sshTarget: unknown }) => unknown }} deps.editors
  * @param {(options: { chooseSavePath: (fileName: string) => Promise<string | null>, copyPng: (png: Uint8Array) => Promise<void>, webContents: unknown }) => Promise<{ status: string, filePath?: string }>} deps.captureAppScreenshot
- * @param {{ describe: () => unknown, setPreference: (changes: { keepRunning?: boolean, mode?: "local" | "remote" }) => void }} deps.homeHost
- *   How this desktop runs its home host: the mode now and the saved
- *   preference (desktop-host-preference.js).
+ * @param {{ describe: () => unknown, restart: () => Promise<void>, setPreference: (changes: { mode?: "local" | "remote" }) => void }} deps.homeHost
+ *   How this desktop runs its home host: the mode now, whether it started
+ *   the host, and the saved preference (desktop-host-preference.js).
+ * @param {() => Promise<string[]>} deps.wslDistributions On Windows, the
+ *   installed WSL distributions.
  * @param {() => void} deps.relaunch Restarts the app.
  */
 export const createDesktopHandlers = ({
@@ -133,6 +135,7 @@ export const createDesktopHandlers = ({
   state,
   systemPrefersDark,
   themes,
+  wslDistributions,
 }) => {
   /**
    * Electron 44 removed clipboard.writeImage; images go through the
@@ -527,14 +530,16 @@ export const createDesktopHandlers = ({
     listSshConfigHosts: () => sshConfigHosts(),
     getHomeHostSettings: () => homeHost.describe(),
     setHomeHostPreference: (/** @type {unknown} */ payload) => {
-      const { keepRunning, mode } = fields(payload);
-      /** @type {{ keepRunning?: boolean, mode?: "local" | "remote" }} */
-      const changes = {};
-      if (typeof keepRunning === "boolean") changes.keepRunning = keepRunning;
-      if (mode === "local" || mode === "remote") changes.mode = mode;
-      homeHost.setPreference(changes);
+      const { mode } = fields(payload);
+      if (mode === "local" || mode === "remote")
+        homeHost.setPreference({ mode });
       return homeHost.describe();
     },
+    restartHomeHost: async () => {
+      await homeHost.restart();
+      return homeHost.describe();
+    },
+    listWslDistributions: () => wslDistributions(),
     relaunchApp: () => {
       relaunch();
       return true;

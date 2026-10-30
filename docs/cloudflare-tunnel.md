@@ -41,7 +41,7 @@ are unsupported: their addresses change and they do not support SSE chat streams
 
 ## Desktop setup
 
-Open **Settings > Connections > Remote access**, choose **Set up** (or **Change**)
+Open **Settings > Sharing & access**, choose **Set up** (or **Change**)
 and select **Cloudflare Tunnel**. Enter the public HTTPS address, such as
 `https://dream.example.com`, then choose **Turn on**. If you change **Local
 port** under **Advanced**, change the route's service URL in Cloudflare too.
@@ -51,15 +51,16 @@ showing **Ready**. Use **Check again** (the refresh button) after correcting
 the hostname, service URL or connector. The host keeps checking even when
 Settings is closed.
 
-Choose **Pair a device** and use its one-time link or confirmed code. QR is an
-optional way to open the same link. Open a link in the browser client or paste
-it into **Add host > Pairing link** on another Dream desktop. Normal reconnection reuses the
+Under Settings > Sharing & access, choose **Create link** and use its one-time
+link or confirmed code. Open the link in a computer's browser, or paste it into
+**Add host > Pairing link** on another Dream desktop. Normal reconnection reuses the
 device grant. SSH and other HTTPS routes can belong to that same host.
 
 ## Headless setup
 
-Install the [unattended host service](host-service.md) and run `cloudflared`
-as a service too, so both keep running after the desktop closes. Use the same
+Run `dream-host` under your service manager ([Run the host](host-service.md))
+and run `cloudflared` as a service too, so both keep running after the desktop
+closes. Use the same
 `--home <directory>` on every command if using a custom host home.
 
 ```sh

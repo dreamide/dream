@@ -1,27 +1,29 @@
 /**
- * Settings > Remote access (the desktop's): whether paired devices can reach
- * this computer and how (Tailscale Serve or a Cloudflare Tunnel),
- * pairing a device by QR code, link or code, confirming code requests, and
- * revoking paired devices. The host owns all of it (host/remote-access/,
- * host/auth/); this section is its local operator's view.
+ * One host's remote access, on Settings > Sharing & access: whether paired
+ * devices can reach it and how (Tailscale Serve or a Cloudflare Tunnel),
+ * pairing a computer by link or code, confirming code requests, and its
+ * authorized clients. The host owns all of it (host/remote-access/,
+ * host/auth/); this section is a client's view, sent to `hostId`.
  *
- * The page shows only what the host reports. How to reach this computer is
- * edited in a setup dialog, whose drafts are discarded when it closes.
+ * The page shows only what the host reports, and offers only what works:
+ * a client that is not the host's own operator (`canChange` false), and
+ * remote access the host was started with (`mode: "proxy"`), see it
+ * read-only with the reason. How to reach the host is edited in a setup
+ * dialog, whose drafts are discarded when it closes.
  */
 import {
   Check,
   ChevronRight,
   Copy,
   ExternalLink,
-  QrCode,
+  Laptop,
+  Link2,
   RefreshCw,
-  Smartphone,
   Trash2,
   X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { encode } from "uqr";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,13 +71,19 @@ import {
   type RemoteDeviceSession,
 } from "@/lib/api-client";
 import { getDesktopApi } from "@/lib/electron";
+import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import { cn } from "@/lib/utils";
 import { useIdeStore } from "../ide-store";
-import { createRemoteAccessState } from "./remote-access-state";
+import {
+  bindRemoteAccessClient,
+  createRemoteAccessState,
+} from "./remote-access-state";
 import { SettingsGroup } from "./settings-shared";
 
 type Mode = RemoteAccessStatus["mode"];
-const MODES: Mode[] = ["tailscale", "cloudflare"];
+/** What the setup dialog sets up; `proxy` is set only when a host starts. */
+type SetupMode = Exclude<Mode, "proxy">;
+const MODES: SetupMode[] = ["tailscale", "cloudflare"];
 
 const isValidPort = (value: string) => {
   const port = Number(value);
@@ -139,31 +147,6 @@ const useProblemText = () => {
   };
 };
 
-/** The QR code of `text`, as an SVG drawn from its modules. */
-const QrImage = ({ text, label }: { text: string; label: string }) => {
-  const path = useMemo(() => {
-    const { data, size } = encode(text, { border: 2 });
-    let d = "";
-    for (let y = 0; y < size; y += 1) {
-      for (let x = 0; x < size; x += 1) {
-        if (data[y]?.[x]) d += `M${x} ${y}h1v1h-1z`;
-      }
-    }
-    return { d, size };
-  }, [text]);
-  return (
-    <svg
-      aria-label={label}
-      className="size-48 rounded-md bg-white"
-      role="img"
-      shapeRendering="crispEdges"
-      viewBox={`0 0 ${path.size} ${path.size}`}
-    >
-      <path d={path.d} fill="#000" />
-    </svg>
-  );
-};
-
 const copyText = async (text: string) => {
   const desktop = getDesktopApi();
   if (desktop) return desktop.writeClipboardText(text);
@@ -175,17 +158,35 @@ const useModeText = () => {
   const t = useTranslations("remote");
   return {
     label: (mode: Mode) =>
-      mode === "tailscale" ? t("modeTailscale") : t("modeCloudflare"),
+      mode === "tailscale"
+        ? t("modeTailscale")
+        : mode === "proxy"
+          ? t("modeProxy")
+          : t("modeCloudflare"),
     hint: (mode: Mode) =>
       mode === "tailscale" ? t("modeTailscaleHint") : t("modeCloudflareHint"),
   };
 };
 
-export const RemoteAccessSection = () => {
+export const RemoteAccessSection = ({
+  hostId = LOCAL_HOST_ID,
+  canChange = true,
+  currentSessionId = null,
+}: {
+  /** The host whose remote access this is. */
+  hostId?: string;
+  /** This client is the host's own operator, which alone turns access on or off. */
+  canChange?: boolean;
+  /** This client's own device session on the host, marked "This device". */
+  currentSessionId?: string | null;
+} = {}) => {
   const t = useTranslations("remote");
   const modeText = useModeText();
   const openExternalUrl = useIdeStore((state) => state.openExternalUrl);
-  const remote = useMemo(() => createRemoteAccessState(), []);
+  const remote = useMemo(
+    () => createRemoteAccessState({ api: bindRemoteAccessClient(hostId) }),
+    [hostId],
+  );
   const {
     status,
     busy,
@@ -225,6 +226,22 @@ export const RemoteAccessSection = () => {
   const [copied, setCopied] = useState(false);
   const [pendingRevoke, setPendingRevoke] =
     useState<RemoteDeviceSession | null>(null);
+  const [pendingRevokeOthers, setPendingRevokeOthers] = useState(false);
+  // Set when the host started (`--remote-port`): not Settings' to change.
+  const fixedBy =
+    status?.mode === "proxy"
+      ? Object.values(status.override?.sources ?? {}).join(", ")
+      : null;
+  const locked = !canChange || fixedBy !== null;
+  const lockReason =
+    fixedBy !== null
+      ? t("setByOptions", { sources: fixedBy || "--remote-port" })
+      : !canChange
+        ? t("changeOnHost")
+        : null;
+  const otherDevices = devices.filter(
+    (device) => device.id !== currentSessionId,
+  );
   const enabled = status?.enabled ?? false;
   // A host older than `configured` was set up if it is on.
   const configured = status?.configured ?? status?.enabled ?? false;
@@ -281,7 +298,7 @@ export const RemoteAccessSection = () => {
           <Switch
             aria-label={t("accessToggle")}
             checked={enabled}
-            disabled={busy || status === null}
+            disabled={busy || status === null || locked}
             onCheckedChange={(checked) => {
               if (!checked) void remote.disable();
               else if (configured) void remote.enable({});
@@ -312,7 +329,7 @@ export const RemoteAccessSection = () => {
                 )}
               </div>
             </div>
-            {enabled ? (
+            {enabled && !locked ? (
               <Button
                 aria-label={t("checkAgain")}
                 disabled={busy}
@@ -326,7 +343,7 @@ export const RemoteAccessSection = () => {
               </Button>
             ) : null}
             <Button
-              disabled={busy || status === null}
+              disabled={busy || status === null || locked}
               onClick={() => setSetupOpen(true)}
               size="sm"
               type="button"
@@ -335,6 +352,9 @@ export const RemoteAccessSection = () => {
               {configured ? t("change") : t("setUp")}
             </Button>
           </div>
+          {lockReason ? (
+            <p className="text-muted-foreground text-xs">{lockReason}</p>
+          ) : null}
           {enabled && status && problem ? (
             <div className="grid gap-2 rounded-md border border-destructive-border bg-destructive-surface px-3 py-2 text-destructive text-sm">
               <span className="select-text break-words">
@@ -381,25 +401,43 @@ export const RemoteAccessSection = () => {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <h4 className="font-medium text-sm">{t("devicesTitle")}</h4>
+          <h4 className="font-medium text-sm">
+            {t("devicesTitle")}
+            <span className="ml-2 font-normal text-muted-foreground text-xs">
+              {t("devicesCount", { count: devices.length })}
+            </span>
+          </h4>
           {status?.ready ? null : (
             <p className="text-muted-foreground text-xs">
               {t("pairNeedsAccess")}
             </p>
           )}
         </div>
-        <Button
-          disabled={busy || !status?.ready}
-          onClick={() => {
-            remote.clearPairing();
-            setPairOpen(true);
-          }}
-          size="sm"
-          type="button"
-        >
-          <QrCode className="size-4" />
-          {t("pairDevice")}
-        </Button>
+        <div className="flex items-center gap-2">
+          {otherDevices.length > 0 ? (
+            <Button
+              disabled={busy}
+              onClick={() => setPendingRevokeOthers(true)}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              {t("revokeOthers")}
+            </Button>
+          ) : null}
+          <Button
+            disabled={busy || !status?.ready}
+            onClick={() => {
+              remote.clearPairing();
+              setPairOpen(true);
+            }}
+            size="sm"
+            type="button"
+          >
+            <Link2 className="size-4" />
+            {t("pairDevice")}
+          </Button>
+        </div>
       </div>
 
       {claims.length > 0 ? (
@@ -409,7 +447,7 @@ export const RemoteAccessSection = () => {
               className="flex items-center gap-3 px-4 py-3"
               key={claim.claimId}
             >
-              <Smartphone className="size-4 shrink-0 text-muted-foreground" />
+              <Laptop className="size-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium text-sm">
                   {claim.deviceName}
@@ -450,10 +488,15 @@ export const RemoteAccessSection = () => {
         <SettingsGroup>
           {devices.map((device) => (
             <div className="flex items-center gap-3 px-4 py-3" key={device.id}>
-              <Smartphone className="size-4 shrink-0 text-muted-foreground" />
+              <Laptop className="size-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
-                <div className="truncate font-medium text-sm">
-                  {device.deviceName}
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-medium text-sm">
+                    {device.deviceName}
+                  </span>
+                  {device.id === currentSessionId ? (
+                    <Badge variant="outline">{t("thisDevice")}</Badge>
+                  ) : null}
                 </div>
                 <div className="text-muted-foreground text-xs">
                   {scopeLabel(device.scopes)} ·{" "}
@@ -487,35 +530,32 @@ export const RemoteAccessSection = () => {
           {pairing ? (
             <div className="grid justify-items-center gap-3">
               {pairingUrl ? (
-                <>
-                  <QrImage label={t("pairDevice")} text={pairingUrl} />
-                  <div className="flex w-full items-center gap-2">
-                    <Input
-                      className="font-mono text-xs"
-                      readOnly
-                      value={pairingUrl}
-                    />
-                    <Button
-                      aria-label={t("copyLink")}
-                      onClick={() =>
-                        void copyText(pairingUrl).then(() => {
-                          setCopied(true);
-                          window.setTimeout(() => setCopied(false), 1500);
-                        })
-                      }
-                      size="icon-sm"
-                      title={t("copyLink")}
-                      type="button"
-                      variant="outline"
-                    >
-                      {copied ? (
-                        <Check className="size-3.5" />
-                      ) : (
-                        <Copy className="size-3.5" />
-                      )}
-                    </Button>
-                  </div>
-                </>
+                <div className="flex w-full items-center gap-2">
+                  <Input
+                    className="font-mono text-xs"
+                    readOnly
+                    value={pairingUrl}
+                  />
+                  <Button
+                    aria-label={t("copyLink")}
+                    onClick={() =>
+                      void copyText(pairingUrl).then(() => {
+                        setCopied(true);
+                        window.setTimeout(() => setCopied(false), 1500);
+                      })
+                    }
+                    size="icon-sm"
+                    title={t("copyLink")}
+                    type="button"
+                    variant="outline"
+                  >
+                    {copied ? (
+                      <Check className="size-3.5" />
+                    ) : (
+                      <Copy className="size-3.5" />
+                    )}
+                  </Button>
+                </div>
               ) : null}
               <p className="text-center text-muted-foreground text-sm">
                 {t("pairingCodeHint", { code: pairing.code })}
@@ -586,6 +626,39 @@ export const RemoteAccessSection = () => {
       </Dialog>
 
       <AlertDialog
+        onOpenChange={setPendingRevokeOthers}
+        open={pendingRevokeOthers}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("revokeOthersTitle", { count: otherDevices.length })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("revokeDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={() => {
+                setPendingRevokeOthers(false);
+                void (async () => {
+                  for (const device of otherDevices) {
+                    await remote.revoke(device.id);
+                  }
+                })();
+              }}
+              variant="destructive"
+            >
+              {t("revokeOthers")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
         onOpenChange={(open) => {
           if (!open) setPendingRevoke(null);
         }}
@@ -644,7 +717,9 @@ const RemoteAccessSetupDialog = ({
 }) => {
   const t = useTranslations("remote");
   const modeText = useModeText();
-  const [mode, setMode] = useState<Mode>(initial.mode);
+  const [mode, setMode] = useState<SetupMode>(
+    initial.mode === "proxy" ? "tailscale" : initial.mode,
+  );
   const [origin, setOrigin] = useState(initial.requestedOrigin ?? "");
   const [httpsPort, setHttpsPort] = useState(String(initial.httpsPort));
   const [localPort, setLocalPort] = useState(
@@ -709,7 +784,8 @@ const RemoteAccessSetupDialog = ({
             aria-label={t("modeLabel")}
             className="gap-2"
             onValueChange={(value) => {
-              if (MODES.includes(value as Mode)) setMode(value as Mode);
+              if (MODES.includes(value as SetupMode))
+                setMode(value as SetupMode);
             }}
             value={mode}
           >

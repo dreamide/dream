@@ -173,7 +173,13 @@ export interface RemoteAccessProblem {
 /** Whether and how paired devices reach a host (host/remote-access/). */
 export interface RemoteAccessStatus {
   enabled: boolean;
-  mode: "tailscale" | "cloudflare";
+  /**
+   * `proxy`: set when the host started (`--remote-port` and its variables),
+   * for the user's own reverse proxy; Settings cannot change it.
+   */
+  mode: "tailscale" | "cloudflare" | "proxy";
+  /** With `proxy`: the flag or variable that set each part. */
+  override?: { sources: Record<string, string> };
   cloudflare?: {
     /** The loopback port used when none is saved and it is free. */
     defaultPort: number;
@@ -194,6 +200,43 @@ export interface RemoteAccessStatus {
   configured?: boolean;
   problem: RemoteAccessProblem | null;
   checkedAt: string | null;
+}
+
+/** Where a host option's value came from (electron/host/options.js). */
+export type HostSettingSource = "flag" | "env" | "saved" | "default";
+
+/** One option a host runs with, as it reports it. */
+export interface HostSetting {
+  name: string;
+  /** Its flag, e.g. `--idle-timeout`, and environment variable. */
+  flag: string;
+  env: string;
+  value: unknown;
+  source: HostSettingSource;
+  /** The flag or variable that set it; null for a saved or default value. */
+  from: string | null;
+  /** A client may change it (through its saved setting). */
+  editable: boolean;
+  /** A saved change waits on a restart of the host. */
+  pendingRestart: boolean;
+}
+
+/** What POST /api/host/settings answers: the host and its options. */
+export interface HostSettingsReport {
+  host: {
+    name: string;
+    hostId: string;
+    fingerprint: string | null;
+    version: string | null;
+    pid: number;
+    startedAt: string;
+    /** `desktop`: a desktop started it and stops it when it quits. */
+    owner: "user" | "desktop";
+    /** The local API's loopback address, and the verified remote one. */
+    local: string | null;
+    remote: string | null;
+  };
+  settings: HostSetting[];
 }
 
 /** A pairing just minted: a link secret and a short code, once each. */
@@ -731,6 +774,9 @@ export const API_ROUTES = {
   // Remote access and paired devices (this machine's operator only)
   remoteAccess: post<Record<string, never>, RemoteAccessStatus>(
     "/api/remote/access",
+  ),
+  hostSettings: post<Record<string, never>, HostSettingsReport>(
+    "/api/host/settings",
   ),
   remoteAccessEnable: post<
     Input<typeof remoteAccessEnableSchema>,

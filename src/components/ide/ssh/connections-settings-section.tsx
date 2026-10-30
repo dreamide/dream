@@ -15,7 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -68,6 +68,7 @@ import {
   useAddSshHost,
   useHostStateLabel,
 } from "./ssh-hosts-settings-section";
+import { WslHostDialog, wslDistributionOf, wslTarget } from "./wsl-host-dialog";
 
 const STATE_DOTS: Record<
   HostConnectionState,
@@ -92,20 +93,33 @@ interface HostView {
   routes: HostRoute[];
 }
 
-/** Where one route goes, for display: an address or the local machine. */
+/** Where one route goes, for display: an address, a WSL distribution's name, or the local machine. */
 const useRouteTarget = () => {
   const sshT = useTranslations("sshHosts");
   const sshHosts = useIdeStore((state) => state.settings.sshHosts);
-  return (route: HostRoute) =>
-    route.kind === "ssh"
-      ? (sshHosts.find((host) => host.id === route.sshHostId)?.target ?? "")
-      : route.kind === "local"
-        ? sshT("localMachine")
-        : route.origin;
+  return (route: HostRoute) => {
+    if (route.kind === "local") return sshT("localMachine");
+    if (route.kind !== "ssh") return route.origin;
+    const target =
+      sshHosts.find((host) => host.id === route.sshHostId)?.target ?? "";
+    return wslDistributionOf(target) ?? target;
+  };
 };
 
-const routeKindLabel = (route: HostRoute) =>
-  route.kind === "ssh" ? "SSH" : route.kind === "local" ? null : "HTTPS";
+/** The kind of route, as a badge: SSH, WSL, HTTPS, or none for this computer. */
+const useRouteKindLabel = () => {
+  const sshHosts = useIdeStore((state) => state.settings.sshHosts);
+  return (route: HostRoute) =>
+    route.kind === "ssh"
+      ? wslDistributionOf(
+          sshHosts.find((host) => host.id === route.sshHostId)?.target ?? "",
+        )
+        ? "WSL"
+        : "SSH"
+      : route.kind === "local"
+        ? null
+        : "HTTPS";
+};
 
 export function ConnectionsSettingsSection() {
   const t = useTranslations("connections");
@@ -158,6 +172,27 @@ export function ConnectionsSettingsSection() {
   const pairingOrigin =
     pairingRoute?.kind === "https" ? pairingRoute.origin : undefined;
   const [routesOf, setRoutesOf] = useState<string | null>(null);
+  // On Windows, the WSL distributions a host can be added for.
+  const [wslDistributions, setWslDistributions] = useState<string[]>([]);
+  const [wslOpen, setWslOpen] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void getDesktopApi()
+      ?.listWslDistributions()
+      .then((names) => {
+        if (!cancelled) setWslDistributions(names);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const addedWsl = new Set(
+    sshHosts
+      .map((host) => wslDistributionOf(host.target))
+      .filter((name): name is string => name !== null),
+  );
+  const unaddedWsl = wslDistributions.filter((name) => !addedWsl.has(name));
   const [pendingRemove, setPendingRemove] = useState<{
     id: string;
     label: string;
@@ -224,6 +259,11 @@ export function ConnectionsSettingsSection() {
             <DropdownMenuItem onClick={() => setSshForm({})}>
               {t("addSsh")}
             </DropdownMenuItem>
+            {unaddedWsl.length > 0 ? (
+              <DropdownMenuItem onClick={() => setWslOpen(true)}>
+                {t("addWsl")}
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem onClick={() => setPairing({})}>
               {t("addPairing")}
             </DropdownMenuItem>
@@ -288,6 +328,23 @@ export function ConnectionsSettingsSection() {
             )
           }
           view={routesView}
+        />
+      ) : null}
+      {wslOpen ? (
+        <WslHostDialog
+          distributions={unaddedWsl}
+          onCancel={() => setWslOpen(false)}
+          onSave={(distribution) => {
+            setWslOpen(false);
+            void run(async () => {
+              const host = saveSsh({
+                hostCommand: "",
+                label: distribution,
+                target: wslTarget(distribution),
+              });
+              await useIdeStore.getState().connectHost(host.id);
+            });
+          }}
         />
       ) : null}
       {sshForm ? (
@@ -473,6 +530,7 @@ function HostRoutesDialog({
   const t = useTranslations("connections");
   const sshT = useTranslations("sshHosts");
   const routeTarget = useRouteTarget();
+  const routeKindLabel = useRouteKindLabel();
   const { routes, runtime, isHome } = view;
   const swap = (index: number, other: number) =>
     onSetRoutes(

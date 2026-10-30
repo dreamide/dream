@@ -138,3 +138,67 @@ test("an unusable Cloudflare setup is refused and saves nothing", async () => {
     }),
   ).toBe("quick-tunnel");
 });
+
+/** Remote access the host was started with (`--remote-port`, DH-14). */
+const withOverride = (override, saved = { enabled: false, version: 1 }) => {
+  const dataDirectory = mkdtempSync(path.join(os.tmpdir(), "dream-remote-"));
+  const settingsFile = path.join(dataDirectory, "remote-access.json");
+  writeFileSync(settingsFile, JSON.stringify(saved));
+  const calls = [];
+  const access = createRemoteAccess({
+    close: async () => {
+      calls.push("close");
+    },
+    dataDirectory,
+    fetchImpl: async () => Response.json({ hostId: "host" }),
+    hostId: () => "host",
+    listen: async (options) => {
+      calls.push(["listen", options]);
+      return { origins: options.publicOrigins, port: options.port };
+    },
+    override,
+    settingsFile,
+    tailscale: {
+      device: async () => {
+        throw new Error("Tailscale is not used under an override.");
+      },
+    },
+  });
+  return { access, calls, settingsFile };
+};
+
+test("remote access set at start serves its port and reports where it came from", async () => {
+  const { access, calls, settingsFile } = withOverride({
+    origins: ["https://dream.example.com"],
+    port: 6000,
+    sources: { remoteOrigins: "--remote-origin", remotePort: "--remote-port" },
+    trustForwardedHost: true,
+  });
+  const status = await access.start();
+  expect(status).toMatchObject({
+    enabled: true,
+    listening: true,
+    mode: "proxy",
+    origin: "https://dream.example.com",
+    override: { sources: { remotePort: "--remote-port" } },
+    port: 6000,
+    ready: true,
+  });
+  expect(calls).toEqual([
+    [
+      "listen",
+      {
+        port: 6000,
+        publicOrigins: ["https://dream.example.com"],
+        trustForwardedHost: true,
+      },
+    ],
+  ]);
+
+  // Settings cannot change it, and the saved settings are left alone.
+  const refused = await access.enable({ mode: "tailscale" });
+  expect(refused.problem).toMatchObject({ code: "overridden", refused: true });
+  expect(refused.problem.message).toContain("--remote-port");
+  expect((await access.disable()).listening).toBe(true);
+  expect(JSON.parse(readFileSync(settingsFile, "utf8")).enabled).toBe(false);
+});

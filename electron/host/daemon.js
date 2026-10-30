@@ -1,32 +1,24 @@
-// The host daemon's command line: the host (index.js) running on its own,
-// outside the window: on an SSH host, as a service, or as the desktop's own
-// child host (desktop-host.js runs `ensureDaemon` with Electron's binary as
-// Node).
+// The host's command line: `dream-host`, the standard way to run Dream's
+// host (index.js) outside a window. On an SSH host Dream runs `ensure`; the
+// desktop starts its own host with `ensure` too (desktop-host.js, with
+// Electron's binary as Node); anyone can run `serve` in a terminal or under
+// their own service manager.
 //
-//   ensure   Reuse the running daemon for this protocol version, or start
-//            one detached; print {pid, port, token, ...} as one JSON line.
-//            This is what a launcher runs over SSH, and the only command
-//            that prints the token.
-//   serve    Run the daemon in the foreground (ensure starts one of these).
-//   status   Print whether a daemon is running (no token); exit 3 if not.
-//   stop     Ask the running daemon to shut down.
+//   serve    Run the host in the foreground.
+//   ensure   Reuse the host running for this home and protocol, or start
+//            `serve` detached; print {pid, port, token, ...} as one JSON
+//            line. The only command that prints the token.
+//   status   Print whether a host is running (no token); exit 3 if not.
+//   stop     Ask the running host to shut down.
+//   version  Print the runtime's version and update contract.
+//   help     The commands and every option.
+//   remote, pair, claims, confirm, deny, devices, revoke
+//            Remote access and paired devices (remote-cli.js).
 //
-// Options: --home <dir> (default ~/.dream/host, or DREAM_HOST_HOME),
-// --data-dir <dir> (default <home>/data), --idle-timeout <seconds> (0 never
-// idles out), --port <n> (serve only; default a free port).
-//
-// Remote access (serve and ensure): --remote-port <n> also serves paired
-// devices on that loopback port (api/remote-app.js); --remote-origin <url>
-// (repeatable) names the origin a reverse proxy serves it at, and
-// --trust-forwarded-host lets that proxy name the host. --client-dir <dir>
-// is the browser client it serves at its root: by default the runtime's own
-// `client/` (or the checkout's `dist/`). Pairing is always
-// required. Settings, Tailscale setup and pairing commands are CONN-05's.
-// `serve --pair` prints a pairing link and QR code once the host listens,
-// when remote access is on.
-//
-// --owner desktop names the desktop as the host's owner in its state lock;
-// --diagnostics serves terminal flow-control diagnostics (development).
+// Every option the host starts with is in host/options.js, as a flag and an
+// environment variable (a flag wins over a variable, which wins over a
+// saved setting, which wins over the default). `serve --pair` prints a
+// pairing link and code once the host listens, when remote access is on.
 import { spawn } from "node:child_process";
 import { closeSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -37,14 +29,19 @@ import {
   createApiSessionToken,
 } from "../api/shared/session-token.js";
 import { createDaemonEnvironment } from "./daemon-environment.js";
-import { createIdleMonitor, DEFAULT_IDLE_TIMEOUT_MS } from "./idle-monitor.js";
+import { createIdleMonitor } from "./idle-monitor.js";
+import {
+  HostOptionError,
+  hostParseArgsOptions,
+  passHostFlags,
+  renderHostOptionsHelp,
+  resolveHostOptions,
+} from "./options.js";
 import { HOST_PROTOCOL_VERSION } from "./protocol.js";
 import { REMOTE_COMMANDS, runRemoteCommand } from "./remote-cli.js";
 import {
   acquireStartLock,
   ensurePrivateDirectory,
-  getDefaultDataDirectory,
-  getHostHome,
   getRunDirectory,
   isProcessAlive,
   openHostLog,
@@ -53,17 +50,12 @@ import {
   writeHostRecord,
 } from "./run-directory.js";
 import { runtimeContract } from "./runtime-contract.js";
-import {
-  createServiceManager,
-  readInstalledServiceName,
-} from "./service/service.js";
-import { runServiceCommand } from "./service-cli.js";
 
 const CLI_ENTRY = fileURLToPath(new URL("./dream-host.js", import.meta.url));
 /* global __DREAM_HOST_VERSION__ */
 // The browser client: beside lib/ in a runtime (scripts/build-host-runtime.mjs),
 // the renderer build in a checkout.
-const DEFAULT_CLIENT_DIRECTORY = fileURLToPath(
+export const DEFAULT_CLIENT_DIRECTORY = fileURLToPath(
   new URL(
     typeof __DREAM_HOST_VERSION__ === "string" ? "../client/" : "../../dist/",
     import.meta.url,
@@ -90,15 +82,6 @@ const readAppVersion = () => {
   } catch {
     return null;
   }
-};
-
-const parseIdleTimeoutMs = (value) => {
-  if (value === undefined) return DEFAULT_IDLE_TIMEOUT_MS;
-  const seconds = Number(value);
-  if (!Number.isFinite(seconds) || seconds < 0) {
-    throw new Error(`Invalid --idle-timeout: ${value}`);
-  }
-  return seconds * 1000;
 };
 
 /**
@@ -168,73 +151,32 @@ export class DaemonStartError extends Error {
   }
 }
 
-/** The `serve` arguments that carry over from an `ensure` invocation. */
-const serveArguments = (values) => {
-  const args = [];
-  if (values["data-dir"]) args.push("--data-dir", values["data-dir"]);
-  if (values["idle-timeout"] !== undefined) {
-    args.push("--idle-timeout", values["idle-timeout"]);
-  }
-  if (values["remote-port"] !== undefined) {
-    args.push("--remote-port", values["remote-port"]);
-  }
-  for (const origin of values["remote-origin"] ?? []) {
-    args.push("--remote-origin", origin);
-  }
-  if (values["trust-forwarded-host"]) args.push("--trust-forwarded-host");
-  if (values["client-dir"]) args.push("--client-dir", values["client-dir"]);
-  if (values.diagnostics) args.push("--diagnostics");
-  if (values.owner) args.push("--owner", values.owner);
-  return args;
-};
-
 /**
- * The running daemon of `home`, or one started detached: reuses the one
- * this protocol's run record names, starts the installed service when one
- * serves this home, and otherwise starts `serve` itself. Resolves with its
- * run record (token included) and whether it was already running.
+ * The running host of `home`, or one started detached with `flags`: reuses
+ * the one this protocol's run record names, and otherwise starts `serve`.
+ * Resolves with its run record (token included) and whether it was already
+ * running.
  *
- * `env` is the started daemon's environment as well as the lookup's; the
- * desktop adds ELECTRON_RUN_AS_NODE so its own binary runs the host.
+ * `env` is the started host's environment as well as the lookup's, so an
+ * option set by an environment variable reaches it as one.
  * @param {{
  *   home: string,
  *   runDirectory?: string,
- *   values?: Record<string, unknown>,
+ *   flags?: string[],
  *   env?: NodeJS.ProcessEnv,
  * }} options
+ *   `flags`: host options as flags (host/options.js `hostOptionFlags`).
  * @returns {Promise<{ record: any, reused: boolean }>}
  */
 export async function ensureDaemon({
   home,
   runDirectory = getRunDirectory(home, HOST_PROTOCOL_VERSION),
-  values = {},
+  flags = [],
   env = process.env,
 }) {
   ensurePrivateDirectory(runDirectory);
   const running = await probeDaemon(runDirectory);
   if (running) return { record: running, reused: true };
-
-  // Installed as a service: its manager runs the host, not this launcher
-  // (a second process would only find the state lock taken).
-  const serviceName = readInstalledServiceName(home);
-  const service = (() => {
-    if (!serviceName) return null;
-    try {
-      return createServiceManager({ env, home, name: serviceName });
-    } catch {
-      return null;
-    }
-  })();
-  if (service?.isInstalled() && service.servesHome(home)) {
-    await service.start();
-    const started = await waitForDaemon(runDirectory);
-    if (!started) {
-      throw new DaemonStartError(
-        "The host service did not start; run `dream-host service status`.",
-      );
-    }
-    return { record: started, reused: true };
-  }
 
   const release = acquireStartLock(runDirectory);
   if (!release) {
@@ -250,15 +192,18 @@ export async function ensureDaemon({
 
   try {
     const logFd = openHostLog(runDirectory);
+    const withoutHome = flags.filter(
+      (flag, index) => flag !== "--home" && flags[index - 1] !== "--home",
+    );
     const child = spawn(
       process.execPath,
-      [CLI_ENTRY, "serve", "--home", home, ...serveArguments(values)],
+      [CLI_ENTRY, "serve", "--home", home, ...withoutHome],
       {
         cwd: home,
         detached: true,
         env: {
           ...createDaemonEnvironment(env),
-          // Run by Electron's binary (the desktop's child host), the host
+          // Run by Electron's binary (the desktop's own host), the host
           // must run as Node too.
           ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
         },
@@ -289,9 +234,9 @@ async function ensure({ home, runDirectory, values, env, write }) {
   try {
     const { record, reused } = await ensureDaemon({
       env,
+      flags: passHostFlags(values),
       home,
       runDirectory,
-      values,
     });
     write({ ...describe(record, { withToken: true }), reused });
     return 0;
@@ -305,81 +250,77 @@ async function ensure({ home, runDirectory, values, env, write }) {
   }
 }
 
-async function serve({ home, runDirectory, values, log }) {
+/** The remote access a host was started with (DH-14), or null. */
+const remoteOverride = ({ options, from }) =>
+  options.remotePort === null
+    ? null
+    : {
+        origins: options.remoteOrigins,
+        port: options.remotePort,
+        sources: Object.fromEntries(
+          ["remotePort", "remoteOrigins", "trustForwardedHost"]
+            .filter((name) => from[name])
+            .map((name) => [name, from[name]]),
+        ),
+        trustForwardedHost: options.trustForwardedHost,
+      };
+
+async function serve({ runDirectory, values, log, resolved }) {
   if (await probeDaemon(runDirectory)) {
     log(`A host is already running for protocol ${HOST_PROTOCOL_VERSION}.`);
     return 1;
   }
 
-  // Electron's binary running this as Node (the desktop's child host, a
-  // checkout service): what the host starts (terminals, agents, an Electron
-  // app typed into a terminal) must run as itself.
+  // Electron's binary running this as Node (the desktop's own host): what
+  // the host starts (terminals, agents, an Electron app typed into a
+  // terminal) must run as itself.
   delete process.env.ELECTRON_RUN_AS_NODE;
 
-  const idleTimeoutMs = parseIdleTimeoutMs(values["idle-timeout"]);
-  const dataDirectory = path.resolve(
-    values["data-dir"] ?? getDefaultDataDirectory(home),
-  );
-  ensurePrivateDirectory(dataDirectory);
+  const { options } = resolved;
+  ensurePrivateDirectory(options.dataDir);
+  // The host's workers find the state database here (persisted-state.js).
+  process.env.DREAM_DB_PATH = options.database;
 
   const version = readAppVersion();
   const { createHost } = await import("./index.js");
   const host = createHost({
-    // What runs it, named in its state lock: a desktop's own child host
-    // says so, so a second host can tell the user which app has the data.
-    kind: values.owner === "desktop" ? "desktop" : "daemon",
-    diagnosticsEnabled: Boolean(values.diagnostics),
+    // What runs it, named in its state lock: a desktop's own host says so,
+    // so a second host can tell the user which app has the data, and the
+    // record says where this host's run record is (DH-09).
+    kind: options.owner === "desktop" ? "desktop" : "daemon",
+    lockDetails: { owner: options.owner, runDirectory },
+    diagnosticsEnabled: options.diagnostics,
     // `dream-host stop`: a clean shutdown over the local API.
     onShutdownRequest: (reason) => void shutdown(reason),
-    clientDirectory: path.resolve(
-      values["client-dir"] ?? DEFAULT_CLIENT_DIRECTORY,
-    ),
-    dataDirectory,
+    clientDirectory: options.clientDir,
+    dataDirectory: options.dataDir,
+    launch: resolved,
+    remoteOverride: remoteOverride(resolved),
     trackActivity: true,
     version,
   });
   const token = createApiSessionToken();
-  const port = await host.listen({
-    apiToken: token,
-    port: Number(values.port ?? 0),
-  });
+  const port = await host.listen({ apiToken: token, port: options.port });
 
-  let remote = null;
-  if (values["remote-port"] !== undefined) {
-    const remotePort = Number(values["remote-port"]);
-    if (
-      !Number.isInteger(remotePort) ||
-      remotePort < 0 ||
-      remotePort > 65_535
-    ) {
-      throw new Error(`Invalid --remote-port: ${values["remote-port"]}`);
-    }
-    remote = await host.listenRemote({
-      port: remotePort,
-      publicOrigins: values["remote-origin"] ?? [],
-      trustForwardedHost: Boolean(values["trust-forwarded-host"]),
-    });
+  // Remote access as saved (`dream-host remote on`), or as its options set it.
+  const access = await host.startRemoteAccess();
+  if (access.enabled) {
     log(
-      `Serving paired devices on 127.0.0.1:${remote.port} for ${remote.origins.join(", ")}.`,
-    );
-  } else {
-    // Remote access as saved (`dream-host remote on`), if it is on.
-    const access = await host.startRemoteAccess();
-    if (access.enabled) {
-      log(
-        access.ready
+      access.mode === "proxy"
+        ? `Serving paired devices on 127.0.0.1:${access.port}${access.requestedOrigin ? ` for ${access.requestedOrigin}` : ""}.`
+        : access.ready
           ? `Remote access ready at ${access.origin}.`
           : `Remote access is on but not ready: ${access.problem?.message ?? "starting"}`,
-      );
-      remote = access.listening ? { port: access.port } : null;
-    }
+    );
   }
+  const remote = access.listening ? { port: access.port } : null;
 
   const { fingerprint, hostId } = host.getHostDescriptor();
   writeHostRecord(runDirectory, {
     fingerprint,
     hostId,
     hostProtocolVersion: HOST_PROTOCOL_VERSION,
+    owner: options.owner,
     pid: process.pid,
     port,
     remotePort: remote?.port ?? null,
@@ -388,7 +329,7 @@ async function serve({ home, runDirectory, values, log }) {
     version,
   });
   log(
-    `Dream host ${version ?? "(unknown version)"} (protocol ${HOST_PROTOCOL_VERSION}, ${hostId}) listening on 127.0.0.1:${port}, data in ${dataDirectory}.`,
+    `Dream host ${version ?? "(unknown version)"} (protocol ${HOST_PROTOCOL_VERSION}, ${hostId}) listening on 127.0.0.1:${port}, data in ${options.dataDir}.`,
   );
 
   // `--pair`: what a headless machine would run next, done at once.
@@ -427,11 +368,11 @@ async function serve({ home, runDirectory, values, log }) {
   const monitor = createIdleMonitor({
     isBusy: host.isBusy,
     onIdle: () => void shutdown("idle"),
-    timeoutMs: idleTimeoutMs,
+    timeoutMs: options.idleTimeout * 1000,
   });
   monitor.start();
   if (monitor.enabled) {
-    log(`Idle shutdown after ${Math.round(idleTimeoutMs / 1000)}s.`);
+    log(`Idle shutdown after ${options.idleTimeout}s.`);
   }
 
   for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -507,7 +448,29 @@ async function version({ write }) {
   return 0;
 }
 
-const COMMANDS = { ensure, serve, status, stop, version };
+const COMMAND_SUMMARY = `Usage: dream-host <command> [options]
+
+Commands:
+  serve       Run the host in the foreground (--pair: print a pairing link)
+  ensure      Reuse the running host, or start one in the background
+  status      Whether a host is running (exit 3 if not)
+  stop        Stop the running host
+  version     The runtime's version and update contract
+  remote      Remote access: status, on [--tailscale | --cloudflare --origin url], off, check
+  pair        A pairing link and code [--scopes view,operate,manage] [--name name]
+  claims, confirm <id>, deny <id>, devices, revoke <id>
+              Code requests and paired devices
+  help        This text
+
+Options (each also an environment variable; a flag wins):
+`;
+
+const help = async ({ stdout }) => {
+  stdout.write(`${COMMAND_SUMMARY}${renderHostOptionsHelp()}\n`);
+  return 0;
+};
+
+const COMMANDS = { ensure, help, serve, status, stop, version };
 
 /** A remote-access command, against the running daemon (remote-cli.js). */
 const remoteCommand =
@@ -523,26 +486,6 @@ const remoteCommand =
     });
 for (const name of REMOTE_COMMANDS) COMMANDS[name] = remoteCommand(name);
 
-COMMANDS.service = async ({
-  args,
-  env,
-  home,
-  runDirectory,
-  values,
-  write,
-  stdout,
-}) =>
-  runServiceCommand({
-    args,
-    env,
-    home,
-    print: (line) => stdout.write(`${line}\n`),
-    probe: () => probeDaemon(runDirectory),
-    stopDaemon: async () => (await stopRunningDaemon(runDirectory)).stopped,
-    values,
-    write,
-  });
-
 /**
  * Runs one command. Resolves with the exit code (`serve` never resolves).
  * @param {string[]} argv
@@ -557,17 +500,10 @@ export async function runDaemonCli(
       allowPositionals: true,
       args: argv,
       options: {
-        "data-dir": { type: "string" },
-        home: { type: "string" },
-        "idle-timeout": { type: "string" },
-        port: { type: "string" },
-        "remote-origin": { multiple: true, type: "string" },
-        "remote-port": { type: "string" },
-        "trust-forwarded-host": { type: "boolean" },
-        "client-dir": { type: "string" },
-        diagnostics: { type: "boolean" },
-        owner: { type: "string" },
+        ...hostParseArgsOptions(),
+        help: { type: "boolean" },
         pair: { type: "boolean" },
+        // Remote access commands (remote-cli.js).
         "https-port": { type: "string" },
         json: { type: "boolean" },
         name: { type: "string" },
@@ -577,29 +513,45 @@ export async function runDaemonCli(
         cloudflare: { type: "boolean" },
         // Accepted for scripts written when Dream could run cloudflared.
         external: { type: "boolean" },
-        env: { multiple: true, type: "string" },
-        "service-name": { type: "string" },
-        archive: { type: "string" },
-        sha256: { type: "string" },
       },
     });
   } catch (error) {
-    stderr.write(`${error.message}\n`);
-    return 2;
-  }
-
-  const [name, ...args] = parsed.positionals;
-  const command = COMMANDS[name];
-  if (!command) {
     stderr.write(
-      "Usage: dream-host <ensure|serve|status|stop|version|service|remote|pair|claims|confirm|deny|devices|revoke> [--home dir] [--data-dir dir] [--idle-timeout seconds] [--port n] [--remote-port n] [--remote-origin url]... [--trust-forwarded-host] [--client-dir dir]\n",
+      `${error.message}\nRun \`dream-host help\` for the options.\n`,
     );
     return 2;
   }
 
-  const home = path.resolve(parsed.values.home ?? getHostHome(env));
+  const [requested, ...args] = parsed.positionals;
+  const name = parsed.values.help ? "help" : requested;
+  const command = COMMANDS[name];
+  if (!command) {
+    stderr.write(
+      name === "service"
+        ? "`dream-host service` was removed: run `dream-host serve` under your own service manager (see Run the host in Dream's docs).\n"
+        : COMMAND_SUMMARY.split("\n\nOptions")[0].concat("\n"),
+    );
+    return 2;
+  }
+
+  let resolved;
+  try {
+    resolved = resolveHostOptions({
+      context: { clientDirectory: DEFAULT_CLIENT_DIRECTORY },
+      env,
+      values: parsed.values,
+    });
+  } catch (error) {
+    if (!(error instanceof HostOptionError)) throw error;
+    stderr.write(`${error.message}\n`);
+    return 2;
+  }
+
+  const home = resolved.options.home;
   const runDirectory = getRunDirectory(home, HOST_PROTOCOL_VERSION);
-  if (name !== "version") ensurePrivateDirectory(runDirectory);
+  if (name !== "version" && name !== "help") {
+    ensurePrivateDirectory(runDirectory);
+  }
 
   try {
     return await command({
@@ -608,6 +560,7 @@ export async function runDaemonCli(
       home,
       stdout,
       log: (line) => stdout.write(`[dream-host] ${line}\n`),
+      resolved,
       runDirectory,
       values: parsed.values,
       write: (value) => stdout.write(`${JSON.stringify(value)}\n`),

@@ -38,15 +38,12 @@ import {
   registerDesktopHandlers,
 } from "./desktop-handlers.js";
 import {
-  createChildHostAttachment,
+  createHomeHostAttachment,
   createRemoteOnlyHost,
-  createServiceHostAttachment,
-  serviceServesDesktop,
   withInProcessFallback,
 } from "./desktop-host.js";
 import {
   readDesktopHostPreference,
-  rendererHostMode,
   resolveDesktopHostMode,
   writeDesktopHostPreference,
 } from "./desktop-host-preference.js";
@@ -55,7 +52,6 @@ import { detectAvailableEditors, openProjectInEditor } from "./editors.js";
 import { getHelloUrl } from "./hello.js";
 import { configureHostDataDirectory } from "./host/host-paths.js";
 import { createHost } from "./host/index.js";
-import { getHostHome } from "./host/run-directory.js";
 import { acquireStateLock, StateLockedError } from "./host/state-lock.js";
 import {
   closePersistedStateDatabase,
@@ -77,7 +73,7 @@ import {
 import { DEV_RUNTIME_VERSION } from "./ssh/host-install.js";
 import { createSshPromptBroker } from "./ssh/prompt-broker.js";
 import { readSshConfigHosts } from "./ssh/ssh-config-hosts.js";
-import { listWslDistributions, wslTarget } from "./ssh/wsl.js";
+import { listWslDistributions } from "./ssh/wsl.js";
 import { createStateSaveQueue } from "./state-save-queue.js";
 import { createThemeStore } from "./theme-store.js";
 import { initializeAutoUpdater } from "./updater.js";
@@ -120,7 +116,7 @@ const dreamVersion = readDreamVersion();
 // A host mode named in the environment wins over Settings
 // (desktop-host-preference.js); `desktop` and `auto` choose as if unset.
 const requestedHostMode = process.env.DREAM_HOST_MODE?.trim() || "";
-const hostModeIsExplicit = !["", "auto", "desktop"].includes(requestedHostMode);
+const hostModeIsExplicit = ["remote", "in-process"].includes(requestedHostMode);
 
 // Diagnostic only: opt-in via env var to test whether software rendering is
 // caused by Chromium's GPU blocklist (do NOT enable in production builds —
@@ -204,19 +200,13 @@ if (workspaceSeparate) {
   }
 }
 
-// The home host: the desktop's own child host by default, an installed
-// service that serves this desktop's data, none (remote only), or inside
-// this process. All of them use this desktop's identity and catalog.
+// The home host: the host running on this desktop's database (whoever
+// started it) or one the desktop starts, none (remote only), or inside this
+// process. All of them use this desktop's identity and catalog.
 const hostPreferenceAtLaunch = readDesktopHostPreference(STATE_DATABASE_PATH);
 const resolvedHostMode = resolveDesktopHostMode({
   envMode: requestedHostMode,
   preference: hostPreferenceAtLaunch,
-  serviceServesDesktop: () =>
-    serviceServesDesktop({
-      dataDirectory: APP_USER_DATA_PATH,
-      home: path.resolve(getHostHome()),
-      stateDatabasePath: STATE_DATABASE_PATH,
-    }),
   workspaceSeparate,
 });
 const resolveRemoteHost = (hostId) => desktopConnections.getEndpoint(hostId);
@@ -260,29 +250,20 @@ const host = (() => {
         resolveRemoteHost,
         resolveProviderHost: () => desktopConnections.getFirstEndpoint(),
       });
-    case "service":
-      return createServiceHostAttachment({
-        dataDirectory: APP_USER_DATA_PATH,
-        home: path.resolve(getHostHome()),
-        resolveRemoteHost,
-        stateDatabasePath: STATE_DATABASE_PATH,
-      });
-    case "child":
-      // Unless the environment insisted on a child host, one that cannot
-      // start leaves the window working with a host in this process.
+    case "detached":
+      // A host that cannot start in its own process, with nothing else on
+      // the data, leaves the window working with a host in this one.
       return withInProcessFallback({
-        attached: createChildHostAttachment({
+        attached: createHomeHostAttachment({
           clientDirectory: path.join(__dirname, "..", "dist"),
           dataDirectory: APP_USER_DATA_PATH,
           diagnosticsEnabled: !app.isPackaged,
-          keepRunning: () =>
-            readDesktopHostPreference(STATE_DATABASE_PATH).keepRunning,
           resolveRemoteHost,
           stateDatabasePath: STATE_DATABASE_PATH,
           version: dreamVersion,
         }),
         createInProcess: createInProcessHost,
-        fallBack: !hostModeIsExplicit,
+        fallBack: true,
         stateDatabasePath: STATE_DATABASE_PATH,
       });
     default:
@@ -290,7 +271,7 @@ const host = (() => {
   }
 })();
 
-/** The host mode now: a child host that could not start fell back. */
+/** The host mode now: a detached host that could not start fell back. */
 const currentHostMode = () => host.mode ?? resolvedHostMode.mode;
 
 let mainWindow = null;
@@ -390,8 +371,8 @@ function isDevToolsShortcut(input) {
   );
 }
 
-// Stop desktop-owned terminals before unload. A service attachment owns
-// no processes, so its guard only reloads/detaches the page.
+// Stop desktop-owned terminals before unload. With a detached host the
+// desktop owns no processes, so its guard only reloads/detaches the page.
 const rendererUnloadGuard = createRendererUnloadGuard({
   processes: processSessionManager,
 });
@@ -718,7 +699,7 @@ ipcMain.on(DESKTOP_SYNC_CHANNELS.initialThemePreferences, (event) => {
 });
 
 ipcMain.on(DESKTOP_SYNC_CHANNELS.hostMode, (event) => {
-  event.returnValue = rendererHostMode(currentHostMode());
+  event.returnValue = currentHostMode();
 });
 
 // Every desktop method the renderer calls (desktop-handlers.js), on its
@@ -735,20 +716,24 @@ const desktop = createDesktopHandlers({
   getPath: (name) => app.getPath(name),
   getWindow: getAliveMainWindow,
   homeHost: {
-    // What Settings > Connections shows: the mode now and why, and the
-    // preference, which for the mode applies at the next launch.
+    // What Settings > Hosts > This app shows: the mode now and why, whether
+    // this desktop started its host (and so may restart and stops it), and
+    // the preference, which applies at the next launch.
     describe: () => {
       const preference = readDesktopHostPreference(STATE_DATABASE_PATH);
       const mode = currentHostMode();
+      const attached = mode === "remote" ? null : host.describe?.();
       return {
         explicit: hostModeIsExplicit,
         mode,
+        owned: attached?.owned ?? false,
         preference,
         reason:
           mode !== resolvedHostMode.mode ? "fallback" : resolvedHostMode.reason,
         restartRequired: preference.mode !== hostPreferenceAtLaunch.mode,
       };
     },
+    restart: () => host.restart(),
     setPreference: (changes) =>
       writeDesktopHostPreference(STATE_DATABASE_PATH, changes),
   },
@@ -758,12 +743,9 @@ const desktop = createDesktopHandlers({
     app.quit();
   },
   sendToRenderer,
-  // Targets to suggest: ssh config aliases, and on Windows each WSL
-  // distribution as `wsl:<name>` (ssh/wsl.js).
-  sshConfigHosts: async () => [
-    ...(await readSshConfigHosts()),
-    ...(await listWslDistributions()).map(wslTarget),
-  ],
+  sshConfigHosts: () => readSshConfigHosts(),
+  // On Windows, the WSL distributions a host can be added for (ssh/wsl.js).
+  wslDistributions: () => listWslDistributions(),
   sshHosts: desktopConnections,
   sshPrompts,
   state: {

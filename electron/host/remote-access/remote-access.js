@@ -21,6 +21,13 @@
 // `cloudflareManaged`; that is ignored, and the private directory that held
 // its token and runtime (<settings>.cloudflare) is removed at startup.
 //
+// An override (`--remote-port`, `--remote-origin`, `--trust-forwarded-host`
+// or their environment variables, host/options.js) replaces the saved
+// settings for the life of the process: the host serves paired devices on
+// that port for the user's own reverse proxy, reports it as `mode: "proxy"`
+// with where it came from, and refuses changes until it is started without
+// it. The saved settings are kept untouched for that later start.
+//
 // A public address is reported ready only after a request through it
 // reached this host (Cloudflare also verifies its signed host-key proof): no address that
 // does not work is shown as one that does. The listener itself stays on
@@ -141,8 +148,16 @@ const asProblem = (error) =>
  *   pickPort?: (preferred?: number) => Promise<number>,
  *   now?: () => string,
  *   monitorMs?: number,
+ *   override?: {
+ *     port: number,
+ *     origins: string[],
+ *     trustForwardedHost: boolean,
+ *     sources: Record<string, string>,
+ *   } | null,
  * }} options
  *   `listen` / `close`: the host's remote listener (index.js).
+ *   `override`: remote access set when the host started (see above);
+ *   `sources` names the flag or variable of each part, for the UI.
  */
 export function createRemoteAccess({
   dataDirectory,
@@ -156,6 +171,7 @@ export function createRemoteAccess({
   pickPort = (preferred) => getPort({ host: "127.0.0.1", port: preferred }),
   now = () => new Date().toISOString(),
   monitorMs = 10_000,
+  override = null,
 }) {
   const file = settingsFile;
   let settings = readSettings(file);
@@ -180,7 +196,77 @@ export function createRemoteAccess({
     writeSettings(file, settings);
   };
 
-  const status = () => ({
+  const status = () =>
+    override
+      ? {
+          checkedAt,
+          enabled: true,
+          httpsPort: settings.httpsPort,
+          listening: listening !== null,
+          mode: "proxy",
+          origin,
+          override: { sources: override.sources },
+          port: listening?.port ?? override.port,
+          problem,
+          ready: listening !== null && origin !== null,
+          requestedOrigin: override.origins[0] ?? null,
+          configured: true,
+          cloudflare: { managed: false, defaultPort: CLOUDFLARE_PORT },
+        }
+      : savedStatus();
+
+  /** Why a change is refused while an override is in effect. */
+  const overridden = () => {
+    const names = Object.values(override.sources).join(", ");
+    problem = {
+      code: "overridden",
+      message: `Remote access is set by ${names} when the host starts. Start the host without those options to change remote access here.`,
+      params: { sources: override.sources },
+      refused: true,
+      url: null,
+    };
+    return status();
+  };
+
+  /** Serves the override's port for the user's own reverse proxy. */
+  const applyOverride = async () => {
+    checkedAt = now();
+    origin = null;
+    problem = null;
+    try {
+      if (!listening) {
+        const started = await listen({
+          port: override.port,
+          publicOrigins: override.origins,
+          trustForwardedHost: override.trustForwardedHost,
+        });
+        listening = { origin: override.origins[0] ?? null, port: started.port };
+      }
+      const candidate = override.origins[0];
+      if (candidate) {
+        const unreachable = await verify(candidate);
+        if (unreachable) {
+          problem = {
+            code: "unreachable",
+            message: `${unreachable} Check that your reverse proxy forwards ${candidate} to http://127.0.0.1:${listening.port}.`,
+            params: {
+              detail: unreachable,
+              origin: candidate,
+              port: listening.port,
+            },
+            url: null,
+          };
+        } else {
+          origin = candidate;
+        }
+      }
+    } catch (error) {
+      problem = asProblem(error);
+    }
+    return status();
+  };
+
+  const savedStatus = () => ({
     checkedAt,
     enabled: settings.enabled,
     httpsPort: settings.httpsPort,
@@ -202,7 +288,7 @@ export function createRemoteAccess({
   /** Verify reachability; Cloudflare must also prove the installation key. */
   const verify = async (candidate) => {
     const secure =
-      settings.mode === "cloudflare"
+      !override && settings.mode === "cloudflare"
         ? createVerifiedHttps({
             origin: candidate,
             expectedIdentity: hostIdentity(),
@@ -295,6 +381,7 @@ export function createRemoteAccess({
   // Only a started Cloudflare route is watched: when applying failed, its
   // problem (a busy port, a missing address) stays until the next change.
   const watching = () =>
+    !override &&
     !closing &&
     settings.enabled &&
     settings.mode === "cloudflare" &&
@@ -394,11 +481,11 @@ export function createRemoteAccess({
         } catch {
           // A file still held open (Windows) goes on a later start.
         }
-        return apply();
+        return override ? applyOverride() : apply();
       }),
 
     /** Checks again (after the user fixed a setup step). */
-    refresh: () => serially(apply),
+    refresh: () => serially(override ? applyOverride : apply),
 
     /**
      * Turns remote access on with these settings.
@@ -406,6 +493,7 @@ export function createRemoteAccess({
      */
     enable: (options = {}) =>
       serially(async () => {
+        if (override) return overridden();
         const mode = ["tailscale", "cloudflare"].includes(options.mode)
           ? options.mode
           : settings.mode;
@@ -458,6 +546,7 @@ export function createRemoteAccess({
      */
     disable: () =>
       serially(async () => {
+        if (override) return overridden();
         save({ enabled: false });
         clearMonitor();
         await stopListening();

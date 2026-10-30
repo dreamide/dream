@@ -1,42 +1,34 @@
-// How the desktop reaches its home host, as the user chose it in Settings >
-// Connections, and which host mode a launch ends up in.
+// Whether this desktop runs agents on this computer (Settings > Hosts >
+// This app), and which host mode a launch ends up in.
 //
-//   <state database>.desktop-host.json   {"mode", "keepRunning"}
+//   <state database>.desktop-host.json   {"mode": "local" | "remote"}
 //
 // Beside the state database, like its remote-access settings, so a
 // development app on its own database (DREAM_DB_PATH) keeps its own.
 //
 // Host modes:
-//   child       the default: the desktop's own host in a child process,
-//               attached through the edge listener (desktop-host.js)
-//   service     an installed host service that serves this desktop's data
-//   remote      no home host; the desktop connects to remote hosts only
+//   detached    the default: the host running on this desktop's database,
+//               whoever started it, or one the desktop starts and stops
+//               (desktop-host.js)
+//   remote      no host on this computer; the desktop uses remote hosts
 //   in-process  the host inside Electron's main process (the escape hatch,
-//               and the fallback while the workspace shares the state
+//               and the only choice while the workspace shares the state
 //               database's writer)
 //
-// DREAM_HOST_MODE wins over the preference. `desktop` and `auto` choose as
-// if it were unset.
+// DREAM_HOST_MODE (`auto`, `remote` or `in-process`) wins over the
+// preference; `auto` and `desktop` choose as if it were unset.
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 
-export const HOST_MODES = Object.freeze([
-  "child",
-  "service",
-  "remote",
-  "in-process",
-]);
-
-const ENV_MODES = new Set([...HOST_MODES, "auto", "desktop"]);
+const ENV_MODES = new Set(["auto", "desktop", "remote", "in-process"]);
 
 export const DEFAULT_DESKTOP_HOST_PREFERENCE = Object.freeze({
-  keepRunning: false,
   mode: "local",
 });
 
 export const desktopHostPreferencePath = (stateDatabasePath) =>
   `${stateDatabasePath}.desktop-host.json`;
 
-/** The saved preference, or the defaults where it says nothing usable. */
+/** The saved preference, or the default where it says nothing usable. */
 export function readDesktopHostPreference(stateDatabasePath) {
   let saved = {};
   try {
@@ -44,22 +36,15 @@ export function readDesktopHostPreference(stateDatabasePath) {
       readFileSync(desktopHostPreferencePath(stateDatabasePath), "utf8"),
     );
   } catch {
-    // Missing or unreadable: the defaults.
+    // Missing or unreadable: the default.
   }
-  return {
-    keepRunning: saved?.keepRunning === true,
-    mode: saved?.mode === "remote" ? "remote" : "local",
-  };
+  return { mode: saved?.mode === "remote" ? "remote" : "local" };
 }
 
 /** Saves `changes` over the current preference; returns the result. */
 export function writeDesktopHostPreference(stateDatabasePath, changes) {
   const current = readDesktopHostPreference(stateDatabasePath);
   const next = {
-    keepRunning:
-      typeof changes?.keepRunning === "boolean"
-        ? changes.keepRunning
-        : current.keepRunning,
     mode:
       changes?.mode === "remote" || changes?.mode === "local"
         ? changes.mode
@@ -77,27 +62,27 @@ export function writeDesktopHostPreference(stateDatabasePath, changes) {
  * @param {{
  *   envMode?: string | null,
  *   preference: { mode: "local" | "remote" },
- *   serviceServesDesktop: () => boolean,
  *   workspaceSeparate: boolean,
  * }} options
- *   `serviceServesDesktop` is asked only when it decides the answer.
  *   `workspaceSeparate`: false while the workspace still lives in the state
  *   database; then only an in-process host can share its one writer.
- * @returns {{ mode: string, reason: string }}
+ * @returns {{ mode: "detached" | "remote" | "in-process", reason: string }}
  */
 export function resolveDesktopHostMode({
   envMode,
   preference,
-  serviceServesDesktop,
   workspaceSeparate,
 }) {
   const requested = envMode?.trim() || "";
-  if (requested && !ENV_MODES.has(requested)) {
+  if (requested === "service") {
     throw new Error(
-      `DREAM_HOST_MODE must be one of ${[...HOST_MODES, "auto"].join(", ")}.`,
+      "DREAM_HOST_MODE=service was removed: run `dream-host serve` on this desktop's data and the desktop attaches to it.",
     );
   }
-  if (requested && requested !== "auto" && requested !== "desktop") {
+  if (requested && !ENV_MODES.has(requested)) {
+    throw new Error("DREAM_HOST_MODE must be auto, remote or in-process.");
+  }
+  if (requested === "remote" || requested === "in-process") {
     return { mode: requested, reason: "DREAM_HOST_MODE" };
   }
   // The workspace still in the state database: its one writer is shared
@@ -108,18 +93,5 @@ export function resolveDesktopHostMode({
   if (preference.mode === "remote") {
     return { mode: "remote", reason: "preference" };
   }
-  if (serviceServesDesktop()) {
-    return { mode: "service", reason: "installed-service" };
-  }
-  return { mode: "child", reason: "default" };
+  return { mode: "detached", reason: "default" };
 }
-
-/**
- * The host mode as the renderer is told it (`window.dream.hostMode`): it
- * cares only whether the home host is in this process, a separate process
- * that outlives the page, or absent.
- * @param {string} mode
- * @returns {"desktop" | "service" | "remote"}
- */
-export const rendererHostMode = (mode) =>
-  mode === "remote" ? "remote" : mode === "in-process" ? "desktop" : "service";

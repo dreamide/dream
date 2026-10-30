@@ -141,6 +141,10 @@ export const REMOTE_ROUTE_POLICY = Object.freeze({
   "POST /api/remote/claims/answer": "manage",
   "POST /api/remote/sessions": "manage",
   "POST /api/remote/sessions/revoke": "manage",
+
+  // The host's own settings and where they came from (Sharing & access).
+  "POST /api/host/settings": "manage",
+  "POST /api/remote/access": "manage",
 });
 
 /** Routes anyone may call: they grant nothing without a secret. */

@@ -11,6 +11,7 @@ import {
   RotateCw,
   Server,
   Settings,
+  ShieldCheck,
   Sun,
   Trash2,
 } from "lucide-react";
@@ -65,7 +66,6 @@ import {
 } from "@/lib/opencode-model-groups";
 import { terminalClient } from "@/lib/terminal-client";
 import { ACCENT_COLORS, BASE_COLORS, useUiStore } from "@/lib/ui-store";
-import { useCompactLayout } from "@/lib/use-compact-layout";
 import { cn } from "@/lib/utils";
 import type {
   AccentColor,
@@ -91,10 +91,10 @@ import {
   SettingsGroup,
   SettingsSwitchRow,
 } from "./settings";
-import { HomeHostSection } from "./settings/home-host-section";
 import { KeyboardShortcutsSection } from "./settings/keyboard-shortcuts-section";
-import { RemoteAccessSection } from "./settings/remote-access-section";
 import { SettingsVersionButton } from "./settings/settings-version-button";
+import { SharingAccessSection } from "./settings/sharing-access-section";
+import { ThisAppSection } from "./settings/this-app-section";
 import { SkillsSettingsSection } from "./skills/skills-settings-section";
 import { SshHostsSettingsSection } from "./ssh/ssh-hosts-settings-section";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
@@ -170,8 +170,6 @@ export const SettingsWorkspace = () => {
   const [signingOut, setSigningOut] = useState(false);
   // A phone-sized window shows the section list, or one section, full width:
   // Back returns from a section to the list.
-  const compact = useCompactLayout();
-  const [compactList, setCompactList] = useState(true);
   const promptsT = useTranslations("savedPrompts");
   const skillsT = useTranslations("skills");
   const shortcutsT = useTranslations("shortcuts");
@@ -549,11 +547,7 @@ export const SettingsWorkspace = () => {
           <Button
             aria-label={chatT("back")}
             className="size-8 text-muted-foreground hover:text-foreground [-webkit-app-region:no-drag]"
-            onClick={() =>
-              compact && !compactList
-                ? setCompactList(true)
-                : setSettingsOpen(false)
-            }
+            onClick={() => setSettingsOpen(false)}
             size="icon"
             title={chatT("back")}
             variant="ghost"
@@ -567,23 +561,8 @@ export const SettingsWorkspace = () => {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <nav
-          className={cn(
-            "flex-col p-3",
-            !compact
-              ? "flex w-64 shrink-0"
-              : compactList
-                ? "flex w-full"
-                : "hidden",
-          )}
-        >
-          {/* A section chosen on a phone replaces the list. */}
-          <div
-            className="space-y-1"
-            onClickCapture={() => {
-              if (compact) setCompactList(false);
-            }}
-          >
+        <nav className="flex w-64 shrink-0 flex-col p-3">
+          <div className="space-y-1">
             <button
               className={cn(
                 "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
@@ -674,25 +653,40 @@ export const SettingsWorkspace = () => {
                 {settingsT("mcpServers")}
               </span>
             </button>
-            {/* Other computers (SSH hosts) and this computer's remote
-                access: both the desktop's. */}
+            {/* This app and the hosts it uses: the desktop's own. */}
             {platform.kind === "desktop" ? (
               <button
                 className={cn(
                   "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
-                  settingsSection === "connections"
+                  settingsSection === "hosts"
                     ? "font-semibold text-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
-                onClick={() => setSettingsSection("connections")}
+                onClick={() => setSettingsSection("hosts")}
                 type="button"
               >
                 <span className="flex items-center gap-2">
                   <Server className="size-4" />
-                  {settingsT("connections")}
+                  {settingsT("hosts")}
                 </span>
               </button>
             ) : null}
+            {/* A host's sharing: on any client, for the hosts it uses. */}
+            <button
+              className={cn(
+                "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
+                settingsSection === "sharing"
+                  ? "font-semibold text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setSettingsSection("sharing")}
+              type="button"
+            >
+              <span className="flex items-center gap-2">
+                <ShieldCheck className="size-4" />
+                {settingsT("sharingAccess")}
+              </span>
+            </button>
             <button
               className={cn(
                 "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
@@ -748,12 +742,7 @@ export const SettingsWorkspace = () => {
           </div>
         </nav>
 
-        <div
-          className={cn(
-            "relative min-w-0 flex-1",
-            compact && compactList && "hidden",
-          )}
-        >
+        <div className="relative min-w-0 flex-1">
           {/* Same top fade as the chat transcript, so content scrolling
               under the header dissolves instead of cutting off. The right
               inset keeps the scrollbar uncovered. */}
@@ -1564,13 +1553,15 @@ export const SettingsWorkspace = () => {
 
               {settingsSection === "skills" ? <SkillsSettingsSection /> : null}
 
-              {settingsSection === "connections" &&
-              platform.kind === "desktop" ? (
+              {settingsSection === "hosts" && platform.kind === "desktop" ? (
                 <div className="space-y-10">
+                  <ThisAppSection />
                   <SshHostsSettingsSection />
-                  <HomeHostSection />
-                  {platform.hasHomeHost ? <RemoteAccessSection /> : null}
                 </div>
+              ) : null}
+
+              {settingsSection === "sharing" ? (
+                <SharingAccessSection appVersion={appVersion} />
               ) : null}
 
               {settingsSection === "chats" ? (

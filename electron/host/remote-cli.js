@@ -12,7 +12,7 @@
 //   remote off                       stop serving paired devices
 //   remote check                     check the setup again
 //   pair [--scopes view,operate] [--name name]
-//                                    a pairing link, its code and a QR code
+//                                    a pairing link and its code
 //   claims                           devices asking to pair with a code
 //   confirm <claimId> / deny <claimId>
 //   devices                          paired devices
@@ -20,7 +20,6 @@
 //
 // `--json` prints the host's answer as one JSON line instead.
 
-import { renderUnicodeCompact } from "uqr";
 import { API_SESSION_TOKEN_HEADER } from "../api/shared/session-token.js";
 
 const SCOPES = new Set(["view", "operate", "manage"]);
@@ -181,7 +180,7 @@ export async function runRemoteCommand({
         : null;
       const lines = [];
       if (url) {
-        lines.push(renderUnicodeCompact(url, { border: 1 }), "", url);
+        lines.push(url);
       } else {
         lines.push(
           "Remote access is not ready, so there is no address to open. Run `dream-host remote on` first.",

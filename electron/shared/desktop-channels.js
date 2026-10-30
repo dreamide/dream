@@ -173,7 +173,17 @@ export const DESKTOP_METHODS =
       channel: "home-host:set-preference",
       kind: "invoke",
     },
+    restartHomeHost: {
+      channel: "home-host:restart",
+      kind: "invoke",
+      params: [],
+    },
     relaunchApp: { channel: "app:relaunch", kind: "invoke", params: [] },
+    listWslDistributions: {
+      channel: "hosts:wsl-distributions",
+      kind: "invoke",
+      params: [],
+    },
 
     detectEditors: { channel: "editors:detect", kind: "invoke", params: [] },
     openInEditor: { channel: "editors:open", kind: "invoke" },

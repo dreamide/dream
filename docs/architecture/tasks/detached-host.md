@@ -9,6 +9,37 @@ candidates close the remaining gaps the comparison found. Scope agreed
 Dependency order: DH-01 → DH-02 → DH-03. DH-04, DH-05 and DH-06 are
 independent of them.
 
+Second round, agreed 2026-10-30 (DH-07 to DH-17). Two goals:
+
+1. **Consistent start.** The host is started one way, `dream-host`, configured
+   through flags or environment variables.
+2. **Settings only offer what works.** The UI offers only what the running setup
+   supports, and says when a change needs a restart.
+
+The connection settings follow T3 Code's split: a client page (this app and
+the hosts it uses) and a host page (one host's sharing and access).
+
+Decisions recorded 2026-10-30:
+
+- **Precedence:** a flag beats an environment variable, which beats a saved
+  setting, which beats the default ("default" was the answer, read as the
+  proposed order).
+- **Overrides:** a flag or environment variable may override a setting saved
+  through the UI. The UI then shows it read-only, with its source.
+- **Service management** (`dream-host service …`) is removed completely, with
+  no deprecation period. Keeping a host running is the user's job;
+  `dream-host` is the standard way to run it, and the docs show how to run it
+  under each OS's service manager.
+- **No keep-running preference.** The desktop manages only its own process: a
+  host it started, it stops when it quits; a host it did not start, it leaves
+  alone.
+- **No phone client.** Dream is not meant to be used on a phone. Connecting from
+  a phone is not offered; mobile is a separate, future project. This reverses
+  CONN-04's phone layout and the phone pairing of CONN-01 to CONN-05
+  (`remote-connections.md`); see DH-17.
+
+DH-07 to DH-17 supersede parts of DH-02, DH-03 and DH-06, as noted under each.
+
 ## DH-01: State lock held by the operating system
 
 Status: implemented
@@ -52,7 +83,8 @@ Remaining/deferred: a lock file deleted while held is not noticed.
 
 ## DH-02: The desktop's home host runs as a child process
 
-Status: implemented
+Status: implemented; partly superseded by DH-09 (no keep-running; the desktop
+stops only the host it started, and attaches to a host it did not start)
 
 Problem and trigger: by default the desktop ran its home host inside
 Electron's main process (`createHost` in `electron/main.js`). Agent turns, git
@@ -117,7 +149,9 @@ terminals in a window; the second-desktop dialog in a window.
 
 ## DH-03: Host mode chosen in Settings and detected
 
-Status: implemented
+Status: implemented; superseded by DH-09 (keep-running removed), DH-10
+(service detection removed with service management) and DH-11 (the "This
+computer" section becomes the Hosts page's "This app")
 
 Problem and trigger: service and remote-only modes needed `DREAM_HOST_MODE` in
 the desktop's environment. A desktop launched normally while a service owned
@@ -159,7 +193,8 @@ walkthrough with a real installed service.
 
 ## DH-04: One-line host install
 
-Status: implemented; publishing pending
+Status: implemented; publishing pending. DH-10 removes the `service` commands
+the installed runtime offered; the installers themselves are unchanged.
 
 Problem and trigger: a headless machine needs the right runtime archive found,
 checked and unpacked by hand (`docs/host-service.md`). T3 ships `npx t3`.
@@ -247,11 +282,15 @@ another turn, an offset not reached) and `turn-stream-cache.test.ts` (splice,
 replay, refused tail, forgetting). Not exercised against a live provider turn
 in a window or a phone browser.
 
-Remaining/deferred: a live reconnect check on a phone.
+Remaining/deferred: a live reconnect check over a slow or dropped link (a
+phone is no longer a target client, see DH-17; any client that reconnects
+benefits).
 
 ## DH-06: Headless pairing, approval signal, WSL hosts
 
-Status: implemented
+Status: implemented; the WSL interface is superseded by DH-16 (a distribution
+picker instead of typing `wsl:<name>`), and the QR code of `serve --pair` is
+reviewed under DH-17
 
 Problem and trigger: three smaller gaps from the comparison.
 
@@ -305,7 +344,462 @@ Remaining/deferred:
 - Chats waiting on approval are not yet dropped from the client's map when
   their project closes.
 
-Recovery: docs/architecture/tasks/detached-host.md, DH-01 to DH-06 implemented
-(DH-04 publishing pending); remaining items are listed under each candidate.
-Latest validation: `pnpm check` (see the final run) and the packaged Windows
-walkthrough of DH-02/03.
+## DH-07: One option table for starting the host
+
+Status: implemented
+
+Problem and trigger: the host's options are flags only, except
+`DREAM_HOST_HOME` and `DREAM_DB_PATH`. Each way of starting it picks its own
+defaults: one hour of idle timeout from `serve` and `ensure`, never for a
+service. The desktop passes flags no one documents (`--owner`,
+`--diagnostics`). The database is chosen two overlapping ways (`--data-dir` and
+`DREAM_DB_PATH`). The desktop's host inherits the app's `.env`, which
+`dream-host` never reads.
+
+Scope:
+
+- **The table.** One module (`electron/host/options.js`, name to confirm) lists
+  every host option: flag, environment variable (`DREAM_HOST_*`), type,
+  default, whether it can change while the host runs, and whether a saved
+  setting backs it (remote access).
+- **Resolution.** Options resolve as flag > environment variable > saved
+  setting > default, and the source of each value is kept for DH-08.
+- **Who uses it.** `serve`; `ensure`, which passes options through; the
+  desktop's own host, which passes its options as flags; `dream-host --help`;
+  and the options table in the docs.
+- **Options:** home, data directory, database, port, idle timeout, remote port,
+  remote origins, trusted forwarded host, client directory, diagnostics, and
+  who started the host.
+
+Open in this candidate:
+
+- One way to name the database, with `DREAM_DB_PATH` kept or retired.
+- Whether `dream-host` reads a `.env` file.
+- Which `DREAM_HOST_MODE` values remain after DH-09 and DH-10.
+
+Completion criteria:
+
+- Every option has a flag and an environment variable, listed by
+  `dream-host --help` and in the docs, both generated from the table.
+- Precedence is tested for each kind of option, including one with a saved
+  setting.
+- An invalid value is refused with the option's name and where it came from.
+- The desktop starts its host only through the table.
+
+Validation:
+
+- `electron/host/options.test.js` covers precedence, the derived paths,
+  `DREAM_DB_PATH` after `DREAM_HOST_DATABASE`, lists and switches from
+  variables, refusals naming their source, flags written back, and the docs
+  table, which is generated (the test fails when it drifts).
+- Live: `dream-host help` lists every option with its variable.
+  `DREAM_HOST_PORT=abc dream-host status` is refused with "Invalid
+  DREAM_HOST_PORT".
+- A host started with `DREAM_HOST_IDLE_TIMEOUT=0` reports that value as `env`,
+  from `DREAM_HOST_IDLE_TIMEOUT`.
+
+Decided (2026-10-30, the proposals):
+
+- The database is named by `--database` / `DREAM_HOST_DATABASE`, with
+  `DREAM_DB_PATH` still read after it; `serve` passes the resolved path to its
+  workers.
+- `dream-host` reads no `.env` file.
+- `DREAM_HOST_MODE` takes `auto`, `remote` and `in-process`. `service` is
+  refused with a pointer to `dream-host serve`; `desktop` is read as `auto`.
+
+Remaining/deferred: none.
+
+## DH-08: The host reports its settings and where they came from
+
+Status: implemented
+
+Problem and trigger: a client cannot tell which of a host's settings it may
+change, which were fixed by a flag or environment variable, or which are
+saved but wait on a restart. So the UI offers changes that fail (the remote
+access listener) or silently do nothing until a restart.
+
+Scope: a route on the host (`/api/host/settings`, `manage` scope) answers, for
+each option of DH-07:
+
+- its value now and its source (flag, environment variable, saved, default);
+- whether it can be changed from a client;
+- any saved value waiting on a restart.
+
+It also answers the host's header facts: name, ID and fingerprint, version,
+addresses, start time, and whether a desktop started it.
+
+Completion criteria:
+
+- Every DH-07 option is reported with its source.
+- A saved change to an option that needs a restart is reported as pending
+  until the restart.
+- The route follows the route policy (`manage`) on both listeners.
+
+Validation: `options.test.js` (the report: values, sources, flags or
+variables, what a client may change, remote access fixed at start). Live: the
+report of a host started with an environment variable and `--remote-port`.
+
+Scope change: the route is `POST /api/host/settings`, as every route of the
+renderer's client is a POST or PUT. No option changes while a host runs, so
+`pendingRestart` is always false; it is there for one that will.
+
+Remaining/deferred: none.
+
+## DH-09: The desktop manages only the host it started
+
+Status: implemented
+
+Problem and trigger: decided 2026-10-30. The desktop should manage its own
+process and nothing else. Today it offers to keep its host running after
+quitting, and it cannot attach to a host the user started with `dream-host` on
+its data (it fails with "Could not start Dream").
+
+Scope:
+
+- **Finding the host.** At launch, the desktop looks for a host already
+  running on its database. Any host can be found from the database alone: the
+  state lock's record names where its run record is.
+- **A host the user started.** The desktop attaches after the usual identity
+  and protocol checks. It never stops it, and a version difference is shown
+  (DH-12) rather than acted on.
+- **A host a desktop started.** One left by a crashed desktop is still the
+  desktop's own: it is reused, replaced on a version change, and stopped when
+  the desktop quits.
+- **No host.** The desktop starts one and stops it when it quits.
+- **Removed:** the keep-running preference, its UI, its file field and its docs.
+
+Completion criteria:
+
+- With `dream-host serve` running on the desktop's data, the desktop attaches,
+  and quitting the desktop leaves it running.
+- A host the desktop started stops when the desktop quits, including one left
+  by a crashed desktop.
+- No setting keeps a desktop-started host running after quit.
+
+Validation:
+
+- `electron/desktop-host.test.js`, with real hosts:
+  - the desktop's own host starts, is restarted and stops at close;
+  - a host the user started is attached, refuses a restart, and keeps
+    running after close, even at another version;
+  - a crashed desktop's host is reused, and replaced for another version;
+  - a v0.31 host (PID-only lock, run record in the default home) is found;
+  - an unreachable holder is refused with a reason;
+  - the in-process fallback.
+- Packaged Windows app on a temporary `DREAM_DB_PATH`:
+  - It started its own host, whose lock record named owner `desktop` and its
+    run directory, and quitting stopped it.
+  - With a host started by the packaged binary's `dream-host` on the same
+    data, the desktop logged "Attached to the host … started with
+    dream-host", and the host was still running after the desktop quit.
+
+Remaining/deferred: macOS and Linux packaged runs.
+
+## DH-10: Remove service management
+
+Status: implemented; the service manager examples are unverified
+
+Problem and trigger: decided 2026-10-30. Running the host under the
+operating system's service manager is the user's job, not Dream's.
+
+Scope:
+
+- **Code removed:** `dream-host service` and everything behind it
+  (`electron/host/service/`, `service-cli.js`), the desktop's service
+  attachment and detection (`createServiceHostAttachment`,
+  `serviceServesDesktop`), and `DREAM_HOST_MODE=service`.
+- **Docs.** `docs/host-service.md` becomes "Run the host": install, run,
+  options (DH-07), and examples that run `dream-host serve` under systemd
+  `--user`, launchd and Windows Task Scheduler. The examples include restart
+  on failure, the idle timeout turned off and environment variables. Updating
+  means installing the new version and restarting the unit.
+- **Existing services.** Services installed by v0.30.0 and v0.31.0 keep
+  running their retained runtime until the user removes them; the docs list
+  where each OS keeps the unit.
+- **Glossary.** The glossary loses Host service and Service runtime update.
+
+Completion criteria:
+
+- No code installs, starts, stops, updates or detects a service.
+- The docs' examples run the host on each OS. The Windows example has been run
+  here; the others are marked as unverified until they are.
+- A desktop with a v0.31 service running on its data attaches to it as to any
+  host the user started (DH-09).
+
+Validation:
+
+- `git rm` of `electron/host/service/` and `service-cli.js`; nothing refers to
+  them.
+- `dream-host service …` prints the removal notice.
+- `DREAM_HOST_MODE=service` is refused (`desktop-host-preference.test.js`).
+- `docs/host-service.md` is now "Run the host", with the generated options
+  table.
+- A v0.31 service on the desktop's data is found by DH-09 (tested with a
+  stand-in, not a real v0.31 service).
+
+Remaining/deferred: the systemd, launchd and Task Scheduler examples have not
+been run. Registering them here would change this machine's startup and user
+PATH, which needs the user's go-ahead. The docs say they are starting points.
+
+## DH-11: Hosts page (this app, and the hosts it uses)
+
+Status: implemented; not inspected visually on the desktop
+
+Problem and trigger: Settings > Connections mixes what this app owns (its
+saved hosts, whether it runs a host) with what a host owns (remote access,
+paired devices). Nothing says which is which.
+
+Scope: a client-owned **Hosts** page, desktop only (a browser client uses only
+the host that serves it):
+
+- **This app.** A **Run agents on this computer** toggle, which needs a restart
+  and offers one. It is read-only, with its source, while `DREAM_HOST_MODE`
+  decides.
+- **Hosts.** This computer's host and the saved hosts, each with its state.
+  **Add host** offers SSH host, WSL distribution (DH-16) and Pairing link.
+
+Completion criteria:
+
+- Everything on the page is about this app or its saved hosts; nothing a host
+  owns.
+- Turning the local host off or on says a restart is needed and offers one.
+- UI review per `CODING_STANDARDS.md` in both themes.
+
+Validation: typecheck, lint and the handler and preload tests (the
+`restartHomeHost` and `listWslDistributions` methods). Settings now has **Hosts**
+(desktop only: `ThisAppSection` and the saved hosts) and **Sharing & access**
+in place of Connections. The browser client shows Sharing & access and no
+Hosts page (checked in the browser panel).
+
+Remaining/deferred: a look at the Hosts page in a desktop window, in both
+themes.
+
+## DH-12: Sharing & access page (one host's)
+
+Status: implemented
+
+Problem and trigger: a host's identity, version and address are shown nowhere.
+Remote access, pairing and paired devices sit in one long section. Controls
+that cannot work yet are offered anyway.
+
+Scope: a host-owned **Sharing & access** page for one host:
+
+- **Header.** The host's name and a menu: copy the host ID and fingerprint, and
+  Restart host for a host this desktop started.
+- **Version.** The host's version, address, and how it relates to this app:
+  same version, or older or newer (DH-09).
+- **Remote access.** Off, Tailscale or Cloudflare. A control that depends on
+  another is disabled with the reason.
+- **Authorized clients.** Paired devices with this desktop marked, their access
+  levels, **Revoke others** and **Create link**, and pending code requests.
+
+Completion criteria:
+
+- Every control either works in the current setup or is disabled with the
+  reason.
+- The page shows the same thing for the desktop's own host and for a host the
+  user started.
+- UI review per `CODING_STANDARDS.md` in both themes.
+
+Validation: the page in the browser client at 605px wide, dark theme,
+on a host started with `--remote-port`:
+
+- its name, version and address, "Started with dream-host…" and "Same as
+  this app";
+- options set at start, labelled by the flag that set them;
+- remote access read-only with the reason;
+- **Create link**, and this browser marked "This device".
+
+Two layout problems found there were fixed: wrapping flag names, and values
+shown as escaped JSON.
+
+Remaining/deferred:
+
+- the desktop's view (Restart host on its own host) in a window;
+- the light theme;
+- **Revoke others** with more than one client;
+- the link view of **Create link** (its QR code is gone; the CLI shows the
+  link-only output).
+
+## DH-13: Overrides and restart notices in Settings
+
+Status: implemented
+
+Problem and trigger: the second goal of this round. The UI must not offer a
+change that cannot take effect, and must say when one needs a restart.
+
+Scope: DH-11 and DH-12 read DH-08's report.
+
+- **Overridden settings.** A setting fixed by a flag or environment variable is
+  read-only and names its source ("Set by `--remote-port`").
+- **Pending restarts.** A saved change that waits on a restart says so. For a
+  host this desktop started, it offers Restart host. For a host the user
+  started, it says to restart `dream-host`.
+
+Completion criteria:
+
+- No UI-editable host setting can be changed while a flag or environment
+  variable fixes it.
+- Every change that needs a restart says so until the restart happens.
+
+Validation: remote access set at start is read-only with the flags named
+(seen in the browser panel). A client that is not the host's own computer's
+operator cannot switch access on or off, and is told why. The Hosts toggle is
+read-only, with "Set by DREAM_HOST_MODE", while that decides.
+
+Remaining/deferred: no host option is changeable at run time yet, so no
+pending-restart notice can appear from the host. The app's own "Restart Dream
+to apply this change" is shown for the Hosts toggle.
+
+## DH-14: Remote-access flags as an override of the saved setting
+
+Status: implemented
+
+Problem and trigger: `--remote-port`, `--remote-origin` and
+`--trust-forwarded-host` start a listener that the Remote access status does
+not show. Turning remote access on in Settings then fails with "The remote
+listener is running." The listener does not count as activity, so the host
+can idle out while devices depend on it.
+
+Scope: through DH-07, these flags and their environment variables override
+the saved remote access setting. The remote access status reports them with
+their source, Settings shows them read-only (DH-13), and their listener counts
+as activity.
+
+Completion criteria:
+
+- A host started with the flags reports remote access as on, from flags.
+- Settings shows that read-only, and nothing in Settings can start a second
+  listener.
+- The host does not idle out while the listener is up.
+
+Validation:
+
+- `remote-access.test.js`: an override listens with its options, reports
+  `mode: "proxy"` with its sources and readiness, refuses enable and disable,
+  and leaves the saved settings alone.
+- Live: a host started with `--remote-port 0 --remote-origin …` reports
+  remote access as on, from those flags, with the port actually in use, and
+  refuses Settings' change with the reason.
+- Remote access being on counts as activity, so the host does not idle out
+  (`isBusy` reads `status().enabled`).
+
+Remaining/deferred: none.
+
+## DH-15: Sharing & access for other hosts and the browser client
+
+Status: implemented; not exercised with SSH or paired hosts
+
+Problem and trigger: remote access and paired devices can be managed only for
+the desktop's home host, and only from the desktop. An SSH host or paired host
+needs `dream-host remote …` on that machine.
+
+Scope:
+
+- **Desktop.** DH-12's page for any host the desktop uses: editable when its
+  credential has `manage`, read-only with `view` or `operate`. The desktop's
+  route to an SSH host carries the host's launch token, so it has `manage`.
+- **Browser client.** The page for its home host, in a computer's browser
+  (DH-17).
+
+Completion criteria:
+
+- An SSH host's and a paired host's sharing can be managed from the desktop
+  with `manage`, and only viewed without it.
+- A browser client with `manage` can manage its host.
+
+Validation: the page offers this computer's host and every connected
+host. `/api/remote/session` decides what is offered:
+
+- the desktop's route to an SSH host carries the host's launch token (local
+  operator), so it may change remote access;
+- a paired HTTPS route sees remote access read-only;
+- a client without `manage` sees why.
+
+The remote listener now answers the remote access status and the settings
+report to `manage` (route policy); changing access stays local-only. The
+browser client case was checked in the browser panel.
+
+Remaining/deferred: a walkthrough with a connected SSH host and a paired HTTPS
+host.
+
+## DH-16: WSL distribution picker
+
+Status: implemented; not exercised with a real distribution
+
+Problem and trigger: a WSL host is added by typing `wsl:<name>` as an SSH
+target. That is undiscoverable, and its route shows that internal form.
+
+Scope:
+
+- **Add host → WSL distribution**, on Windows only, lists the installed
+  distributions (`wsl.exe --list`) and creates the `wsl:<name>` route, which
+  stays internal.
+- The SSH dialog no longer suggests `wsl:` targets.
+- The route is shown as the distribution's name.
+- The choice is hidden where WSL is absent or has no distributions.
+
+Completion criteria:
+
+- A WSL host can be added without typing.
+- Existing `wsl:` routes keep working and are shown by name.
+
+Validation: typecheck, lint, and the handler test of
+`listWslDistributions`.
+
+- **Add host** offers **WSL distribution** when there are distributions not
+  yet added; it saves the internal `wsl:<name>` route.
+- Routes show the distribution's name with a WSL badge.
+- The SSH dialog no longer suggests `wsl:` targets.
+
+Remaining/deferred: a walkthrough with this machine's Debian or Ubuntu (it
+installs a runtime and starts a host inside the distribution).
+
+## DH-17: No phone client
+
+Status: implemented, as proposed
+
+Problem and trigger: decided 2026-10-30. Dream is not meant to be used on a
+phone; mobile is a separate, future project. CONN-04 built a phone layout and
+CONN-01 to CONN-05 aimed pairing at phones (QR codes), so connecting from a
+phone is currently offered.
+
+Scope (proposed; each item to confirm):
+
+- Remove the compact phone layout (`src/lib/use-compact-layout.ts`, below
+  640px) and its sheet panels.
+- Remove QR codes from pairing in Settings, `dream-host pair` and
+  `serve --pair`, keeping the link and the code.
+- Remove phone wording from the UI, docs and glossary.
+- Record the reversal on CONN-04 and the phone milestone in
+  `remote-connections.md`.
+
+The browser client stays, for a computer's browser.
+
+Completion criteria: to be set once the scope is confirmed.
+
+Validation:
+
+- The compact layout is gone (`use-compact-layout.ts` and `compact-bar.tsx`
+  removed, with their branches in the workspace, the header, the file
+  explorer and Settings). A narrow window shows the normal layout, as seen at
+  605px in the browser panel.
+- QR codes are gone from Settings and from `dream-host pair` and
+  `serve --pair`, and the `uqr` dependency is removed; the link and the code
+  remain.
+- Phone wording is gone from the UI messages in all locales, the docs and the
+  glossary. `remote-connections.md` records the reversal (2026-10-30).
+
+Remaining/deferred: none.
+
+## Order of the second round
+
+DH-07 → DH-08 → DH-09 → DH-10, then DH-11 → DH-12 → DH-13 → DH-14 → DH-15.
+DH-16 and DH-17 can go at any point.
+
+Recovery: docs/architecture/tasks/detached-host.md. DH-01 to DH-17 are
+implemented (DH-04 publishing pending). What remains is listed under each
+candidate: mostly walkthroughs (macOS/Linux, real SSH/HTTPS/WSL hosts, the
+service manager examples) and visual checks of the desktop pages. Latest
+validation: `pnpm check`, the packaged Windows walkthroughs of DH-02 and
+DH-09, and the browser client's Sharing & access page.

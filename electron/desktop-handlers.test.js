@@ -55,7 +55,7 @@ const createFakes = ({ window = true } = {}) => {
     save: (preferences) => saved.push(preferences),
   });
   const existing = new Set();
-  const preference = { keepRunning: false, mode: "local" };
+  const preference = { mode: "local" };
   const { handlers, paintWindowBackground } = createDesktopHandlers({
     browserSessions: {
       capturePage: (payload) => ({ captured: payload }),
@@ -102,7 +102,8 @@ const createFakes = ({ window = true } = {}) => {
     getPath: () => "/pictures",
     getWindow: () => (window ? fakeWindow : null),
     homeHost: {
-      describe: () => ({ mode: "child", preference }),
+      describe: () => ({ mode: "detached", preference }),
+      restart: async () => log.push(["restart host"]),
       setPreference: (changes) => {
         Object.assign(preference, changes);
       },
@@ -140,6 +141,7 @@ const createFakes = ({ window = true } = {}) => {
     },
     systemPrefersDark: () => false,
     themes,
+    wslDistributions: async () => ["Ubuntu"],
   });
   return { handlers, log, notifications, paintWindowBackground, saved, themes };
 };
@@ -371,21 +373,24 @@ test("every method the renderer calls is handled once, on its channel", () => {
   );
 });
 
-test("the home host preference takes only what it knows", () => {
+test("the home host preference takes only what it knows", async () => {
   const { handlers, log } = createFakes();
   assert.deepEqual(handlers.getHomeHostSettings(), {
-    mode: "child",
-    preference: { keepRunning: false, mode: "local" },
+    mode: "detached",
+    preference: { mode: "local" },
+  });
+  assert.deepEqual(handlers.setHomeHostPreference({ mode: "elsewhere" }), {
+    mode: "detached",
+    preference: { mode: "local" },
   });
   assert.deepEqual(
-    handlers.setHomeHostPreference({ keepRunning: true, mode: "elsewhere" }),
-    { mode: "child", preference: { keepRunning: true, mode: "local" } },
-  );
-  assert.deepEqual(
-    handlers.setHomeHostPreference({ keepRunning: "yes", mode: "remote" })
+    handlers.setHomeHostPreference({ keepRunning: true, mode: "remote" })
       .preference,
-    { keepRunning: true, mode: "remote" },
+    { mode: "remote" },
   );
+  await handlers.restartHomeHost();
+  assert.deepEqual(log.at(-1), ["restart host"]);
+  assert.deepEqual(await handlers.listWslDistributions(), ["Ubuntu"]);
   assert.equal(handlers.relaunchApp(), true);
   assert.deepEqual(log.at(-1), ["relaunch"]);
 });
