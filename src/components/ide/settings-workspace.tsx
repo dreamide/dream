@@ -91,6 +91,7 @@ import {
   SettingsGroup,
   SettingsSwitchRow,
 } from "./settings";
+import { HomeHostSection } from "./settings/home-host-section";
 import { KeyboardShortcutsSection } from "./settings/keyboard-shortcuts-section";
 import { RemoteAccessSection } from "./settings/remote-access-section";
 import { SettingsVersionButton } from "./settings/settings-version-button";
@@ -1567,6 +1568,7 @@ export const SettingsWorkspace = () => {
               platform.kind === "desktop" ? (
                 <div className="space-y-10">
                   <SshHostsSettingsSection />
+                  <HomeHostSection />
                   {platform.hasHomeHost ? <RemoteAccessSection /> : null}
                 </div>
               ) : null}

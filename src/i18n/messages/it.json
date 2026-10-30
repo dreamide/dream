@@ -661,6 +661,7 @@
     "pinnedChat": "Chat fissata",
     "archiveNamedChat": "Archivia {name}",
     "chatFinished": "Chat terminata",
+    "chatAwaitingApproval": "In attesa di te",
     "chatHistory": "Cronologia chat",
     "chatStreaming": "Chat in streaming",
     "editProject": "Modifica progetto",
@@ -1056,7 +1057,8 @@
     "runsOn": "Viene eseguito su {host} ({target})",
     "edit": "Modifica",
     "editHost": "Modifica host SSH",
-    "fromSshConfig": "Dalla configurazione ssh:"
+    "fromSshConfig": "Dalla configurazione ssh:",
+    "fromWsl": "Distribuzioni WSL:"
   },
   "shortcuts": {
     "title": "Scorciatoie da tastiera",
@@ -1210,5 +1212,21 @@
       "unreachableTailscale": "Impossibile raggiungere questo computer tramite {origin}. Tailscale potrebbe star ancora ottenendo il certificato; controlla di nuovo tra un minuto.",
       "unreachableCloudflare": "Impossibile raggiungere questo computer tramite {origin}. Verifica che cloudflared sia in esecuzione per il tuo tunnel e che l’URL del servizio di questo nome host sia http://127.0.0.1:{port}."
     }
+  },
+  "homeHost": {
+    "title": "Questo computer",
+    "description": "Dove vengono eseguiti agenti, terminali e git per i progetti su questo computer.",
+    "statusLabel": "Host",
+    "modeChild": "Viene eseguito in un processo separato.",
+    "modeService": "Viene eseguito come servizio host installato.",
+    "modeInProcess": "Viene eseguito all’interno dell’app.",
+    "modeRemote": "Disattivato. I progetti si aprono solo su host remoti.",
+    "modeFallback": "Viene eseguito all’interno dell’app: il suo processo non è riuscito ad avviarsi.",
+    "modeExplicit": "{mode} Impostato da DREAM_HOST_MODE.",
+    "restart": "Riavvia per applicare",
+    "keepRunning": "Continua dopo la chiusura",
+    "keepRunningHint": "Agenti e terminali proseguono quando esci. All’avvio successivo si riconnette.",
+    "remoteOnly": "Solo host remoti",
+    "remoteOnlyHint": "Non eseguire alcun host su questo computer. Si applica dopo un riavvio."
   }
 }

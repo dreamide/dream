@@ -661,6 +661,7 @@
     "pinnedChat": "Chat épinglé",
     "archiveNamedChat": "Archiver {name}",
     "chatFinished": "Chat terminé",
+    "chatAwaitingApproval": "Vous attend",
     "chatHistory": "Historique des discussions",
     "chatStreaming": "Chat en streaming",
     "editProject": "Modifier le projet",
@@ -1056,7 +1057,8 @@
     "runsOn": "S'exécute sur {host} ({target})",
     "edit": "Modifier",
     "editHost": "Modifier l’hôte SSH",
-    "fromSshConfig": "Depuis la configuration ssh :"
+    "fromSshConfig": "Depuis la configuration ssh :",
+    "fromWsl": "Distributions WSL :"
   },
   "shortcuts": {
     "title": "Raccourcis clavier",
@@ -1210,5 +1212,21 @@
       "unreachableTailscale": "Impossible de joindre cet ordinateur via {origin}. Tailscale est peut-être encore en train d’obtenir son certificat ; vérifiez à nouveau dans une minute.",
       "unreachableCloudflare": "Impossible de joindre cet ordinateur via {origin}. Vérifiez que cloudflared est en cours d’exécution pour votre tunnel et que l’URL de service de ce nom d’hôte est http://127.0.0.1:{port}."
     }
+  },
+  "homeHost": {
+    "title": "Cet ordinateur",
+    "description": "Où s’exécutent les agents, les terminaux et git des projets de cet ordinateur.",
+    "statusLabel": "Hôte",
+    "modeChild": "S’exécute dans son propre processus.",
+    "modeService": "S’exécute en tant que service d’hôte installé.",
+    "modeInProcess": "S’exécute dans l’application.",
+    "modeRemote": "Désactivé. Les projets s’ouvrent uniquement sur des hôtes distants.",
+    "modeFallback": "S’exécute dans l’application : son propre processus n’a pas pu démarrer.",
+    "modeExplicit": "{mode} Défini par DREAM_HOST_MODE.",
+    "restart": "Redémarrer pour appliquer",
+    "keepRunning": "Continuer après la fermeture",
+    "keepRunningHint": "Les agents et les terminaux continuent quand vous quittez. Le prochain lancement se reconnecte.",
+    "remoteOnly": "Hôtes distants uniquement",
+    "remoteOnlyHint": "N’exécuter aucun hôte sur cet ordinateur. S’applique après un redémarrage."
   }
 }

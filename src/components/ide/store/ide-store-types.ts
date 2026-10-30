@@ -129,6 +129,11 @@ export interface IdeState {
    * for one resumes the turn's stream (chat-runtime.ts).
    */
   hostRunningChatIds: Record<string, true>;
+  /**
+   * Chats whose turn waits on a tool approval on their host, whether this
+   * window follows the turn or not (host catalog `approval` events).
+   */
+  hostAwaitingApprovalChatIds: Record<string, true>;
   /** SSH hosts' connection state (the local host is always there). */
   hosts: Record<string, HostRuntimeState>;
   /**
@@ -615,6 +620,8 @@ export interface IdeState {
   removeSshHost: (hostId: string) => Promise<void>;
   /** A turn started or ended on the host. */
   setHostTurnRunning: (chatId: string, running: boolean) => void;
+  /** A chat started or stopped waiting on a tool approval on its host. */
+  setHostChatAwaitingApproval: (chatId: string, awaiting: boolean) => void;
   persist: () => void;
 }
 

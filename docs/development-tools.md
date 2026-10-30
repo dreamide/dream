@@ -8,6 +8,12 @@ then click Save (or Turn on). For example, use local port `5411`
 and HTTPS port `8443` in development if the installed app uses `5410` and `443`.
 Leaving Local port empty chooses an available port and saves it.
 
+Each app's host runs in its own process, beside its state database: with
+`DREAM_DB_PATH=dev.db`, its run record and log are under `dev.db.host/run/p1/`
+(`host.log`), separate from the installed app's `dream.db.host/`. The window's
+own log names the host's process and log at startup. `DREAM_HOST_MODE=in-process`
+runs the host inside the app again, with its output in the app's log.
+
 Remote-access settings follow the host's state database. The default `dream.db`
 keeps using `remote-access.json` beside the database. A custom database such as
 `dev.db` uses `dev.db.remote-access.json` beside it, starting with remote access

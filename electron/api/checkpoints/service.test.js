@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Hono } from "hono";
-import { afterEach, beforeAll, test } from "vitest";
+import { afterEach, beforeAll, test, vi } from "vitest";
 import { configureHostDataDirectory } from "../../host/host-paths.js";
 
 const userDataDirectory = await fs.mkdtemp(
@@ -27,6 +27,10 @@ const { isCliCommandAvailable } = await import("../shared/cli.js");
 
 let gitAvailable = false;
 const temporaryDirectories = [];
+
+// Each test runs several git commands in a fresh repository: on Windows
+// under a full parallel test run that is close to the default 5 s.
+vi.setConfig({ testTimeout: 20_000 });
 
 // On Windows the lookup starts PowerShell, which can take longer than the
 // default hook timeout on a busy CI runner.

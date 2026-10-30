@@ -10,6 +10,7 @@ import {
   getBrowserToolRelay,
   setBrowserToolRelay,
 } from "../api/browser-bridge.js";
+import { stopCodexAppServer } from "../api/chat/codex-app-server-client.js";
 import { createDelegationService } from "../api/chat/delegation.js";
 import { createRunScheduler } from "../api/chat/run-scheduler.js";
 import { createTurnRegistry } from "../api/chat/turn-registry.js";
@@ -17,6 +18,10 @@ import { executeChatRequest } from "../api/chat-routes.js";
 import { createHostSocket } from "../api/host-socket/host-socket.js";
 import { startRemoteApiServer } from "../api/remote-app.js";
 import { createSocketTickets } from "../api/shared/socket-tickets.js";
+import {
+  awaitingApprovalChatIds,
+  onToolApprovalsChange,
+} from "../api/tool-approvals.js";
 import { resolveStateDatabasePath } from "../persisted-state.js";
 import { createProcessSessionManager } from "../process-sessions.js";
 import { createStateReadPool } from "../state-read-pool.js";
@@ -135,10 +140,20 @@ export function createHost({
   });
   const catalog = createHostCatalog({
     events: hostSocket.catalog,
+    getAwaitingApprovalChatIds: awaitingApprovalChatIds,
     getReader,
     getRunningChatIds: turns.streamingChatIds,
     getWriter,
   });
+  // A chat waiting on its user is news to every client, open or not.
+  const stopApprovalEvents = onToolApprovalsChange(({ awaiting, chatId }) =>
+    hostSocket.catalog.publish({
+      awaiting,
+      chatId,
+      kind: "approval",
+      origin: null,
+    }),
+  );
   const scheduler = createRunScheduler({
     catalog,
     turns,
@@ -327,7 +342,12 @@ export function createHost({
      * to flush).
      */
     async close() {
+      stopApprovalEvents();
       await scheduler.close();
+      // Codex turns run through one app server per process: the host's.
+      await stopCodexAppServer().catch((error) =>
+        console.warn("Could not stop the Codex app server.", error),
+      );
       if (getBrowserToolRelay() === hostSocket.browser) {
         setBrowserToolRelay(null);
       }

@@ -661,6 +661,7 @@
     "pinnedChat": "已置顶的聊天",
     "archiveNamedChat": "归档 {name}",
     "chatFinished": "聊天结束",
+    "chatAwaitingApproval": "等待你的回应",
     "chatHistory": "聊天记录",
     "chatStreaming": "聊天流",
     "editProject": "编辑项目",
@@ -1056,7 +1057,8 @@
     "runsOn": "在 {host}（{target}）上运行",
     "edit": "编辑",
     "editHost": "编辑 SSH 主机",
-    "fromSshConfig": "来自 ssh 配置："
+    "fromSshConfig": "来自 ssh 配置：",
+    "fromWsl": "WSL 发行版："
   },
   "shortcuts": {
     "title": "键盘快捷键",
@@ -1210,5 +1212,21 @@
       "unreachableTailscale": "无法通过 {origin} 访问这台电脑。Tailscale 可能仍在获取证书；请一分钟后重新检查。",
       "unreachableCloudflare": "无法通过 {origin} 访问这台电脑。请确认隧道的 cloudflared 正在运行，且此主机名的服务 URL 为 http://127.0.0.1:{port}。"
     }
+  },
+  "homeHost": {
+    "title": "这台电脑",
+    "description": "这台电脑上的项目中，代理、终端和 git 的运行位置。",
+    "statusLabel": "主机",
+    "modeChild": "在独立进程中运行。",
+    "modeService": "作为已安装的主机服务运行。",
+    "modeInProcess": "在应用内运行。",
+    "modeRemote": "已关闭。项目仅在远程主机上打开。",
+    "modeFallback": "在应用内运行：独立进程无法启动。",
+    "modeExplicit": "{mode} 由 DREAM_HOST_MODE 设置。",
+    "restart": "重启以应用",
+    "keepRunning": "退出后继续运行",
+    "keepRunningHint": "退出后代理和终端会继续运行。下次启动时会重新连接。",
+    "remoteOnly": "仅远程主机",
+    "remoteOnlyHint": "不在这台电脑上运行主机。重启后生效。"
   }
 }

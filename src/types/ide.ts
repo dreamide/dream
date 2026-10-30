@@ -924,6 +924,32 @@ export type AppScreenshotResult =
   | { status: "copied"; error: string }
   | { status: "failed"; error: string };
 
+/** The desktop's saved choice for its home host (desktop-host-preference.js). */
+export interface HomeHostPreference {
+  /** `remote`: no home host; this desktop connects to remote hosts only. */
+  mode: "local" | "remote";
+  /** Leave the desktop's own host running after quitting. */
+  keepRunning: boolean;
+}
+
+export interface HomeHostSettings {
+  /** How the home host runs in this launch. */
+  mode: "child" | "service" | "remote" | "in-process";
+  /** Why: what decided the mode at launch. */
+  reason:
+    | "DREAM_HOST_MODE"
+    | "preference"
+    | "installed-service"
+    | "default"
+    | "shared-writer"
+    | "fallback";
+  /** DREAM_HOST_MODE chose the mode; the preference cannot change it. */
+  explicit: boolean;
+  preference: HomeHostPreference;
+  /** The saved mode differs from this launch's. */
+  restartRequired: boolean;
+}
+
 export interface DesktopApi {
   isElectron: true;
   apiSessionToken: string;
@@ -970,6 +996,18 @@ export interface DesktopApi {
 
   /** The host aliases in the user's ssh config, for suggesting targets. */
   listSshConfigHosts: () => Promise<string[]>;
+
+  /** How this desktop runs its home host, and the saved preference. */
+  getHomeHostSettings: () => Promise<HomeHostSettings>;
+  /**
+   * Saves the home host preference. Keep-running applies at quit; the mode
+   * at the next launch (`restartRequired`).
+   */
+  setHomeHostPreference: (
+    changes: Partial<HomeHostPreference>,
+  ) => Promise<HomeHostSettings>;
+  /** Restarts the app. */
+  relaunchApp: () => Promise<boolean>;
 
   /**
    * Connects an SSH host (its daemon is started or reused there). With an

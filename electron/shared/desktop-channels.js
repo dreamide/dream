@@ -163,6 +163,18 @@ export const DESKTOP_METHODS =
       kind: "send",
     },
 
+    // The home host: how this desktop runs it (desktop-host-preference.js).
+    getHomeHostSettings: {
+      channel: "home-host:get-settings",
+      kind: "invoke",
+      params: [],
+    },
+    setHomeHostPreference: {
+      channel: "home-host:set-preference",
+      kind: "invoke",
+    },
+    relaunchApp: { channel: "app:relaunch", kind: "invoke", params: [] },
+
     detectEditors: { channel: "editors:detect", kind: "invoke", params: [] },
     openInEditor: { channel: "editors:open", kind: "invoke" },
 

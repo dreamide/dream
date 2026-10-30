@@ -661,6 +661,7 @@
     "pinnedChat": "固定されたチャット",
     "archiveNamedChat": "{name} をアーカイブ",
     "chatFinished": "チャットが終了しました",
+    "chatAwaitingApproval": "あなたの応答待ち",
     "chatHistory": "チャット履歴",
     "chatStreaming": "チャット ストリーミング",
     "editProject": "プロジェクトの編集",
@@ -1056,7 +1057,8 @@
     "runsOn": "{host} ({target}) で実行",
     "edit": "編集",
     "editHost": "SSH ホストを編集",
-    "fromSshConfig": "ssh 設定から:"
+    "fromSshConfig": "ssh 設定から:",
+    "fromWsl": "WSL ディストリビューション:"
   },
   "shortcuts": {
     "title": "キーボードショートカット",
@@ -1210,5 +1212,21 @@
       "unreachableTailscale": "{origin} 経由でこのコンピューターに到達できませんでした。Tailscale がまだ証明書を取得中の可能性があります。1 分後に再確認してください。",
       "unreachableCloudflare": "{origin} 経由でこのコンピューターに到達できませんでした。トンネルの cloudflared が実行中であること、このホスト名のサービス URL が http://127.0.0.1:{port} であることを確認してください。"
     }
+  },
+  "homeHost": {
+    "title": "このコンピュータ",
+    "description": "このコンピュータ上のプロジェクトでエージェント、ターミナル、git が動作する場所です。",
+    "statusLabel": "ホスト",
+    "modeChild": "専用のプロセスで動作しています。",
+    "modeService": "インストール済みのホストサービスとして動作しています。",
+    "modeInProcess": "アプリ内で動作しています。",
+    "modeRemote": "オフ。プロジェクトはリモートホストでのみ開きます。",
+    "modeFallback": "アプリ内で動作しています：専用のプロセスを起動できませんでした。",
+    "modeExplicit": "{mode} DREAM_HOST_MODE で設定されています。",
+    "restart": "再起動して適用",
+    "keepRunning": "終了後も実行を続ける",
+    "keepRunningHint": "終了してもエージェントとターミナルは動作を続けます。次回の起動時に再接続します。",
+    "remoteOnly": "リモートホストのみ",
+    "remoteOnlyHint": "このコンピュータではホストを実行しません。再起動後に適用されます。"
   }
 }

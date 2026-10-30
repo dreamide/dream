@@ -143,8 +143,11 @@ unverified or unsupported boundaries reconstruct from canonical history.
 
 The machine whose filesystem, agent CLIs and terminals a project uses. The
 **local host** is the machine Dream's window runs on; an **SSH host** is
-another machine Dream reaches over SSH. Not to be confused with a provider
-session, which lives on the provider's side whatever the host.
+another machine Dream reaches over SSH. A **WSL host** is an SSH host whose
+target is `wsl:<distribution>` (`electron/ssh/wsl.js`): reached through
+wsl.exe instead of ssh, on the port WSL forwards to Windows. Not to be
+confused with a provider session, which lives on the provider's side
+whatever the host.
 
 ## Host identity
 
@@ -177,13 +180,27 @@ authorization, which is a separate concern.
 ## Home host
 
 The host a client's `local` connection reaches. On the desktop it is the
-host inside the app, or its installed service with `DREAM_HOST_MODE=service`
-(route `local`). A service attachment verifies the state database owner and
-the existing host identity before forwarding requests. In a browser it is the
+desktop's own **child host** (a separate process running `dream-host serve` on
+the desktop's data, started by `createChildHostAttachment` in
+`electron/desktop-host.js`), an installed service that serves the desktop's
+data, or with `DREAM_HOST_MODE=in-process` the host inside the app (route
+`local`). Either attachment verifies the state database owner and the existing
+host identity before forwarding requests. In a browser it is the
 paired host serving the page (route `origin`), pinned like any address.
 Projects without a `hostId` live on the home host.
 A desktop in remote-only mode has no home execution host; its workspace stays
 on that desktop and it connects to remote hosts.
+
+## Desktop host preference
+
+How the user chose to run the desktop's home host, beside its state database
+(`<state db>.desktop-host.json`, `electron/desktop-host-preference.js`):
+**local** or **remote** (remote only, from the next launch), and whether to
+**keep running** the child host after quitting. The **host mode** of a launch
+follows from it: `DREAM_HOST_MODE` first; the host in this process while the
+workspace shares the state database's writer; remote only if chosen; an
+installed service serving this desktop's data; otherwise the child host.
+Settings > Connections > This computer shows it.
 
 ## Connection runtime
 
@@ -228,8 +245,11 @@ The desktop's own SQLite file (`<name>.workspace.db`,
 and workspace rows. It sits beside the host's state database, which holds
 the catalog. Each file has one writer: the desktop's save queue for the
 workspace, the host's for the catalog. One host runs per state database,
-held by its **state lock** (`<state db>.host-lock`,
-`electron/host/state-lock.js`). An existing workspace moved out of the
+held by its **state lock** (`electron/host/state-lock.js`): an exclusive
+SQLite transaction on `<state db>.host-owner` that the operating system
+releases however the host ends, described by `<state db>.host-lock` (who
+holds it). One desktop runs per workspace database, by the same lock on that
+file. An existing workspace moved out of the
 state database once, from a backed-up copy, leaving the original untouched.
 
 ## Host service
@@ -249,9 +269,11 @@ captured environment, database and identity. Service runtimes are retained under
 survives interruption; recovery starts the previous binary only if its storage
 format and exact migration history remain compatible. No data is rolled back.
 
-In service mode the desktop's **edge listener** (`electron/desktop-host.js`)
-forwards its home host's HTTP/streams and socket, replacing the desktop token
-with the service token. SSH forwarding and browser tool execution stay in the
+A desktop attaches to a service installed for its data directory and state
+database without being told (Desktop host preference). The desktop's **edge
+listener** (`electron/desktop-host.js`) forwards its home host's HTTP/streams
+and socket, to a service or to its own child host, replacing the desktop token
+with the host's token. SSH forwarding and browser tool execution stay in the
 desktop. Closing the edge detaches its clients; host turns and terminals keep
 running. A fresh desktop discovers surviving terminals for its known projects.
 
@@ -328,8 +350,10 @@ command says how to run one.
 What exists on one host, owned by that host and the same for every client
 that connects to it: its projects (directories on that machine, identified
 by the host), their chats and chat metadata, transcripts, provider sessions
-and checkpoints. A turn is written into the host catalog as it runs, whether
-or not any client is watching: the request's messages once, then only the
+and checkpoints. Listed with it are the chats with a turn running and those
+waiting on a tool approval (`electron/api/tool-approvals.js`, announced as
+`approval` events on the catalog channel). A turn is written into the host
+catalog as it runs, whether or not any client is watching: the request's messages once, then only the
 assistant message being written. A transcript save replaces the chat's
 transcript from an index on and writes only the rows that differ from what
 is stored (`saveChatMessages` in `electron/host/catalog-store.js`), so
@@ -516,6 +540,16 @@ Behind the writer, every turn's output passes one **output stage**
 joined, waiting at most 50 ms, so how often the client and the host's
 turn observer hear from a turn does not depend on how chatty the provider
 is or how its adapter names parts.
+
+## Turn stream
+
+A running turn's response as the host keeps it (`electron/api/chat/turn-registry.js`):
+every byte from the first, under a **turn id** (`x-dream-turn-id`). A client
+that reconnects with the bytes it read asks for the rest (`?turn=<id>&from=<n>`,
+answered from `x-dream-turn-offset`); the renderer's **turn stream cache**
+(`src/components/ide/chat/turn-stream-cache.ts`) puts its copy back in front,
+so the AI SDK still replays the turn whole. Without a copy, or for another
+turn, the host sends it from the start.
 
 ## Turn contract
 

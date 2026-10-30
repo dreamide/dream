@@ -86,6 +86,10 @@ export const ProjectSidebar = ({
   );
   const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
+  const awaitingAnswerChatIds = useIdeStore((s) => s.awaitingAnswerChatIds);
+  const hostAwaitingApprovalChatIds = useIdeStore(
+    (s) => s.hostAwaitingApprovalChatIds,
+  );
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
   const titleGeneratingChatIds = useIdeStore((s) => s.titleGeneratingChatIds);
   const deleteChat = useIdeStore((s) => s.deleteChat);
@@ -334,12 +338,23 @@ export const ProjectSidebar = ({
                 const isActiveChat = chat.id === activeChatId;
                 const isOpenChat = projectUi.openChatIds.includes(chat.id);
                 const isStreaming = !!streamingChatIds[chat.id];
+                // Waiting on its user: answered in this window or on the
+                // host, whether or not this window follows the turn.
+                const isAwaiting =
+                  Boolean(awaitingAnswerChatIds[chat.id]) ||
+                  Boolean(hostAwaitingApprovalChatIds[chat.id]);
                 const isTitleGenerating = !!titleGeneratingChatIds[chat.id];
                 const isCompleted =
                   Boolean(completedChatIds[chat.id]) &&
                   chat.id !== activeChatId;
                 const lastActiveAt = chat.updatedAt || chat.createdAt;
-                const statusIndicator = isStreaming ? (
+                const statusIndicator = isAwaiting ? (
+                  <StatusDot
+                    aria-label={projectsT("chatAwaitingApproval")}
+                    color="amber"
+                    pulse
+                  />
+                ) : isStreaming ? (
                   <Spinner
                     aria-label={projectsT("chatStreaming")}
                     className="size-3 shrink-0"

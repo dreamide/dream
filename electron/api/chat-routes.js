@@ -123,10 +123,15 @@ export const registerChatRoutes = (
       ),
     );
   }
-  // A running turn's stream from its start, for a client that reconnects
-  // (the AI SDK's resumable stream); 204 when none runs.
+  // A running turn's stream, for a client that reconnects (the AI SDK's
+  // resumable stream): from its start, or from `from` for a client that
+  // holds the bytes before it (`turn` names which turn); 204 when none runs.
   app.get("/api/chat/:chatId/stream", (c) => {
-    const resumed = turns.resume(c.req.param("chatId"));
+    const from = Number(c.req.query("from"));
+    const resumed = turns.resume(c.req.param("chatId"), {
+      from: Number.isSafeInteger(from) ? from : null,
+      turnId: c.req.query("turn") ?? null,
+    });
     return resumed ?? c.body(null, 204);
   });
 

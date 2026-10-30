@@ -381,6 +381,8 @@ export interface CatalogResponse {
   host?: HostDescriptor;
   /** Chats with a turn running on the host now. */
   runningChatIds?: string[];
+  /** Chats whose turn waits on a tool approval now. */
+  awaitingApprovalChatIds?: string[];
 }
 
 export interface ChatRunSummary {

@@ -110,6 +110,10 @@ const pairingIdentity = (payload, fallbackName) => {
  * @param {{ update: (payload: unknown) => void, capturePage: (payload: unknown) => unknown }} deps.browserSessions
  * @param {{ detect: () => unknown, open: (options: { editorId: unknown, projectPath: unknown, sshTarget: unknown }) => unknown }} deps.editors
  * @param {(options: { chooseSavePath: (fileName: string) => Promise<string | null>, copyPng: (png: Uint8Array) => Promise<void>, webContents: unknown }) => Promise<{ status: string, filePath?: string }>} deps.captureAppScreenshot
+ * @param {{ describe: () => unknown, setPreference: (changes: { keepRunning?: boolean, mode?: "local" | "remote" }) => void }} deps.homeHost
+ *   How this desktop runs its home host: the mode now and the saved
+ *   preference (desktop-host-preference.js).
+ * @param {() => void} deps.relaunch Restarts the app.
  */
 export const createDesktopHandlers = ({
   browserSessions,
@@ -119,7 +123,9 @@ export const createDesktopHandlers = ({
   files,
   getPath,
   getWindow,
+  homeHost,
   hostname,
+  relaunch,
   sendToRenderer,
   sshConfigHosts,
   sshHosts,
@@ -519,6 +525,20 @@ export const createDesktopHandlers = ({
       };
     },
     listSshConfigHosts: () => sshConfigHosts(),
+    getHomeHostSettings: () => homeHost.describe(),
+    setHomeHostPreference: (/** @type {unknown} */ payload) => {
+      const { keepRunning, mode } = fields(payload);
+      /** @type {{ keepRunning?: boolean, mode?: "local" | "remote" }} */
+      const changes = {};
+      if (typeof keepRunning === "boolean") changes.keepRunning = keepRunning;
+      if (mode === "local" || mode === "remote") changes.mode = mode;
+      homeHost.setPreference(changes);
+      return homeHost.describe();
+    },
+    relaunchApp: () => {
+      relaunch();
+      return true;
+    },
     disconnectHost: (/** @type {unknown} */ payload) => {
       const { hostId } = fields(payload);
       if (typeof hostId === "string") sshHosts.disconnect(hostId);

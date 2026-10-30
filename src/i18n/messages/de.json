@@ -661,6 +661,7 @@
     "pinnedChat": "Angehefteter Chat",
     "archiveNamedChat": "{name} archivieren",
     "chatFinished": "Chat beendet",
+    "chatAwaitingApproval": "Wartet auf dich",
     "chatHistory": "Chat-Verlauf",
     "chatStreaming": "Chat-Streaming",
     "editProject": "Projekt bearbeiten",
@@ -1056,7 +1057,8 @@
     "runsOn": "Läuft auf {host} ({target})",
     "edit": "Bearbeiten",
     "editHost": "SSH-Host bearbeiten",
-    "fromSshConfig": "Aus der SSH-Konfiguration:"
+    "fromSshConfig": "Aus der SSH-Konfiguration:",
+    "fromWsl": "WSL-Distributionen:"
   },
   "shortcuts": {
     "title": "Tastenkürzel",
@@ -1210,5 +1212,21 @@
       "unreachableTailscale": "Dieser Computer ist über {origin} nicht erreichbar. Tailscale ruft das Zertifikat möglicherweise noch ab; prüfe in einer Minute erneut.",
       "unreachableCloudflare": "Dieser Computer ist über {origin} nicht erreichbar. Prüfe, ob cloudflared für deinen Tunnel läuft und die Dienst-URL dieses Hostnamens http://127.0.0.1:{port} ist."
     }
+  },
+  "homeHost": {
+    "title": "Dieser Computer",
+    "description": "Wo Agents, Terminals und Git für Projekte auf diesem Computer laufen.",
+    "statusLabel": "Host",
+    "modeChild": "Läuft in einem eigenen Prozess.",
+    "modeService": "Läuft als installierter Host-Dienst.",
+    "modeInProcess": "Läuft in der App.",
+    "modeRemote": "Aus. Projekte werden nur auf entfernten Hosts geöffnet.",
+    "modeFallback": "Läuft in der App: Der eigene Prozess konnte nicht starten.",
+    "modeExplicit": "{mode} Festgelegt durch DREAM_HOST_MODE.",
+    "restart": "Zum Übernehmen neu starten",
+    "keepRunning": "Nach dem Beenden weiterlaufen",
+    "keepRunningHint": "Agents und Terminals laufen weiter, wenn du die App beendest. Beim nächsten Start wird die Verbindung wiederhergestellt.",
+    "remoteOnly": "Nur entfernte Hosts",
+    "remoteOnlyHint": "Auf diesem Computer keinen Host ausführen. Gilt nach einem Neustart."
   }
 }

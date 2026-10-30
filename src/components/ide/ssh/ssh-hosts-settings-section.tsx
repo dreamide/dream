@@ -52,9 +52,13 @@ export const EMPTY_HOST_FORM: HostFormValues = {
 /** Suggested aliases shown at most, beside the target field. */
 const SSH_CONFIG_SUGGESTION_LIMIT = 8;
 
+/** A WSL distribution's target (electron/ssh/wsl.js). */
+const isWslTarget = (target: string) => target.startsWith("wsl:");
+
 /**
- * The aliases in the user's ssh config not already saved as a host, to
- * suggest as targets. Empty outside the desktop.
+ * The aliases in the user's ssh config, and on Windows the WSL
+ * distributions (`wsl:<name>`), not already saved as a host, to suggest as
+ * targets. Empty outside the desktop.
  */
 const useSshConfigSuggestions = (enabled: boolean) => {
   const savedTargets = useIdeStore((state) => state.settings.sshHosts);
@@ -72,9 +76,17 @@ const useSshConfigSuggestions = (enabled: boolean) => {
       cancelled = true;
     };
   }, [enabled]);
-  return aliases
-    .filter((alias) => !savedTargets.some((host) => host.target === alias))
-    .slice(0, SSH_CONFIG_SUGGESTION_LIMIT);
+  const unsaved = aliases.filter(
+    (alias) => !savedTargets.some((host) => host.target === alias),
+  );
+  return {
+    sshAliases: unsaved
+      .filter((alias) => !isWslTarget(alias))
+      .slice(0, SSH_CONFIG_SUGGESTION_LIMIT),
+    wslTargets: unsaved
+      .filter(isWslTarget)
+      .slice(0, SSH_CONFIG_SUGGESTION_LIMIT),
+  };
 };
 
 /** Saves a new SSH host in settings; returns it. */
@@ -110,7 +122,11 @@ export const SshHostDialog = ({
   const [label, setLabel] = useState(initial.label);
   const [target, setTarget] = useState(initial.target);
   const [hostCommand, setHostCommand] = useState(initial.hostCommand);
-  const suggestions = useSshConfigSuggestions(isNew);
+  const { sshAliases, wslTargets } = useSshConfigSuggestions(isNew);
+  const suggestionRows = [
+    { aliases: sshAliases, label: t("fromSshConfig") },
+    { aliases: wslTargets, label: t("fromWsl") },
+  ].filter((row) => row.aliases.length > 0);
 
   return (
     <Dialog
@@ -149,12 +165,15 @@ export const SshHostDialog = ({
               placeholder={t("targetPlaceholder")}
               value={target}
             />
-            {suggestions.length > 0 ? (
-              <div className="flex flex-wrap items-center gap-1.5">
+            {suggestionRows.map((row) => (
+              <div
+                className="flex flex-wrap items-center gap-1.5"
+                key={row.label}
+              >
                 <span className="text-muted-foreground text-xs">
-                  {t("fromSshConfig")}
+                  {row.label}
                 </span>
-                {suggestions.map((alias) => (
+                {row.aliases.map((alias) => (
                   <Button
                     className="font-mono"
                     key={alias}
@@ -167,7 +186,7 @@ export const SshHostDialog = ({
                   </Button>
                 ))}
               </div>
-            ) : null}
+            ))}
           </div>
           <div className="space-y-2">
             <Label htmlFor="ssh-host-label">{t("name")}</Label>

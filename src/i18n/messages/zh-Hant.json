@@ -661,6 +661,7 @@
     "pinnedChat": "已置頂的聊天",
     "archiveNamedChat": "封存 {name}",
     "chatFinished": "聊天結束",
+    "chatAwaitingApproval": "等待你的回應",
     "chatHistory": "聊天記錄",
     "chatStreaming": "聊天流",
     "editProject": "編輯專案",
@@ -1056,7 +1057,8 @@
     "runsOn": "在 {host}（{target}）上執行",
     "edit": "編輯",
     "editHost": "編輯 SSH 主機",
-    "fromSshConfig": "來自 ssh 設定："
+    "fromSshConfig": "來自 ssh 設定：",
+    "fromWsl": "WSL 發行版："
   },
   "shortcuts": {
     "title": "鍵盤快速鍵",
@@ -1210,5 +1212,21 @@
       "unreachableTailscale": "無法透過 {origin} 連到這台電腦。Tailscale 可能仍在取得憑證；請一分鐘後重新檢查。",
       "unreachableCloudflare": "無法透過 {origin} 連到這台電腦。請確認隧道的 cloudflared 正在執行，且此主機名稱的服務 URL 為 http://127.0.0.1:{port}。"
     }
+  },
+  "homeHost": {
+    "title": "這台電腦",
+    "description": "這台電腦上的專案中，代理、終端機和 git 的執行位置。",
+    "statusLabel": "主機",
+    "modeChild": "在獨立程序中執行。",
+    "modeService": "以已安裝的主機服務執行。",
+    "modeInProcess": "在應用程式內執行。",
+    "modeRemote": "已關閉。專案僅在遠端主機上開啟。",
+    "modeFallback": "在應用程式內執行：獨立程序無法啟動。",
+    "modeExplicit": "{mode} 由 DREAM_HOST_MODE 設定。",
+    "restart": "重新啟動以套用",
+    "keepRunning": "結束後繼續執行",
+    "keepRunningHint": "結束後代理和終端機會繼續執行。下次啟動時會重新連線。",
+    "remoteOnly": "僅限遠端主機",
+    "remoteOnlyHint": "不在這台電腦上執行主機。重新啟動後生效。"
   }
 }

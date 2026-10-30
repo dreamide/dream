@@ -661,6 +661,7 @@
     "pinnedChat": "Cuộc trò chuyện đã ghim",
     "archiveNamedChat": "Lưu trữ {name}",
     "chatFinished": "Trò chuyện đã kết thúc",
+    "chatAwaitingApproval": "Đang chờ bạn",
     "chatHistory": "Lịch sử trò chuyện",
     "chatStreaming": "Trò chuyện trực tuyến",
     "editProject": "Chỉnh sửa dự án",
@@ -1056,7 +1057,8 @@
     "runsOn": "Chạy trên {host} ({target})",
     "edit": "Chỉnh sửa",
     "editHost": "Sửa máy chủ SSH",
-    "fromSshConfig": "Từ cấu hình ssh:"
+    "fromSshConfig": "Từ cấu hình ssh:",
+    "fromWsl": "Bản phân phối WSL:"
   },
   "shortcuts": {
     "title": "Phím tắt",
@@ -1210,5 +1212,21 @@
       "unreachableTailscale": "Không thể truy cập máy tính này qua {origin}. Có thể Tailscale vẫn đang lấy chứng chỉ; hãy kiểm tra lại sau một phút.",
       "unreachableCloudflare": "Không thể truy cập máy tính này qua {origin}. Hãy kiểm tra cloudflared đang chạy cho đường hầm của bạn và URL dịch vụ của tên máy chủ này là http://127.0.0.1:{port}."
     }
+  },
+  "homeHost": {
+    "title": "Máy tính này",
+    "description": "Nơi các agent, terminal và git chạy cho các dự án trên máy tính này.",
+    "statusLabel": "Máy chủ",
+    "modeChild": "Chạy trong tiến trình riêng.",
+    "modeService": "Chạy dưới dạng dịch vụ máy chủ đã cài đặt.",
+    "modeInProcess": "Chạy bên trong ứng dụng.",
+    "modeRemote": "Tắt. Dự án chỉ mở trên máy chủ từ xa.",
+    "modeFallback": "Chạy bên trong ứng dụng: tiến trình riêng không khởi động được.",
+    "modeExplicit": "{mode} Được đặt bởi DREAM_HOST_MODE.",
+    "restart": "Khởi động lại để áp dụng",
+    "keepRunning": "Tiếp tục chạy sau khi thoát",
+    "keepRunningHint": "Agent và terminal vẫn tiếp tục khi bạn thoát. Lần mở tiếp theo sẽ kết nối lại.",
+    "remoteOnly": "Chỉ máy chủ từ xa",
+    "remoteOnlyHint": "Không chạy máy chủ nào trên máy tính này. Áp dụng sau khi khởi động lại."
   }
 }

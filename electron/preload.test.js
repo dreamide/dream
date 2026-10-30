@@ -166,6 +166,13 @@ const SENT = [
     [payload],
     ["send", "browser:command-result", payload],
   ],
+  ["getHomeHostSettings", [], ["invoke", "home-host:get-settings"]],
+  [
+    "setHomeHostPreference",
+    [payload],
+    ["invoke", "home-host:set-preference", payload],
+  ],
+  ["relaunchApp", [], ["invoke", "app:relaunch"]],
   ["detectEditors", [], ["invoke", "editors:detect"]],
   ["openInEditor", [payload], ["invoke", "editors:open", payload]],
   ["getUpdateStatus", [], ["invoke", "updates:get-status"]],

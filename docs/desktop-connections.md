@@ -37,16 +37,34 @@ Every new TLS connection must pass a fresh, signed nonce proof before a pairing
 secret or saved grant is sent on that same socket. Redirects and HTTP downgrade
 are refused. Revocation on the host closes the device's live observers.
 
+## WSL hosts
+
+On Windows, a WSL distribution can be added as a host: choose **Add host**,
+then **SSH host**, and enter `wsl:<distribution>` as the target (the dialog
+suggests the installed distributions). Dream installs the host runtime inside
+the distribution and starts it there with `wsl.exe` instead of `ssh`. Projects,
+terminals and agents then run in Linux.
+
+WSL makes the distribution's loopback ports reachable from Windows
+(`localhostForwarding`, on by default, or `networkingMode=mirrored` in
+`.wslconfig`); Dream needs that and reports it when the host does not answer.
+WSL stops a distribution once nothing holds it, so the host keeps running only
+while Dream is connected to it, or while something else keeps the distribution
+running. Code editors with a WSL remote (VS Code, Cursor, Windsurf) open the
+project through it; others open it as `\\wsl.localhost\<distribution>\...`.
+
 ## Remote-only desktop
 
-Launch the packaged desktop with `DREAM_HOST_MODE=remote` in its environment.
-It keeps local workspace storage and the desktop UI/proxy, but starts no local
-execution host, scheduler, terminal owner or host remote-access listener. The
-project picker offers remote connections. Pair or connect a host in Connections
-before opening a folder there. Global provider settings use the first connected
-remote host; project requests continue to name their own host.
+Turn on **Remote hosts only** under Settings > Connections > This computer, and
+restart when asked. The desktop keeps local workspace storage and the desktop
+UI/proxy, but starts no local execution host, scheduler, terminal owner or host
+remote-access listener. The project picker offers remote connections. Pair or
+connect a host in Connections before opening a folder there. Global provider
+settings use the first connected remote host; project requests continue to name
+their own host.
 
-For example on macOS:
+`DREAM_HOST_MODE=remote` in the desktop's environment does the same and
+overrides the setting. For example on macOS:
 
 ```sh
 DREAM_HOST_MODE=remote /Applications/Dream.app/Contents/MacOS/Dream

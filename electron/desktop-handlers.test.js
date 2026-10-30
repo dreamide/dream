@@ -55,6 +55,7 @@ const createFakes = ({ window = true } = {}) => {
     save: (preferences) => saved.push(preferences),
   });
   const existing = new Set();
+  const preference = { keepRunning: false, mode: "local" };
   const { handlers, paintWindowBackground } = createDesktopHandlers({
     browserSessions: {
       capturePage: (payload) => ({ captured: payload }),
@@ -100,7 +101,14 @@ const createFakes = ({ window = true } = {}) => {
     },
     getPath: () => "/pictures",
     getWindow: () => (window ? fakeWindow : null),
+    homeHost: {
+      describe: () => ({ mode: "child", preference }),
+      setPreference: (changes) => {
+        Object.assign(preference, changes);
+      },
+    },
     hostname: () => "Mikes-MacBook-Pro.local",
+    relaunch: record("relaunch"),
     sendToRenderer: record("renderer"),
     sshConfigHosts: async () => ["devbox"],
     sshHosts: {
@@ -361,6 +369,25 @@ test("every method the renderer calls is handled once, on its channel", () => {
   assert.throws(() =>
     registerDesktopHandlers(ipcMain, { onHostStatus: () => {} }),
   );
+});
+
+test("the home host preference takes only what it knows", () => {
+  const { handlers, log } = createFakes();
+  assert.deepEqual(handlers.getHomeHostSettings(), {
+    mode: "child",
+    preference: { keepRunning: false, mode: "local" },
+  });
+  assert.deepEqual(
+    handlers.setHomeHostPreference({ keepRunning: true, mode: "elsewhere" }),
+    { mode: "child", preference: { keepRunning: true, mode: "local" } },
+  );
+  assert.deepEqual(
+    handlers.setHomeHostPreference({ keepRunning: "yes", mode: "remote" })
+      .preference,
+    { keepRunning: true, mode: "remote" },
+  );
+  assert.equal(handlers.relaunchApp(), true);
+  assert.deepEqual(log.at(-1), ["relaunch"]);
 });
 
 test("every channel is used by one method", () => {

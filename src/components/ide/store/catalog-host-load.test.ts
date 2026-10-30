@@ -90,6 +90,7 @@ test("a host's catalog replaces its snapshot projects in place", async () => {
         chats: [],
         closedProjects: [remoteClosed],
         draftChatIdByProject: {},
+        hostAwaitingApprovalChatIds: {},
         hostRunningChatIds: {},
         messagesByChatId: {},
         projects: [localA, remote, localB],
@@ -143,6 +144,7 @@ test("a project the host refused (it has one at that path) becomes the host's pr
         chats: [refusedChat],
         closedProjects: [],
         draftChatIdByProject: {},
+        hostAwaitingApprovalChatIds: {},
         hostRunningChatIds: {},
         messagesByChatId: {},
         persist: () => {
@@ -192,6 +194,7 @@ test("the local host's reload never removes an SSH host's project", async () => 
         chats: [remoteChat],
         closedProjects: [],
         draftChatIdByProject: {},
+        hostAwaitingApprovalChatIds: {},
         hostRunningChatIds: {},
         messagesByChatId: {},
         projects: [local, remote],

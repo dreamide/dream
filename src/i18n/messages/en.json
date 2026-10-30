@@ -661,6 +661,7 @@
     "pinnedChat": "Pinned chat",
     "archiveNamedChat": "Archive {name}",
     "chatFinished": "Chat finished",
+    "chatAwaitingApproval": "Waiting for you",
     "chatHistory": "Chat history",
     "chatStreaming": "Chat streaming",
     "editProject": "Edit project",
@@ -1056,7 +1057,8 @@
     "runsOn": "Runs on {host} ({target})",
     "edit": "Edit",
     "editHost": "Edit SSH host",
-    "fromSshConfig": "From ssh config:"
+    "fromSshConfig": "From ssh config:",
+    "fromWsl": "WSL distributions:"
   },
   "shortcuts": {
     "title": "Keyboard shortcuts",
@@ -1210,5 +1212,21 @@
       "unreachableTailscale": "Couldn't reach this computer through {origin}. Tailscale may still be getting its certificate; check again in a minute.",
       "unreachableCloudflare": "Couldn't reach this computer through {origin}. Check that cloudflared is running for your tunnel and that this hostname's service URL is http://127.0.0.1:{port}."
     }
+  },
+  "homeHost": {
+    "title": "This computer",
+    "description": "Where agents, terminals and git run for projects on this computer.",
+    "statusLabel": "Host",
+    "modeChild": "Runs in its own process.",
+    "modeService": "Runs as the installed host service.",
+    "modeInProcess": "Runs inside the app.",
+    "modeRemote": "Off. Projects open on remote hosts only.",
+    "modeFallback": "Runs inside the app: its own process could not start.",
+    "modeExplicit": "{mode} Set by DREAM_HOST_MODE.",
+    "restart": "Restart to apply",
+    "keepRunning": "Keep running after quitting",
+    "keepRunningHint": "Agents and terminals carry on when you quit. The next launch reconnects.",
+    "remoteOnly": "Remote hosts only",
+    "remoteOnlyHint": "Run no host on this computer. Applies after a restart."
   }
 }

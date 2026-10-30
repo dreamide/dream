@@ -85,6 +85,9 @@ const withTimeout = async <T>(
 /** The chats with a turn running on the local host at its catalog load. */
 let loadedRunningChatIds: string[] = [];
 export const getLoadedRunningChatIds = () => loadedRunningChatIds;
+let loadedAwaitingApprovalChatIds: string[] = [];
+export const getLoadedAwaitingApprovalChatIds = () =>
+  loadedAwaitingApprovalChatIds;
 
 /**
  * The local host's descriptor from its startup catalog load, accepted once
@@ -250,6 +253,7 @@ const loadOnce = async (): Promise<PersistedIdeState> => {
     const loadedCatalog = await loadHomeCatalog(workspace);
     const catalog = loadedCatalog ?? snapshotCatalog(workspace);
     loadedRunningChatIds = catalog.runningChatIds ?? [];
+    loadedAwaitingApprovalChatIds = catalog.awaitingApprovalChatIds ?? [];
     loadedLocalHost = loadedCatalog?.host;
     // SSH hosts still in Settings show their projects from the snapshot.
     const snapshotHostIds = [

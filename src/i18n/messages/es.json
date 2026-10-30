@@ -661,6 +661,7 @@
     "pinnedChat": "Chat fijado",
     "archiveNamedChat": "Archivar {name}",
     "chatFinished": "Chat finalizado",
+    "chatAwaitingApproval": "Esperándote",
     "chatHistory": "Historial de chat",
     "chatStreaming": "Transmisión de chat",
     "editProject": "Editar proyecto",
@@ -1056,7 +1057,8 @@
     "runsOn": "Se ejecuta en {host} ({target})",
     "edit": "Editar",
     "editHost": "Editar host SSH",
-    "fromSshConfig": "De la configuración de ssh:"
+    "fromSshConfig": "De la configuración de ssh:",
+    "fromWsl": "Distribuciones de WSL:"
   },
   "shortcuts": {
     "title": "Atajos de teclado",
@@ -1210,5 +1212,21 @@
       "unreachableTailscale": "No se pudo llegar a este equipo a través de {origin}. Puede que Tailscale aún esté obteniendo su certificado; vuelve a comprobar en un minuto.",
       "unreachableCloudflare": "No se pudo llegar a este equipo a través de {origin}. Comprueba que cloudflared se esté ejecutando para tu túnel y que la URL del servicio de este nombre de host sea http://127.0.0.1:{port}."
     }
+  },
+  "homeHost": {
+    "title": "Este equipo",
+    "description": "Dónde se ejecutan los agentes, las terminales y git de los proyectos de este equipo.",
+    "statusLabel": "Host",
+    "modeChild": "Se ejecuta en su propio proceso.",
+    "modeService": "Se ejecuta como el servicio de host instalado.",
+    "modeInProcess": "Se ejecuta dentro de la app.",
+    "modeRemote": "Desactivado. Los proyectos solo se abren en hosts remotos.",
+    "modeFallback": "Se ejecuta dentro de la app: su propio proceso no pudo iniciarse.",
+    "modeExplicit": "{mode} Definido por DREAM_HOST_MODE.",
+    "restart": "Reiniciar para aplicar",
+    "keepRunning": "Seguir ejecutándose al salir",
+    "keepRunningHint": "Los agentes y las terminales continúan al salir. El siguiente inicio vuelve a conectarse.",
+    "remoteOnly": "Solo hosts remotos",
+    "remoteOnlyHint": "No ejecutar ningún host en este equipo. Se aplica tras reiniciar."
   }
 }

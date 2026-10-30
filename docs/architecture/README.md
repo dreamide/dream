@@ -104,3 +104,7 @@ Module names and current ownership live in ../../GLOSSARY.md.
   attempt lifetime.
 - `tasks/antigravity-provider.md` tracks AGY-01: Google Antigravity CLI as a
   first-class AI coding-agent provider in Dream.
+- `tasks/detached-host.md` tracks DH-01 to DH-06 from the 2026-10-29 T3 Code
+  `t3 serve` comparison: an OS-held state lock, the desktop's host in a child
+  process, host mode in Settings, one-line installs, turn resume from a byte
+  offset, and headless pairing, the approval signal and WSL hosts.

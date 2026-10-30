@@ -661,6 +661,7 @@
     "pinnedChat": "고정된 채팅",
     "archiveNamedChat": "{name} 보관",
     "chatFinished": "채팅이 종료되었습니다.",
+    "chatAwaitingApproval": "응답 대기 중",
     "chatHistory": "채팅 기록",
     "chatStreaming": "채팅 스트리밍",
     "editProject": "프로젝트 편집",
@@ -1056,7 +1057,8 @@
     "runsOn": "{host}({target})에서 실행",
     "edit": "편집",
     "editHost": "SSH 호스트 편집",
-    "fromSshConfig": "ssh 설정에서:"
+    "fromSshConfig": "ssh 설정에서:",
+    "fromWsl": "WSL 배포판:"
   },
   "shortcuts": {
     "title": "키보드 단축키",
@@ -1210,5 +1212,21 @@
       "unreachableTailscale": "{origin}을(를) 통해 이 컴퓨터에 연결할 수 없습니다. Tailscale이 아직 인증서를 받는 중일 수 있으니 1분 후 다시 확인하세요.",
       "unreachableCloudflare": "{origin}을(를) 통해 이 컴퓨터에 연결할 수 없습니다. 터널의 cloudflared가 실행 중인지, 이 호스트 이름의 서비스 URL이 http://127.0.0.1:{port}인지 확인하세요."
     }
+  },
+  "homeHost": {
+    "title": "이 컴퓨터",
+    "description": "이 컴퓨터의 프로젝트에서 에이전트, 터미널, git이 실행되는 곳입니다.",
+    "statusLabel": "호스트",
+    "modeChild": "별도 프로세스에서 실행됩니다.",
+    "modeService": "설치된 호스트 서비스로 실행됩니다.",
+    "modeInProcess": "앱 안에서 실행됩니다.",
+    "modeRemote": "꺼짐. 프로젝트는 원격 호스트에서만 열립니다.",
+    "modeFallback": "앱 안에서 실행됩니다: 별도 프로세스를 시작할 수 없었습니다.",
+    "modeExplicit": "{mode} DREAM_HOST_MODE로 설정되었습니다.",
+    "restart": "다시 시작하여 적용",
+    "keepRunning": "종료 후에도 계속 실행",
+    "keepRunningHint": "종료해도 에이전트와 터미널은 계속 실행됩니다. 다음 실행 시 다시 연결됩니다.",
+    "remoteOnly": "원격 호스트만",
+    "remoteOnlyHint": "이 컴퓨터에서 호스트를 실행하지 않습니다. 다시 시작한 후 적용됩니다."
   }
 }

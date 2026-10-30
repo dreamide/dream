@@ -1,5 +1,7 @@
 // The host daemon's command line: the host (index.js) running on its own,
-// outside Electron, on an SSH host.
+// outside the window: on an SSH host, as a service, or as the desktop's own
+// child host (desktop-host.js runs `ensureDaemon` with Electron's binary as
+// Node).
 //
 //   ensure   Reuse the running daemon for this protocol version, or start
 //            one detached; print {pid, port, token, ...} as one JSON line.
@@ -20,6 +22,11 @@
 // is the browser client it serves at its root: by default the runtime's own
 // `client/` (or the checkout's `dist/`). Pairing is always
 // required. Settings, Tailscale setup and pairing commands are CONN-05's.
+// `serve --pair` prints a pairing link and QR code once the host listens,
+// when remote access is on.
+//
+// --owner desktop names the desktop as the host's owner in its state lock;
+// --diagnostics serves terminal flow-control diagnostics (development).
 import { spawn } from "node:child_process";
 import { closeSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -151,12 +158,61 @@ const waitForDaemon = async (runDirectory, { pid, child } = {}) => {
   return null;
 };
 
-async function ensure({ home, runDirectory, values, env, write }) {
-  const running = await probeDaemon(runDirectory);
-  if (running) {
-    write({ ...describe(running, { withToken: true }), reused: true });
-    return 0;
+/** Thrown by ensureDaemon when no host could be started. */
+export class DaemonStartError extends Error {
+  /** @param {string} message @param {string | null} [log] */
+  constructor(message, log = null) {
+    super(message);
+    this.name = "DaemonStartError";
+    this.log = log;
   }
+}
+
+/** The `serve` arguments that carry over from an `ensure` invocation. */
+const serveArguments = (values) => {
+  const args = [];
+  if (values["data-dir"]) args.push("--data-dir", values["data-dir"]);
+  if (values["idle-timeout"] !== undefined) {
+    args.push("--idle-timeout", values["idle-timeout"]);
+  }
+  if (values["remote-port"] !== undefined) {
+    args.push("--remote-port", values["remote-port"]);
+  }
+  for (const origin of values["remote-origin"] ?? []) {
+    args.push("--remote-origin", origin);
+  }
+  if (values["trust-forwarded-host"]) args.push("--trust-forwarded-host");
+  if (values["client-dir"]) args.push("--client-dir", values["client-dir"]);
+  if (values.diagnostics) args.push("--diagnostics");
+  if (values.owner) args.push("--owner", values.owner);
+  return args;
+};
+
+/**
+ * The running daemon of `home`, or one started detached: reuses the one
+ * this protocol's run record names, starts the installed service when one
+ * serves this home, and otherwise starts `serve` itself. Resolves with its
+ * run record (token included) and whether it was already running.
+ *
+ * `env` is the started daemon's environment as well as the lookup's; the
+ * desktop adds ELECTRON_RUN_AS_NODE so its own binary runs the host.
+ * @param {{
+ *   home: string,
+ *   runDirectory?: string,
+ *   values?: Record<string, unknown>,
+ *   env?: NodeJS.ProcessEnv,
+ * }} options
+ * @returns {Promise<{ record: any, reused: boolean }>}
+ */
+export async function ensureDaemon({
+  home,
+  runDirectory = getRunDirectory(home, HOST_PROTOCOL_VERSION),
+  values = {},
+  env = process.env,
+}) {
+  ensurePrivateDirectory(runDirectory);
+  const running = await probeDaemon(runDirectory);
+  if (running) return { record: running, reused: true };
 
   // Installed as a service: its manager runs the host, not this launcher
   // (a second process would only find the state lock taken).
@@ -173,14 +229,11 @@ async function ensure({ home, runDirectory, values, env, write }) {
     await service.start();
     const started = await waitForDaemon(runDirectory);
     if (!started) {
-      write({
-        error:
-          "The host service did not start; run `dream-host service status`.",
-      });
-      return 1;
+      throw new DaemonStartError(
+        "The host service did not start; run `dream-host service status`.",
+      );
     }
-    write({ ...describe(started, { withToken: true }), reused: true });
-    return 0;
+    return { record: started, reused: true };
   }
 
   const release = acquireStartLock(runDirectory);
@@ -188,35 +241,31 @@ async function ensure({ home, runDirectory, values, env, write }) {
     // Another launcher is starting one; use it.
     const started = await waitForDaemon(runDirectory);
     if (!started) {
-      write({ error: "Another launcher is starting the host; timed out." });
-      return 1;
+      throw new DaemonStartError(
+        "Another launcher is starting the host; timed out.",
+      );
     }
-    write({ ...describe(started, { withToken: true }), reused: true });
-    return 0;
+    return { record: started, reused: true };
   }
 
   try {
     const logFd = openHostLog(runDirectory);
-    const args = [CLI_ENTRY, "serve", "--home", home];
-    if (values["data-dir"]) args.push("--data-dir", values["data-dir"]);
-    if (values["idle-timeout"] !== undefined) {
-      args.push("--idle-timeout", values["idle-timeout"]);
-    }
-    if (values["remote-port"] !== undefined) {
-      args.push("--remote-port", values["remote-port"]);
-    }
-    for (const origin of values["remote-origin"] ?? []) {
-      args.push("--remote-origin", origin);
-    }
-    if (values["trust-forwarded-host"]) args.push("--trust-forwarded-host");
-    if (values["client-dir"]) args.push("--client-dir", values["client-dir"]);
-    const child = spawn(process.execPath, args, {
-      cwd: home,
-      detached: true,
-      env: createDaemonEnvironment(env),
-      stdio: ["ignore", logFd, logFd],
-      windowsHide: true,
-    });
+    const child = spawn(
+      process.execPath,
+      [CLI_ENTRY, "serve", "--home", home, ...serveArguments(values)],
+      {
+        cwd: home,
+        detached: true,
+        env: {
+          ...createDaemonEnvironment(env),
+          // Run by Electron's binary (the desktop's child host), the host
+          // must run as Node too.
+          ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
+        },
+        stdio: ["ignore", logFd, logFd],
+        windowsHide: true,
+      },
+    );
     closeSync(logFd);
     child.unref();
 
@@ -225,16 +274,34 @@ async function ensure({ home, runDirectory, values, env, write }) {
       pid: child.pid,
     });
     if (!started) {
-      write({
-        error: "The host did not start.",
-        log: path.join(runDirectory, "host.log"),
-      });
-      return 1;
+      throw new DaemonStartError(
+        "The host did not start.",
+        path.join(runDirectory, "host.log"),
+      );
     }
-    write({ ...describe(started, { withToken: true }), reused: false });
-    return 0;
+    return { record: started, reused: false };
   } finally {
     release();
+  }
+}
+
+async function ensure({ home, runDirectory, values, env, write }) {
+  try {
+    const { record, reused } = await ensureDaemon({
+      env,
+      home,
+      runDirectory,
+      values,
+    });
+    write({ ...describe(record, { withToken: true }), reused });
+    return 0;
+  } catch (error) {
+    if (!(error instanceof DaemonStartError)) throw error;
+    write({
+      error: error.message,
+      ...(error.log ? { log: error.log } : {}),
+    });
+    return 1;
   }
 }
 
@@ -243,6 +310,11 @@ async function serve({ home, runDirectory, values, log }) {
     log(`A host is already running for protocol ${HOST_PROTOCOL_VERSION}.`);
     return 1;
   }
+
+  // Electron's binary running this as Node (the desktop's child host, a
+  // checkout service): what the host starts (terminals, agents, an Electron
+  // app typed into a terminal) must run as itself.
+  delete process.env.ELECTRON_RUN_AS_NODE;
 
   const idleTimeoutMs = parseIdleTimeoutMs(values["idle-timeout"]);
   const dataDirectory = path.resolve(
@@ -253,7 +325,10 @@ async function serve({ home, runDirectory, values, log }) {
   const version = readAppVersion();
   const { createHost } = await import("./index.js");
   const host = createHost({
-    kind: "daemon",
+    // What runs it, named in its state lock: a desktop's own child host
+    // says so, so a second host can tell the user which app has the data.
+    kind: values.owner === "desktop" ? "desktop" : "daemon",
+    diagnosticsEnabled: Boolean(values.diagnostics),
     // `dream-host stop`: a clean shutdown over the local API.
     onShutdownRequest: (reason) => void shutdown(reason),
     clientDirectory: path.resolve(
@@ -316,6 +391,24 @@ async function serve({ home, runDirectory, values, log }) {
     `Dream host ${version ?? "(unknown version)"} (protocol ${HOST_PROTOCOL_VERSION}, ${hostId}) listening on 127.0.0.1:${port}, data in ${dataDirectory}.`,
   );
 
+  // `--pair`: what a headless machine would run next, done at once.
+  if (values.pair) {
+    if (remote) {
+      await runRemoteCommand({
+        args: [],
+        name: "pair",
+        print: (line) => process.stdout.write(`${line}\n`),
+        record: { port, token },
+        values,
+        write: (value) => process.stdout.write(`${JSON.stringify(value)}\n`),
+      }).catch((error) => log(`Could not create a pairing: ${error.message}`));
+    } else {
+      log(
+        "Remote access is off, so there is nothing to pair with. Turn it on with `dream-host remote on --tailscale` (or `--cloudflare --origin <url>`), then run `dream-host pair`.",
+      );
+    }
+  }
+
   let stopping = false;
   const shutdown = async (reason) => {
     if (stopping) return;
@@ -355,7 +448,7 @@ async function serve({ home, runDirectory, values, log }) {
  * only one that does not exit in time is signalled, which on Windows ends
  * it at once.
  */
-const stopRunningDaemon = async (runDirectory) => {
+export const stopRunningDaemon = async (runDirectory) => {
   const running = await probeDaemon(runDirectory);
   if (!running) return { running: false, stopped: false };
   const waitForExit = async (ms) => {
@@ -472,6 +565,9 @@ export async function runDaemonCli(
         "remote-port": { type: "string" },
         "trust-forwarded-host": { type: "boolean" },
         "client-dir": { type: "string" },
+        diagnostics: { type: "boolean" },
+        owner: { type: "string" },
+        pair: { type: "boolean" },
         "https-port": { type: "string" },
         json: { type: "boolean" },
         name: { type: "string" },

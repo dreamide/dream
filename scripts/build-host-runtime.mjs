@@ -166,6 +166,16 @@ if (values.archive) {
     path.dirname(out),
     `dream-host-${version}-${os}-${arch}.tar.gz`,
   );
-  execFileSync("tar", ["-czf", archive, "-C", out, "."], { stdio: "inherit" });
+  // Windows' own tar (bsdtar): a GNU tar first on PATH (Git Bash's) reads
+  // `C:\...` as a remote host.
+  const tar =
+    platform === "win32"
+      ? path.join(
+          process.env.SystemRoot ?? "C:\\Windows",
+          "System32",
+          "tar.exe",
+        )
+      : "tar";
+  execFileSync(tar, ["-czf", archive, "-C", out, "."], { stdio: "inherit" });
   console.log(archive);
 }

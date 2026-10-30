@@ -10,6 +10,7 @@ import {
   createSshHostConnection,
   SshHostError,
 } from "./ssh-host-connection.js";
+import { parseWslTarget, WSL_PROGRAM } from "./wsl.js";
 
 /**
  * @param {{
@@ -20,12 +21,16 @@ import {
  *   sshPath?: string,
  *   multiplex?: boolean,
  *   runtimeVersion?: string | null,
+ *   platform?: NodeJS.Platform,
  * }} options
  *   `stateDirectory`: private folder for control sockets and the askpass
  *   wrapper (keep it short: socket paths are limited to ~100 characters).
  *   `multiplex`: use ControlMaster; OpenSSH on Windows cannot.
  *   `runtimeVersion`: the host runtime a host without its own host command
  *   gets installed (this app's version).
+ *
+ * On Windows a `wsl:<distribution>` target is a WSL distribution, reached
+ * through wsl.exe (wsl.js) rather than ssh.
  */
 export function createSshHostManager({
   stateDirectory,
@@ -34,6 +39,7 @@ export function createSshHostManager({
   sshPath = "ssh",
   multiplex = process.platform !== "win32",
   runtimeVersion = null,
+  platform = process.platform,
 }) {
   const connections = new Map();
   const controlNamespace = randomUUID();
@@ -130,12 +136,17 @@ export function createSshHostManager({
       }
       existing?.disconnect();
 
-      const { env } = await getAskpass();
+      const wslDistribution =
+        platform === "win32" ? parseWslTarget(target) : null;
+      // WSL asks nothing: no askpass, and its own output in UTF-8.
+      const { env } = wslDistribution
+        ? { env: { WSL_UTF8: "1" } }
+        : await getAskpass();
       signal?.throwIfAborted();
       const connection = createSshHostConnection({
         autoReconnect,
         interactive,
-        controlPath: getControlPath(hostId, target),
+        controlPath: wslDistribution ? null : getControlPath(hostId, target),
         // A silent probe keeps askpass forced but without its secret, so the
         // helper declines at once. A prompt from a hop BatchMode does not
         // reach (ProxyJump) cannot be shown under a foreground host's name.
@@ -150,8 +161,9 @@ export function createSshHostManager({
         runtimeCacheDirectory: path.join(stateDirectory, "runtime"),
         runtimeVersion,
         onStatus: (status) => onStatus({ ...status, hostId }),
-        sshPath,
+        sshPath: wslDistribution ? WSL_PROGRAM : sshPath,
         target,
+        wslDistribution,
       });
       connections.set(hostId, connection);
       const asking = { cancelled: false, connection, hostId, target };

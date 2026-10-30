@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { API_SESSION_TOKEN_HEADER } from "../../api/shared/session-token.js";
 import { HOST_IDENTITY_FILE, loadHostIdentity } from "../identity.js";
 import { isProcessAlive } from "../run-directory.js";
+import { isStateLockHeld, readStateLockRecord } from "../state-lock.js";
 import { writeServiceJson } from "./operation.js";
 import { inspectRuntime, retainRuntime, stageRuntime } from "./runtime.js";
 import { readServiceRecord } from "./service.js";
@@ -103,17 +104,17 @@ function identityFor(launch) {
   return { hostId, fingerprint, publicKey };
 }
 
+// The live owner of the launch's database: its record, while its lock is
+// held (state-lock.js); null once the host that wrote it has gone.
 const holderOf = (launch) => {
-  try {
-    return JSON.parse(
-      readFileSync(`${dataPaths(launch).database}.host-lock`, "utf8"),
-    );
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
+  const { database } = dataPaths(launch);
+  if (!isStateLockHeld(database)) return null;
+  const holder = readStateLockRecord(database);
+  if (!holder)
     throw new Error(
       "The database owner cannot be checked. Restore its host-lock record before replacing the service.",
     );
-  }
+  return holder;
 };
 
 export async function changeServiceRuntime({
@@ -154,10 +155,9 @@ export async function changeServiceRuntime({
     await stopDaemon();
     const deadline = Date.now() + waitMs;
     while (Date.now() < deadline) {
-      const holder = holderOf(journal.previous.launch);
       if (
         (!before || !isProcessAlive(before.pid)) &&
-        (!holder || !isProcessAlive(holder.pid))
+        !holderOf(journal.previous.launch)
       )
         return;
       await sleep(100);

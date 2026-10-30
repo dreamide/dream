@@ -344,7 +344,8 @@ test("a failed or interrupted run can be removed instead of retried; a running o
 
   await scheduler.control({ chatId: "c", action: "resume" });
   await scheduler.submit(request("two"));
-  await until(() => Promise.resolve(turns.isRunning("c")), Boolean);
+  // The chat is claimed before the provider answers: wait for its stream.
+  await until(() => Promise.resolve(turns.isRunning("c") && finish), Boolean);
   await scheduler.control({ chatId: "c", action: "cancel", id: "two" });
   assert.equal((await scheduler.list("c")).runs[1].status, "running");
   finish();

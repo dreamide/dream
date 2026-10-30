@@ -20,6 +20,11 @@
 //
 // Electron-free: the process spawner, port picker, fetch and timers are
 // injected, so it runs under plain Node and in tests.
+//
+// A WSL distribution (`wslDistribution`, target `wsl:<name>`, wsl.js) is
+// reached the same way with wsl.exe in place of ssh: no master, no
+// authentication, and no port forward, since WSL forwards the
+// distribution's loopback ports to this machine's own.
 import { spawn as spawnChildProcess } from "node:child_process";
 import { createReadStream } from "node:fs";
 import net from "node:net";
@@ -42,6 +47,12 @@ import {
   buildScriptArgs,
   buildUploadArgs,
 } from "./ssh-args.js";
+import {
+  buildWslEnsureArgs,
+  buildWslHoldArgs,
+  buildWslScriptArgs,
+  buildWslUploadArgs,
+} from "./wsl.js";
 
 const RETRY_DELAYS_MS = [2_000, 4_000, 8_000, 16_000, 30_000, 60_000];
 const STABLE_AFTER_MS = 60_000;
@@ -96,6 +107,7 @@ const lastLine = (text) =>
  *   expectedIdentity?: { hostId: string, fingerprint?: string | null } | null,
  *   autoReconnect?: boolean,
  *   interactive?: boolean,
+ *   wslDistribution?: string | null,
  * }} options
  *   `target`: what the user would type after `ssh` (an alias from
  *   ~/.ssh/config, or user@host).
@@ -109,6 +121,8 @@ const lastLine = (text) =>
  *   `env`: the ssh processes' environment (askpass variables included).
  *   `expectedIdentity`: the persistent host this target was verified to
  *   reach before; without it, the first host reached is pinned.
+ *   `wslDistribution`: the WSL distribution this target names; `sshPath`
+ *   is then wsl.exe.
  */
 export function createSshHostConnection({
   target,
@@ -120,8 +134,9 @@ export function createSshHostConnection({
   autoReconnect = true,
   interactive = true,
   sshPath = "ssh",
-  controlPath = null,
+  controlPath: configuredControlPath = null,
   env = process.env,
+  wslDistribution = null,
   getLocalPort,
   onStatus = () => {},
   spawnProcess = spawnChildProcess,
@@ -147,6 +162,26 @@ export function createSshHostConnection({
    * comes back at the same address.
    */
   const portForwards = new Map();
+  const distribution = wslDistribution;
+  // What the link goes through, in messages.
+  const via = distribution ? "WSL" : "SSH";
+  const controlPath = distribution ? null : configuredControlPath;
+  // The commands this link runs, as argument lists for `sshPath`.
+  const commandArgs = distribution
+    ? {
+        ensure: (hostCommand) =>
+          buildWslEnsureArgs({ distribution, hostCommand }),
+        script: (script) => buildWslScriptArgs({ distribution, script }),
+        upload: (remotePath) =>
+          buildWslUploadArgs({ distribution, remotePath }),
+      }
+    : {
+        ensure: (hostCommand) =>
+          buildEnsureArgs({ controlPath, hostCommand, target }),
+        script: (script) => buildScriptArgs({ controlPath, script, target }),
+        upload: (remotePath) =>
+          buildUploadArgs({ controlPath, remotePath, target }),
+      };
   let state = "idle";
   let endpoint = null;
   /** The host this connection is for, once known. */
@@ -169,7 +204,7 @@ export function createSshHostConnection({
   const spawnTracked = (args, stdio) => {
     const child = spawnProcess(
       sshPath,
-      interactive
+      interactive || distribution
         ? args
         : ["-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", ...args],
       {
@@ -224,7 +259,7 @@ export function createSshHostConnection({
     });
 
   const sshFailure = (what, stderr) =>
-    new SshHostError(`${what}: ${lastLine(stderr) || "ssh failed"}`, {
+    new SshHostError(`${what}: ${lastLine(stderr) || `${via} failed`}`, {
       detail: stderr,
       fatal: FATAL_SSH_ERRORS.test(stderr),
     });
@@ -247,14 +282,14 @@ export function createSshHostConnection({
       };
       child.once("error", (error) => fail(new SshHostError(error.message)));
       child.once("exit", () =>
-        fail(sshFailure("SSH connection closed", stderr)),
+        fail(sshFailure(`${via} connection closed`, stderr)),
       );
 
       const deadline = now() + timeoutMs;
       const poll = async () => {
         if (settled) return;
         if (now() > deadline) {
-          fail(new SshHostError("Timed out connecting over SSH."));
+          fail(new SshHostError(`Timed out connecting over ${via}.`));
           return;
         }
         if (await ready()) {
@@ -271,30 +306,20 @@ export function createSshHostConnection({
   const installRuntime = async () => {
     const install = (uploaded = null) =>
       runSsh(
-        buildScriptArgs({
-          controlPath,
-          script: buildInstallScript({
+        commandArgs.script(
+          buildInstallScript({
             baseUrl: runtimeBaseUrl,
             uploaded,
             version: runtimeVersion,
           }),
-          target,
-        }),
+        ),
       );
     let result = await install();
 
     if (result.code === INSTALL_EXIT.download && runtimeCacheDirectory) {
       // The host could not download it: this machine does, and uploads it.
       const platform = parsePlatform(
-        (
-          await runSsh(
-            buildScriptArgs({
-              controlPath,
-              script: buildPlatformScript(),
-              target,
-            }),
-          )
-        ).stdout,
+        (await runSsh(commandArgs.script(buildPlatformScript()))).stdout,
       );
       if (platform) {
         const { archivePath, name, sumsPath } = await downloadRuntimeArchive({
@@ -310,10 +335,9 @@ export function createSshHostConnection({
           [archivePath, remotePath],
           [sumsPath, `${remotePath}.sums`],
         ]) {
-          const uploaded = await runSsh(
-            buildUploadArgs({ controlPath, remotePath: destination, target }),
-            { input: file },
-          );
+          const uploaded = await runSsh(commandArgs.upload(destination), {
+            input: file,
+          });
           if (uploaded.code !== 0) {
             throw sshFailure("Could not upload Dream's host", uploaded.stderr);
           }
@@ -323,7 +347,7 @@ export function createSshHostConnection({
     }
 
     if (result.code !== 0) {
-      if (result.code === 255) throw sshFailure("SSH failed", result.stderr);
+      if (result.code === 255) throw sshFailure(`${via} failed`, result.stderr);
       throw new SshHostError(
         `Could not install Dream's host on ${target}: ${lastLine(result.stderr) || `exit ${result.code}`}`,
         {
@@ -340,7 +364,7 @@ export function createSshHostConnection({
 
   const runEnsure = async () => {
     const { code, stdout, stderr } = await runSsh(
-      buildEnsureArgs({ controlPath, hostCommand, target }),
+      commandArgs.ensure(hostCommand),
     );
     let result = null;
     try {
@@ -350,16 +374,17 @@ export function createSshHostConnection({
     }
     if (code !== 0 || !result || result.error) {
       if (!result && code !== 255) {
+        // wsl.exe reports its own errors (no such distribution) on stdout.
         throw new SshHostError(
-          `Could not run "${hostCommand}" on ${target}: ${lastLine(stderr) || `exit ${code}`}`,
-          { detail: stderr, fatal: true },
+          `Could not run "${hostCommand}" on ${target}: ${lastLine(stderr) || lastLine(stdout) || `exit ${code}`}`,
+          { detail: stderr || stdout, fatal: true },
         );
       }
       throw result?.error
         ? new SshHostError(`The host could not start: ${result.error}`, {
             detail: stderr,
           })
-        : sshFailure("SSH failed", stderr);
+        : sshFailure(`${via} failed`, stderr);
     }
     const problem = hostProtocolProblem(result.hostProtocolVersion);
     if (problem) throw new SshHostError(problem, { fatal: true });
@@ -418,7 +443,8 @@ export function createSshHostConnection({
 
       if (managed) await installRuntime();
       const daemon = await runEnsure();
-      const localPort = await getLocalPort();
+      // WSL forwards the host's loopback port to this machine's, as is.
+      const localPort = distribution ? daemon.port : await getLocalPort();
       const ports = { localPort, remotePort: daemon.port };
       let info = null;
       const answers = async () => {
@@ -429,7 +455,23 @@ export function createSshHostConnection({
       };
 
       let held = master;
-      if (master) {
+      if (distribution) {
+        try {
+          held = await startHeldSession(
+            buildWslHoldArgs({ distribution }),
+            answers,
+            VERIFY_TIMEOUT_MS,
+          );
+        } catch (error) {
+          // Only a link that held but never reached the host: one that
+          // ended has its own reason.
+          if (!/^Timed out/.test(error?.message ?? "")) throw error;
+          throw new SshHostError(
+            `The Dream host in ${distribution} runs, but does not answer on 127.0.0.1:${localPort} here. Check that WSL forwards localhost (localhostForwarding in .wslconfig, or networkingMode=mirrored).`,
+            { fatal: true },
+          );
+        }
+      } else if (master) {
         const forwarded = await runSsh(
           buildMasterForwardArgs({ controlPath, target, ...ports }),
         );
@@ -484,6 +526,8 @@ export function createSshHostConnection({
 
   /** Opens one port forward over the current link. */
   const openPortForward = async (remotePort, localPort) => {
+    // WSL forwards it already, at the same port.
+    if (distribution) return null;
     if (controlPath) {
       // Through the master: it lives (and dies) with the link.
       const forwarded = await runSsh(
@@ -515,7 +559,9 @@ export function createSshHostConnection({
     const opening = openingForwards.get(remotePort);
     if (opening) return opening;
     const next = (async () => {
-      const localPort = existing?.localPort ?? (await getLocalPort());
+      const localPort =
+        existing?.localPort ??
+        (distribution ? remotePort : await getLocalPort());
       const held = await openPortForward(remotePort, localPort);
       const entry = { active: true, held, localPort };
       portForwards.set(remotePort, entry);

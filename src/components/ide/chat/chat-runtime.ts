@@ -71,6 +71,10 @@ import type { ChatMessageMetadata } from "./message-footer";
 import { fetchProviderSkills, providerSupportsSkills } from "./provider-skills";
 import { projectMessagesForRequest } from "./request-context";
 import type { ToolApprovalResponder } from "./tool-call-groups";
+import {
+  createTurnStreamCache,
+  TurnStreamMismatchError,
+} from "./turn-stream-cache";
 
 /** How long an unwatched, idle session is kept before it is dropped. */
 export const CHAT_SESSION_IDLE_EVICT_MS = 30_000;
@@ -205,14 +209,36 @@ const toHostChatId = (sessionId: string) =>
  * answered. The host is named by the header the request options set.
  */
 const CHAT_HOST_HEADER = "x-dream-chat-host";
+/** The chat a turn stream belongs to, for the turn stream cache. */
+const CHAT_STREAM_HEADER = "x-dream-chat-stream";
 class ChatStreamUnavailableError extends Error {}
+
+/**
+ * The bytes of running turns read so far: a reconnect downloads only what
+ * follows them (turn-stream-cache.ts).
+ */
+const turnStreams = createTurnStreamCache();
 
 const chatFetch: typeof fetch = async (input, init) => {
   const headers = new Headers(init?.headers);
   const hostId = headers.get(CHAT_HOST_HEADER);
+  const streamChatId = headers.get(CHAT_STREAM_HEADER);
   headers.delete(CHAT_HOST_HEADER);
+  headers.delete(CHAT_STREAM_HEADER);
+  // A reconnect asks for what follows the bytes this window holds.
+  const resume =
+    streamChatId &&
+    typeof input === "string" &&
+    (init?.method ?? "GET").toUpperCase() === "GET"
+      ? turnStreams.cursor(streamChatId)
+      : null;
+  const target =
+    resume && typeof input === "string"
+      ? turnStreams.resumeUrl(input, resume)
+      : input;
+  let response: Response;
   try {
-    const response = await fetch(input, {
+    response = await fetch(target, {
       ...init,
       headers,
       redirect: "error",
@@ -228,7 +254,6 @@ const chatFetch: typeof fetch = async (input, init) => {
         `Chat stream unavailable (${response.status}).`,
       );
     }
-    return response;
   } catch (error) {
     if (
       hostId &&
@@ -242,14 +267,29 @@ const chatFetch: typeof fetch = async (input, init) => {
     }
     throw error;
   }
+  if (!streamChatId) return response;
+  try {
+    return turnStreams.read(streamChatId, response, resume);
+  } catch (error) {
+    if (!(error instanceof TurnStreamMismatchError)) throw error;
+    // Asked again, the host sends the whole turn.
+    throw new ChatStreamUnavailableError(error.message);
+  }
 };
 
-/** The URL, credential and headers of a chat request to `hostId`. */
-const chatRequestOptions = (hostId: string, path: string) => {
+/**
+ * The URL, credential and headers of a chat request to `hostId`; with
+ * `chatId`, its answer is a turn stream the turn stream cache keeps.
+ */
+const chatRequestOptions = (hostId: string, path: string, chatId?: string) => {
   const options = hostRequestOptions(hostId, path);
   return {
     ...options,
-    headers: { ...options.headers, [CHAT_HOST_HEADER]: hostId },
+    headers: {
+      ...options.headers,
+      [CHAT_HOST_HEADER]: hostId,
+      ...(chatId ? { [CHAT_STREAM_HEADER]: chatId } : {}),
+    },
   };
 };
 
@@ -263,12 +303,14 @@ const transport = new HostChatTransport({
   api: "/api/chat",
   fetch: chatFetch,
   // A turn runs on the host, detached from the request: reconnecting asks
-  // for the running turn's stream from its start (204 when none runs).
+  // for the running turn's stream (204 when none runs), from where this
+  // window's copy of it stops (chatFetch).
   prepareReconnectToStreamRequest: ({ id }) => {
     const chatId = toHostChatId(id);
     return chatRequestOptions(
       resolveRequestHost({ chatId }),
       `/api/chat/${encodeURIComponent(chatId)}/stream`,
+      chatId,
     );
   },
   prepareSendMessagesRequest: ({
@@ -282,6 +324,7 @@ const transport = new HostChatTransport({
     ...chatRequestOptions(
       resolveRequestHost({ chatId: toHostChatId(id) }),
       "/api/chat",
+      toHostChatId(id),
     ),
     body: {
       ...body,

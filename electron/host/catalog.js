@@ -59,16 +59,20 @@ const catalogChat = (chat) => {
  *   },
  *   getReader?: () => { read: (type: string, payload?: object) => Promise<any> },
  *   getRunningChatIds?: () => string[],
+ *   getAwaitingApprovalChatIds?: () => string[],
  * }} options
  *   `getReader`: where reads run (state-read-pool.js); this thread when
  *   omitted. `getRunningChatIds`: the chats with a turn running now,
  *   listed with the catalog so a client knows which to resume.
+ *   `getAwaitingApprovalChatIds`: the chats whose turn waits on a tool
+ *   approval now, listed so a client shows them before any event.
  */
 export function createHostCatalog({
   events,
   getWriter,
   getReader = () => inThreadReader,
   getRunningChatIds = () => [],
+  getAwaitingApprovalChatIds = () => [],
 }) {
   const read = (type, payload) => getReader().read(type, payload);
 
@@ -109,6 +113,7 @@ export function createHostCatalog({
       return {
         ...(await read("catalog")),
         runningChatIds: getRunningChatIds(),
+        awaitingApprovalChatIds: getAwaitingApprovalChatIds(),
       };
     },
 
