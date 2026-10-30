@@ -1239,12 +1239,8 @@
     "versionSame": "이 앱과 동일",
     "versionOlder": "이 앱보다 이전 버전",
     "versionNewer": "이 앱보다 최신 버전",
-    "ownerDesktop": "Dream이 시작했으며 Dream을 종료하면 중지됩니다.",
-    "ownerUser": "dream-host로 시작했으며 Dream을 종료해도 계속 실행됩니다.",
-    "ownerInProcess": "Dream 안에서 실행됩니다.",
     "needsManage": "이 호스트의 공유를 보려면 관리 권한이 필요합니다.",
     "unavailable": "이 호스트는 설정을 알려 주지 않습니다. 이 앱의 버전으로 업데이트하세요.",
-    "noHosts": "공유를 보려면 호스트에 연결하세요.",
-    "startedWith": "호스트 시작 시 설정됨"
+    "noHosts": "공유를 보려면 호스트에 연결하세요."
   }
 }

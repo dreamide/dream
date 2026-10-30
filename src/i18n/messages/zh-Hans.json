@@ -1239,12 +1239,8 @@
     "versionSame": "与此应用相同",
     "versionOlder": "比此应用旧",
     "versionNewer": "比此应用新",
-    "ownerDesktop": "由 Dream 启动；退出 Dream 时停止。",
-    "ownerUser": "通过 dream-host 启动；退出 Dream 后继续运行。",
-    "ownerInProcess": "在 Dream 内运行。",
     "needsManage": "需要此主机的管理权限才能查看其共享设置。",
     "unavailable": "此主机不报告其设置。请将其更新到此应用的版本。",
-    "noHosts": "连接主机以查看其共享设置。",
-    "startedWith": "主机启动时设置"
+    "noHosts": "连接主机以查看其共享设置。"
   }
 }

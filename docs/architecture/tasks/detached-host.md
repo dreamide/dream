@@ -615,12 +615,17 @@ on a host started with `--remote-port`:
 
 - its name, version and address, "Started with dream-host…" and "Same as
   this app";
-- options set at start, labelled by the flag that set them;
 - remote access read-only with the reason;
 - **Create link**, and this browser marked "This device".
 
 Two layout problems found there were fixed: wrapping flag names, and values
 shown as escaped JSON.
+
+Scope change (2026-10-30): the user removed the list of options the host
+started with and the "Started by Dream…" / "Started with dream-host…" line.
+Options belong in the documentation, not the app. The page keeps the host's
+name, version and address, the reason a control is disabled, remote access and
+authorized clients. The settings report's per-option list is no longer shown.
 
 Remaining/deferred:
 

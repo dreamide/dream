@@ -1239,12 +1239,8 @@
     "versionSame": "Identique à cette application",
     "versionOlder": "Plus ancienne que cette application",
     "versionNewer": "Plus récente que cette application",
-    "ownerDesktop": "Démarré par Dream ; il s’arrête quand vous quittez Dream.",
-    "ownerUser": "Démarré avec dream-host ; il continue quand vous quittez Dream.",
-    "ownerInProcess": "S’exécute dans Dream.",
     "needsManage": "Il vous faut un accès de gestion à cet hôte pour voir son partage.",
     "unavailable": "Cet hôte ne communique pas ses réglages. Mettez-le à jour vers la version de cette application.",
-    "noHosts": "Connectez un hôte pour voir son partage.",
-    "startedWith": "Défini au démarrage de l’hôte"
+    "noHosts": "Connectez un hôte pour voir son partage."
   }
 }

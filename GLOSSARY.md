@@ -209,9 +209,10 @@ Every option a host starts with (`electron/host/options.js`): a flag and an
 environment variable each, resolved flag, then variable, then a setting the
 host saved (remote access), then the default, with the source of each value
 kept. `dream-host help` and the table in `docs/host-service.md` come from it.
-The host reports them (`POST /api/host/settings`,
-`electron/host/settings-report.js`) so Settings shows a value a flag or
-variable fixed as read-only, with its source.
+The host reports them with its identity and version (`POST /api/host/settings`,
+`electron/host/settings-report.js`). Settings shows only the identity and
+version: options belong in documentation, not the app. A control they fix
+(remote access set by `--remote-port`) is disabled with the reason.
 
 ## Settings pages for hosts
 

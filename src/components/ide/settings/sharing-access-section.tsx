@@ -8,8 +8,8 @@
  * (`/api/remote/session`): its own computer's operator may change remote
  * access; a paired client with `manage` may pair and revoke clients but not
  * switch access on or off; one without `manage` sees why it sees nothing.
- * The host's options come from POST /api/host/settings, with where each
- * came from; one set by a flag or variable is shown, not offered.
+ * The host's name, version and address come from POST /api/host/settings.
+ * The options a host started with are documentation's, not shown here.
  */
 import { Copy, Ellipsis, RotateCcw, Server } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -76,10 +76,6 @@ const compareVersions = (a: string, b: string) => {
   }
   return 0;
 };
-
-/** A setting's value as a person reads it. */
-const displayValue = (value: unknown) =>
-  Array.isArray(value) ? value.join(", ") : String(value);
 
 const copyText = async (text: string) => {
   const desktop = getDesktopApi();
@@ -157,10 +153,6 @@ export function SharingAccessSection({ appVersion }: { appVersion: string }) {
 
   const report = view?.report ?? null;
   const host = report?.host ?? null;
-  const fixed =
-    report?.settings.filter(
-      (setting) => setting.source === "flag" || setting.source === "env",
-    ) ?? [];
   // Restart: only the host this desktop started, running in its own process.
   const canRestart =
     hostId === LOCAL_HOST_ID && home?.mode === "detached" && home.owned;
@@ -181,12 +173,6 @@ export function SharingAccessSection({ appVersion }: { appVersion: string }) {
     host?.version && appVersion
       ? compareVersions(host.version, appVersion)
       : null;
-  const ownerText =
-    host?.owner === "desktop"
-      ? t("ownerDesktop")
-      : hostId === LOCAL_HOST_ID && home?.mode === "in-process"
-        ? t("ownerInProcess")
-        : t("ownerUser");
 
   return (
     <div className="space-y-8">
@@ -279,14 +265,11 @@ export function SharingAccessSection({ appVersion }: { appVersion: string }) {
                 <SettingsControlRow
                   controlClassName="w-auto md:w-auto"
                   description={
-                    <>
-                      <span className="select-text font-mono text-xs">
-                        {[host.version ?? "?", host.local ?? host.remote]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                      <span className="mt-1 block">{ownerText}</span>
-                    </>
+                    <span className="select-text font-mono text-xs">
+                      {[host.version ?? "?", host.local ?? host.remote]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
                   }
                   label={t("version")}
                 >
@@ -315,27 +298,6 @@ export function SharingAccessSection({ appVersion }: { appVersion: string }) {
                 </p>
               ) : null}
             </SettingsGroup>
-
-            {fixed.length > 0 ? (
-              <SettingsGroup label={t("startedWith")}>
-                {fixed.map((setting) => (
-                  <div
-                    className="flex items-center justify-between gap-3 px-4 py-2"
-                    key={setting.name}
-                  >
-                    <span className="shrink-0 whitespace-nowrap font-mono text-xs">
-                      {setting.from ?? setting.flag}
-                    </span>
-                    <span
-                      className="min-w-0 select-text truncate text-right font-mono text-muted-foreground text-xs"
-                      title={displayValue(setting.value)}
-                    >
-                      {displayValue(setting.value)}
-                    </span>
-                  </div>
-                ))}
-              </SettingsGroup>
-            ) : null}
           </div>
 
           {view.missing === "needsManage" ? null : (

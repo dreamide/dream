@@ -1239,12 +1239,8 @@
     "versionSame": "與此應用程式相同",
     "versionOlder": "比此應用程式舊",
     "versionNewer": "比此應用程式新",
-    "ownerDesktop": "由 Dream 啟動；結束 Dream 時停止。",
-    "ownerUser": "透過 dream-host 啟動；結束 Dream 後繼續執行。",
-    "ownerInProcess": "在 Dream 內執行。",
     "needsManage": "需要此主機的管理權限才能檢視其共享設定。",
     "unavailable": "此主機不回報其設定。請將其更新為此應用程式的版本。",
-    "noHosts": "連線主機以檢視其共享設定。",
-    "startedWith": "主機啟動時設定"
+    "noHosts": "連線主機以檢視其共享設定。"
   }
 }

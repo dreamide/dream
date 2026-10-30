@@ -1239,12 +1239,8 @@
     "versionSame": "Igual que esta app",
     "versionOlder": "Más antigua que esta app",
     "versionNewer": "Más reciente que esta app",
-    "ownerDesktop": "Iniciado por Dream; se detiene al salir de Dream.",
-    "ownerUser": "Iniciado con dream-host; sigue en ejecución al salir de Dream.",
-    "ownerInProcess": "Se ejecuta dentro de Dream.",
     "needsManage": "Necesitas acceso de administración a este host para ver su uso compartido.",
     "unavailable": "Este host no informa de su configuración. Actualízalo a la versión de esta app.",
-    "noHosts": "Conecta un host para ver su uso compartido.",
-    "startedWith": "Definido al iniciar el host"
+    "noHosts": "Conecta un host para ver su uso compartido."
   }
 }

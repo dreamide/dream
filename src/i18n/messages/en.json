@@ -1239,12 +1239,8 @@
     "versionSame": "Same as this app",
     "versionOlder": "Older than this app",
     "versionNewer": "Newer than this app",
-    "ownerDesktop": "Started by Dream; it stops when you quit Dream.",
-    "ownerUser": "Started with dream-host; it keeps running when you quit Dream.",
-    "ownerInProcess": "Runs inside Dream.",
     "needsManage": "You need manage access to this host to see its sharing.",
     "unavailable": "This host does not report its settings. Update it to this app's version.",
-    "noHosts": "Connect a host to see its sharing.",
-    "startedWith": "Set when the host started"
+    "noHosts": "Connect a host to see its sharing."
   }
 }

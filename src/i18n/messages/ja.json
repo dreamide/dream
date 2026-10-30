@@ -1239,12 +1239,8 @@
     "versionSame": "このアプリと同じ",
     "versionOlder": "このアプリより古い",
     "versionNewer": "このアプリより新しい",
-    "ownerDesktop": "Dream が起動しました。Dream を終了すると停止します。",
-    "ownerUser": "dream-host で起動しました。Dream を終了しても動作を続けます。",
-    "ownerInProcess": "Dream 内で動作しています。",
     "needsManage": "このホストの共有を表示するには管理アクセスが必要です。",
     "unavailable": "このホストは設定を報告しません。このアプリのバージョンに更新してください。",
-    "noHosts": "共有を表示するにはホストに接続してください。",
-    "startedWith": "ホストの起動時に設定"
+    "noHosts": "共有を表示するにはホストに接続してください。"
   }
 }

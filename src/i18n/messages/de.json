@@ -1239,12 +1239,8 @@
     "versionSame": "Wie diese App",
     "versionOlder": "Älter als diese App",
     "versionNewer": "Neuer als diese App",
-    "ownerDesktop": "Von Dream gestartet; er endet, wenn du Dream beendest.",
-    "ownerUser": "Mit dream-host gestartet; er läuft weiter, wenn du Dream beendest.",
-    "ownerInProcess": "Läuft in Dream.",
     "needsManage": "Du brauchst Verwaltungszugriff auf diesen Host, um seine Freigabe zu sehen.",
     "unavailable": "Dieser Host meldet seine Einstellungen nicht. Aktualisiere ihn auf die Version dieser App.",
-    "noHosts": "Verbinde einen Host, um seine Freigabe zu sehen.",
-    "startedWith": "Beim Start des Hosts festgelegt"
+    "noHosts": "Verbinde einen Host, um seine Freigabe zu sehen."
   }
 }

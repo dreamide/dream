@@ -1239,12 +1239,8 @@
     "versionSame": "Giống ứng dụng này",
     "versionOlder": "Cũ hơn ứng dụng này",
     "versionNewer": "Mới hơn ứng dụng này",
-    "ownerDesktop": "Do Dream khởi động; dừng khi bạn thoát Dream.",
-    "ownerUser": "Khởi động bằng dream-host; vẫn chạy khi bạn thoát Dream.",
-    "ownerInProcess": "Chạy bên trong Dream.",
     "needsManage": "Bạn cần quyền quản lý máy chủ này để xem phần chia sẻ.",
     "unavailable": "Máy chủ này không báo cáo cài đặt. Hãy cập nhật lên phiên bản của ứng dụng này.",
-    "noHosts": "Kết nối một máy chủ để xem phần chia sẻ.",
-    "startedWith": "Được đặt khi máy chủ khởi động"
+    "noHosts": "Kết nối một máy chủ để xem phần chia sẻ."
   }
 }
