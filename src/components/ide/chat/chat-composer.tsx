@@ -108,6 +108,14 @@ export type { ChatPanelModelOption } from "./chat-model-selection";
 
 const PROJECT_REFERENCE_FILE_LIMIT = 2500;
 
+const modelSelectorIconClassName = (provider: AiProvider) =>
+  cn(
+    "size-3.5 shrink-0",
+    provider === "anthropic"
+      ? "text-[#D97757]"
+      : "text-surface-500 dark:text-surface-400",
+  );
+
 /**
  * The project's files and folders, for the `@` menu: read once when the
  * composer mounts (or taken from a longer list the file explorer already
@@ -708,7 +716,9 @@ export const ChatComposer = ({
                     <SelectValue placeholder={chatT("model")}>
                       <span className="flex items-center gap-1.5">
                         <ProviderIcon
-                          className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400"
+                          className={modelSelectorIconClassName(
+                            selectedProvider,
+                          )}
                           provider={selectedProvider}
                         />
                         <span className="truncate">{controls.modelLabel}</span>
@@ -730,7 +740,9 @@ export const ChatComposer = ({
                         >
                           <span className="flex items-center gap-1.5">
                             <ProviderIcon
-                              className="size-3.5 shrink-0 text-surface-500 dark:text-surface-400"
+                              className={modelSelectorIconClassName(
+                                option.provider,
+                              )}
                               provider={option.provider}
                             />
                             <span className="truncate">{option.label}</span>
