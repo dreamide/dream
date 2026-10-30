@@ -255,16 +255,16 @@ export const RemoteAccessSection = () => {
 
       <SettingsGroup>
         <div className="flex items-center gap-3 px-4 py-3">
-          <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <div className="font-medium text-sm">{t("accessToggle")}</div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-muted-foreground text-xs">
+            <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
               {status === null ? (
                 <Spinner className="size-3" />
               ) : !enabled ? (
                 t("statusOff")
               ) : status.ready ? (
                 <Badge className="gap-1.5" variant="outline">
-                  <StatusDot color="green" />
+                  <StatusDot color="green" pulse={false} />
                   {t("statusReady")}
                 </Badge>
               ) : (
