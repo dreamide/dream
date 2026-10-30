@@ -1225,16 +1225,6 @@
     "revokeOthersTitle": "Révoquer {count, plural, one {# client} other {# clients}} ?",
     "thisDevice": "Cet appareil"
   },
-  "homeHost": {
-    "title": "Cette application",
-    "localHost": "Exécuter les agents sur cet ordinateur",
-    "localHostHint": "Désactivez pour n’utiliser que des hôtes distants. S’applique après un redémarrage.",
-    "restart": "Redémarrer Dream",
-    "restartRequired": "Redémarrez Dream pour appliquer ce changement.",
-    "setByEnv": "Défini par DREAM_HOST_MODE.",
-    "fallback": "L’hôte n’a pas pu démarrer dans son propre processus ; il s’exécute donc dans l’application.",
-    "sharedWriter": "L’hôte s’exécute dans l’application jusqu’à ce que l’espace de travail passe dans sa propre base de données."
-  },
   "sharing": {
     "title": "Partage et accès",
     "description": "Comment d’autres ordinateurs atteignent cet hôte, et lesquels le peuvent.",

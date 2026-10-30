@@ -110,12 +110,11 @@ const pairingIdentity = (payload, fallbackName) => {
  * @param {{ update: (payload: unknown) => void, capturePage: (payload: unknown) => unknown }} deps.browserSessions
  * @param {{ detect: () => unknown, open: (options: { editorId: unknown, projectPath: unknown, sshTarget: unknown }) => unknown }} deps.editors
  * @param {(options: { chooseSavePath: (fileName: string) => Promise<string | null>, copyPng: (png: Uint8Array) => Promise<void>, webContents: unknown }) => Promise<{ status: string, filePath?: string }>} deps.captureAppScreenshot
- * @param {{ describe: () => unknown, restart: () => Promise<void>, setPreference: (changes: { mode?: "local" | "remote" }) => void }} deps.homeHost
- *   How this desktop runs its home host: the mode now, whether it started
- *   the host, and the saved preference (desktop-host-preference.js).
+ * @param {{ describe: () => unknown, restart: () => Promise<void> }} deps.homeHost
+ *   How this desktop runs its home host: the mode now, and whether it
+ *   started the host (desktop-host-mode.js, desktop-host.js).
  * @param {() => Promise<string[]>} deps.wslDistributions On Windows, the
  *   installed WSL distributions.
- * @param {() => void} deps.relaunch Restarts the app.
  */
 export const createDesktopHandlers = ({
   browserSessions,
@@ -127,7 +126,6 @@ export const createDesktopHandlers = ({
   getWindow,
   homeHost,
   hostname,
-  relaunch,
   sendToRenderer,
   sshConfigHosts,
   sshHosts,
@@ -529,21 +527,11 @@ export const createDesktopHandlers = ({
     },
     listSshConfigHosts: () => sshConfigHosts(),
     getHomeHostSettings: () => homeHost.describe(),
-    setHomeHostPreference: (/** @type {unknown} */ payload) => {
-      const { mode } = fields(payload);
-      if (mode === "local" || mode === "remote")
-        homeHost.setPreference({ mode });
-      return homeHost.describe();
-    },
     restartHomeHost: async () => {
       await homeHost.restart();
       return homeHost.describe();
     },
     listWslDistributions: () => wslDistributions(),
-    relaunchApp: () => {
-      relaunch();
-      return true;
-    },
     disconnectHost: (/** @type {unknown} */ payload) => {
       const { hostId } = fields(payload);
       if (typeof hostId === "string") sshHosts.disconnect(hostId);

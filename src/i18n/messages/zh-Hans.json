@@ -1225,16 +1225,6 @@
     "revokeOthersTitle": "撤销 {count, plural, other {# 个客户端}}？",
     "thisDevice": "此设备"
   },
-  "homeHost": {
-    "title": "此应用",
-    "localHost": "在这台电脑上运行代理",
-    "localHostHint": "关闭后只使用远程主机。重启后生效。",
-    "restart": "重启 Dream",
-    "restartRequired": "重启 Dream 以应用此更改。",
-    "setByEnv": "由 DREAM_HOST_MODE 设置。",
-    "fallback": "主机无法在独立进程中启动，因此在应用内运行。",
-    "sharedWriter": "在工作区迁移到独立数据库之前，主机在应用内运行。"
-  },
   "sharing": {
     "title": "共享与访问",
     "description": "其他电脑如何访问此主机，以及哪些可以访问。",

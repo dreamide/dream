@@ -543,7 +543,8 @@ PATH, which needs the user's go-ahead. The docs say they are starting points.
 
 ## DH-11: Hosts page (this app, and the hosts it uses)
 
-Status: implemented; not inspected visually on the desktop
+Status: implemented; not inspected visually on the desktop. Scope changed
+2026-10-30: the "Run agents on this computer" toggle was removed (see below).
 
 Problem and trigger: Settings > Connections mixes what this app owns (its
 saved hosts, whether it runs a host) with what a host owns (remote access,
@@ -570,6 +571,14 @@ Validation: typecheck, lint and the handler and preload tests (the
 (desktop only: `ThisAppSection` and the saved hosts) and **Sharing & access**
 in place of Connections. The browser client shows Sharing & access and no
 Hosts page (checked in the browser panel).
+
+Scope change (2026-10-30): the user removed the **Run agents on this
+computer** toggle, the **This app** section and the saved preference behind them
+(`<state db>.desktop-host.json`, `setHomeHostPreference`, `relaunchApp`).
+Choosing not to run a host on this computer from the app is not a real use
+case. The Hosts page is the saved hosts alone. `DREAM_HOST_MODE=remote` is
+unchanged (`electron/desktop-host-mode.js`, which replaces
+`desktop-host-preference.js`).
 
 Remaining/deferred: a look at the Hosts page in a desktop window, in both
 themes.
@@ -644,12 +653,11 @@ Completion criteria:
 
 Validation: remote access set at start is read-only with the flags named
 (seen in the browser panel). A client that is not the host's own computer's
-operator cannot switch access on or off, and is told why. The Hosts toggle is
-read-only, with "Set by DREAM_HOST_MODE", while that decides.
+operator cannot switch access on or off, and is told why.
 
 Remaining/deferred: no host option is changeable at run time yet, so no
-pending-restart notice can appear from the host. The app's own "Restart Dream
-to apply this change" is shown for the Hosts toggle.
+pending-restart notice can appear from the host. With the Hosts toggle
+removed (DH-11), nothing in the app needs a restart of Dream itself.
 
 ## DH-14: Remote-access flags as an override of the saved setting
 

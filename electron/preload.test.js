@@ -167,13 +167,7 @@ const SENT = [
     ["send", "browser:command-result", payload],
   ],
   ["getHomeHostSettings", [], ["invoke", "home-host:get-settings"]],
-  [
-    "setHomeHostPreference",
-    [payload],
-    ["invoke", "home-host:set-preference", payload],
-  ],
   ["restartHomeHost", [], ["invoke", "home-host:restart"]],
-  ["relaunchApp", [], ["invoke", "app:relaunch"]],
   ["listWslDistributions", [], ["invoke", "hosts:wsl-distributions"]],
   ["detectEditors", [], ["invoke", "editors:detect"]],
   ["openInEditor", [payload], ["invoke", "editors:open", payload]],

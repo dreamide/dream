@@ -94,7 +94,6 @@ import {
 import { KeyboardShortcutsSection } from "./settings/keyboard-shortcuts-section";
 import { SettingsVersionButton } from "./settings/settings-version-button";
 import { SharingAccessSection } from "./settings/sharing-access-section";
-import { ThisAppSection } from "./settings/this-app-section";
 import { SkillsSettingsSection } from "./skills/skills-settings-section";
 import { SshHostsSettingsSection } from "./ssh/ssh-hosts-settings-section";
 import { WORKSPACE_VIEWPORT_BACKGROUND } from "./workspace";
@@ -653,7 +652,7 @@ export const SettingsWorkspace = () => {
                 {settingsT("mcpServers")}
               </span>
             </button>
-            {/* This app and the hosts it uses: the desktop's own. */}
+            {/* The hosts this desktop uses: its own. */}
             {platform.kind === "desktop" ? (
               <button
                 className={cn(
@@ -1554,10 +1553,7 @@ export const SettingsWorkspace = () => {
               {settingsSection === "skills" ? <SkillsSettingsSection /> : null}
 
               {settingsSection === "hosts" && platform.kind === "desktop" ? (
-                <div className="space-y-10">
-                  <ThisAppSection />
-                  <SshHostsSettingsSection />
-                </div>
+                <SshHostsSettingsSection />
               ) : null}
 
               {settingsSection === "sharing" ? (

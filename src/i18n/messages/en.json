@@ -1225,16 +1225,6 @@
     "revokeOthersTitle": "Revoke {count, plural, one {# client} other {# clients}}?",
     "thisDevice": "This device"
   },
-  "homeHost": {
-    "title": "This app",
-    "localHost": "Run agents on this computer",
-    "localHostHint": "Turn off to use only remote hosts. Takes effect after a restart.",
-    "restart": "Restart Dream",
-    "restartRequired": "Restart Dream to apply this change.",
-    "setByEnv": "Set by DREAM_HOST_MODE.",
-    "fallback": "The host could not start in its own process, so it runs inside the app.",
-    "sharedWriter": "The host runs inside the app until the workspace moves to its own database."
-  },
   "sharing": {
     "title": "Sharing & access",
     "description": "How other computers reach this host, and which may.",

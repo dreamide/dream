@@ -163,22 +163,17 @@ export const DESKTOP_METHODS =
       kind: "send",
     },
 
-    // The home host: how this desktop runs it (desktop-host-preference.js).
+    // The home host: how this desktop runs it (desktop-host-mode.js).
     getHomeHostSettings: {
       channel: "home-host:get-settings",
       kind: "invoke",
       params: [],
-    },
-    setHomeHostPreference: {
-      channel: "home-host:set-preference",
-      kind: "invoke",
     },
     restartHomeHost: {
       channel: "home-host:restart",
       kind: "invoke",
       params: [],
     },
-    relaunchApp: { channel: "app:relaunch", kind: "invoke", params: [] },
     listWslDistributions: {
       channel: "hosts:wsl-distributions",
       kind: "invoke",

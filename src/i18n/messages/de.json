@@ -1225,16 +1225,6 @@
     "revokeOthersTitle": "{count, plural, one {# Client} other {# Clients}} widerrufen?",
     "thisDevice": "Dieses Gerät"
   },
-  "homeHost": {
-    "title": "Diese App",
-    "localHost": "Agents auf diesem Computer ausführen",
-    "localHostHint": "Ausschalten, um nur entfernte Hosts zu verwenden. Gilt nach einem Neustart.",
-    "restart": "Dream neu starten",
-    "restartRequired": "Starte Dream neu, um diese Änderung zu übernehmen.",
-    "setByEnv": "Festgelegt durch DREAM_HOST_MODE.",
-    "fallback": "Der Host konnte nicht in einem eigenen Prozess starten und läuft daher in der App.",
-    "sharedWriter": "Der Host läuft in der App, bis der Arbeitsbereich in eine eigene Datenbank verschoben ist."
-  },
   "sharing": {
     "title": "Freigabe & Zugriff",
     "description": "Wie andere Computer diesen Host erreichen und welche es dürfen.",

@@ -1225,16 +1225,6 @@
     "revokeOthersTitle": "{count, plural, other {클라이언트 #개}}를 취소할까요?",
     "thisDevice": "이 기기"
   },
-  "homeHost": {
-    "title": "이 앱",
-    "localHost": "이 컴퓨터에서 에이전트 실행",
-    "localHostHint": "끄면 원격 호스트만 사용합니다. 다시 시작한 후 적용됩니다.",
-    "restart": "Dream 다시 시작",
-    "restartRequired": "이 변경을 적용하려면 Dream을 다시 시작하세요.",
-    "setByEnv": "DREAM_HOST_MODE로 설정되었습니다.",
-    "fallback": "호스트를 별도 프로세스에서 시작할 수 없어 앱 안에서 실행됩니다.",
-    "sharedWriter": "작업 공간이 자체 데이터베이스로 옮겨질 때까지 호스트는 앱 안에서 실행됩니다."
-  },
   "sharing": {
     "title": "공유 및 접근",
     "description": "다른 컴퓨터가 이 호스트에 연결하는 방법과 연결할 수 있는 컴퓨터입니다.",

@@ -195,15 +195,13 @@ Projects without a `hostId` live on the home host.
 A desktop in remote-only mode has no home execution host; its workspace stays
 on that desktop and it connects to remote hosts.
 
-## Desktop host preference
+## Host mode
 
-Whether the desktop runs agents on this computer, beside its state database
-(`<state db>.desktop-host.json`, `electron/desktop-host-preference.js`):
-**local** or **remote** (remote hosts only), from the next launch. The **host
-mode** of a launch follows from it: `DREAM_HOST_MODE` (`auto`, `remote`,
-`in-process`) first; the host in this process while the workspace shares the
-state database's writer; remote only if chosen; otherwise **detached** (the
-Home host in its own process). Settings > Hosts > This app shows it.
+How a desktop launch runs its home host (`electron/desktop-host-mode.js`):
+`DREAM_HOST_MODE` (`remote` or `in-process`) when set; the host in this
+process while the workspace shares the state database's writer; otherwise
+**detached** (the Home host in its own process). It is not a setting in the
+app.
 
 ## Host options
 
@@ -217,8 +215,7 @@ variable fixed as read-only, with its source.
 
 ## Settings pages for hosts
 
-**Hosts** (desktop only) is this app's: whether it runs agents on this
-computer, and its saved hosts. **Sharing & access** is one host's, on any
+**Hosts** (desktop only) is this app's: the hosts it uses. **Sharing & access** is one host's, on any
 client: its identity and version, remote access and authorized clients
 (`src/components/ide/settings/sharing-access-section.tsx`). What a client may
 change follows from `/api/remote/session`: the host's own computer's operator

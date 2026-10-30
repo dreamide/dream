@@ -1225,16 +1225,6 @@
     "revokeOthersTitle": "¿Revocar {count, plural, one {# cliente} other {# clientes}}?",
     "thisDevice": "Este dispositivo"
   },
-  "homeHost": {
-    "title": "Esta app",
-    "localHost": "Ejecutar agentes en este equipo",
-    "localHostHint": "Desactívalo para usar solo hosts remotos. Se aplica tras reiniciar.",
-    "restart": "Reiniciar Dream",
-    "restartRequired": "Reinicia Dream para aplicar este cambio.",
-    "setByEnv": "Definido por DREAM_HOST_MODE.",
-    "fallback": "El host no pudo iniciarse en su propio proceso, así que se ejecuta dentro de la app.",
-    "sharedWriter": "El host se ejecuta dentro de la app hasta que el espacio de trabajo pase a su propia base de datos."
-  },
   "sharing": {
     "title": "Uso compartido y acceso",
     "description": "Cómo llegan otros equipos a este host y cuáles pueden hacerlo.",

@@ -42,11 +42,7 @@ import {
   createRemoteOnlyHost,
   withInProcessFallback,
 } from "./desktop-host.js";
-import {
-  readDesktopHostPreference,
-  resolveDesktopHostMode,
-  writeDesktopHostPreference,
-} from "./desktop-host-preference.js";
+import { resolveDesktopHostMode } from "./desktop-host-mode.js";
 import { createDevLogger, publishDevSession } from "./dev-inspection.js";
 import { detectAvailableEditors, openProjectInEditor } from "./editors.js";
 import { getHelloUrl } from "./hello.js";
@@ -113,8 +109,8 @@ const readDreamVersion = () => {
   }
 };
 const dreamVersion = readDreamVersion();
-// A host mode named in the environment wins over Settings
-// (desktop-host-preference.js); `desktop` and `auto` choose as if unset.
+// A host mode named in the environment (desktop-host-mode.js); `desktop` and
+// `auto` choose as if unset.
 const requestedHostMode = process.env.DREAM_HOST_MODE?.trim() || "";
 const hostModeIsExplicit = ["remote", "in-process"].includes(requestedHostMode);
 
@@ -203,10 +199,8 @@ if (workspaceSeparate) {
 // The home host: the host running on this desktop's database (whoever
 // started it) or one the desktop starts, none (remote only), or inside this
 // process. All of them use this desktop's identity and catalog.
-const hostPreferenceAtLaunch = readDesktopHostPreference(STATE_DATABASE_PATH);
 const resolvedHostMode = resolveDesktopHostMode({
   envMode: requestedHostMode,
-  preference: hostPreferenceAtLaunch,
   workspaceSeparate,
 });
 const resolveRemoteHost = (hostId) => desktopConnections.getEndpoint(hostId);
@@ -716,32 +710,22 @@ const desktop = createDesktopHandlers({
   getPath: (name) => app.getPath(name),
   getWindow: getAliveMainWindow,
   homeHost: {
-    // What Settings > Hosts > This app shows: the mode now and why, whether
-    // this desktop started its host (and so may restart and stops it), and
-    // the preference, which applies at the next launch.
+    // What Settings > Sharing & access needs: the mode now and why, and
+    // whether this desktop started its host (and so may restart and stops it).
     describe: () => {
-      const preference = readDesktopHostPreference(STATE_DATABASE_PATH);
       const mode = currentHostMode();
       const attached = mode === "remote" ? null : host.describe?.();
       return {
         explicit: hostModeIsExplicit,
         mode,
         owned: attached?.owned ?? false,
-        preference,
         reason:
           mode !== resolvedHostMode.mode ? "fallback" : resolvedHostMode.reason,
-        restartRequired: preference.mode !== hostPreferenceAtLaunch.mode,
       };
     },
     restart: () => host.restart(),
-    setPreference: (changes) =>
-      writeDesktopHostPreference(STATE_DATABASE_PATH, changes),
   },
   hostname: () => os.hostname(),
-  relaunch: () => {
-    app.relaunch();
-    app.quit();
-  },
   sendToRenderer,
   sshConfigHosts: () => readSshConfigHosts(),
   // On Windows, the WSL distributions a host can be added for (ssh/wsl.js).

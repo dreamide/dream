@@ -55,7 +55,6 @@ const createFakes = ({ window = true } = {}) => {
     save: (preferences) => saved.push(preferences),
   });
   const existing = new Set();
-  const preference = { mode: "local" };
   const { handlers, paintWindowBackground } = createDesktopHandlers({
     browserSessions: {
       capturePage: (payload) => ({ captured: payload }),
@@ -102,14 +101,10 @@ const createFakes = ({ window = true } = {}) => {
     getPath: () => "/pictures",
     getWindow: () => (window ? fakeWindow : null),
     homeHost: {
-      describe: () => ({ mode: "detached", preference }),
+      describe: () => ({ mode: "detached", owned: true }),
       restart: async () => log.push(["restart host"]),
-      setPreference: (changes) => {
-        Object.assign(preference, changes);
-      },
     },
     hostname: () => "Mikes-MacBook-Pro.local",
-    relaunch: record("relaunch"),
     sendToRenderer: record("renderer"),
     sshConfigHosts: async () => ["devbox"],
     sshHosts: {
@@ -373,26 +368,18 @@ test("every method the renderer calls is handled once, on its channel", () => {
   );
 });
 
-test("the home host preference takes only what it knows", async () => {
+test("the home host is described and restarted, and WSL listed", async () => {
   const { handlers, log } = createFakes();
   assert.deepEqual(handlers.getHomeHostSettings(), {
     mode: "detached",
-    preference: { mode: "local" },
+    owned: true,
   });
-  assert.deepEqual(handlers.setHomeHostPreference({ mode: "elsewhere" }), {
+  assert.deepEqual(await handlers.restartHomeHost(), {
     mode: "detached",
-    preference: { mode: "local" },
+    owned: true,
   });
-  assert.deepEqual(
-    handlers.setHomeHostPreference({ keepRunning: true, mode: "remote" })
-      .preference,
-    { mode: "remote" },
-  );
-  await handlers.restartHomeHost();
   assert.deepEqual(log.at(-1), ["restart host"]);
   assert.deepEqual(await handlers.listWslDistributions(), ["Ubuntu"]);
-  assert.equal(handlers.relaunchApp(), true);
-  assert.deepEqual(log.at(-1), ["relaunch"]);
 });
 
 test("every channel is used by one method", () => {

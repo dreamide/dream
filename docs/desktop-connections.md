@@ -55,16 +55,14 @@ project through it; others open it as `\\wsl.localhost\<distribution>\...`.
 
 ## Remote-only desktop
 
-Turn off **Run agents on this computer** under Settings > Hosts, and restart
-when asked. The desktop keeps local workspace storage and the desktop
-UI/proxy, but starts no local execution host, scheduler, terminal owner or host
+Launch the desktop with `DREAM_HOST_MODE=remote` in its environment. It keeps
+local workspace storage and the desktop UI/proxy, but starts no local execution host, scheduler, terminal owner or host
 remote-access listener. The project picker offers remote connections. Pair or
 connect a host in Settings > Hosts before opening a folder there. Global provider
 settings use the first connected remote host; project requests continue to name
 their own host.
 
-`DREAM_HOST_MODE=remote` in the desktop's environment does the same and
-overrides the setting. For example on macOS:
+For example on macOS:
 
 ```sh
 DREAM_HOST_MODE=remote /Applications/Dream.app/Contents/MacOS/Dream
@@ -72,9 +70,9 @@ DREAM_HOST_MODE=remote /Applications/Dream.app/Contents/MacOS/Dream
 
 Cached home projects remain unavailable until their original host is connected.
 Authenticating that former home host moves its cached workspace references to a
-remote connection without changing project or chat IDs. Turning **Run agents on
-this computer** back on uses the host running on this desktop's data, or starts
-one ([Run the host](host-service.md)).
+remote connection without changing project or chat IDs. Launching without
+`DREAM_HOST_MODE=remote` again uses the host running on this desktop's data, or
+starts one ([Run the host](host-service.md)).
 
 Arbitrary site port forwarding and the desktop browser relay require a selected
 SSH route. HTTPS-only clients can work with host projects, chats, files and

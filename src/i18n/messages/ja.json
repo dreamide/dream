@@ -1225,16 +1225,6 @@
     "revokeOthersTitle": "{count, plural, other {# 件のクライアント}}を取り消しますか？",
     "thisDevice": "このデバイス"
   },
-  "homeHost": {
-    "title": "このアプリ",
-    "localHost": "このコンピュータでエージェントを実行",
-    "localHostHint": "オフにするとリモートホストのみを使用します。再起動後に適用されます。",
-    "restart": "Dream を再起動",
-    "restartRequired": "この変更を適用するには Dream を再起動してください。",
-    "setByEnv": "DREAM_HOST_MODE で設定されています。",
-    "fallback": "ホストを専用のプロセスで起動できなかったため、アプリ内で動作しています。",
-    "sharedWriter": "ワークスペースが専用のデータベースに移るまで、ホストはアプリ内で動作します。"
-  },
   "sharing": {
     "title": "共有とアクセス",
     "description": "他のコンピュータがこのホストに接続する方法と、接続を許可するコンピュータ。",

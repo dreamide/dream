@@ -924,12 +924,6 @@ export type AppScreenshotResult =
   | { status: "copied"; error: string }
   | { status: "failed"; error: string };
 
-/** The desktop's saved choice for its home host (desktop-host-preference.js). */
-export interface HomeHostPreference {
-  /** `remote`: no host on this computer; this desktop uses remote hosts. */
-  mode: "local" | "remote";
-}
-
 /** How the home host runs: in its own process, inside the app, or not at all. */
 export type HomeHostMode = "detached" | "in-process" | "remote";
 
@@ -937,19 +931,11 @@ export interface HomeHostSettings {
   /** How the home host runs in this launch. */
   mode: HomeHostMode;
   /** Why: what decided the mode at launch. */
-  reason:
-    | "DREAM_HOST_MODE"
-    | "preference"
-    | "default"
-    | "shared-writer"
-    | "fallback";
-  /** DREAM_HOST_MODE chose the mode; the preference cannot change it. */
+  reason: "DREAM_HOST_MODE" | "default" | "shared-writer" | "fallback";
+  /** DREAM_HOST_MODE chose the mode. */
   explicit: boolean;
   /** This desktop started the host: it may restart it, and stops it at quit. */
   owned: boolean;
-  preference: HomeHostPreference;
-  /** The saved mode differs from this launch's. */
-  restartRequired: boolean;
 }
 
 export interface DesktopApi {
@@ -999,19 +985,10 @@ export interface DesktopApi {
   /** The host aliases in the user's ssh config, for suggesting targets. */
   listSshConfigHosts: () => Promise<string[]>;
 
-  /** How this desktop runs its home host, and the saved preference. */
+  /** How this desktop runs its home host, and whether it started it. */
   getHomeHostSettings: () => Promise<HomeHostSettings>;
-  /**
-   * Saves the home host preference. Keep-running applies at quit; the mode
-   * at the next launch (`restartRequired`).
-   */
-  setHomeHostPreference: (
-    changes: Partial<HomeHostPreference>,
-  ) => Promise<HomeHostSettings>;
   /** Restarts the host this desktop started; refused for one it did not. */
   restartHomeHost: () => Promise<HomeHostSettings>;
-  /** Restarts the app. */
-  relaunchApp: () => Promise<boolean>;
   /** On Windows, the installed WSL distributions; empty elsewhere. */
   listWslDistributions: () => Promise<string[]>;
 

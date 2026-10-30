@@ -1225,16 +1225,6 @@
     "revokeOthersTitle": "撤銷 {count, plural, other {# 個用戶端}}？",
     "thisDevice": "此裝置"
   },
-  "homeHost": {
-    "title": "此應用程式",
-    "localHost": "在這台電腦上執行代理",
-    "localHostHint": "關閉後只使用遠端主機。重新啟動後生效。",
-    "restart": "重新啟動 Dream",
-    "restartRequired": "重新啟動 Dream 以套用此變更。",
-    "setByEnv": "由 DREAM_HOST_MODE 設定。",
-    "fallback": "主機無法在獨立程序中啟動，因此在應用程式內執行。",
-    "sharedWriter": "在工作區移轉到獨立資料庫之前，主機在應用程式內執行。"
-  },
   "sharing": {
     "title": "共享與存取",
     "description": "其他電腦如何存取此主機，以及哪些可以存取。",
