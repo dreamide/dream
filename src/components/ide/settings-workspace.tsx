@@ -34,7 +34,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -42,7 +41,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -87,6 +85,7 @@ import {
   McpIcon,
   McpServersSection,
   ModelSelectionControl,
+  ProviderModelRow,
   ProviderStatusCard,
   SettingsControlRow,
   SettingsGroup,
@@ -1181,33 +1180,18 @@ export const SettingsWorkspace = () => {
                             const isSelected = openAiModels.includes(model.id);
 
                             return (
-                              <div
-                                className="flex h-9 items-center justify-between rounded-md bg-muted/50 px-3 hover:bg-muted"
+                              <ProviderModelRow
                                 key={model.id}
-                              >
-                                <Label
-                                  className={cn(
-                                    "truncate pr-3 text-sm",
-                                    isSelected
-                                      ? "text-foreground"
-                                      : "text-muted-foreground",
-                                  )}
-                                >
-                                  {model.label}
-                                </Label>
-                                <Switch
-                                  checked={isSelected}
-                                  onCheckedChange={(checked) => {
-                                    if (checked !== isSelected) {
-                                      toggleProviderModel(
-                                        "openai",
-                                        model.id,
-                                        checked,
-                                      );
-                                    }
-                                  }}
-                                />
-                              </div>
+                                label={model.label}
+                                onSelectedChange={(selected) =>
+                                  toggleProviderModel(
+                                    "openai",
+                                    model.id,
+                                    selected,
+                                  )
+                                }
+                                selected={isSelected}
+                              />
                             );
                           })
                         )}
@@ -1258,33 +1242,18 @@ export const SettingsWorkspace = () => {
                             );
 
                             return (
-                              <div
-                                className="flex h-9 items-center justify-between rounded-md bg-muted/50 px-3 hover:bg-muted"
+                              <ProviderModelRow
                                 key={model.id}
-                              >
-                                <Label
-                                  className={cn(
-                                    "truncate pr-3 text-sm",
-                                    isSelected
-                                      ? "text-foreground"
-                                      : "text-muted-foreground",
-                                  )}
-                                >
-                                  {model.label}
-                                </Label>
-                                <Switch
-                                  checked={isSelected}
-                                  onCheckedChange={(checked) => {
-                                    if (checked !== isSelected) {
-                                      toggleProviderModel(
-                                        "anthropic",
-                                        model.id,
-                                        checked,
-                                      );
-                                    }
-                                  }}
-                                />
-                              </div>
+                                label={model.label}
+                                onSelectedChange={(selected) =>
+                                  toggleProviderModel(
+                                    "anthropic",
+                                    model.id,
+                                    selected,
+                                  )
+                                }
+                                selected={isSelected}
+                              />
                             );
                           })
                         )}
@@ -1357,33 +1326,18 @@ export const SettingsWorkspace = () => {
                                   );
 
                                   return (
-                                    <div
-                                      className="flex h-9 items-center justify-between rounded-md bg-muted/50 px-3 hover:bg-muted"
+                                    <ProviderModelRow
                                       key={model.id}
-                                    >
-                                      <Label
-                                        className={cn(
-                                          "truncate pr-3 text-sm",
-                                          isSelected
-                                            ? "text-foreground"
-                                            : "text-muted-foreground",
-                                        )}
-                                      >
-                                        {getOpenCodeModelName(model)}
-                                      </Label>
-                                      <Switch
-                                        checked={isSelected}
-                                        onCheckedChange={(checked) => {
-                                          if (checked !== isSelected) {
-                                            toggleProviderModel(
-                                              "opencode",
-                                              model.id,
-                                              checked,
-                                            );
-                                          }
-                                        }}
-                                      />
-                                    </div>
+                                      label={getOpenCodeModelName(model)}
+                                      onSelectedChange={(selected) =>
+                                        toggleProviderModel(
+                                          "opencode",
+                                          model.id,
+                                          selected,
+                                        )
+                                      }
+                                      selected={isSelected}
+                                    />
                                   );
                                 })}
                               </TabsContent>
@@ -1441,33 +1395,18 @@ export const SettingsWorkspace = () => {
                             const isSelected = cursorModels.includes(model.id);
 
                             return (
-                              <div
-                                className="flex h-9 items-center justify-between rounded-md bg-muted/50 px-3 hover:bg-muted"
+                              <ProviderModelRow
                                 key={model.id}
-                              >
-                                <Label
-                                  className={cn(
-                                    "truncate pr-3 text-sm",
-                                    isSelected
-                                      ? "text-foreground"
-                                      : "text-muted-foreground",
-                                  )}
-                                >
-                                  {model.label}
-                                </Label>
-                                <Switch
-                                  checked={isSelected}
-                                  onCheckedChange={(checked) => {
-                                    if (checked !== isSelected) {
-                                      toggleProviderModel(
-                                        "cursor",
-                                        model.id,
-                                        checked,
-                                      );
-                                    }
-                                  }}
-                                />
-                              </div>
+                                label={model.label}
+                                onSelectedChange={(selected) =>
+                                  toggleProviderModel(
+                                    "cursor",
+                                    model.id,
+                                    selected,
+                                  )
+                                }
+                                selected={isSelected}
+                              />
                             );
                           })
                         )}
@@ -1522,33 +1461,18 @@ export const SettingsWorkspace = () => {
                             const isSelected = grokModels.includes(model.id);
 
                             return (
-                              <div
-                                className="flex h-9 items-center justify-between rounded-md bg-muted/50 px-3 hover:bg-muted"
+                              <ProviderModelRow
                                 key={model.id}
-                              >
-                                <Label
-                                  className={cn(
-                                    "truncate pr-3 text-sm",
-                                    isSelected
-                                      ? "text-foreground"
-                                      : "text-muted-foreground",
-                                  )}
-                                >
-                                  {model.label}
-                                </Label>
-                                <Switch
-                                  checked={isSelected}
-                                  onCheckedChange={(checked) => {
-                                    if (checked !== isSelected) {
-                                      toggleProviderModel(
-                                        "grok",
-                                        model.id,
-                                        checked,
-                                      );
-                                    }
-                                  }}
-                                />
-                              </div>
+                                label={model.label}
+                                onSelectedChange={(selected) =>
+                                  toggleProviderModel(
+                                    "grok",
+                                    model.id,
+                                    selected,
+                                  )
+                                }
+                                selected={isSelected}
+                              />
                             );
                           })
                         )}
@@ -1606,33 +1530,18 @@ export const SettingsWorkspace = () => {
                             );
 
                             return (
-                              <div
-                                className="flex h-9 items-center justify-between rounded-md bg-muted/50 px-3 hover:bg-muted"
+                              <ProviderModelRow
                                 key={model.id}
-                              >
-                                <Label
-                                  className={cn(
-                                    "truncate pr-3 text-sm",
-                                    isSelected
-                                      ? "text-foreground"
-                                      : "text-muted-foreground",
-                                  )}
-                                >
-                                  {model.label}
-                                </Label>
-                                <Switch
-                                  checked={isSelected}
-                                  onCheckedChange={(checked) => {
-                                    if (checked !== isSelected) {
-                                      toggleProviderModel(
-                                        "antigravity",
-                                        model.id,
-                                        checked,
-                                      );
-                                    }
-                                  }}
-                                />
-                              </div>
+                                label={model.label}
+                                onSelectedChange={(selected) =>
+                                  toggleProviderModel(
+                                    "antigravity",
+                                    model.id,
+                                    selected,
+                                  )
+                                }
+                                selected={isSelected}
+                              />
                             );
                           })
                         )}
