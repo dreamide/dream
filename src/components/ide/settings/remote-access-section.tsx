@@ -48,13 +48,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusDot } from "@/components/ui/status-dot";
 import { Switch } from "@/components/ui/switch";
@@ -516,8 +509,10 @@ export const RemoteAccessSection = () => {
             </div>
           ) : (
             <div className="grid gap-1.5">
-              <Label htmlFor="remote-access-scope">{t("accessLevel")}</Label>
-              <Select
+              <Label id="remote-access-scope">{t("accessLevel")}</Label>
+              <RadioGroup
+                aria-labelledby="remote-access-scope"
+                className="gap-2"
                 onValueChange={(value) => {
                   if (
                     value === "view" ||
@@ -528,27 +523,24 @@ export const RemoteAccessSection = () => {
                 }}
                 value={scope}
               >
-                <SelectTrigger className="w-full" id="remote-access-scope">
-                  <SelectValue>
-                    {t(
-                      SCOPE_CHOICES.find((choice) => choice.value === scope)
-                        ?.label ?? "scopeOperate",
+                {SCOPE_CHOICES.map(({ value, label, hint }) => (
+                  <Label
+                    className={cn(
+                      "flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2.5 font-normal",
+                      value === scope && "border-primary",
                     )}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent align="start" alignItemWithTrigger={false}>
-                  {SCOPE_CHOICES.map(({ value, label, hint }) => (
-                    <SelectItem key={value} value={value}>
-                      <span className="grid gap-0.5 whitespace-normal">
-                        <span>{t(label)}</span>
-                        <span className="text-muted-foreground text-xs">
-                          {t(hint)}
-                        </span>
+                    key={value}
+                  >
+                    <RadioGroupItem className="mt-0.5" value={value} />
+                    <span className="grid gap-0.5">
+                      <span className="font-medium text-sm">{t(label)}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {t(hint)}
                       </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </span>
+                  </Label>
+                ))}
+              </RadioGroup>
             </div>
           )}
           <DialogFooter>
