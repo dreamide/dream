@@ -204,19 +204,18 @@ Every option a host starts with (`electron/host/options.js`): a flag and an
 environment variable each, resolved flag, then variable, then a setting the
 host saved (remote access), then the default, with the source of each value
 kept. `dream-host help` and the table in `docs/host-service.md` come from it.
-Options belong in documentation, not the app: the host reports only who it
-is, its version and addresses (`POST /api/host/settings`,
-`electron/host/settings-report.js`). A control an option fixes (remote access
-set by `--remote-port`) is disabled with the reason, from that control's own
-status.
+Options belong in documentation, not the app. Remote access set by
+`--remote-port` reports where it came from, and Settings shows it read-only
+with the reason.
 
 ## Settings pages for hosts
 
-**Hosts** (desktop only) is this app's: the hosts it uses. **Sharing & access** is one host's, on any
-client: its identity and version, remote access and authorized clients
-(`src/components/ide/settings/sharing-access-section.tsx`). What a client may
-change follows from `/api/remote/session`: the host's own computer's operator
-may turn remote access on or off; a client with `manage` may pair and revoke.
+Both are desktop only. **Hosts** is the hosts this app uses. **Sharing &
+access** is this computer's own host: remote access, authorized clients and
+pairing a computer (`src/components/ide/settings/sharing-access-section.tsx`).
+Dream never changes another machine's sharing; that is done on that machine
+(its own Dream, or `dream-host remote` and `dream-host pair`). A browser client
+has neither page.
 
 ## Connection runtime
 

@@ -162,18 +162,6 @@ export const DESKTOP_METHODS =
       kind: "send",
     },
 
-    // The home host: how this desktop runs it (desktop-host-mode.js).
-    getHomeHostSettings: {
-      channel: "home-host:get-settings",
-      kind: "invoke",
-      params: [],
-    },
-    restartHomeHost: {
-      channel: "home-host:restart",
-      kind: "invoke",
-      params: [],
-    },
-
     detectEditors: { channel: "editors:detect", kind: "invoke", params: [] },
     openInEditor: { channel: "editors:open", kind: "invoke" },
 

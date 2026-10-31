@@ -91,10 +91,6 @@ test("the desktop starts its own host when none runs, and stops it", {
   );
   expect(refused.status).toBe(401);
 
-  // Restarting the host it started gives a new process on the same data.
-  await edge.restart();
-  expect((await probeDaemon(desktopRun)).pid).not.toBe(info.pid);
-
   await edge.close();
   expect(await probeDaemon(desktopRun)).toBeNull();
   expect(isStateLockHeld(stateDatabasePath)).toBe(false);
@@ -120,7 +116,6 @@ test("a host the user started is attached to and left running", {
     owned: false,
     runDirectory: userRun,
   });
-  await expect(edge.restart()).rejects.toThrow(/dream-host/);
 
   await edge.close();
   expect((await probeDaemon(userRun))?.pid).toBe(record.pid);
@@ -204,7 +199,6 @@ test("a host that cannot start falls back to a host in this process", async () =
   expect(await host.listen({ apiToken: "t", port: 0 })).toBe(4321);
   expect(host.mode).toBe("in-process");
   expect(host.processSessions.hasActiveSessions()).toBe(true);
-  await expect(host.restart()).rejects.toThrow(/inside Dream/);
   expect(logged).toHaveLength(1);
 
   // With the data held by another host: no fallback.

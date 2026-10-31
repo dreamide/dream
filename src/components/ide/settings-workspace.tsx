@@ -670,22 +670,24 @@ export const SettingsWorkspace = () => {
                 </span>
               </button>
             ) : null}
-            {/* A host's sharing: on any client, for the hosts it uses. */}
-            <button
-              className={cn(
-                "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
-                settingsSection === "sharing"
-                  ? "font-semibold text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-              onClick={() => setSettingsSection("sharing")}
-              type="button"
-            >
-              <span className="flex items-center gap-2">
-                <ShieldCheck className="size-4" />
-                {settingsT("sharingAccess")}
-              </span>
-            </button>
+            {/* This computer's sharing: the desktop's own host only. */}
+            {platform.kind === "desktop" ? (
+              <button
+                className={cn(
+                  "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
+                  settingsSection === "sharing"
+                    ? "font-semibold text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => setSettingsSection("sharing")}
+                type="button"
+              >
+                <span className="flex items-center gap-2">
+                  <ShieldCheck className="size-4" />
+                  {settingsT("sharingAccess")}
+                </span>
+              </button>
+            ) : null}
             <button
               className={cn(
                 "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
@@ -1556,7 +1558,7 @@ export const SettingsWorkspace = () => {
                 <SshHostsSettingsSection />
               ) : null}
 
-              {settingsSection === "sharing" ? (
+              {settingsSection === "sharing" && platform.kind === "desktop" ? (
                 <SharingAccessSection appVersion={appVersion} />
               ) : null}
 

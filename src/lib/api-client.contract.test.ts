@@ -12,7 +12,6 @@ test("every client route is registered on the API server", async () => {
     { registerCheckpointRoutes },
     { registerCodePullRequestRoutes },
     { registerHostDirectoryRoutes },
-    { registerHostSettingsRoute },
     { registerMcpServerRoutes },
     { registerProjectGitRoutes },
     { registerProviderRoutes },
@@ -28,7 +27,6 @@ test("every client route is registered on the API server", async () => {
     import("../../electron/api/checkpoint-routes.js"),
     import("../../electron/api/code-pull-request-routes.js"),
     import("../../electron/api/host-directory-routes.js"),
-    import("../../electron/api/host-info-routes.js"),
     import("../../electron/api/mcp-server-routes.js"),
     import("../../electron/api/project-git-routes.js"),
     import("../../electron/api/provider-routes.js"),
@@ -66,7 +64,6 @@ test("every client route is registered on the API server", async () => {
     remoteAccess: {} as never,
   });
   registerChatRoutes(app, { scheduler: {} as never });
-  registerHostSettingsRoute(app, undefined);
   registerHostSocketRoutes(app, {
     socket: {} as never,
     tickets: {} as never,

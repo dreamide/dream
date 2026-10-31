@@ -12,9 +12,9 @@
 //              by the host itself (host/remote-access/)
 //   default    the table's
 //
-// The source of each value is kept: the host reports it (GET
-// /api/host/settings) so a client shows a setting fixed by a flag or an
-// environment variable as read-only.
+// The source of each value is kept: remote access set by a flag or an
+// environment variable reports where it came from, and Settings shows it
+// read-only.
 import os from "node:os";
 import path from "node:path";
 

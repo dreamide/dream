@@ -7,11 +7,13 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  KeyRound,
   Pencil,
   Plug,
   PlugZap,
   Plus,
   Server,
+  SquareTerminal,
   Trash2,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -219,9 +221,11 @@ export function ConnectionsSettingsSection() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-auto min-w-44">
             <DropdownMenuItem onClick={() => setSshForm({})}>
+              <SquareTerminal className="size-4" />
               {t("addSsh")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setPairing({})}>
+              <KeyRound className="size-4" />
               {t("addPairing")}
             </DropdownMenuItem>
           </DropdownMenuContent>

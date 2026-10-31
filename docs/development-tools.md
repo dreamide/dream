@@ -2,7 +2,7 @@
 
 ## Run alongside the installed app
 
-In Settings > Sharing & access, under Remote access, choose **Change** (or **Set up**), open
+In Settings > Sharing & access, choose **Change** (or **Set up**) on Connection, open
 **Advanced**, and choose different Local port and HTTPS port values in each app,
 then click Save (or Turn on). For example, use local port `5411`
 and HTTPS port `8443` in development if the installed app uses `5410` and `443`.

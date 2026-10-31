@@ -294,7 +294,6 @@ async function serve({ runDirectory, values, log, resolved }) {
     onShutdownRequest: (reason) => void shutdown(reason),
     clientDirectory: options.clientDir,
     dataDirectory: options.dataDir,
-    owner: resolved.options.owner,
     remoteOverride: remoteOverride(resolved),
     trackActivity: true,
     version,

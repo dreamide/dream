@@ -80,7 +80,7 @@ The desktop uses the host running on its own data, whoever started it, and
 otherwise starts one:
 
 - **A host the desktop started** runs in its own process and stops when you
-  quit Dream. Settings > Sharing & access can restart it.
+  quit Dream. Restarting Dream restarts it.
 - **A host you started** with `dream-host` on the desktop's data is used as it
   is and keeps running when you quit Dream. Restart it where it runs.
 

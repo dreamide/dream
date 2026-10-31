@@ -1,14 +1,12 @@
 /**
- * One host's remote access, on Settings > Sharing & access: whether paired
- * devices can reach it and how (Tailscale Serve or a Cloudflare Tunnel),
- * pairing a computer with a one-time code, and its authorized clients. The host owns all of it (host/remote-access/,
- * host/auth/); this section is a client's view, sent to `hostId`.
+ * This computer's remote access, on Settings > Sharing & access: whether
+ * paired devices can reach it and how (Tailscale Serve or a Cloudflare
+ * Tunnel), then its authorized clients and pairing a computer with a
+ * one-time code. The host owns all of it (host/remote-access/, host/auth/).
  *
- * The page shows only what the host reports, and offers only what works:
- * a client that is not the host's own operator (`canChange` false), and
- * remote access the host was started with (`mode: "proxy"`), see it
- * read-only with the reason. How to reach the host is edited in a setup
- * dialog, whose drafts are discarded when it closes.
+ * Remote access the host was started with (`--remote-port`, `mode:
+ * "proxy"`) is shown read-only with the reason. How to reach the host is
+ * edited in a setup dialog, whose drafts are discarded when it closes.
  */
 import {
   Check,
@@ -69,13 +67,9 @@ import {
   type RemoteDeviceSession,
 } from "@/lib/api-client";
 import { getDesktopApi } from "@/lib/electron";
-import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import { cn } from "@/lib/utils";
 import { useIdeStore } from "../ide-store";
-import {
-  bindRemoteAccessClient,
-  createRemoteAccessState,
-} from "./remote-access-state";
+import { createRemoteAccessState } from "./remote-access-state";
 import { SettingsGroup } from "./settings-shared";
 
 type Mode = RemoteAccessStatus["mode"];
@@ -217,25 +211,11 @@ const useModeText = () => {
   };
 };
 
-export const RemoteAccessSection = ({
-  hostId = LOCAL_HOST_ID,
-  canChange = true,
-  currentSessionId = null,
-}: {
-  /** The host whose remote access this is. */
-  hostId?: string;
-  /** This client is the host's own operator, which alone turns access on or off. */
-  canChange?: boolean;
-  /** This client's own device session on the host, marked "This device". */
-  currentSessionId?: string | null;
-} = {}) => {
+export const RemoteAccessSection = () => {
   const t = useTranslations("remote");
   const modeText = useModeText();
   const openExternalUrl = useIdeStore((state) => state.openExternalUrl);
-  const remote = useMemo(
-    () => createRemoteAccessState({ api: bindRemoteAccessClient(hostId) }),
-    [hostId],
-  );
+  const remote = useMemo(() => createRemoteAccessState(), []);
   const {
     status,
     busy,
@@ -272,22 +252,17 @@ export const RemoteAccessSection = ({
   const [scope, setScope] = useState<ScopeChoice>("operate");
   const [pendingRevoke, setPendingRevoke] =
     useState<RemoteDeviceSession | null>(null);
-  const [pendingRevokeOthers, setPendingRevokeOthers] = useState(false);
+  const [pendingRevokeAll, setPendingRevokeAll] = useState(false);
   // Set when the host started (`--remote-port`): not Settings' to change.
   const fixedBy =
     status?.mode === "proxy"
       ? Object.values(status.override?.sources ?? {}).join(", ")
       : null;
-  const locked = !canChange || fixedBy !== null;
+  const locked = fixedBy !== null;
   const lockReason =
     fixedBy !== null
       ? t("setByOptions", { sources: fixedBy || "--remote-port" })
-      : !canChange
-        ? t("changeOnHost")
-        : null;
-  const otherDevices = devices.filter(
-    (device) => device.id !== currentSessionId,
-  );
+      : null;
   const enabled = status?.enabled ?? false;
   // A host older than `configured` was set up if it is on.
   const configured = status?.configured ?? status?.enabled ?? false;
@@ -308,14 +283,7 @@ export const RemoteAccessSection = ({
   const address = status?.ready ? status.origin : status?.requestedOrigin;
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <h3 className="font-medium text-base">{t("accessTitle")}</h3>
-        <p className="text-muted-foreground text-sm">
-          {t("accessDescription")}
-        </p>
-      </div>
-
+    <div className="space-y-6">
       <SettingsGroup>
         <div className="flex items-center gap-3 px-4 py-3">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -445,87 +413,81 @@ export const RemoteAccessSection = ({
         />
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h4 className="font-medium text-sm">
-            {t("devicesTitle")}
-            <span className="ml-2 font-normal text-muted-foreground text-xs">
-              {t("devicesCount", { count: devices.length })}
-            </span>
-          </h4>
-          {status?.ready ? null : (
-            <p className="text-muted-foreground text-xs">
-              {t("pairNeedsAccess")}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {otherDevices.length > 0 ? (
+      <SettingsGroup>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div className="space-y-1">
+            <h4 className="font-medium text-sm">
+              {t("devicesTitle")}
+              <span className="ml-2 font-normal text-muted-foreground text-xs">
+                {t("devicesCount", { count: devices.length })}
+              </span>
+            </h4>
+            {status?.ready ? null : (
+              <p className="text-muted-foreground text-xs">
+                {t("pairNeedsAccess")}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {devices.length > 0 ? (
+              <Button
+                disabled={busy}
+                onClick={() => setPendingRevokeAll(true)}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                {t("revokeAll")}
+              </Button>
+            ) : null}
             <Button
-              disabled={busy}
-              onClick={() => setPendingRevokeOthers(true)}
+              disabled={busy || !status?.ready}
+              onClick={() => {
+                remote.clearPairing();
+                setPairOpen(true);
+              }}
               size="sm"
               type="button"
-              variant="outline"
             >
-              {t("revokeOthers")}
+              <KeyRound className="size-4" />
+              {t("pairDevice")}
             </Button>
-          ) : null}
-          <Button
-            disabled={busy || !status?.ready}
-            onClick={() => {
-              remote.clearPairing();
-              setPairOpen(true);
-            }}
-            size="sm"
-            type="button"
-          >
-            <KeyRound className="size-4" />
-            {t("pairDevice")}
-          </Button>
+          </div>
         </div>
-      </div>
 
-      {devices.length === 0 ? (
-        <p className="py-3 text-center text-muted-foreground text-sm">
-          {t("noDevices")}
-        </p>
-      ) : (
-        <SettingsGroup>
-          {devices.map((device) => (
-            <div className="flex items-center gap-3 px-4 py-3" key={device.id}>
-              <Laptop className="size-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="truncate font-medium text-sm">
-                    {device.deviceName}
-                  </span>
-                  {device.id === currentSessionId ? (
-                    <Badge variant="outline">{t("thisDevice")}</Badge>
-                  ) : null}
-                </div>
-                <div className="text-muted-foreground text-xs">
-                  {scopeLabel(device.scopes)} ·{" "}
-                  {t("lastUsed", {
-                    time: new Date(device.lastUsedAt).toLocaleString(),
-                  })}
-                </div>
+        {devices.length === 0 ? (
+          <p className="px-4 py-3 text-center text-muted-foreground text-sm">
+            {t("noDevices")}
+          </p>
+        ) : null}
+        {devices.map((device) => (
+          <div className="flex items-center gap-3 px-4 py-3" key={device.id}>
+            <Laptop className="size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-medium text-sm">
+                {device.deviceName}
               </div>
-              <Button
-                aria-label={t("revokeTitle", { device: device.deviceName })}
-                disabled={busy}
-                onClick={() => setPendingRevoke(device)}
-                size="icon-sm"
-                title={t("revoke")}
-                type="button"
-                variant="ghost"
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
+              <div className="text-muted-foreground text-xs">
+                {scopeLabel(device.scopes)} ·{" "}
+                {t("lastUsed", {
+                  time: new Date(device.lastUsedAt).toLocaleString(),
+                })}
+              </div>
             </div>
-          ))}
-        </SettingsGroup>
-      )}
+            <Button
+              aria-label={t("revokeTitle", { device: device.deviceName })}
+              disabled={busy}
+              onClick={() => setPendingRevoke(device)}
+              size="icon-sm"
+              title={t("revoke")}
+              type="button"
+              variant="ghost"
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        ))}
+      </SettingsGroup>
 
       <Dialog onOpenChange={changePairOpen} open={pairOpen}>
         <DialogContent className="sm:max-w-md">
@@ -616,14 +578,11 @@ export const RemoteAccessSection = ({
         </DialogContent>
       </Dialog>
 
-      <AlertDialog
-        onOpenChange={setPendingRevokeOthers}
-        open={pendingRevokeOthers}
-      >
+      <AlertDialog onOpenChange={setPendingRevokeAll} open={pendingRevokeAll}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {t("revokeOthersTitle", { count: otherDevices.length })}
+              {t("revokeAllTitle", { count: devices.length })}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {t("revokeDescription")}
@@ -634,16 +593,16 @@ export const RemoteAccessSection = ({
             <AlertDialogAction
               disabled={busy}
               onClick={() => {
-                setPendingRevokeOthers(false);
+                setPendingRevokeAll(false);
                 void (async () => {
-                  for (const device of otherDevices) {
+                  for (const device of devices) {
                     await remote.revoke(device.id);
                   }
                 })();
               }}
               variant="destructive"
             >
-              {t("revokeOthers")}
+              {t("revokeAll")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

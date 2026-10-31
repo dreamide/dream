@@ -29,32 +29,6 @@ type RemoteAccessClient = Pick<
   | "remotePairingCreate"
 >;
 
-const REMOTE_ACCESS_METHODS = [
-  "remoteAccess",
-  "remoteAccessEnable",
-  "remoteAccessDisable",
-  "remoteAccessCheck",
-  "remoteSessions",
-  "remoteSessionRevoke",
-  "remotePairingCreate",
-] as const satisfies readonly (keyof RemoteAccessClient)[];
-
-/** The app's client with every remote access request sent to `hostId`. */
-export const bindRemoteAccessClient = (
-  hostId: string,
-  api: ApiClient = apiClient,
-): RemoteAccessClient =>
-  Object.fromEntries(
-    REMOTE_ACCESS_METHODS.map((name) => [
-      name,
-      (request: unknown, options?: { signal?: AbortSignal }) =>
-        (api[name] as (request: unknown, options?: object) => Promise<unknown>)(
-          request,
-          { ...options, hostId },
-        ),
-    ]),
-  ) as unknown as RemoteAccessClient;
-
 export const createRemoteAccessState = ({
   api = apiClient,
   pollMs = 3_000,

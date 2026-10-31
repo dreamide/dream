@@ -344,8 +344,7 @@ export function createHomeHostAttachment({
     dataDirectory,
     getRunDirectory: () => current?.runDirectory ?? null,
     resolveRemoteHost,
-    shutdownMessage:
-      "Restart the host from Settings, or quit Dream to stop the host it started.",
+    shutdownMessage: "Restart Dream to start its host again.",
     async start() {
       await start();
     },
@@ -356,7 +355,7 @@ export function createHomeHostAttachment({
     },
     stateDatabasePath,
     unavailableMessage:
-      "This desktop's host is not running. Restart the host from Settings, or restart Dream.",
+      "This desktop's host is not running. Restart Dream to start it again.",
   });
 
   return {
@@ -368,20 +367,6 @@ export function createHomeHostAttachment({
       runDirectory: current?.runDirectory ?? null,
       version: current?.version ?? null,
     }),
-
-    /**
-     * Restarts the host this desktop started; refused for one it did not.
-     * Clients reconnect on their own once it answers again.
-     */
-    async restart() {
-      if (!current?.owned) {
-        throw new Error(
-          "This host was started with dream-host; restart it where it runs.",
-        );
-      }
-      await stopDaemon(current.runDirectory);
-      await startOwn();
-    },
   };
 }
 
@@ -440,14 +425,6 @@ export function withInProcessFallback({
       mode === "in-process"
         ? { owned: true, runDirectory: null, version: null }
         : attached.describe(),
-    restart: () =>
-      mode === "in-process"
-        ? Promise.reject(
-            new Error(
-              "The host runs inside Dream; restart Dream to restart it.",
-            ),
-          )
-        : attached.restart(),
     close: () => active.close(),
   };
 }

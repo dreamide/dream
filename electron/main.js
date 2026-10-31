@@ -109,7 +109,6 @@ const dreamVersion = readDreamVersion();
 // A host mode named in the environment (desktop-host-mode.js); `desktop` and
 // `auto` choose as if unset.
 const requestedHostMode = process.env.DREAM_HOST_MODE?.trim() || "";
-const hostModeIsExplicit = requestedHostMode === "in-process";
 
 // Diagnostic only: opt-in via env var to test whether software rendering is
 // caused by Chromium's GPU blocklist (do NOT enable in production builds —
@@ -694,22 +693,6 @@ const desktop = createDesktopHandlers({
   },
   getPath: (name) => app.getPath(name),
   getWindow: getAliveMainWindow,
-  homeHost: {
-    // What Settings > Sharing & access needs: the mode now and why, and
-    // whether this desktop started its host (and so may restart and stops it).
-    describe: () => {
-      const mode = currentHostMode();
-      const attached = host.describe?.();
-      return {
-        explicit: hostModeIsExplicit,
-        mode,
-        owned: attached?.owned ?? false,
-        reason:
-          mode !== resolvedHostMode.mode ? "fallback" : resolvedHostMode.reason,
-      };
-    },
-    restart: () => host.restart(),
-  },
   hostname: () => os.hostname(),
   sendToRenderer,
   sshConfigHosts: () => readSshConfigHosts(),

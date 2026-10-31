@@ -925,17 +925,6 @@ export type AppScreenshotResult =
 /** How the home host runs: in its own process, or inside the app. */
 export type HomeHostMode = "detached" | "in-process";
 
-export interface HomeHostSettings {
-  /** How the home host runs in this launch. */
-  mode: HomeHostMode;
-  /** Why: what decided the mode at launch. */
-  reason: "DREAM_HOST_MODE" | "default" | "shared-writer" | "fallback";
-  /** DREAM_HOST_MODE chose the mode. */
-  explicit: boolean;
-  /** This desktop started the host: it may restart it, and stops it at quit. */
-  owned: boolean;
-}
-
 export interface DesktopApi {
   isElectron: true;
   apiSessionToken: string;
@@ -982,11 +971,6 @@ export interface DesktopApi {
 
   /** The host aliases in the user's ssh config, for suggesting targets. */
   listSshConfigHosts: () => Promise<string[]>;
-
-  /** How this desktop runs its home host, and whether it started it. */
-  getHomeHostSettings: () => Promise<HomeHostSettings>;
-  /** Restarts the host this desktop started; refused for one it did not. */
-  restartHomeHost: () => Promise<HomeHostSettings>;
 
   /**
    * Connects an SSH host (its daemon is started or reused there). With an

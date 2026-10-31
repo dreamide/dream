@@ -100,10 +100,6 @@ const createFakes = ({ window = true } = {}) => {
     },
     getPath: () => "/pictures",
     getWindow: () => (window ? fakeWindow : null),
-    homeHost: {
-      describe: () => ({ mode: "detached", owned: true }),
-      restart: async () => log.push(["restart host"]),
-    },
     hostname: () => "Mikes-MacBook-Pro.local",
     sendToRenderer: record("renderer"),
     sshConfigHosts: async () => ["devbox"],
@@ -356,19 +352,6 @@ test("every method the renderer calls is handled once, on its channel", () => {
   assert.throws(() =>
     registerDesktopHandlers(ipcMain, { onHostStatus: () => {} }),
   );
-});
-
-test("the home host is described and restarted", async () => {
-  const { handlers, log } = createFakes();
-  assert.deepEqual(handlers.getHomeHostSettings(), {
-    mode: "detached",
-    owned: true,
-  });
-  assert.deepEqual(await handlers.restartHomeHost(), {
-    mode: "detached",
-    owned: true,
-  });
-  assert.deepEqual(log.at(-1), ["restart host"]);
 });
 
 test("every channel is used by one method", () => {

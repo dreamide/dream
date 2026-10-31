@@ -4,7 +4,6 @@
 // enforces it), so the same module runs in-process as the local host inside
 // Electron's main process and as a standalone daemon on an SSH host
 // (daemon.js).
-import os from "node:os";
 import path from "node:path";
 import { startApiServer } from "../api/app.js";
 import {
@@ -35,7 +34,6 @@ import { createHostProofSigner, loadHostIdentity } from "./identity.js";
 import { HOST_CAPABILITIES, HOST_PROTOCOL_VERSION } from "./protocol.js";
 import { createRemoteAccess } from "./remote-access/remote-access.js";
 import { createTailscale } from "./remote-access/tailscale.js";
-import { describeHostSettings } from "./settings-report.js";
 import { acquireStateLock } from "./state-lock.js";
 
 /**
@@ -51,13 +49,10 @@ import { acquireStateLock } from "./state-lock.js";
  *   kind?: string,
  *   onShutdownRequest?: (reason: string) => void,
  *   lockDetails?: Record<string, unknown>,
- *   owner?: "user" | "desktop" | null,
  *   remoteOverride?: Parameters<typeof createRemoteAccess>[0]["override"],
  * }} options
  *   `lockDetails`: more for the state lock's record (a daemon's run
  *   directory and owner), so a desktop can find a host on its database.
- *   `owner`: who started the host (`--owner`), reported by POST
- *   /api/host/settings; a host in a desktop's process is the desktop's.
  *   `remoteOverride`: remote access set when the host started.
  *   `dataDirectory`: where the host keeps its files.
  *   `diagnosticsEnabled`: whether terminal flow-control diagnostics are served.
@@ -97,7 +92,6 @@ export function createHost({
   kind = "host",
   onShutdownRequest,
   lockDetails = {},
-  owner = null,
   remoteOverride = null,
 }) {
   configureHostDataDirectory(dataDirectory);
@@ -107,7 +101,6 @@ export function createHost({
     details: lockDetails,
     kind,
   });
-  const startedAt = new Date().toISOString();
   // Before anything else: a host that cannot say who it is serves nobody.
   const identity = loadHostIdentity(dataDirectory);
   const signHostProof = createHostProofSigner(dataDirectory);
@@ -210,18 +203,6 @@ export function createHost({
   let server = null;
   let remoteServer = null;
 
-  /** What POST /api/host/settings reports: who this host is. */
-  const getHostSettings = () =>
-    describeHostSettings({
-      access: remoteAccess.status(),
-      descriptor: getHostDescriptor(),
-      owner: owner ?? (kind === "desktop" ? "desktop" : "user"),
-      localPort: server?.port ?? null,
-      name: os.hostname(),
-      pid: process.pid,
-      startedAt,
-      version,
-    });
   /** What both listeners serve, besides their own guards. */
   // Whether and how paired devices reach this host; the listener it starts
   // is this host's remote listener (below).
@@ -264,7 +245,6 @@ export function createHost({
     delegation,
     getHostDescriptor,
     getHostInfo,
-    getHostSettings,
     hostSocket: { socket: hostSocket, tickets: socketTickets },
     scheduler,
     terminals: {

@@ -30,10 +30,7 @@ import { registerChatRoutes } from "./chat-routes.js";
 import { registerCheckpointRoutes } from "./checkpoint-routes.js";
 import { registerCodePullRequestRoutes } from "./code-pull-request-routes.js";
 import { registerHostDirectoryRoutes } from "./host-directory-routes.js";
-import {
-  registerHostInfoRoute,
-  registerHostSettingsRoute,
-} from "./host-info-routes.js";
+import { registerHostInfoRoute } from "./host-info-routes.js";
 import {
   isProxiedHostSocketPath,
   registerHostProxyRoutes,
@@ -81,7 +78,6 @@ export function registerHostRoutes(
     getHostDescriptor,
     signHostProof,
     getHostInfo,
-    getHostSettings,
     hostSocket,
     terminals,
     remoteAccess,
@@ -111,7 +107,6 @@ export function registerHostRoutes(
     registerBrowserMcpRoutes(app);
     registerBrowserToolCallRoutes(app);
   }
-  registerHostSettingsRoute(app, getHostSettings);
   registerHostDirectoryRoutes(app);
   if (catalog)
     registerCatalogRoutes(app, catalog, { describeHost: getHostDescriptor });

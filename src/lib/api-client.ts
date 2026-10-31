@@ -201,23 +201,6 @@ export interface RemoteAccessStatus {
   checkedAt: string | null;
 }
 
-/** What POST /api/host/settings answers: who the host is. */
-export interface HostSettingsReport {
-  host: {
-    name: string;
-    hostId: string;
-    fingerprint: string | null;
-    version: string | null;
-    pid: number;
-    startedAt: string;
-    /** `desktop`: a desktop started it and stops it when it quits. */
-    owner: "user" | "desktop";
-    /** The local API's loopback address, and the verified remote one. */
-    local: string | null;
-    remote: string | null;
-  };
-}
-
 /** A pairing just minted: a short code that works once. */
 export interface RemotePairing {
   pairingId: string;
@@ -741,9 +724,6 @@ export const API_ROUTES = {
   // Remote access and paired devices (this machine's operator only)
   remoteAccess: post<Record<string, never>, RemoteAccessStatus>(
     "/api/remote/access",
-  ),
-  hostSettings: post<Record<string, never>, HostSettingsReport>(
-    "/api/host/settings",
   ),
   remoteAccessEnable: post<
     Input<typeof remoteAccessEnableSchema>,

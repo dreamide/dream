@@ -44,8 +44,11 @@ Decisions recorded 2026-10-30:
 - **No remote-only desktop, and no option list in the host's report.** The
   desktop always runs a host of its own; `/api/host/settings` reports only who
   the host is. See DH-20.
+- **Sharing & access is this computer's only.** Dream does not manage another
+  machine's sharing, the page is one table with no host picker or header, and
+  the browser client does not show it. See DH-21.
 
-DH-07 to DH-20 supersede parts of DH-02, DH-03, DH-04, DH-06 and DH-08, as noted under each.
+DH-07 to DH-21 supersede parts of DH-02, DH-03, DH-04, DH-06 and DH-08, as noted under each.
 
 ## DH-01: State lock held by the operating system
 
@@ -718,7 +721,7 @@ Remaining/deferred: none.
 
 ## DH-15: Sharing & access for other hosts and the browser client
 
-Status: implemented; not exercised with SSH or paired hosts
+Status: reversed 2026-10-30 by DH-21 (the page is this computer's only)
 
 Problem and trigger: remote access and paired devices can be managed only for
 the desktop's home host, and only from the desktop. An SSH host or paired host
@@ -945,16 +948,57 @@ Completion criteria:
 - The report carries no option list.
 
 Validation: `desktop-host-mode.test.js`, `settings-report.test.js`,
-`connection-follow.test.ts` and `pnpm check`.
+`connection-follow.test.ts` and `pnpm check`. DH-21 then removed the report
+and its route.
 
 Remaining/deferred: none.
+
+## DH-21: Sharing & access is this computer's only, in one table
+
+Status: implemented
+
+Problem and trigger: decided 2026-10-30. The page picked among hosts and
+managed other machines' sharing with permissions that varied by route (DH-15):
+"a mess of environments and permissions". It was also split into a host
+header (name, version, address, a menu) and a Remote access section, where
+the user expects one object in one table.
+
+Scope:
+
+- **This computer only.** Sharing & access is desktop only, for this
+  computer's host. No host picker; no `/api/remote/session` check, since the
+  desktop is always its host's operator. The browser client loses the page
+  (its Sign out stays in the settings nav). Another machine's sharing is
+  managed on that machine.
+- **One table.** Under the page's title and description: one card with
+  **Allow paired devices** and **Connection**, then one card for
+  **Authorized clients**, whose header row holds **Revoke all** and **Pair a
+  computer**, with the clients as rows below it.
+- **No host header.** Removed: the host's name, the version card, and the
+  menu (copy host ID, copy fingerprint, Restart host). A notice appears only
+  when this computer's host runs another version than the app (a
+  `dream-host` the user started), read from `GET /api/host-info`.
+- **Removed with them.** `POST /api/host/settings` and
+  `settings-report.js`; the `getHomeHostSettings` and `restartHomeHost` IPC
+  and the attachment's `restart`; the "This device" badge (the desktop is
+  never one of its host's paired clients).
+
+Completion criteria:
+
+- Sharing & access shows this computer's host only, as one settings card and
+  one clients card.
+- Nothing in Dream changes another machine's sharing.
+
+Validation: `pnpm check`. Not yet inspected in the desktop window.
+
+Remaining/deferred: a visual check in the desktop window, both themes.
 
 ## Order of the second round
 
 DH-07 → DH-08 → DH-09 → DH-10, then DH-11 → DH-12 → DH-13 → DH-14 → DH-15.
-DH-16 to DH-20 can go at any point.
+DH-16 to DH-21 can go at any point.
 
-Recovery: docs/architecture/tasks/detached-host.md. DH-01 to DH-20 are
+Recovery: docs/architecture/tasks/detached-host.md. DH-01 to DH-21 are
 implemented (DH-04 publishing pending). What remains is listed under each
 candidate: mostly walkthroughs (macOS/Linux, real SSH/HTTPS/WSL hosts, the
 service manager examples) and visual checks of the desktop pages. Latest

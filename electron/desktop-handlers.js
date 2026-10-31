@@ -110,9 +110,6 @@ const pairingIdentity = (payload, fallbackName) => {
  * @param {{ update: (payload: unknown) => void, capturePage: (payload: unknown) => unknown }} deps.browserSessions
  * @param {{ detect: () => unknown, open: (options: { editorId: unknown, projectPath: unknown, sshTarget: unknown }) => unknown }} deps.editors
  * @param {(options: { chooseSavePath: (fileName: string) => Promise<string | null>, copyPng: (png: Uint8Array) => Promise<void>, webContents: unknown }) => Promise<{ status: string, filePath?: string }>} deps.captureAppScreenshot
- * @param {{ describe: () => unknown, restart: () => Promise<void> }} deps.homeHost
- *   How this desktop runs its home host: the mode now, and whether it
- *   started the host (desktop-host-mode.js, desktop-host.js).
  */
 export const createDesktopHandlers = ({
   browserSessions,
@@ -122,7 +119,6 @@ export const createDesktopHandlers = ({
   files,
   getPath,
   getWindow,
-  homeHost,
   hostname,
   sendToRenderer,
   sshConfigHosts,
@@ -500,11 +496,6 @@ export const createDesktopHandlers = ({
       };
     },
     listSshConfigHosts: () => sshConfigHosts(),
-    getHomeHostSettings: () => homeHost.describe(),
-    restartHomeHost: async () => {
-      await homeHost.restart();
-      return homeHost.describe();
-    },
     disconnectHost: (/** @type {unknown} */ payload) => {
       const { hostId } = fields(payload);
       if (typeof hostId === "string") sshHosts.disconnect(hostId);
