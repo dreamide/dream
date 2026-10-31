@@ -343,19 +343,6 @@ export const createDesktopHandlers = ({
       return true;
     },
 
-    pairHost: async (payload) => {
-      const { url, deviceName } = fields(payload);
-      if (
-        typeof url !== "string" ||
-        url.length > 2000 ||
-        (deviceName !== undefined && typeof deviceName !== "string")
-      )
-        throw new Error("A pairing link and device name are required.");
-      return sshHosts.pair({
-        url,
-        ...pairingIdentity(payload, desktopDeviceName(hostname())),
-      });
-    },
     pairHostWithCode: async (payload) => {
       const { address, code, attemptId, deviceName } = fields(payload);
       if (

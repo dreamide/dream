@@ -12,9 +12,9 @@
 //   remote off                       stop serving paired devices
 //   remote check                     check the setup again
 //   pair [--scopes view,operate] [--name name]
-//                                    a pairing link and its code
-//   claims                           devices asking to pair with a code
-//   confirm <claimId> / deny <claimId>
+//                                    a pairing code: entered with this
+//                                    host's address on the other computer,
+//                                    it pairs it at once
 //   devices                          paired devices
 //   revoke <sessionId>               end a device's access
 //
@@ -174,57 +174,16 @@ export async function runRemoteCommand({
         ...(values.name ? { deviceName: values.name } : {}),
         scopes,
       });
-      // Only a verified public address is offered to another device.
-      const url = access.ready
-        ? pairing.urls.find((candidate) => candidate.startsWith(access.origin))
-        : null;
-      const lines = [];
-      if (url) {
-        lines.push(url);
-      } else {
-        lines.push(
-          "Remote access is not ready, so there is no address to open. Run `dream-host remote on` first.",
-        );
-      }
+      // Only a verified public address is offered as where to pair.
+      const address = access.ready ? access.origin : null;
+      const lines = [`Pairing code: ${pairing.code}`];
       lines.push(
-        "",
-        `Or enter the code ${pairing.code} on the device, then confirm it here with \`dream-host claims\` and \`dream-host confirm\`.`,
+        address
+          ? `Enter it with this host's address, ${address}, on the other computer.`
+          : "Remote access is not ready, so the other computer cannot reach this host yet. Run `dream-host remote on` first.",
         `Grants ${scopes.join(", ")}; expires at ${pairing.expiresAt}; works once.`,
       );
-      show({ ...pairing, url }, lines);
-      return 0;
-    }
-
-    case "claims": {
-      const { claims } = await call("/api/remote/claims");
-      show(
-        claims,
-        claims.length === 0
-          ? ["No device is waiting to pair."]
-          : claims.map(
-              (claim) =>
-                `${claim.claimId}  “${claim.deviceName}”  ${claim.scopes.join(",")}  asked ${claim.createdAt}`,
-            ),
-      );
-      return 0;
-    }
-
-    case "confirm":
-    case "deny": {
-      const claimId = args[0];
-      if (!claimId) {
-        print(`Usage: dream-host ${name} <claimId>`);
-        return 2;
-      }
-      const result = await call("/api/remote/claims/answer", {
-        approve: name === "confirm",
-        claimId,
-      });
-      show(result, [
-        name === "confirm"
-          ? `Confirmed “${result.session?.deviceName ?? claimId}”.`
-          : "Denied.",
-      ]);
+      show({ ...pairing, address }, lines);
       return 0;
     }
 
@@ -264,9 +223,6 @@ export async function runRemoteCommand({
 export const REMOTE_COMMANDS = Object.freeze([
   "remote",
   "pair",
-  "claims",
-  "confirm",
-  "deny",
   "devices",
   "revoke",
 ]);

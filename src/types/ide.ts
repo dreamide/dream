@@ -1015,17 +1015,10 @@ export interface DesktopApi {
     routeId?: string;
     routes?: HostRouteRuntimeState[];
   }>;
-  pairHost: (payload: {
-    url: string;
-    knownIdentities?: { hostId: string; fingerprint: string | null }[];
-    deviceName?: string;
-    expectedHostId?: string;
-    expectedFingerprint?: string | null;
-  }) => Promise<{ credentialId: string; origin: string; host: HostDescriptor }>;
   /**
-   * Pairs with a short code from the host's Remote access settings. Resolves
-   * once someone confirms this device on the host; `cancelHostPairing` with
-   * the same attempt id stops waiting.
+   * Pairs with a short code created on the host, which redeems it for this
+   * desktop's session at once. `cancelHostPairing` with the same attempt id
+   * stops an attempt in flight.
    */
   pairHostWithCode: (payload: {
     address: string;

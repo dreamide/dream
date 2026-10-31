@@ -256,7 +256,6 @@ export function createDesktopHostConnections({
       }
       return host.supervisor.connect();
     },
-    pair: (options) => httpsRoutes.pair(options),
     pairWithCode: (options) => httpsRoutes.pairWithCode(options),
     forgetCredential: (id) => httpsRoutes.forget(id),
     getEndpoint: (hostId) =>

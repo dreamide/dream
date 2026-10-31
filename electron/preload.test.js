@@ -98,7 +98,6 @@ const SENT = [
   ["windowClose", [], ["invoke", "window:close"]],
   ["pickProjectDirectory", [], ["invoke", "projects:pick-directory"]],
   ["loadState", [], ["invoke", "state:load"]],
-  ["pairHost", [payload], ["invoke", "hosts:pair", payload]],
   ["pairHostWithCode", [payload], ["invoke", "hosts:pair-with-code", payload]],
   [
     "cancelHostPairing",

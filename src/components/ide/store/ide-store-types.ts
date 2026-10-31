@@ -90,9 +90,8 @@ export interface CloseProjectTerminalOptions {
  * code typed with the host's address, which waits for the host to confirm.
  * `attemptId` names a code attempt so it can be cancelled.
  */
-export type HostPairing =
-  | { kind: "link"; url: string }
-  | { kind: "code"; address: string; code: string; attemptId: string };
+/** A pairing code created on the host, entered with the host's address. */
+export type HostPairing = { address: string; code: string; attemptId: string };
 
 export interface HostRuntimeState {
   state: HostConnectionState;
@@ -594,7 +593,7 @@ export interface IdeState {
   loadHostCatalog: (hostId: string) => Promise<void>;
   /** Connects an SSH host from settings and loads its catalog. */
   connectHost: (hostId: string) => Promise<boolean>;
-  /** Pairs by link, or by code (waiting until the host confirms it). */
+  /** Pairs with a code created on the host. */
   pairHost: (
     how: HostPairing,
     label: string,

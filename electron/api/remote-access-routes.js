@@ -29,25 +29,13 @@ const deviceFields = {
   deviceName: z.string().max(200).optional(),
 };
 
-export const remotePairRequestSchema = z.object({
-  ...deviceFields,
-  pairing: z.string().min(1).max(200),
-});
 export const remotePairCodeRequestSchema = z.object({
   ...deviceFields,
   code: z.string().min(1).max(32),
 });
-export const remotePairClaimRequestSchema = z.object({
-  claimId: z.string().min(1).max(100),
-  claimSecret: z.string().min(1).max(200),
-});
 export const remotePairingCreateRequestSchema = z.object({
   deviceName: z.string().max(200).optional(),
   scopes: z.array(z.enum(SCOPES)).min(1).default(["view", "operate"]),
-});
-export const remoteClaimAnswerRequestSchema = z.object({
-  approve: z.boolean(),
-  claimId: z.string().min(1).max(100),
 });
 export const remoteSessionRevokeRequestSchema = z.object({
   sessionId: z.string().min(1).max(100),
@@ -106,11 +94,11 @@ export { clearSessionCookie };
  *   auth: ReturnType<typeof import("../host/auth/host-auth.js").createHostAuth>,
  *   describeHost: () => object,
  *   remote: boolean,
- *   pairingUrls?: (fragment: string) => string[],
+ *   publicOrigins?: () => string[],
  * }} options
  *   `remote`: serving the remote listener (adds the public pairing
- *   routes). `pairingUrls`: where a pairing link may be opened, for the
- *   fragment a new pairing has (the remote listener's public origins).
+ *   route). `publicOrigins`: the origins the remote listener is served at,
+ *   the only audiences a host proof is signed for.
  */
 export const remoteAccessEnableSchema = z.object({
   httpsPort: z.number().int().min(1).max(65_535).optional(),
@@ -129,7 +117,7 @@ export function registerRemoteAccessRoutes(
     describeHost,
     signHostProof = null,
     remote,
-    pairingUrls = () => [],
+    publicOrigins = () => [],
     remoteAccess = null,
   },
 ) {
@@ -151,7 +139,7 @@ export function registerRemoteAccessRoutes(
               "Update the host to support native connections.",
               426,
             );
-          if (!pairingUrls("").some((url) => new URL(url).origin === audience))
+          if (!publicOrigins().includes(audience))
             throw new RouteError(
               "The proof audience is not this host's origin.",
               421,
@@ -161,38 +149,16 @@ export function registerRemoteAccessRoutes(
       ),
     );
 
-    app.post("/api/remote/pair", (c) =>
-      handleJsonRoute(c, remotePairRequestSchema, (data) =>
+    // A pairing code, redeemed for this computer's session at once.
+    app.post("/api/remote/pair/code", (c) =>
+      handleJsonRoute(c, remotePairCodeRequestSchema, (data) =>
         authorized(async () =>
           deliverSession(
             c,
             data.clientKind,
-            await auth.exchangePairing({
-              clientKind: data.clientKind,
-              deviceName: data.deviceName,
-              pairingSecret: data.pairing,
-            }),
+            await auth.redeemPairingCode(data),
           ),
         ),
-      ),
-    );
-
-    app.post("/api/remote/pair/code", (c) =>
-      handleJsonRoute(c, remotePairCodeRequestSchema, (data) =>
-        authorized(() => auth.claimPairingCode(data)),
-      ),
-    );
-
-    app.post("/api/remote/pair/claim", (c) =>
-      handleJsonRoute(c, remotePairClaimRequestSchema, (data) =>
-        authorized(() => {
-          const result = auth.pollClaim(data);
-          if (result.status !== "confirmed") return result;
-          return {
-            status: "confirmed",
-            ...deliverSession(c, result.session.clientKind, result),
-          };
-        }),
       ),
     );
   }
@@ -237,25 +203,7 @@ export function registerRemoteAccessRoutes(
 
   app.post("/api/remote/pairings", (c) =>
     handleJsonRoute(c, remotePairingCreateRequestSchema, (data) =>
-      authorized(() => {
-        const pairing = auth.createPairing(principalOf(c), data);
-        return { ...pairing, urls: pairingUrls(pairing.fragment) };
-      }),
-    ),
-  );
-
-  app.post("/api/remote/claims", (c) =>
-    handleJsonRoute(
-      c,
-      emptyRequestSchema,
-      () => authorized(() => ({ claims: auth.listClaims(principalOf(c)) })),
-      { missingBody: {} },
-    ),
-  );
-
-  app.post("/api/remote/claims/answer", (c) =>
-    handleJsonRoute(c, remoteClaimAnswerRequestSchema, (data) =>
-      authorized(() => auth.answerClaim(principalOf(c), data)),
+      authorized(() => auth.createPairing(principalOf(c), data)),
     ),
   );
 

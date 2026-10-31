@@ -37,8 +37,10 @@ Decisions recorded 2026-10-30:
   a phone is not offered; mobile is a separate, future project. This reverses
   CONN-04's phone layout and the phone pairing of CONN-01 to CONN-05
   (`remote-connections.md`); see DH-17.
+- **Pairing by code only, with no approval** (later the same day). The link
+  method and the host-side confirmation of a code are removed; see DH-18.
 
-DH-07 to DH-17 supersede parts of DH-02, DH-03 and DH-06, as noted under each.
+DH-07 to DH-18 supersede parts of DH-02, DH-03 and DH-06, as noted under each.
 
 ## DH-01: State lock held by the operating system
 
@@ -635,8 +637,8 @@ Remaining/deferred:
 - the desktop's view (Restart host on its own host) in a window;
 - the light theme;
 - **Revoke others** with more than one client;
-- the link view of **Create link** (its QR code is gone; the CLI shows the
-  link-only output).
+- the code view of **Pair a computer** (DH-18 replaced **Create link** and its
+  link view).
 
 ## DH-13: Overrides and restart notices in Settings
 
@@ -812,12 +814,56 @@ Validation:
 
 Remaining/deferred: none.
 
+## DH-18: Pairing by code only, with no approval
+
+Status: implemented
+
+Problem and trigger: decided 2026-10-30. The user found the link method
+cumbersome: a long secret URL to copy to the other computer, next to a code
+path that also needed someone on the host to confirm the device by name. With
+no phone client (DH-17), the other computer types well, and whoever creates
+the code is already the approval.
+
+Scope:
+
+- **Host.** A pairing is a short code only: 8 Crockford base32 characters
+  (40 bits), single use, ten minutes, attempts rate limited to 10 a minute
+  host-wide. `redeemPairingCode` turns it into a session at once. Removed: the
+  link secret and its fragment, claims, `POST /api/remote/pair`,
+  `/api/remote/pair/claim`, `/api/remote/claims` and
+  `/api/remote/claims/answer`. `POST /api/remote/pair/code` now answers with
+  the session (a cookie for a browser, a token for the desktop).
+- **CLI.** `dream-host pair` and `serve --pair` print the code and the
+  verified address. `dream-host claims`, `confirm` and `deny` are removed.
+- **Desktop.** **Add host > Pairing code** takes the address and the code, with
+  no tabs and no waiting; Cancel stops an attempt in flight. The link IPC
+  (`pairHost`) is removed.
+- **Browser client.** The pairing screen takes a code and a device name; there
+  is no `/pair#pair=…` entry point.
+- **Sharing & access.** **Pair a computer** (was **Create link**) shows the code
+  and the host's address, each with a copy button. The pending requests list
+  is removed. A paired client appears under Authorized clients and can be
+  revoked there.
+
+Completion criteria:
+
+- No link, claim or confirmation remains in the host, CLI, desktop, browser
+  client, settings, locales or docs.
+- A code redeems once, an expired or used code is refused, and code attempts
+  are rate limited. Met in `host-auth.test.js`.
+
+Validation: `host-auth.test.js`, `desktop-handlers.test.js`,
+`remote-access-state.test.ts` and `pnpm check`.
+
+Remaining/deferred: a walkthrough pairing a second desktop and a browser
+against a real host, and a visual check of the new dialogs.
+
 ## Order of the second round
 
 DH-07 → DH-08 → DH-09 → DH-10, then DH-11 → DH-12 → DH-13 → DH-14 → DH-15.
-DH-16 and DH-17 can go at any point.
+DH-16, DH-17 and DH-18 can go at any point.
 
-Recovery: docs/architecture/tasks/detached-host.md. DH-01 to DH-17 are
+Recovery: docs/architecture/tasks/detached-host.md. DH-01 to DH-18 are
 implemented (DH-04 publishing pending). What remains is listed under each
 candidate: mostly walkthroughs (macOS/Linux, real SSH/HTTPS/WSL hosts, the
 service manager examples) and visual checks of the desktop pages. Latest

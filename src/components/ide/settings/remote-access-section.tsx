@@ -1,8 +1,7 @@
 /**
  * One host's remote access, on Settings > Sharing & access: whether paired
  * devices can reach it and how (Tailscale Serve or a Cloudflare Tunnel),
- * pairing a computer by link or code, confirming code requests, and its
- * authorized clients. The host owns all of it (host/remote-access/,
+ * pairing a computer with a one-time code, and its authorized clients. The host owns all of it (host/remote-access/,
  * host/auth/); this section is a client's view, sent to `hostId`.
  *
  * The page shows only what the host reports, and offers only what works:
@@ -16,11 +15,10 @@ import {
   ChevronRight,
   Copy,
   ExternalLink,
+  KeyRound,
   Laptop,
-  Link2,
   RefreshCw,
   Trash2,
-  X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
@@ -154,6 +152,57 @@ const copyText = async (text: string) => {
   return true;
 };
 
+/** A read-only value with a copy button, for the pairing dialog. */
+const CopyField = ({
+  copyLabel,
+  label,
+  large = false,
+  value,
+}: {
+  copyLabel: string;
+  label: string;
+  large?: boolean;
+  value: string;
+}) => {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="grid gap-1.5">
+      <Label>{label}</Label>
+      <div className="flex items-center gap-2">
+        <Input
+          aria-label={label}
+          className={
+            large
+              ? "h-10 text-center font-mono text-lg tracking-widest"
+              : "font-mono text-xs"
+          }
+          readOnly
+          value={value}
+        />
+        <Button
+          aria-label={copyLabel}
+          onClick={() =>
+            void copyText(value).then(() => {
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1500);
+            })
+          }
+          size="icon-sm"
+          title={copyLabel}
+          type="button"
+          variant="outline"
+        >
+          {copied ? (
+            <Check className="size-3.5" />
+          ) : (
+            <Copy className="size-3.5" />
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 const useModeText = () => {
   const t = useTranslations("remote");
   return {
@@ -191,10 +240,8 @@ export const RemoteAccessSection = ({
     status,
     busy,
     error: failure,
-    claims,
     devices,
     pairing,
-    pairingUrl,
   } = useSyncExternalStore(
     remote.subscribe,
     remote.getSnapshot,
@@ -223,7 +270,6 @@ export const RemoteAccessSection = ({
     if (!open) remote.clearPairing();
   };
   const [scope, setScope] = useState<ScopeChoice>("operate");
-  const [copied, setCopied] = useState(false);
   const [pendingRevoke, setPendingRevoke] =
     useState<RemoteDeviceSession | null>(null);
   const [pendingRevokeOthers, setPendingRevokeOthers] = useState(false);
@@ -434,51 +480,11 @@ export const RemoteAccessSection = ({
             size="sm"
             type="button"
           >
-            <Link2 className="size-4" />
+            <KeyRound className="size-4" />
             {t("pairDevice")}
           </Button>
         </div>
       </div>
-
-      {claims.length > 0 ? (
-        <SettingsGroup label={t("requestsTitle")}>
-          {claims.map((claim) => (
-            <div
-              className="flex items-center gap-3 px-4 py-3"
-              key={claim.claimId}
-            >
-              <Laptop className="size-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-medium text-sm">
-                  {claim.deviceName}
-                </div>
-                <div className="text-muted-foreground text-xs">
-                  {scopeLabel(claim.scopes)}
-                </div>
-              </div>
-              <Button
-                disabled={busy}
-                onClick={() => void remote.answer(claim.claimId, false)}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                <X className="size-3.5" />
-                {t("deny")}
-              </Button>
-              <Button
-                disabled={busy}
-                onClick={() => void remote.answer(claim.claimId, true)}
-                size="sm"
-                type="button"
-              >
-                <Check className="size-3.5" />
-                {t("confirm")}
-              </Button>
-            </div>
-          ))}
-        </SettingsGroup>
-      ) : null}
 
       {devices.length === 0 ? (
         <p className="py-3 text-center text-muted-foreground text-sm">
@@ -528,37 +534,22 @@ export const RemoteAccessSection = ({
             <DialogDescription>{t("pairDialogDescription")}</DialogDescription>
           </DialogHeader>
           {pairing ? (
-            <div className="grid justify-items-center gap-3">
-              {pairingUrl ? (
-                <div className="flex w-full items-center gap-2">
-                  <Input
-                    className="font-mono text-xs"
-                    readOnly
-                    value={pairingUrl}
-                  />
-                  <Button
-                    aria-label={t("copyLink")}
-                    onClick={() =>
-                      void copyText(pairingUrl).then(() => {
-                        setCopied(true);
-                        window.setTimeout(() => setCopied(false), 1500);
-                      })
-                    }
-                    size="icon-sm"
-                    title={t("copyLink")}
-                    type="button"
-                    variant="outline"
-                  >
-                    {copied ? (
-                      <Check className="size-3.5" />
-                    ) : (
-                      <Copy className="size-3.5" />
-                    )}
-                  </Button>
-                </div>
+            <div className="grid gap-3">
+              <CopyField
+                copyLabel={t("copyCode")}
+                label={t("pairingCode")}
+                large
+                value={pairing.code}
+              />
+              {status?.origin ? (
+                <CopyField
+                  copyLabel={t("copyAddress")}
+                  label={t("hostAddress")}
+                  value={status.origin}
+                />
               ) : null}
-              <p className="text-center text-muted-foreground text-sm">
-                {t("pairingCodeHint", { code: pairing.code })}
+              <p className="text-muted-foreground text-sm">
+                {t("pairingCodeHint")}
               </p>
             </div>
           ) : (

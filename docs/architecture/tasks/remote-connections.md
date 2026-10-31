@@ -45,6 +45,11 @@ at by milestone 1. The removal is tracked as DH-17 in
 computer's browser. The same round removes CONN-06's service management
 (DH-10).
 
+Scope decision (2026-10-30, later): pairing is by short code only, redeemed at
+once with no host-side confirmation. The pairing link (its URL fragment and
+`/pair` entry point) and code claims below are removed; see DH-18 in
+[detached-host.md](detached-host.md).
+
 Ship milestone 1 before adding tunnel management. It requires no Dream account
 or cloud backend. Initially the desktop-hosted machine must keep Dream running;
 an existing standalone daemon can also serve the client. Its current idle timeout

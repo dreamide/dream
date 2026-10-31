@@ -114,7 +114,6 @@ import type {
 } from "../../electron/api/providers/schemas.js";
 import type {
   remoteAccessEnableSchema,
-  remoteClaimAnswerRequestSchema,
   remotePairingCreateRequestSchema,
   remoteSessionRevokeRequestSchema,
 } from "../../electron/api/remote-access-routes.js";
@@ -239,24 +238,12 @@ export interface HostSettingsReport {
   settings: HostSetting[];
 }
 
-/** A pairing just minted: a link secret and a short code, once each. */
+/** A pairing just minted: a short code that works once. */
 export interface RemotePairing {
   pairingId: string;
   code: string;
-  fragment: string;
   expiresAt: string;
   scopes: string[];
-  urls: string[];
-}
-
-/** A device asking to pair with a code, waiting for confirmation. */
-export interface RemoteClaim {
-  claimId: string;
-  deviceName: string;
-  clientKind: "web" | "native";
-  scopes: string[];
-  createdAt: string;
-  expiresAt: string;
 }
 
 /** A paired device's session (never its secret). */
@@ -792,13 +779,6 @@ export const API_ROUTES = {
     Input<typeof remotePairingCreateRequestSchema>,
     RemotePairing
   >("/api/remote/pairings"),
-  remoteClaims: post<Record<string, never>, { claims: RemoteClaim[] }>(
-    "/api/remote/claims",
-  ),
-  remoteClaimAnswer: post<
-    Input<typeof remoteClaimAnswerRequestSchema>,
-    { approved: boolean; session?: RemoteDeviceSession }
-  >("/api/remote/claims/answer"),
   remoteSessions: post<
     Record<string, never>,
     { sessions: RemoteDeviceSession[] }

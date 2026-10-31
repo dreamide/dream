@@ -51,9 +51,10 @@ showing **Ready**. Use **Check again** (the refresh button) after correcting
 the hostname, service URL or connector. The host keeps checking even when
 Settings is closed.
 
-Under Settings > Sharing & access, choose **Create link** and use its one-time
-link or confirmed code. Open the link in a computer's browser, or paste it into
-**Add host > Pairing link** on another Dream desktop. Normal reconnection reuses the
+Under Settings > Sharing & access, choose **Pair a computer** (or run
+`dream-host pair`) to create a one-time code. Open the public address in a
+computer's browser and enter the code there, or enter the address and code under
+**Add host > Pairing code** on another Dream desktop. Normal reconnection reuses the
 device grant. SSH and other HTTPS routes can belong to that same host.
 
 ## Headless setup

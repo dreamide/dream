@@ -12,13 +12,13 @@
 //   stop     Ask the running host to shut down.
 //   version  Print the runtime's version and update contract.
 //   help     The commands and every option.
-//   remote, pair, claims, confirm, deny, devices, revoke
+//   remote, pair, devices, revoke
 //            Remote access and paired devices (remote-cli.js).
 //
 // Every option the host starts with is in host/options.js, as a flag and an
 // environment variable (a flag wins over a variable, which wins over a
 // saved setting, which wins over the default). `serve --pair` prints a
-// pairing link and code once the host listens, when remote access is on.
+// pairing code once the host listens, when remote access is on.
 import { spawn } from "node:child_process";
 import { closeSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -451,15 +451,14 @@ async function version({ write }) {
 const COMMAND_SUMMARY = `Usage: dream-host <command> [options]
 
 Commands:
-  serve       Run the host in the foreground (--pair: print a pairing link)
+  serve       Run the host in the foreground (--pair: print a pairing code)
   ensure      Reuse the running host, or start one in the background
   status      Whether a host is running (exit 3 if not)
   stop        Stop the running host
   version     The runtime's version and update contract
   remote      Remote access: status, on [--tailscale | --cloudflare --origin url], off, check
-  pair        A pairing link and code [--scopes view,operate,manage] [--name name]
-  claims, confirm <id>, deny <id>, devices, revoke <id>
-              Code requests and paired devices
+  pair        A pairing code [--scopes view,operate,manage] [--name name]
+  devices     Paired devices; revoke <id> ends one
   help        This text
 
 Options (each also an environment variable; a flag wins):

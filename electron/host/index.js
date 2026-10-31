@@ -333,10 +333,7 @@ export function createHost({
       server = await startApiServer({
         ...services(),
         apiToken,
-        pairingUrls: (fragment) =>
-          (remoteServer?.origins ?? []).map(
-            (origin) => `${origin}/pair#${fragment}`,
-          ),
+        publicOrigins: () => remoteServer?.origins ?? [],
         port,
         resolveRemoteHost,
       });

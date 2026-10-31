@@ -105,12 +105,13 @@ once, and it is applied every time the host starts:
 
 ```sh
 dream-host remote on --tailscale          # or: --cloudflare --origin https://dream.example.com
-dream-host pair                           # a pairing link and code
+dream-host pair                           # a one-time pairing code
 dream-host devices                        # paired devices; revoke <id> ends one
 ```
 
-`dream-host serve --pair` prints a pairing link and code as soon as the host
-listens. With your own reverse proxy, `--remote-port` and `--remote-origin`
+`dream-host serve --pair` prints a pairing code as soon as the host listens.
+Enter it, with the host's address, on the other computer; it works once and
+expires after ten minutes. With your own reverse proxy, `--remote-port` and `--remote-origin`
 set remote access for that run instead of the saved setting; Settings then
 shows it as set by those options and cannot change it.
 

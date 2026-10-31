@@ -299,8 +299,8 @@ proxy for that run (`mode: "proxy"`), and Settings shows it read-only.
 
 ## Remote access state
 
-**Remote access state** is the operator's current view of Remote access,
-pairing claims and Device sessions. A successful change supersedes older
+**Remote access state** is the operator's current view of Remote access
+and Device sessions. A successful change supersedes older
 reads; a failed refresh preserves the last accepted state. Form drafts are
 the operator's edits and do not follow background refreshes.
 
@@ -308,10 +308,11 @@ the operator's edits and do not follow background refreshes.
 
 A paired device's credential on one host (`electron/host/auth/`). A
 **pairing** is minted by the host's local operator (holding the launch token)
-or by a device with `manage`. It is a single-use link secret carried in a
-URL fragment, or a short code that an operator then confirms by device name.
-Both expire after ten minutes. Exchanging a pairing creates a **session**
-with **scopes**, a ladder of `view`, `operate` and `manage`. The device keeps
+or by a device with `manage`. It is a short code (8 characters) that works
+once and expires after ten minutes; attempts are rate limited host-wide.
+Entering it on another computer, with the host's address, creates a
+**session** at once: whoever created the code approved it. The session has
+**scopes**, a ladder of `view`, `operate` and `manage`. The device keeps
 the token: as an HttpOnly cookie in a browser, or in OS secure storage for a
 native client. The host stores only a verifier of the token, written through
 the save queue. A session expires after 30 days unused. Renewing it never

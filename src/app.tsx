@@ -11,32 +11,14 @@ import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import { useIdeStore } from "./components/ide/ide-store";
 
 /**
- * A browser client pairs before it shows the IDE: opened from a pairing
- * link (`/pair#pair=...`), or refused by its home host (never paired, or
- * its session revoked or expired). The desktop never pairs.
+ * A browser client pairs before it shows the IDE, whenever its home host
+ * refuses it (never paired, or its session revoked or expired). The
+ * desktop never pairs.
  */
 const useNeedsPairing = () => {
   const platform = getClientPlatform();
   const home = useConnectionState(LOCAL_HOST_ID);
-  const [openedToPair] = useState(
-    () =>
-      platform.kind === "web" &&
-      window.location.pathname === "/pair" &&
-      window.location.hash.includes("pair="),
-  );
-  useEffect(() => {
-    // A paired client that landed on /pair without a link belongs at /.
-    if (
-      platform.kind === "web" &&
-      window.location.pathname === "/pair" &&
-      !openedToPair
-    ) {
-      window.history.replaceState(null, "", "/");
-    }
-  }, [openedToPair, platform.kind]);
-  return (
-    platform.kind === "web" && (openedToPair || home.status === "unauthorized")
-  );
+  return platform.kind === "web" && home.status === "unauthorized";
 };
 
 export const App = () => {

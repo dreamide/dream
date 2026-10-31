@@ -4,7 +4,6 @@ import {
   type ApiRequestOf,
   apiClient,
   type RemoteAccessStatus,
-  type RemoteClaim,
   type RemoteDeviceSession,
   type RemotePairing,
 } from "@/lib/api-client";
@@ -13,10 +12,8 @@ interface RemoteAccessSnapshot {
   status: RemoteAccessStatus | null;
   /** Seeds form drafts once; later polls cannot overwrite the operator's edits. */
   initialStatus: RemoteAccessStatus | null;
-  claims: RemoteClaim[];
   devices: RemoteDeviceSession[];
   pairing: RemotePairing | null;
-  pairingUrl: string | null;
   busy: boolean;
   error: { kind: "load" | "change" | "pair"; cause: unknown } | null;
 }
@@ -27,8 +24,6 @@ type RemoteAccessClient = Pick<
   | "remoteAccessEnable"
   | "remoteAccessDisable"
   | "remoteAccessCheck"
-  | "remoteClaims"
-  | "remoteClaimAnswer"
   | "remoteSessions"
   | "remoteSessionRevoke"
   | "remotePairingCreate"
@@ -39,8 +34,6 @@ const REMOTE_ACCESS_METHODS = [
   "remoteAccessEnable",
   "remoteAccessDisable",
   "remoteAccessCheck",
-  "remoteClaims",
-  "remoteClaimAnswer",
   "remoteSessions",
   "remoteSessionRevoke",
   "remotePairingCreate",
@@ -72,10 +65,8 @@ export const createRemoteAccessState = ({
   let snapshot: RemoteAccessSnapshot = {
     status: null,
     initialStatus: null,
-    claims: [],
     devices: [],
     pairing: null,
-    pairingUrl: null,
     busy: false,
     error: null,
   };
@@ -91,12 +82,6 @@ export const createRemoteAccessState = ({
   const publish = (patch: Partial<RemoteAccessSnapshot>) => {
     snapshot = { ...snapshot, ...patch };
     snapshot.initialStatus ??= snapshot.status;
-    snapshot.pairingUrl =
-      snapshot.status?.origin && snapshot.pairing
-        ? (snapshot.pairing.urls.find((url) =>
-            url.startsWith(snapshot.status?.origin ?? ""),
-          ) ?? null)
-        : null;
     for (const listener of listeners) listener();
   };
   const invalidateRead = () => {
@@ -115,9 +100,8 @@ export const createRemoteAccessState = ({
     const controller = new AbortController();
     reading = controller;
     const options = { signal: controller.signal };
-    const [status, claims, sessions] = await Promise.allSettled([
+    const [status, sessions] = await Promise.allSettled([
       api.remoteAccess({}, options),
-      api.remoteClaims({}, options),
       api.remoteSessions({}, options),
     ]);
     if (!active || era !== generation || id !== readId) return;
@@ -129,7 +113,6 @@ export const createRemoteAccessState = ({
     } else if (snapshot.status === null) {
       patch.error = { kind: "load", cause: status.reason };
     }
-    if (claims.status === "fulfilled") patch.claims = claims.value.claims;
     if (sessions.status === "fulfilled")
       patch.devices = sessions.value.sessions.filter(
         (session) => !session.revokedAt,
@@ -215,22 +198,6 @@ export const createRemoteAccessState = ({
       pairingId += 1;
       publish({ pairing: null });
     },
-    answer: (claimId: string, approve: boolean) =>
-      write("change", async () => {
-        const result = await api.remoteClaimAnswer({ claimId, approve });
-        return {
-          claims: snapshot.claims.filter((claim) => claim.claimId !== claimId),
-          devices:
-            result.session && !result.session.revokedAt
-              ? [
-                  ...snapshot.devices.filter(
-                    (device) => device.id !== result.session?.id,
-                  ),
-                  result.session,
-                ]
-              : snapshot.devices,
-        };
-      }),
     revoke: (sessionId: string) =>
       write("change", async () => {
         await api.remoteSessionRevoke({ sessionId });

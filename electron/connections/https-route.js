@@ -279,9 +279,6 @@ export function createVerifiedHttps({
   };
 }
 
-/** How often a code claim asks whether the host confirmed it yet. */
-const CODE_CLAIM_POLL_MS = 2_000;
-
 /** The host's reason for refusing, as it worded it (plain text), or null. */
 const refusal = async (response) => {
   const text = (await response.text().catch(() => "")).trim();
@@ -308,27 +305,12 @@ export function createHttpsRoutes({
     return { credentialId, origin, host };
   };
 
-  /** Resolves after `ms`, or rejects as soon as `signal` aborts. */
-  const wait = (ms, signal) =>
-    new Promise((resolve, reject) => {
-      signal.throwIfAborted();
-      const stop = () => {
-        clearTimer(timer);
-        reject(signal.reason);
-      };
-      const timer = setTimer(() => {
-        signal.removeEventListener("abort", stop);
-        resolve();
-      }, ms);
-      signal.addEventListener("abort", stop, { once: true });
-    });
-
   return {
     /**
-     * Pairs with a short code shown in the host's Remote access settings.
-     * The code only asks: this waits, polling, until someone confirms the
-     * device on the host (or denies it, the claim expires, or `signal`
-     * aborts), then keeps the session it is handed.
+     * Pairs with a short code created on the host (Settings > Sharing &
+     * access, or `dream-host pair`): the host proves who it is on this
+     * connection, then redeems the code for this desktop's session at once.
+     * `signal` stops an attempt in flight.
      */
     async pairWithCode({
       address,
@@ -343,9 +325,7 @@ export function createHttpsRoutes({
       try {
         origin = httpsOrigin(new URL(address).origin);
       } catch {
-        throw fatal(
-          "Enter the host's HTTPS address, as shown in its Remote access settings.",
-        );
+        throw fatal("Enter the host's HTTPS address.");
       }
       const transport = createVerifiedHttps({
         origin,
@@ -353,76 +333,20 @@ export function createHttpsRoutes({
         knownIdentities,
         ca,
       });
-      const post = async (path, body) => {
-        const response = await transport.request(`${origin}${path}`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(body),
-          signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
-        });
+      try {
+        const response = await transport.request(
+          `${origin}/api/remote/pair/code`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ code, deviceName, clientKind: "native" }),
+            signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
+          },
+        );
         if (!response.ok)
           throw fatal(
             (await refusal(response)) ??
               `Pairing was refused (${response.status}).`,
-          );
-        return response.json();
-      };
-      try {
-        const claim = await post("/api/remote/pair/code", {
-          code,
-          deviceName,
-          clientKind: "native",
-        });
-        if (
-          typeof claim?.claimId !== "string" ||
-          typeof claim.claimSecret !== "string"
-        )
-          throw fatal("The host did not accept the pairing code.");
-        const { claimId, claimSecret } = claim;
-        for (;;) {
-          await wait(CODE_CLAIM_POLL_MS, signal);
-          const result = await post("/api/remote/pair/claim", {
-            claimId,
-            claimSecret,
-          });
-          if (result?.status === "confirmed")
-            return keepSession(transport, origin, result);
-        }
-      } finally {
-        transport.close();
-      }
-    },
-    async pair({ url, deviceName, expectedIdentity, knownIdentities }) {
-      credentials.check?.();
-      const link = new URL(url);
-      const pairing = new URLSearchParams(link.hash.slice(1)).get("pair");
-      if (
-        !pairing ||
-        link.username ||
-        link.password ||
-        link.search ||
-        !["/pair", "/"].includes(link.pathname)
-      )
-        throw fatal(
-          "Paste a complete HTTPS pairing link from the host's Remote access settings.",
-        );
-      const origin = httpsOrigin(link.origin);
-      const transport = createVerifiedHttps({
-        origin,
-        expectedIdentity,
-        knownIdentities,
-        ca,
-      });
-      try {
-        const response = await transport.request(`${origin}/api/remote/pair`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ pairing, deviceName, clientKind: "native" }),
-          signal: AbortSignal.timeout(20_000),
-        });
-        if (!response.ok)
-          throw fatal(
-            `Pairing was refused (${response.status}). Create a new pairing link on the host.`,
           );
         return keepSession(transport, origin, await response.json());
       } finally {

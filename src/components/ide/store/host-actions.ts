@@ -331,15 +331,12 @@ export const createHostActions = (
             }
           : {}),
       };
-      const paired =
-        how.kind === "link"
-          ? await api.pairHost({ url: how.url, ...identity })
-          : await api.pairHostWithCode({
-              address: how.address,
-              code: how.code,
-              attemptId: how.attemptId,
-              ...identity,
-            });
+      const paired = await api.pairHostWithCode({
+        address: how.address,
+        code: how.code,
+        attemptId: how.attemptId,
+        ...identity,
+      });
       promoteFormerHome(paired.host.hostId, paired.host.fingerprint);
       const other = get().hostConnections.find(
         (host) => host.hostId === paired.host.hostId,

@@ -137,8 +137,6 @@ export const REMOTE_ROUTE_POLICY = Object.freeze({
   "POST /api/remote/session/renew": "view",
   "POST /api/remote/session/end": "view",
   "POST /api/remote/pairings": "manage",
-  "POST /api/remote/claims": "manage",
-  "POST /api/remote/claims/answer": "manage",
   "POST /api/remote/sessions": "manage",
   "POST /api/remote/sessions/revoke": "manage",
 
@@ -151,9 +149,7 @@ export const REMOTE_ROUTE_POLICY = Object.freeze({
 export const PUBLIC_REMOTE_ROUTES = Object.freeze([
   "POST /api/remote/proof",
   "GET /api/remote/descriptor",
-  "POST /api/remote/pair",
   "POST /api/remote/pair/code",
-  "POST /api/remote/pair/claim",
 ]);
 
 const compile = (pattern) =>
