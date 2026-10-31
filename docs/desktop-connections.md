@@ -7,6 +7,12 @@ minutes. The host must run a version with native identity proof
 support, and its HTTPS certificate must be trusted by the desktop's Node runtime.
 Tailscale Serve's HTTPS origin works as a direct route; no Dream account is needed.
 
+For an **SSH host**, enter what you would type after `ssh`: an alias from your SSH
+config, or `user@host`. Dream uses your own OpenSSH, keys and config, and runs
+`dream-host ensure` there through your login shell, so `dream-host` must be installed
+on that machine and on that shell's `PATH` ([Run the host](host-service.md)). The name
+is optional and defaults to the target.
+
 Each verified host has one entry. Adding another route to the same authenticated
 host merges it into that entry and keeps the existing project, chat and workspace
 IDs. Edit that entry and use **Add SSH route** or **Add HTTPS route** to pin the new
@@ -37,27 +43,6 @@ An imported workspace needs pairing again on a desktop without those credentials
 Every new TLS connection must pass a fresh, signed nonce proof before a pairing
 secret or saved grant is sent on that same socket. Redirects and HTTP downgrade
 are refused. Revocation on the host closes the device's live observers.
-
-## Remote-only desktop
-
-Launch the desktop with `DREAM_HOST_MODE=remote` in its environment. It keeps
-local workspace storage and the desktop UI/proxy, but starts no local execution host, scheduler, terminal owner or host
-remote-access listener. The project picker offers remote connections. Pair or
-connect a host in Settings > Hosts before opening a folder there. Global provider
-settings use the first connected remote host; project requests continue to name
-their own host.
-
-For example on macOS:
-
-```sh
-DREAM_HOST_MODE=remote /Applications/Dream.app/Contents/MacOS/Dream
-```
-
-Cached home projects remain unavailable until their original host is connected.
-Authenticating that former home host moves its cached workspace references to a
-remote connection without changing project or chat IDs. Launching without
-`DREAM_HOST_MODE=remote` again uses the host running on this desktop's data, or
-starts one ([Run the host](host-service.md)).
 
 Arbitrary site port forwarding and the desktop browser relay require a selected
 SSH route. HTTPS-only clients can work with host projects, chats, files and

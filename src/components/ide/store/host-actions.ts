@@ -11,7 +11,6 @@
  * disconnects it: nothing of a host that is not the one meant is used.
  */
 
-import { getClientPlatform } from "@/lib/connections/platform";
 import {
   connectionRecovery,
   connectionSupervisor,
@@ -116,31 +115,6 @@ export const createHostActions = (
     catalogs.suspend(hostId);
   };
 
-  // Authenticate a former home host before moving its cached workspace to a
-  // remote connection on a desktop that no longer executes locally.
-  const promoteFormerHome = (persistentId: string, fingerprint: string) => {
-    if (getClientPlatform().hasHomeHost) return;
-    const former = findHostConnection(get().hostConnections, LOCAL_HOST_ID);
-    if (!former || former.hostId !== persistentId) return;
-    if (former.fingerprint && former.fingerprint !== fingerprint)
-      throw new HostIdentityError(
-        "This host id belongs to a different saved key.",
-      );
-    const id = crypto.randomUUID();
-    set((state) => ({
-      ...workspace.reassignHost(state, LOCAL_HOST_ID, id),
-      hostConnections: state.hostConnections.map((host) =>
-        host.id === LOCAL_HOST_ID
-          ? {
-              ...host,
-              id,
-              routes: host.routes.filter((route) => route.kind !== "local"),
-            }
-          : host,
-      ),
-    }));
-  };
-
   /**
    * Brings `hostId`'s catalog in. A host refused for who it is gets
    * disconnected, with why; any other failure is left to the caller.
@@ -148,8 +122,6 @@ export const createHostActions = (
   const refreshCatalog = async (hostId: string) => {
     try {
       await catalogs.refresh(hostId);
-      if (!getClientPlatform().hasHomeHost && !get().providerModels?.fetchedAt)
-        void get().refreshProviderModels?.();
     } catch (error) {
       if (!(error instanceof HostIdentityError)) throw error;
       stopFollowing(hostId);
@@ -162,8 +134,7 @@ export const createHostActions = (
   };
 
   const connectHost: IdeState["connectHost"] = (hostId) => {
-    if (hostId === LOCAL_HOST_ID)
-      return Promise.resolve(getClientPlatform().hasHomeHost);
+    if (hostId === LOCAL_HOST_ID) return Promise.resolve(true);
     const pending = connecting.get(hostId);
     if (pending) return pending.promise;
     const token = Symbol(hostId);
@@ -201,7 +172,6 @@ export const createHostActions = (
                   id: route.id,
                   kind: "ssh" as const,
                   target: configured.target,
-                  hostCommand: configured.hostCommand,
                 },
               ]
             : [];
@@ -216,24 +186,17 @@ export const createHostActions = (
               ? {
                   target:
                     routes[0].kind === "ssh" ? routes[0].target : undefined,
-                  hostCommand:
-                    routes[0].kind === "ssh"
-                      ? routes[0].hostCommand
-                      : undefined,
                 }
               : {}),
           expectedFingerprint: saved?.fingerprint ?? null,
           expectedHostId: saved?.hostId ?? null,
-          ...(routes.length
-            ? {}
-            : { hostCommand: config?.hostCommand, target: config?.target }),
+          ...(routes.length ? {} : { target: config?.target }),
           hostId,
         });
         if (!current()) return false;
         // Main authenticated this transport before returning its descriptor.
         // Merge before loading its catalog, so rows retain one connection id.
         if (endpoint.hostId && endpoint.fingerprint) {
-          promoteFormerHome(endpoint.hostId, endpoint.fingerprint);
           const other = get().hostConnections.find(
             (host) => host.id !== hostId && host.hostId === endpoint.hostId,
           );
@@ -337,7 +300,6 @@ export const createHostActions = (
         attemptId: how.attemptId,
         ...identity,
       });
-      promoteFormerHome(paired.host.hostId, paired.host.fingerprint);
       const other = get().hostConnections.find(
         (host) => host.hostId === paired.host.hostId,
       );
@@ -413,7 +375,6 @@ export const createHostActions = (
         await api.connectHost({
           hostId: id,
           target: values.target,
-          hostCommand: values.hostCommand,
           expectedHostId: saved.hostId,
           expectedFingerprint: saved.fingerprint,
         });
@@ -535,9 +496,7 @@ export const createHostActions = (
       // the new settings. Its projects stay (they are keyed by the host's
       // id, which does not change), and so does the host it was verified
       // as: a target that now reaches another host is refused.
-      const reachedDifferently =
-        next.target !== previous.target ||
-        next.hostCommand !== previous.hostCommand;
+      const reachedDifferently = next.target !== previous.target;
       const owner =
         (get().hostConnections ?? []).find((host) =>
           host.routes.some(

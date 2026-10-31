@@ -39,7 +39,6 @@ import {
 } from "./desktop-handlers.js";
 import {
   createHomeHostAttachment,
-  createRemoteOnlyHost,
   withInProcessFallback,
 } from "./desktop-host.js";
 import { resolveDesktopHostMode } from "./desktop-host-mode.js";
@@ -66,7 +65,6 @@ import {
   DESKTOP_SYNC_CHANNELS,
   desktopChannel,
 } from "./shared/desktop-channels.js";
-import { DEV_RUNTIME_VERSION } from "./ssh/host-install.js";
 import { createSshPromptBroker } from "./ssh/prompt-broker.js";
 import { readSshConfigHosts } from "./ssh/ssh-config-hosts.js";
 import { createStateSaveQueue } from "./state-save-queue.js";
@@ -111,7 +109,7 @@ const dreamVersion = readDreamVersion();
 // A host mode named in the environment (desktop-host-mode.js); `desktop` and
 // `auto` choose as if unset.
 const requestedHostMode = process.env.DREAM_HOST_MODE?.trim() || "";
-const hostModeIsExplicit = ["remote", "in-process"].includes(requestedHostMode);
+const hostModeIsExplicit = requestedHostMode === "in-process";
 
 // Diagnostic only: opt-in via env var to test whether software rendering is
 // caused by Chromium's GPU blocklist (do NOT enable in production builds —
@@ -170,8 +168,6 @@ try {
     );
   }
 } catch (error) {
-  // Only a host in this process can share the workspace's one writer.
-  if (hostModeIsExplicit && requestedHostMode !== "in-process") throw error;
   // The workspace stays where it was, with the one shared writer it had:
   // nothing is lost, and the move is tried again at the next start.
   console.error("Could not move the workspace to its own database:", error);
@@ -196,8 +192,7 @@ if (workspaceSeparate) {
 }
 
 // The home host: the host running on this desktop's database (whoever
-// started it) or one the desktop starts, none (remote only), or inside this
-// process. All of them use this desktop's identity and catalog.
+// started it) or one the desktop starts, or inside this process. All of them use this desktop's identity and catalog.
 const resolvedHostMode = resolveDesktopHostMode({
   envMode: requestedHostMode,
   workspaceSeparate,
@@ -238,11 +233,6 @@ const createInProcessHost = () =>
 
 const host = (() => {
   switch (resolvedHostMode.mode) {
-    case "remote":
-      return createRemoteOnlyHost({
-        resolveRemoteHost,
-        resolveProviderHost: () => desktopConnections.getFirstEndpoint(),
-      });
     case "detached":
       // A host that cannot start in its own process, with nothing else on
       // the data, leaves the window working with a host in this one.
@@ -339,10 +329,6 @@ const desktopConnections = createDesktopHostConnections({
     });
   },
   stateDirectory: path.join(os.homedir(), ".dream", "ssh"),
-  // A host without its own host command gets this version installed. A
-  // development build has nothing published: its runtime is built on the
-  // host from the working tree (pnpm host:install-dev <target>).
-  runtimeVersion: app.isPackaged ? dreamVersion : DEV_RUNTIME_VERSION,
 });
 
 let rendererServerManager = null;
@@ -713,7 +699,7 @@ const desktop = createDesktopHandlers({
     // whether this desktop started its host (and so may restart and stops it).
     describe: () => {
       const mode = currentHostMode();
-      const attached = mode === "remote" ? null : host.describe?.();
+      const attached = host.describe?.();
       return {
         explicit: hostModeIsExplicit,
         mode,

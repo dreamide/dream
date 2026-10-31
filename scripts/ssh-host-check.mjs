@@ -2,10 +2,10 @@
 // terminal, and reports what answered. Prompts (passwords, 2FA, host keys)
 // are asked here.
 //
-//   pnpm ssh-host-check <target> [--host-command "<how to run dream-host>"]
+//   pnpm ssh-host-check <target>
 //
-// The host needs dream-host runnable, e.g. a checkout of this repo with
-// `--host-command "node ~/dream/electron/host/dream-host.js"`.
+// The host needs dream-host on the PATH of the user's login shell there
+// (docs/host-service.md; for a development build, pnpm host:install-dev).
 import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
@@ -15,15 +15,12 @@ import { createSshHostManager } from "../electron/ssh/ssh-hosts.js";
 const { positionals, values } = parseArgs({
   allowPositionals: true,
   options: {
-    "host-command": { type: "string" },
     "ssh-path": { type: "string" },
   },
 });
 const [target] = positionals;
 if (!target) {
-  console.error(
-    'Usage: pnpm ssh-host-check <target> [--host-command "dream-host"]',
-  );
+  console.error("Usage: pnpm ssh-host-check <target>");
   process.exit(2);
 }
 
@@ -41,10 +38,7 @@ const hosts = createSshHostManager({
 });
 
 try {
-  const endpoint = await hosts.connect({
-    hostCommand: values["host-command"],
-    target,
-  });
+  const endpoint = await hosts.connect({ target });
   const info = await (
     await fetch(`${endpoint.baseUrl}/api/host-info`, {
       headers: { "x-dream-api-token": endpoint.token },

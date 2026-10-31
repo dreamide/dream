@@ -211,7 +211,6 @@ const loadHomeCatalog = async (
   workspace: PersistedWorkspace,
 ): Promise<CatalogResponse | null> => {
   const platform = getClientPlatform();
-  if (!platform.hasHomeHost) return null;
   if (platform.kind === "desktop") {
     return loadCatalog(LOCAL_HOST_ID, STARTUP_LOAD_TIMEOUT_MS);
   }

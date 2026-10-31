@@ -39,8 +39,13 @@ Decisions recorded 2026-10-30:
   (`remote-connections.md`); see DH-17.
 - **Pairing by code only, with no approval** (later the same day). The link
   method and the host-side confirmation of a code are removed; see DH-18.
+- **No host install over SSH, and no host command.** The user installs
+  `dream-host` on an SSH host; Dream runs it by name. See DH-19.
+- **No remote-only desktop, and no option list in the host's report.** The
+  desktop always runs a host of its own; `/api/host/settings` reports only who
+  the host is. See DH-20.
 
-DH-07 to DH-18 supersede parts of DH-02, DH-03 and DH-06, as noted under each.
+DH-07 to DH-20 supersede parts of DH-02, DH-03, DH-04, DH-06 and DH-08, as noted under each.
 
 ## DH-01: State lock held by the operating system
 
@@ -196,7 +201,9 @@ walkthrough with a real installed service.
 ## DH-04: One-line host install
 
 Status: implemented; publishing pending. DH-10 removes the `service` commands
-the installed runtime offered; the installers themselves are unchanged.
+the installed runtime offered; the installers themselves are unchanged. DH-19
+moves the shell install script to `scripts/npm-launcher/install-host.js`, since
+Dream no longer installs over SSH.
 
 Problem and trigger: a headless machine needs the right runtime archive found,
 checked and unpacked by hand (`docs/host-service.md`). T3 ships `npx t3`.
@@ -411,6 +418,7 @@ Decided (2026-10-30, the proposals):
 - `dream-host` reads no `.env` file.
 - `DREAM_HOST_MODE` takes `auto`, `remote` and `in-process`. `service` is
   refused with a pointer to `dream-host serve`; `desktop` is read as `auto`.
+  DH-20 removed `remote`.
 
 Remaining/deferred: none.
 
@@ -447,6 +455,10 @@ report of a host started with an environment variable and `--remote-port`.
 Scope change: the route is `POST /api/host/settings`, as every route of the
 renderer's client is a POST or PUT. No option changes while a host runs, so
 `pendingRestart` is always false; it is there for one that will.
+
+Scope change (2026-10-30): the per-option list is removed (DH-20). Nothing
+showed it once DH-12 dropped it from Settings; the report keeps the host's
+header facts.
 
 Remaining/deferred: none.
 
@@ -858,12 +870,91 @@ Validation: `host-auth.test.js`, `desktop-handlers.test.js`,
 Remaining/deferred: a walkthrough pairing a second desktop and a browser
 against a real host, and a visual check of the new dialogs.
 
+## DH-19: No host install over SSH, and no host command
+
+Status: implemented
+
+Problem and trigger: decided 2026-10-30. The SSH host form's **Host command**
+field was confusing, and it existed only to opt out of Dream installing its
+own host runtime on the SSH host. Both contradict the round's decision that
+the user installs and manages `dream-host` wherever it is needed.
+
+Scope:
+
+- **SSH connection.** Dream runs `dream-host ensure` through the user's login
+  shell, always by name (`HOST_COMMAND` in `ssh-args.js`). A missing
+  `dream-host` (exit 127) is a fatal error saying to install it on that
+  shell's PATH. Removed: the managed runtime install, the download-and-upload
+  fallback, the runtime cache, `runtimeVersion` and `hostCommand` through the
+  SSH manager, desktop connections, IPC, store and types.
+- **Saved hosts.** `hostCommand` is no longer saved; one saved before is
+  dropped when settings load.
+- **Form.** SSH target (with a hint: an SSH config alias or `user@host`,
+  with `dream-host` installed on the login shell's PATH) and an optional name
+  that defaults to the target.
+- **Scripts.** The shell install script, used only to build
+  `install-host.sh`, moved to `scripts/npm-launcher/install-host.js` with its
+  tests. `pnpm host:install-dev <target>` links the development build as
+  `dream-host` in `~/.local/bin` and warns when that is not on the login
+  shell's PATH. `pnpm ssh-host-check` lost `--host-command`.
+- **Messages.** "Update the Dream host there, or remove its custom host
+  command…" became "Update dream-host there."
+
+Completion criteria:
+
+- No field, saved value or code path runs anything but `dream-host` by name
+  on an SSH host, and nothing installs it there.
+
+Validation: `ssh-args.test.js`, `ssh-host-connection.test.js` (against a
+fake ssh running a real daemon), `install-host.test.js`, `host-actions.test.ts`
+and `pnpm check`.
+
+Remaining/deferred: a walkthrough against a real SSH host with `dream-host`
+installed by `install-host.sh`, and one without it (the not-found message);
+a visual check of the form.
+
+## DH-20: No remote-only desktop, and no option list in the host's report
+
+Status: implemented
+
+Problem and trigger: decided 2026-10-30, as follow-ups to DH-11 and DH-12.
+
+- `DREAM_HOST_MODE=remote` started a desktop with no host of its own, which
+  every part of the renderer had to allow for (`hasHomeHost`), with its own
+  provider-settings routing and a step that moved a former home host's
+  projects to a remote connection. It is not a use case the app supports.
+- `POST /api/host/settings` listed every option with its value and source.
+  Nothing showed it after DH-12 removed the options from Settings.
+
+Scope:
+
+- **Remote-only mode.** `DREAM_HOST_MODE=remote` is refused with a message
+  saying the desktop always runs a host and other hosts are added in
+  Settings > Hosts. Removed: `createRemoteOnlyHost`, `getFirstEndpoint`, the
+  `remote` host mode and `hasHomeHost` in the renderer, and with it the
+  former-home promotion and the provider-models refresh it needed. The
+  desktop's docs lose the "Remote-only desktop" section.
+- **Settings report.** It answers `{ host }`: name, ID and fingerprint,
+  version, pid, start time, owner and addresses. The host takes `owner`
+  instead of its resolved launch options. `HostSetting` is removed from the
+  client.
+
+Completion criteria:
+
+- No code path runs a desktop without a home host.
+- The report carries no option list.
+
+Validation: `desktop-host-mode.test.js`, `settings-report.test.js`,
+`connection-follow.test.ts` and `pnpm check`.
+
+Remaining/deferred: none.
+
 ## Order of the second round
 
 DH-07 → DH-08 → DH-09 → DH-10, then DH-11 → DH-12 → DH-13 → DH-14 → DH-15.
-DH-16, DH-17 and DH-18 can go at any point.
+DH-16 to DH-20 can go at any point.
 
-Recovery: docs/architecture/tasks/detached-host.md. DH-01 to DH-18 are
+Recovery: docs/architecture/tasks/detached-host.md. DH-01 to DH-20 are
 implemented (DH-04 publishing pending). What remains is listed under each
 candidate: mostly walkthroughs (macOS/Linux, real SSH/HTTPS/WSL hosts, the
 service manager examples) and visual checks of the desktop pages. Latest

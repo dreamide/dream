@@ -9,7 +9,6 @@ import {
   renderHostOptionsMarkdown,
   resolveHostOptions,
 } from "./options.js";
-import { describeHostSettings } from "./settings-report.js";
 
 const resolve = (values = {}, env = {}) =>
   resolveHostOptions({
@@ -111,73 +110,5 @@ describe("the host option table", () => {
       "utf8",
     ).replaceAll("\r\n", "\n");
     expect(docs).toContain(renderHostOptionsMarkdown());
-  });
-});
-
-describe("the host settings report", () => {
-  const launch = resolve({ "idle-timeout": "0" }, { DREAM_HOST_PORT: "4100" });
-  const report = (access) =>
-    describeHostSettings({
-      access,
-      descriptor: { fingerprint: "SHA256:x", hostId: "host_1" },
-      launch,
-      localPort: 4100,
-      name: "devbox",
-      pid: 7,
-      startedAt: "now",
-      version: "1.0.0",
-    });
-  const setting = (result, name) =>
-    result.settings.find((entry) => entry.name === name);
-
-  it("reports each option's value and source, and what a client may change", () => {
-    const result = report({
-      enabled: true,
-      mode: "tailscale",
-      origin: "https://devbox.ts.net",
-      port: 5410,
-    });
-    expect(result.host).toMatchObject({
-      hostId: "host_1",
-      local: "http://127.0.0.1:4100",
-      name: "devbox",
-      owner: "user",
-      remote: "https://devbox.ts.net",
-      version: "1.0.0",
-    });
-    expect(setting(result, "idleTimeout")).toMatchObject({
-      editable: false,
-      from: "--idle-timeout",
-      source: "flag",
-      value: 0,
-    });
-    expect(setting(result, "port")).toMatchObject({
-      from: "DREAM_HOST_PORT",
-      source: "env",
-    });
-    expect(setting(result, "remotePort")).toMatchObject({
-      editable: true,
-      source: "saved",
-      value: 5410,
-    });
-  });
-
-  it("reports remote access set at start as fixed", () => {
-    const fixed = describeHostSettings({
-      access: { enabled: true, mode: "proxy", origin: null, port: 6000 },
-      descriptor: { hostId: "host_1" },
-      launch: resolve({ "remote-port": "6000" }),
-      localPort: null,
-      name: "devbox",
-      pid: 7,
-      startedAt: "now",
-      version: null,
-    });
-    expect(setting(fixed, "remotePort")).toMatchObject({
-      editable: false,
-      from: "--remote-port",
-      source: "flag",
-      value: 6000,
-    });
   });
 });

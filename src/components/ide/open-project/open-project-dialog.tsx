@@ -71,9 +71,7 @@ const OpenProjectForm = ({ onClose }: { onClose: () => void }) => {
   const addSshHost = useAddSshHost();
   const homeState = useConnectionState(LOCAL_HOST_ID);
 
-  const [hostId, setHostId] = useState(
-    platform.hasHomeHost ? LOCAL_HOST_ID : (sshHosts[0]?.id ?? ""),
-  );
+  const [hostId, setHostId] = useState(LOCAL_HOST_ID);
   const [path, setPath] = useState(HOME_FOLDER_INPUT);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,20 +124,9 @@ const OpenProjectForm = ({ onClose }: { onClose: () => void }) => {
           (route) => route.kind === "ssh" && route.sshHostId === hostId,
         ),
       );
-      setHostId(
-        merged?.id ??
-          (platform.hasHomeHost ? LOCAL_HOST_ID : (sshHosts[0]?.id ?? "")),
-      );
+      setHostId(merged?.id ?? LOCAL_HOST_ID);
     }
-  }, [
-    attempt,
-    home,
-    sshHost,
-    platform.hasHomeHost,
-    sshHosts,
-    connections,
-    hostId,
-  ]);
+  }, [attempt, home, sshHost, connections, hostId]);
 
   // Picking an SSH host connects it; ssh's prompts appear in their own
   // dialog. A failed attempt waits for Connect rather than retrying.
@@ -222,7 +209,7 @@ const OpenProjectForm = ({ onClose }: { onClose: () => void }) => {
             if (path.trim()) void handleAttempt(attempt.typed(hostId, path));
           }}
         >
-          {sshHosts.length > 0 || !platform.hasHomeHost ? (
+          {sshHosts.length > 0 ? (
             <div className="grid gap-1.5">
               <Label htmlFor="open-project-host">{t("openOn")}</Label>
               <Select
@@ -235,11 +222,9 @@ const OpenProjectForm = ({ onClose }: { onClose: () => void }) => {
                   <SelectValue>{hostLabel}</SelectValue>
                 </SelectTrigger>
                 <SelectContent align="start" alignItemWithTrigger={false}>
-                  {platform.hasHomeHost ? (
-                    <SelectItem value={LOCAL_HOST_ID}>
-                      {platform.homeLabel}
-                    </SelectItem>
-                  ) : null}
+                  <SelectItem value={LOCAL_HOST_ID}>
+                    {platform.homeLabel}
+                  </SelectItem>
                   {sshHosts.map((host) => (
                     <SelectItem key={host.id} value={host.id}>
                       {host.label}

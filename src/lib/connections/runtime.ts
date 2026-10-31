@@ -30,10 +30,7 @@ export const startConnectionRuntime = ({
   started = true;
   const platform = getClientPlatform();
   if (platform.kind === "desktop") {
-    connectionSupervisor.set(
-      LOCAL_HOST_ID,
-      platform.hasHomeHost ? "ready" : "offline",
-    );
+    connectionSupervisor.set(LOCAL_HOST_ID, "ready");
   } else {
     connectionSupervisor.judgeByRequests(LOCAL_HOST_ID);
   }

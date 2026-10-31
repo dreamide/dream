@@ -201,26 +201,7 @@ export interface RemoteAccessStatus {
   checkedAt: string | null;
 }
 
-/** Where a host option's value came from (electron/host/options.js). */
-export type HostSettingSource = "flag" | "env" | "saved" | "default";
-
-/** One option a host runs with, as it reports it. */
-export interface HostSetting {
-  name: string;
-  /** Its flag, e.g. `--idle-timeout`, and environment variable. */
-  flag: string;
-  env: string;
-  value: unknown;
-  source: HostSettingSource;
-  /** The flag or variable that set it; null for a saved or default value. */
-  from: string | null;
-  /** A client may change it (through its saved setting). */
-  editable: boolean;
-  /** A saved change waits on a restart of the host. */
-  pendingRestart: boolean;
-}
-
-/** What POST /api/host/settings answers: the host and its options. */
+/** What POST /api/host/settings answers: who the host is. */
 export interface HostSettingsReport {
   host: {
     name: string;
@@ -235,7 +216,6 @@ export interface HostSettingsReport {
     local: string | null;
     remote: string | null;
   };
-  settings: HostSetting[];
 }
 
 /** A pairing just minted: a short code that works once. */

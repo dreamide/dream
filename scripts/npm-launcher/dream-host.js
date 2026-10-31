@@ -5,10 +5,10 @@
 // arguments given:
 //
 //   npx dream-host serve --pair
-//   npx dream-host service install
 //
-// The runtime goes where an SSH install puts it, ~/.dream/host/versions/
-// <version>/, so a machine has one copy whichever way it got there. A
+// The runtime goes where install-host.sh and install-host.ps1 put it,
+// ~/.dream/host/versions/<version>/, so a machine has one copy whichever way
+// it got there. A
 // download is checked against SHA256SUMS before anything is unpacked, and
 // the unpacked runtime must run (`dream-host version`) before it is moved
 // into place. A lock keeps two installs of one version from racing.

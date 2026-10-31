@@ -115,9 +115,7 @@ export function SharingAccessSection({ appVersion }: { appVersion: string }) {
   const sshHosts = useIdeStore((state) => state.settings.sshHosts);
   const hosts = useIdeStore((state) => state.hosts);
   const choices = [
-    ...(platform.hasHomeHost
-      ? [{ id: LOCAL_HOST_ID, label: platform.homeLabel }]
-      : []),
+    { id: LOCAL_HOST_ID, label: platform.homeLabel },
     ...listHostChoices(connections, sshHosts).filter(
       (choice: { id: string }) => hosts[choice.id]?.state === "connected",
     ),

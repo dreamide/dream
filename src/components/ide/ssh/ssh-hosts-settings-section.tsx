@@ -38,13 +38,9 @@ export const useHostStateLabel = () => {
     t(STATE_MESSAGE_KEYS[state ?? "idle"]);
 };
 
-export type HostFormValues = Pick<
-  SshHostConfig,
-  "label" | "target" | "hostCommand"
->;
+export type HostFormValues = Pick<SshHostConfig, "label" | "target">;
 
 export const EMPTY_HOST_FORM: HostFormValues = {
-  hostCommand: "",
   label: "",
   target: "",
 };
@@ -109,7 +105,6 @@ export const SshHostDialog = ({
   const t = useTranslations("sshHosts");
   const [label, setLabel] = useState(initial.label);
   const [target, setTarget] = useState(initial.target);
-  const [hostCommand, setHostCommand] = useState(initial.hostCommand);
   const suggestions = useSshConfigSuggestions(isNew);
 
   return (
@@ -129,7 +124,6 @@ export const SshHostDialog = ({
             const trimmedTarget = target.trim();
             if (!trimmedTarget) return;
             onSave({
-              hostCommand: hostCommand.trim(),
               label: label.trim() || trimmedTarget,
               target: trimmedTarget,
             });
@@ -149,6 +143,7 @@ export const SshHostDialog = ({
               placeholder={t("targetPlaceholder")}
               value={target}
             />
+            <p className="text-muted-foreground text-xs">{t("targetHint")}</p>
             {suggestions.length > 0 ? (
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-muted-foreground text-xs">
@@ -174,21 +169,9 @@ export const SshHostDialog = ({
             <Input
               id="ssh-host-label"
               onChange={(event) => setLabel(event.target.value)}
-              placeholder={target.trim() || t("targetPlaceholder")}
+              placeholder={target.trim()}
               value={label}
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="ssh-host-command">{t("hostCommand")}</Label>
-            <Input
-              id="ssh-host-command"
-              onChange={(event) => setHostCommand(event.target.value)}
-              placeholder={t("hostCommandPlaceholder")}
-              value={hostCommand}
-            />
-            <p className="text-muted-foreground text-xs">
-              {t("hostCommandHint")}
-            </p>
           </div>
           <DialogFooter>
             <Button onClick={onCancel} type="button" variant="outline">

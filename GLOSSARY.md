@@ -188,14 +188,12 @@ host the user started with `dream-host` is attached to and left running. The
 attachment verifies the state database owner and the existing host identity
 before forwarding requests. In a browser it is the
 paired host serving the page (route `origin`), pinned like any address.
-Projects without a `hostId` live on the home host.
-A desktop in remote-only mode has no home execution host; its workspace stays
-on that desktop and it connects to remote hosts.
+Projects without a `hostId` live on the home host. A desktop always has one.
 
 ## Host mode
 
 How a desktop launch runs its home host (`electron/desktop-host-mode.js`):
-`DREAM_HOST_MODE` (`remote` or `in-process`) when set; the host in this
+`DREAM_HOST_MODE=in-process` when set; the host in this
 process while the workspace shares the state database's writer; otherwise
 **detached** (the Home host in its own process). It is not a setting in the
 app.
@@ -206,10 +204,11 @@ Every option a host starts with (`electron/host/options.js`): a flag and an
 environment variable each, resolved flag, then variable, then a setting the
 host saved (remote access), then the default, with the source of each value
 kept. `dream-host help` and the table in `docs/host-service.md` come from it.
-The host reports them with its identity and version (`POST /api/host/settings`,
-`electron/host/settings-report.js`). Settings shows only the identity and
-version: options belong in documentation, not the app. A control they fix
-(remote access set by `--remote-port`) is disabled with the reason.
+Options belong in documentation, not the app: the host reports only who it
+is, its version and addresses (`POST /api/host/settings`,
+`electron/host/settings-report.js`). A control an option fixes (remote access
+set by `--remote-port`) is disabled with the reason, from that control's own
+status.
 
 ## Settings pages for hosts
 
@@ -347,11 +346,11 @@ stopped and gets only what it missed.
 
 ## Host runtime
 
-What an SSH host runs as Dream's host, needing nothing installed there: the
-host bundled with its own Node and terminal support, one archive per
-platform, installed per version on the host. A **managed** SSH host gets
-the runtime of the app's version installed by Dream; otherwise its host
-command says how to run one.
+Dream's host bundled with its own Node and terminal support, one archive per
+platform, installed per version in `~/.dream/host/versions/<version>/` by the
+npm launcher or the install scripts (`docs/host-service.md`). The user
+installs it; Dream never does. An SSH host runs it as `dream-host`, found on
+the PATH of the user's login shell there.
 
 ## Host catalog
 

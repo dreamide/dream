@@ -68,7 +68,6 @@ export function createDesktopHostConnections({
         expectedIdentity,
         hostId: key,
         target: route.target,
-        hostCommand: route.hostCommand,
       });
       signal.throwIfAborted();
       const response = await fetchImpl(`${endpoint.baseUrl}/api/catalog`, {
@@ -194,13 +193,12 @@ export function createDesktopHostConnections({
     connect({
       hostId,
       target,
-      hostCommand,
       expectedIdentity = null,
       sshRoutes,
       routes: configuredRoutes,
     }) {
       const routes = configuredRoutes ??
-        sshRoutes ?? [{ id: `ssh:${hostId}`, target, hostCommand }];
+        sshRoutes ?? [{ id: `ssh:${hostId}`, target }];
       const config = JSON.stringify(routes);
       let host = hosts.get(hostId);
       if (
@@ -260,10 +258,6 @@ export function createDesktopHostConnections({
     forgetCredential: (id) => httpsRoutes.forget(id),
     getEndpoint: (hostId) =>
       hosts.get(hostId)?.supervisor.getEndpoint() ?? null,
-    getFirstEndpoint: () =>
-      [...hosts.values()]
-        .map((host) => host.supervisor.getEndpoint())
-        .find(Boolean) ?? null,
     getState: (hostId) =>
       hosts.get(hostId)?.supervisor.getState().state ?? "idle",
     getRouteState: (hostId) => hosts.get(hostId)?.supervisor.getState() ?? null,

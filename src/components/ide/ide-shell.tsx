@@ -4,7 +4,6 @@ import { AppLoadingScreen } from "@/components/dream-loading-screen";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { dismissBootScreen } from "@/lib/boot-screen";
-import { getClientPlatform } from "@/lib/connections/platform";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import { getHostSocketClient } from "@/lib/host-socket";
@@ -169,12 +168,7 @@ export const IdeShell = () => {
   // Desktop-owned terminals stop on unload; a detached host's outlive the page.
   useEffect(() => {
     const desktop = getDesktopApi();
-    if (
-      !desktop ||
-      desktop.hostMode === "detached" ||
-      desktop.hostMode === "remote"
-    )
-      return;
+    if (!desktop || desktop.hostMode === "detached") return;
     return watchRendererUnload({
       getState: useIdeStore.getState,
       stopAll: () => terminalClient.stopAll({ keepalive: true }),
@@ -193,7 +187,7 @@ export const IdeShell = () => {
       hosts: ReturnType<typeof useIdeStore.getState>["hosts"],
     ) => {
       const wanted = new Set([
-        ...(getClientPlatform().hasHomeHost ? [LOCAL_HOST_ID] : []),
+        LOCAL_HOST_ID,
         ...Object.entries(hosts)
           .filter(([, host]) => host.loaded)
           .map(([hostId]) => hostId),

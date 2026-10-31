@@ -11,8 +11,8 @@
 //
 // Both scripts install into ~/.dream/host/versions/<version>/, as an SSH
 // install and the npm launcher do, verify the archive against the release's
-// SHA256SUMS, and put a `dream-host` command on PATH. The shell script runs
-// the same install script Dream runs over SSH (electron/ssh/host-install.js).
+// SHA256SUMS, and put a `dream-host` command on PATH. The shell script's
+// install step is scripts/npm-launcher/install-host.js.
 import {
   copyFileSync,
   mkdirSync,
@@ -26,7 +26,7 @@ import { parseArgs } from "node:util";
 import {
   buildInstallScript,
   RUNTIME_RELEASES_URL,
-} from "../electron/ssh/host-install.js";
+} from "./npm-launcher/install-host.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { values } = parseArgs({
@@ -94,12 +94,11 @@ npx dream-host@${version} serve --pair
 The first run downloads the host runtime of this version for your platform
 from the Dream GitHub release, checks it against the release's SHA256SUMS and
 installs it in \`~/.dream/host/versions/${version}/\`. Every command after that
-runs it directly. See \`dream-host service install\` to keep it running.
+runs it directly. To keep it running, run it under your service manager.
 `,
 );
 
-// 2. The shell installer: Dream's own SSH install script, then a command on
-// PATH. Its version can be chosen with an argument or DREAM_HOST_VERSION.
+// 2. The shell installer: the install script, then a command on PATH. Its version can be chosen with an argument or DREAM_HOST_VERSION.
 const PLACEHOLDER = "0.0.0-dream-installer";
 const body = buildInstallScript({ version: PLACEHOLDER })
   .replace(`version='${PLACEHOLDER}'`, 'version="$DREAM_HOST_INSTALL_VERSION"')
@@ -108,7 +107,7 @@ const body = buildInstallScript({ version: PLACEHOLDER })
     `base_url="\${DREAM_HOST_RELEASES_URL:-${RUNTIME_RELEASES_URL}/v$version}"`,
   );
 if (body.includes(PLACEHOLDER)) {
-  throw new Error("The SSH install script changed shape; update this build.");
+  throw new Error("The install script changed shape; update this build.");
 }
 writeFileSync(
   path.join(out, "install-host.sh"),

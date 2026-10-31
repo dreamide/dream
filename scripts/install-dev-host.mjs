@@ -1,7 +1,7 @@
 // Installs a development build of Dream's host runtime on an SSH host, from
-// this working tree. A development build of Dream has no published runtime
-// to download, so its managed SSH hosts use the version "dev"
-// (~/.dream/host/versions/dev/), which this puts there:
+// this working tree, as ~/.dream/host/versions/dev/, and links it as
+// dream-host in ~/.local/bin (or DREAM_HOST_BIN_DIR), where Dream's SSH
+// connection runs it by name:
 //
 //   pnpm host:install-dev <ssh target>      e.g. root@203.0.113.10, devbox
 //
@@ -16,8 +16,9 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEV_RUNTIME_VERSION } from "../electron/ssh/host-install.js";
 import { quoteShellWord } from "../electron/ssh/ssh-args.js";
+
+const DEV_RUNTIME_VERSION = "dev";
 
 const target = process.argv[2];
 if (!target || target.startsWith("-")) {
@@ -119,7 +120,15 @@ if [ -x "$dir/bin/dream-host" ]; then "$dir/bin/dream-host" stop >/dev/null 2>&1
 rm -rf "$dir"
 mv "$stage" "$dir"
 touch "$dir/.install-complete"
-echo "Installed Dream's development host runtime in $dir"
+bin_dir="\${DREAM_HOST_BIN_DIR:-$HOME/.local/bin}"
+mkdir -p "$bin_dir"
+ln -sf "$dir/bin/dream-host" "$bin_dir/dream-host"
+echo "Installed Dream's development host runtime in $dir, as $bin_dir/dream-host"
+login_path="$("\${SHELL:-sh}" -lc 'printf %s "$PATH"' </dev/null 2>/dev/null || true)"
+case ":$login_path:" in
+  *":$bin_dir:"*) ;;
+  *) echo "Add $bin_dir to the PATH of your login shell there, so Dream can run dream-host." ;;
+esac
 `;
 
 // What to copy: the files git knows, less what it ignores (node_modules,
@@ -156,8 +165,6 @@ tar.kill();
 rmSync(listDirectory, { force: true, recursive: true });
 
 if (exitCode === 0) {
-  console.log(
-    `\nDone. In Dream (a development build), leave this host's Host command empty and connect.`,
-  );
+  console.log(`\nDone. Connect to ${target} from Dream.`);
 }
 process.exit(exitCode);

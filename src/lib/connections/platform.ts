@@ -26,7 +26,6 @@ import {
 
 export interface ClientPlatform {
   kind: "desktop" | "web";
-  hasHomeHost: boolean;
   /** How this client reaches its home host, the `local` connection. */
   homeRoute: HostRoute;
   /** What to call the home host in messages. */
@@ -57,7 +56,6 @@ export const getClientPlatform = (): ClientPlatform => {
     }
     return {
       desktop,
-      hasHomeHost: desktop.hostMode !== "remote",
       homeLabel: "This computer",
       homeRoute: LOCAL_ROUTE as HostRoute,
       kind: "desktop",
@@ -68,7 +66,6 @@ export const getClientPlatform = (): ClientPlatform => {
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   return {
     desktop: null,
-    hasHomeHost: true,
     homeLabel:
       typeof window === "undefined" ? "This host" : window.location.host,
     homeRoute: originRoute(origin) as HostRoute,

@@ -303,8 +303,6 @@ export interface SshHostConfig {
   label: string;
   /** What you would type after `ssh`: an ~/.ssh/config alias or user@host. */
   target: string;
-  /** How to run dream-host there; empty: Dream installs and runs its own. */
-  hostCommand: string;
 }
 
 /**
@@ -924,8 +922,8 @@ export type AppScreenshotResult =
   | { status: "copied"; error: string }
   | { status: "failed"; error: string };
 
-/** How the home host runs: in its own process, inside the app, or not at all. */
-export type HomeHostMode = "detached" | "in-process" | "remote";
+/** How the home host runs: in its own process, or inside the app. */
+export type HomeHostMode = "detached" | "in-process";
 
 export interface HomeHostSettings {
   /** How the home host runs in this launch. */
@@ -998,12 +996,11 @@ export interface DesktopApi {
   connectHost: (payload: {
     hostId: string;
     target?: string;
-    hostCommand?: string;
     expectedHostId?: string | null;
     expectedFingerprint?: string | null;
-    sshRoutes?: { id: string; target: string; hostCommand?: string }[];
+    sshRoutes?: { id: string; target: string }[];
     routes?: (
-      | { id: string; kind: "ssh"; target: string; hostCommand?: string }
+      | { id: string; kind: "ssh"; target: string }
       | { id: string; kind: "https"; origin: string; credentialId: string }
     )[];
   }) => Promise<{

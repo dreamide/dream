@@ -40,7 +40,6 @@ afterEach(() => {
 });
 
 const host = (id: string) => ({
-  hostCommand: "",
   id,
   label: id,
   target: `me@${id}`,
@@ -164,17 +163,14 @@ test("editing a host keeps it, and a live connection reconnects when how it is r
   // Connected: a new target reconnects there.
   await store.getState().connectHost("a");
   desktop.connectHost.mockClear();
-  await store
-    .getState()
-    .updateSshHost("a", { hostCommand: "~/bin/dream-host" });
+  await store.getState().updateSshHost("a", { target: "me@newer-a" });
   // The adapter replaces edited routes while keeping healthy fallbacks.
   expect(desktop.disconnectHost).not.toHaveBeenCalled();
   expect(desktop.connectHost).toHaveBeenCalledWith({
     expectedFingerprint: null,
     expectedHostId: null,
-    hostCommand: "~/bin/dream-host",
     hostId: "a",
-    target: "me@new-a",
+    target: "me@newer-a",
   });
   expect(hostIds()).toEqual(["a", "b", "c", "d"]);
 });

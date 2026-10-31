@@ -34,13 +34,13 @@ export function hostProtocolProblem(version) {
       ? `${SUPPORTED_HOST_PROTOCOLS.min}`
       : `${SUPPORTED_HOST_PROTOCOLS.min}–${SUPPORTED_HOST_PROTOCOLS.max}`;
   if (typeof version !== "number" || !Number.isInteger(version)) {
-    return "The host did not say which protocol it speaks. Update the Dream host there, or remove its custom host command so Dream installs a matching one.";
+    return "The host did not say which protocol it speaks. Update dream-host there.";
   }
   if (version > SUPPORTED_HOST_PROTOCOLS.max) {
     return `The host speaks protocol ${version}, newer than this app supports (${supported}). Update Dream on this computer.`;
   }
   if (version < SUPPORTED_HOST_PROTOCOLS.min) {
-    return `The host speaks protocol ${version}, older than this app supports (${supported}). Update the Dream host there, or remove its custom host command so Dream installs a matching one.`;
+    return `The host speaks protocol ${version}, older than this app supports (${supported}). Update dream-host there.`;
   }
   return null;
 }

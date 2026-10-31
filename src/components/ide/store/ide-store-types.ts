@@ -157,7 +157,7 @@ export interface IdeState {
    */
   updateSshHost: (
     hostId: string,
-    patch: Partial<Pick<SshHostConfig, "label" | "target" | "hostCommand">>,
+    patch: Partial<Pick<SshHostConfig, "label" | "target">>,
   ) => Promise<void>;
   awaitingAnswerChatIds: Record<string, boolean>;
   completedChatIds: Record<string, boolean>;
@@ -602,7 +602,7 @@ export interface IdeState {
   ) => Promise<string>;
   addSshRoute: (
     connectionId: string,
-    values: Pick<SshHostConfig, "label" | "target" | "hostCommand">,
+    values: Pick<SshHostConfig, "label" | "target">,
   ) => Promise<void>;
   setHostRoutes: (
     hostId: string,

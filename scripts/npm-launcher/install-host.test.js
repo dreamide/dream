@@ -1,7 +1,5 @@
-// Installing the host runtime: the real install script, run by sh against a
-// local "release" (a fake runtime archive and its SHA256SUMS), and the
-// connection's fallback that uploads the archive when the host cannot
-// download it.
+// The host runtime's shell install script, run by sh against a local
+// "release" (a fake runtime archive and its SHA256SUMS).
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -15,19 +13,13 @@ import {
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import getPort from "get-port";
 import { afterAll, beforeAll, expect, test } from "vitest";
-import { runDaemonCli } from "../host/daemon.js";
-import { buildInstallScript, INSTALL_EXIT } from "./host-install.js";
-import { createSshHostConnection } from "./ssh-host-connection.js";
+import { buildInstallScript, INSTALL_EXIT } from "./install-host.js";
 
 const hasSh = spawnSync("sh", ["-c", "exit 0"]).status === 0;
 const VERSION = "9.9.9";
 const NAME = `dream-host-${VERSION}-linux-x64.tar.gz`;
-const FAKE_SSH = fileURLToPath(
-  new URL("./test-fixtures/fake-ssh.js", import.meta.url),
-);
 
 // sh on Windows (Git Bash) wants /c/... paths: its tar reads "C:" as a host.
 const shPath = (value) =>
@@ -148,80 +140,3 @@ test.skipIf(!hasSh)(
     }
   },
 );
-
-test.skipIf(!hasSh)(
-  "a host that cannot download gets the runtime uploaded over SSH",
-  { timeout: 90_000 },
-  async () => {
-    const scriptHome = mkdtempSync(
-      path.join(os.tmpdir(), "dream-script-home-"),
-    );
-    const daemonHome = mkdtempSync(
-      path.join(os.tmpdir(), "dream-daemon-home-"),
-    );
-    const connection = createSshHostConnection({
-      env: {
-        ...process.env,
-        DREAM_HOST_ARCH: "x64",
-        DREAM_HOST_NO_DOWNLOAD: "1",
-        DREAM_HOST_OS: "linux",
-        FAKE_SSH_HOST_HOME: daemonHome,
-        FAKE_SSH_SCRIPT_HOME: shPath(scriptHome),
-      },
-      getLocalPort: () => getPort({ host: "127.0.0.1" }),
-      runtimeBaseUrl: baseUrl,
-      runtimeCacheDirectory: mkdtempSync(
-        path.join(os.tmpdir(), "dream-runtime-cache-"),
-      ),
-      runtimeVersion: VERSION,
-      spawnProcess: (_ssh, args, options) =>
-        spawn(process.execPath, [FAKE_SSH, ...args], options),
-      target: "devbox",
-    });
-
-    try {
-      await connection.connect();
-      expect(installed(scriptHome)).toBe(true);
-    } finally {
-      connection.disconnect();
-      const quiet = { write: () => {} };
-      await runDaemonCli(["stop", "--home", daemonHome], {
-        stderr: quiet,
-        stdout: quiet,
-      });
-    }
-  },
-);
-
-test("a release without a host runtime says how to connect anyway", async () => {
-  const { downloadRuntimeArchive } = await import("./host-install.js");
-  await expect(
-    downloadRuntimeArchive({
-      arch: "x64",
-      cacheDirectory: mkdtempSync(path.join(os.tmpdir(), "dream-runtime-")),
-      fetchImpl: async () => new Response("Not Found", { status: 404 }),
-      os: "linux",
-      version: "0.24.0",
-    }),
-  ).rejects.toThrow(/Dream 0\.24\.0 has no host runtime.*Host command/);
-});
-
-test("a development build never downloads a runtime and says how to install one", async () => {
-  const { DEV_RUNTIME_VERSION, downloadRuntimeArchive } = await import(
-    "./host-install.js"
-  );
-  let fetched = false;
-  await expect(
-    downloadRuntimeArchive({
-      arch: "x64",
-      cacheDirectory: mkdtempSync(path.join(os.tmpdir(), "dream-runtime-")),
-      fetchImpl: async () => {
-        fetched = true;
-        return new Response("", { status: 404 });
-      },
-      os: "linux",
-      version: DEV_RUNTIME_VERSION,
-    }),
-  ).rejects.toThrow(/pnpm host:install-dev/);
-  expect(fetched).toBe(false);
-});

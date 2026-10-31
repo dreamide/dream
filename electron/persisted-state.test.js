@@ -819,7 +819,6 @@ const FULL_SETTINGS = {
   shellPath: "/bin/zsh",
   sshHosts: [
     {
-      hostCommand: "node ~/dream/electron/host/dream-host.js",
       id: "devbox",
       label: "Devbox",
       target: "me@devbox",

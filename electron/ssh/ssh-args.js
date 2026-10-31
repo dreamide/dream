@@ -35,13 +35,19 @@ const HOLD_OPEN_COMMAND = "cat >/dev/null";
 const LOGIN_SHELL_SCRIPT = 'exec "${SHELL:-sh}" -lc "$1"';
 
 /**
+ * How dream-host is run on an SSH host: by name, from the PATH of the
+ * user's login shell. The user installs it there; Dream never does.
+ */
+export const HOST_COMMAND = "dream-host";
+
+/**
  * The command run on the host to reuse or start the daemon. It goes through
  * the user's login shell so the PATH (and version managers) match an
  * interactive login, whatever that shell is.
- * @param {string} hostCommand how to run dream-host there, e.g. `dream-host`
+ * @param {string} [command] what to run with `ensure` (tests use another)
  */
-export const buildEnsureCommand = (hostCommand) =>
-  `sh -c ${quoteShellWord(LOGIN_SHELL_SCRIPT)} sh ${quoteShellWord(`${hostCommand} ensure`)}`;
+export const buildEnsureCommand = (command = HOST_COMMAND) =>
+  `sh -c ${quoteShellWord(LOGIN_SHELL_SCRIPT)} sh ${quoteShellWord(`${command} ensure`)}`;
 
 /** Options every invocation carries. */
 const baseOptions = ({ connectTimeoutSeconds = 15 } = {}) => [
@@ -77,54 +83,13 @@ export const buildMasterCheckArgs = ({ target, controlPath }) => [
 ];
 
 /** Runs the daemon command (through the master when there is one). */
-export const buildEnsureArgs = ({
-  target,
-  controlPath,
-  hostCommand,
-  ...options
-}) => [
+export const buildEnsureArgs = ({ target, controlPath, ...options }) => [
   ...baseOptions(options),
   ...(controlPath ? controlOptions(controlPath) : []),
   "-T",
   target,
-  buildEnsureCommand(hostCommand),
+  buildEnsureCommand(),
 ];
-
-/** Runs a POSIX shell script on the host (through the master if any). */
-export const buildScriptArgs = ({
-  target,
-  controlPath,
-  script,
-  ...options
-}) => [
-  ...baseOptions(options),
-  ...(controlPath ? controlOptions(controlPath) : []),
-  "-T",
-  target,
-  `sh -c ${quoteShellWord(script)}`,
-];
-
-/**
- * Writes stdin to `remotePath` (relative to the host's home; plain file
- * name characters only) on the host.
- */
-export const buildUploadArgs = ({
-  target,
-  controlPath,
-  remotePath,
-  ...options
-}) => {
-  if (!/^[\w./-]+$/.test(remotePath) || remotePath.includes("..")) {
-    throw new Error(`Unsafe upload path: ${remotePath}`);
-  }
-  const directory = remotePath.split("/").slice(0, -1).join("/");
-  return buildScriptArgs({
-    ...options,
-    controlPath,
-    script: `mkdir -p "$HOME/${directory}" && cat > "$HOME/${remotePath}"`,
-    target,
-  });
-};
 
 const forwardSpec = ({ localPort, remotePort }) =>
   `127.0.0.1:${localPort}:127.0.0.1:${remotePort}`;

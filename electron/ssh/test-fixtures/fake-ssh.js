@@ -3,8 +3,6 @@
 //
 //   ssh [opts] target <ensure command>   runs dream-host ensure locally
 //                                        (FAKE_SSH_HOST_HOME is its --home)
-//   ssh [opts] target sh -c '<script>'  runs it with sh, HOME set to
-//                                        FAKE_SSH_SCRIPT_HOME
 //   ssh [opts] -L l:127.0.0.1:r target cat >/dev/null
 //                                        forwards l to r until stdin ends
 //
@@ -67,14 +65,6 @@ if (forward) {
     [DREAM_HOST, "ensure", "--home", process.env.FAKE_SSH_HOST_HOME],
     { stdio: "inherit" },
   );
-  child.on("exit", (code) => process.exit(code ?? 1));
-} else if (command.startsWith("sh -c ")) {
-  // A script (installing the runtime, an upload): run by sh here, with the
-  // fake host's home as HOME and stdin passed through.
-  const child = spawn("sh", ["-c", command], {
-    env: { ...process.env, HOME: process.env.FAKE_SSH_SCRIPT_HOME },
-    stdio: "inherit",
-  });
   child.on("exit", (code) => process.exit(code ?? 1));
 } else {
   process.stderr.write(`fake-ssh: unexpected command: ${command}\n`);

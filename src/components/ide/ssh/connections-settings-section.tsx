@@ -116,9 +116,7 @@ export function ConnectionsSettingsSection() {
     (host) => host.id === "local" && host.routes.length > 1,
   );
   const choices = [
-    ...(home && getClientPlatform().hasHomeHost
-      ? [{ id: "local", label: getClientPlatform().homeLabel }]
-      : []),
+    ...(home ? [{ id: "local", label: getClientPlatform().homeLabel }] : []),
     ...listHostChoices(connections, sshHosts),
   ];
   const views: HostView[] = choices.map((choice) => {

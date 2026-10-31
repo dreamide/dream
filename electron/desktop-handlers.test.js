@@ -244,7 +244,6 @@ test("SSH host calls are checked before they reach the hosts", async () => {
   await assert.rejects(() => handlers.connectHost({ hostId: "h" }));
   assert.deepEqual(
     await handlers.connectHost({
-      hostCommand: " ",
       hostId: "h",
       target: " box ",
     }),
@@ -260,7 +259,6 @@ test("SSH host calls are checked before they reach the hosts", async () => {
       "connect",
       {
         expectedIdentity: null,
-        hostCommand: undefined,
         hostId: "h",
         target: "box",
       },
