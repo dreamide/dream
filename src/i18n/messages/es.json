@@ -31,12 +31,7 @@
     "addPairing": "Enlace de emparejamiento",
     "otherRoutes": "{count, plural, one {+# ruta} other {+# rutas}}",
     "routesDescription": "Las rutas se prueban en orden hasta que una conecta.",
-    "done": "Listo",
-    "addWsl": "Distribución de WSL",
-    "wslTitle": "Añadir una distribución de WSL",
-    "wslDescription": "Dream instala su host dentro de la distribución y ejecuta allí proyectos, terminales y agentes.",
-    "wslDistribution": "Distribución",
-    "wslAdd": "Añadir"
+    "done": "Listo"
   },
   "app": {
     "loadingDream": "Cargando Dream",

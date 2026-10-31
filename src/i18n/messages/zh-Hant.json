@@ -31,12 +31,7 @@
     "addPairing": "配對連結",
     "otherRoutes": "{count, plural, other {+# 條路由}}",
     "routesDescription": "依序嘗試路由，直到其中一條連線成功。",
-    "done": "完成",
-    "addWsl": "WSL 發行版",
-    "wslTitle": "新增 WSL 發行版",
-    "wslDescription": "Dream 會在發行版中安裝其主機，並在那裡執行專案、終端機和代理。",
-    "wslDistribution": "發行版",
-    "wslAdd": "新增"
+    "done": "完成"
   },
   "app": {
     "loadingDream": "正在載入 Dream",

@@ -136,7 +136,6 @@ const createFakes = ({ window = true } = {}) => {
     },
     systemPrefersDark: () => false,
     themes,
-    wslDistributions: async () => ["Ubuntu"],
   });
   return { handlers, log, notifications, paintWindowBackground, saved, themes };
 };
@@ -368,7 +367,7 @@ test("every method the renderer calls is handled once, on its channel", () => {
   );
 });
 
-test("the home host is described and restarted, and WSL listed", async () => {
+test("the home host is described and restarted", async () => {
   const { handlers, log } = createFakes();
   assert.deepEqual(handlers.getHomeHostSettings(), {
     mode: "detached",
@@ -379,7 +378,6 @@ test("the home host is described and restarted, and WSL listed", async () => {
     owned: true,
   });
   assert.deepEqual(log.at(-1), ["restart host"]);
-  assert.deepEqual(await handlers.listWslDistributions(), ["Ubuntu"]);
 });
 
 test("every channel is used by one method", () => {

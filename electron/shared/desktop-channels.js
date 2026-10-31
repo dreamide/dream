@@ -174,11 +174,6 @@ export const DESKTOP_METHODS =
       kind: "invoke",
       params: [],
     },
-    listWslDistributions: {
-      channel: "hosts:wsl-distributions",
-      kind: "invoke",
-      params: [],
-    },
 
     detectEditors: { channel: "editors:detect", kind: "invoke", params: [] },
     openInEditor: { channel: "editors:open", kind: "invoke" },

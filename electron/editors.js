@@ -2,7 +2,6 @@ import { spawn as spawnProcess } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import path from "node:path";
 import { shell } from "electron";
-import { parseWslTarget, wslWindowsPath } from "./ssh/wsl.js";
 
 const WINDOWS_POWERSHELL_PATH =
   process.platform === "win32"
@@ -62,10 +61,8 @@ const KNOWN_EDITORS = [
     ],
     linux: ["code"],
     args: (p) => [p],
-    // A folder on an SSH host opens through the editor's own Remote-SSH,
-    // one in WSL through its WSL remote.
+    // A folder on an SSH host opens through the editor's own Remote-SSH.
     remoteArgs: (target, p) => ["--remote", `ssh-remote+${target}`, p],
-    wslArgs: (distribution, p) => ["--remote", `wsl+${distribution}`, p],
   },
   {
     id: "cursor",
@@ -74,10 +71,8 @@ const KNOWN_EDITORS = [
     mac: ["/Applications/Cursor.app/Contents/Resources/app/bin/cursor"],
     linux: ["cursor"],
     args: (p) => [p],
-    // A folder on an SSH host opens through the editor's own Remote-SSH,
-    // one in WSL through its WSL remote.
+    // A folder on an SSH host opens through the editor's own Remote-SSH.
     remoteArgs: (target, p) => ["--remote", `ssh-remote+${target}`, p],
-    wslArgs: (distribution, p) => ["--remote", `wsl+${distribution}`, p],
   },
   {
     id: "windsurf",
@@ -86,10 +81,8 @@ const KNOWN_EDITORS = [
     mac: ["/Applications/Windsurf.app/Contents/Resources/app/bin/windsurf"],
     linux: ["windsurf"],
     args: (p) => [p],
-    // A folder on an SSH host opens through the editor's own Remote-SSH,
-    // one in WSL through its WSL remote.
+    // A folder on an SSH host opens through the editor's own Remote-SSH.
     remoteArgs: (target, p) => ["--remote", `ssh-remote+${target}`, p],
-    wslArgs: (distribution, p) => ["--remote", `wsl+${distribution}`, p],
   },
   {
     id: "zed",
@@ -331,41 +324,11 @@ function resolveKnownEditor(editorId) {
 /**
  * Opens a project in an editor. A project on an SSH host (`sshTarget` set)
  * opens through the editor's remote support; an editor without it refuses
- * rather than opening the host's path on this machine. A project in WSL
- * (`wsl:<distribution>`) opens through the editor's WSL remote, or else as
- * the distribution's path seen from Windows (\\wsl.localhost\...).
+ * rather than opening the host's path on this machine.
  */
 export function openProjectInEditor({ editorId, projectPath, sshTarget }) {
   if (!projectPath || typeof projectPath !== "string") {
     return false;
-  }
-
-  const distribution =
-    process.platform === "win32" ? parseWslTarget(sshTarget) : null;
-  if (distribution) {
-    const editorDef = KNOWN_EDITORS.find((e) => e.id === editorId);
-    if (!editorDef?.wslArgs) {
-      return openProjectInEditor({
-        editorId,
-        projectPath: wslWindowsPath(distribution, projectPath),
-        sshTarget: null,
-      });
-    }
-    const editor = resolveKnownEditor(editorId);
-    if (!editor) return false;
-    const requiresShell = [".bat", ".cmd"].includes(
-      path.extname(editor.executable).toLowerCase(),
-    );
-    spawnProcess(
-      editor.executable,
-      editorDef.wslArgs(distribution, projectPath),
-      {
-        detached: true,
-        shell: requiresShell,
-        stdio: "ignore",
-      },
-    ).unref();
-    return true;
   }
 
   if (typeof sshTarget === "string" && sshTarget.trim()) {

@@ -143,10 +143,7 @@ unverified or unsupported boundaries reconstruct from canonical history.
 
 The machine whose filesystem, agent CLIs and terminals a project uses. The
 **local host** is the machine Dream's window runs on; an **SSH host** is
-another machine Dream reaches over SSH. A **WSL host** is an SSH host whose
-target is `wsl:<distribution>` (`electron/ssh/wsl.js`, added with **Add host >
-WSL distribution**): reached through wsl.exe instead of ssh, on the port WSL
-forwards to Windows. Not to be
+another machine Dream reaches over SSH. Not to be
 confused with a provider session, which lives on the provider's side
 whatever the host.
 

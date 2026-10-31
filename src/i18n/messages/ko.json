@@ -31,12 +31,7 @@
     "addPairing": "페어링 링크",
     "otherRoutes": "{count, plural, other {+#개 경로}}",
     "routesDescription": "연결될 때까지 경로를 순서대로 시도합니다.",
-    "done": "완료",
-    "addWsl": "WSL 배포판",
-    "wslTitle": "WSL 배포판 추가",
-    "wslDescription": "Dream은 배포판 안에 호스트를 설치하고 그곳에서 프로젝트, 터미널, 에이전트를 실행합니다.",
-    "wslDistribution": "배포판",
-    "wslAdd": "추가"
+    "done": "완료"
   },
   "app": {
     "loadingDream": "Dream 로드 중",

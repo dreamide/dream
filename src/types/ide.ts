@@ -989,8 +989,6 @@ export interface DesktopApi {
   getHomeHostSettings: () => Promise<HomeHostSettings>;
   /** Restarts the host this desktop started; refused for one it did not. */
   restartHomeHost: () => Promise<HomeHostSettings>;
-  /** On Windows, the installed WSL distributions; empty elsewhere. */
-  listWslDistributions: () => Promise<string[]>;
 
   /**
    * Connects an SSH host (its daemon is started or reused there). With an

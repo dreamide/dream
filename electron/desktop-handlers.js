@@ -113,8 +113,6 @@ const pairingIdentity = (payload, fallbackName) => {
  * @param {{ describe: () => unknown, restart: () => Promise<void> }} deps.homeHost
  *   How this desktop runs its home host: the mode now, and whether it
  *   started the host (desktop-host-mode.js, desktop-host.js).
- * @param {() => Promise<string[]>} deps.wslDistributions On Windows, the
- *   installed WSL distributions.
  */
 export const createDesktopHandlers = ({
   browserSessions,
@@ -133,7 +131,6 @@ export const createDesktopHandlers = ({
   state,
   systemPrefersDark,
   themes,
-  wslDistributions,
 }) => {
   /**
    * Electron 44 removed clipboard.writeImage; images go through the
@@ -531,7 +528,6 @@ export const createDesktopHandlers = ({
       await homeHost.restart();
       return homeHost.describe();
     },
-    listWslDistributions: () => wslDistributions(),
     disconnectHost: (/** @type {unknown} */ payload) => {
       const { hostId } = fields(payload);
       if (typeof hostId === "string") sshHosts.disconnect(hostId);

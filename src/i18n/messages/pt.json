@@ -31,12 +31,7 @@
     "addPairing": "Link de pareamento",
     "otherRoutes": "{count, plural, one {+# rota} other {+# rotas}}",
     "routesDescription": "As rotas são tentadas em ordem até uma conectar.",
-    "done": "Concluído",
-    "addWsl": "Distribuição do WSL",
-    "wslTitle": "Adicionar uma distribuição do WSL",
-    "wslDescription": "O Dream instala seu host dentro da distribuição e executa ali projetos, terminais e agentes.",
-    "wslDistribution": "Distribuição",
-    "wslAdd": "Adicionar"
+    "done": "Concluído"
   },
   "app": {
     "loadingDream": "Carregando Dream",

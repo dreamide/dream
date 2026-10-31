@@ -31,12 +31,7 @@
     "addPairing": "Pairing link",
     "otherRoutes": "{count, plural, one {+# route} other {+# routes}}",
     "routesDescription": "Routes are tried in order until one connects.",
-    "done": "Done",
-    "addWsl": "WSL distribution",
-    "wslTitle": "Add a WSL distribution",
-    "wslDescription": "Dream installs its host inside the distribution and runs projects, terminals and agents there.",
-    "wslDistribution": "Distribution",
-    "wslAdd": "Add"
+    "done": "Done"
   },
   "app": {
     "loadingDream": "Loading Dream",

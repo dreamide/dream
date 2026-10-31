@@ -69,7 +69,6 @@ import {
 import { DEV_RUNTIME_VERSION } from "./ssh/host-install.js";
 import { createSshPromptBroker } from "./ssh/prompt-broker.js";
 import { readSshConfigHosts } from "./ssh/ssh-config-hosts.js";
-import { listWslDistributions } from "./ssh/wsl.js";
 import { createStateSaveQueue } from "./state-save-queue.js";
 import { createThemeStore } from "./theme-store.js";
 import { initializeAutoUpdater } from "./updater.js";
@@ -728,8 +727,6 @@ const desktop = createDesktopHandlers({
   hostname: () => os.hostname(),
   sendToRenderer,
   sshConfigHosts: () => readSshConfigHosts(),
-  // On Windows, the WSL distributions a host can be added for (ssh/wsl.js).
-  wslDistributions: () => listWslDistributions(),
   sshHosts: desktopConnections,
   sshPrompts,
   state: {

@@ -31,12 +31,7 @@
     "addPairing": "ペアリングリンク",
     "otherRoutes": "{count, plural, other {+# 経路}}",
     "routesDescription": "接続できるまで経路を順番に試します。",
-    "done": "完了",
-    "addWsl": "WSL ディストリビューション",
-    "wslTitle": "WSL ディストリビューションを追加",
-    "wslDescription": "Dream はディストリビューション内にホストをインストールし、そこでプロジェクト、ターミナル、エージェントを実行します。",
-    "wslDistribution": "ディストリビューション",
-    "wslAdd": "追加"
+    "done": "完了"
   },
   "app": {
     "loadingDream": "Dream を読み込み中",

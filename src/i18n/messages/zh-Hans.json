@@ -31,12 +31,7 @@
     "addPairing": "配对链接",
     "otherRoutes": "{count, plural, other {+# 条路由}}",
     "routesDescription": "按顺序尝试路由，直到其中一条连接成功。",
-    "done": "完成",
-    "addWsl": "WSL 发行版",
-    "wslTitle": "添加 WSL 发行版",
-    "wslDescription": "Dream 会在发行版中安装其主机，并在那里运行项目、终端和代理。",
-    "wslDistribution": "发行版",
-    "wslAdd": "添加"
+    "done": "完成"
   },
   "app": {
     "loadingDream": "正在加载 Dream",

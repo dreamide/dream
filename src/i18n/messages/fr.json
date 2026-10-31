@@ -31,12 +31,7 @@
     "addPairing": "Lien d’appairage",
     "otherRoutes": "{count, plural, one {+# route} other {+# routes}}",
     "routesDescription": "Les routes sont essayées dans l’ordre jusqu’à ce qu’une se connecte.",
-    "done": "Terminé",
-    "addWsl": "Distribution WSL",
-    "wslTitle": "Ajouter une distribution WSL",
-    "wslDescription": "Dream installe son hôte dans la distribution et y exécute projets, terminaux et agents.",
-    "wslDistribution": "Distribution",
-    "wslAdd": "Ajouter"
+    "done": "Terminé"
   },
   "app": {
     "loadingDream": "Chargement de Dream",

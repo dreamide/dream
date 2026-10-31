@@ -31,12 +31,7 @@
     "addPairing": "Liên kết ghép nối",
     "otherRoutes": "{count, plural, other {+# tuyến}}",
     "routesDescription": "Các tuyến được thử lần lượt cho đến khi một tuyến kết nối được.",
-    "done": "Xong",
-    "addWsl": "Bản phân phối WSL",
-    "wslTitle": "Thêm bản phân phối WSL",
-    "wslDescription": "Dream cài máy chủ bên trong bản phân phối và chạy dự án, terminal và agent ở đó.",
-    "wslDistribution": "Bản phân phối",
-    "wslAdd": "Thêm"
+    "done": "Xong"
   },
   "app": {
     "loadingDream": "Đang tải Dream",

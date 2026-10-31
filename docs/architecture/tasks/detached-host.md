@@ -288,9 +288,8 @@ benefits).
 
 ## DH-06: Headless pairing, approval signal, WSL hosts
 
-Status: implemented; the WSL interface is superseded by DH-16 (a distribution
-picker instead of typing `wsl:<name>`), and the QR code of `serve --pair` is
-reviewed under DH-17
+Status: implemented, except WSL hosts, removed 2026-10-30 (see below); the QR
+code of `serve --pair` was removed under DH-17
 
 Problem and trigger: three smaller gaps from the comparison.
 
@@ -335,6 +334,10 @@ Validation: `tool-approvals.test.js`, `catalog-approvals.test.ts`,
 `wsl.test.js` (arguments, UTF-16 output, a connection end to end with a fake
 wsl.exe, a missing distribution); `serve --pair` run both ways. The new
 indicator was not inspected visually.
+
+Scope change (2026-10-30): WSL hosts were removed (code, UI, docs). Dream
+does not install or manage a host inside WSL; the user installs and runs
+`dream-host` wherever it is needed and reaches it like any other host.
 
 Remaining/deferred:
 
@@ -738,7 +741,7 @@ host.
 
 ## DH-16: WSL distribution picker
 
-Status: implemented; not exercised with a real distribution
+Status: removed 2026-10-30 (see the scope change below)
 
 Problem and trigger: a WSL host is added by typing `wsl:<name>` as an SSH
 target. That is undiscoverable, and its route shows that internal form.
@@ -764,6 +767,10 @@ Validation: typecheck, lint, and the handler test of
   yet added; it saves the internal `wsl:<name>` route.
 - Routes show the distribution's name with a WSL badge.
 - The SSH dialog no longer suggests `wsl:` targets.
+
+Scope change (2026-10-30): WSL hosts were removed (code, UI, docs). Dream
+does not install or manage a host inside WSL; the user installs and runs
+`dream-host` wherever it is needed and reaches it like any other host.
 
 Remaining/deferred: a walkthrough with this machine's Debian or Ubuntu (it
 installs a runtime and starts a host inside the distribution).

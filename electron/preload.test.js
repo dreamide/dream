@@ -168,7 +168,6 @@ const SENT = [
   ],
   ["getHomeHostSettings", [], ["invoke", "home-host:get-settings"]],
   ["restartHomeHost", [], ["invoke", "home-host:restart"]],
-  ["listWslDistributions", [], ["invoke", "hosts:wsl-distributions"]],
   ["detectEditors", [], ["invoke", "editors:detect"]],
   ["openInEditor", [payload], ["invoke", "editors:open", payload]],
   ["getUpdateStatus", [], ["invoke", "updates:get-status"]],
