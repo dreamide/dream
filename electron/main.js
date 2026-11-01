@@ -65,6 +65,7 @@ import {
   DESKTOP_SYNC_CHANNELS,
   desktopChannel,
 } from "./shared/desktop-channels.js";
+import { DEV_RUNTIME_VERSION } from "./ssh/host-install.js";
 import { createSshPromptBroker } from "./ssh/prompt-broker.js";
 import { readSshConfigHosts } from "./ssh/ssh-config-hosts.js";
 import { createStateSaveQueue } from "./state-save-queue.js";
@@ -328,6 +329,10 @@ const desktopConnections = createDesktopHostConnections({
     });
   },
   stateDirectory: path.join(os.homedir(), ".dream", "ssh"),
+  // Every SSH host gets this version's host runtime installed. A
+  // development build has nothing published: its runtime is built on the
+  // host from the working tree (pnpm host:install-dev <target>).
+  runtimeVersion: app.isPackaged ? dreamVersion : DEV_RUNTIME_VERSION,
 });
 
 let rendererServerManager = null;
@@ -771,7 +776,7 @@ app
 
     await createMainWindow();
     if (devLogger) {
-      mainWindow.webContents.on("console-message", (_event, details) => {
+      mainWindow.webContents.on("console-message", (details) => {
         devLogger.log(`renderer:${details.level}`, details.message);
       });
     }

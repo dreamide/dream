@@ -13,9 +13,8 @@ available to the same OS user.
 
 Any of these installs the runtime of a release into
 `~/.dream/host/versions/<version>/`, after checking it against the release's
-`SHA256SUMS`. Install it the same way on a machine Dream reaches over SSH:
-Dream runs `dream-host` there by name, through your login shell, so it has
-to be on that shell's `PATH`. Dream never installs it for you.
+`SHA256SUMS`. A machine Dream reaches over SSH needs none of this: Dream
+installs its own version there, in the same place, when it connects.
 
 ```sh
 # With Node 20.11 or later: installs on first use, then runs it.

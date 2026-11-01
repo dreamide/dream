@@ -39,8 +39,9 @@ Decisions recorded 2026-10-30:
   (`remote-connections.md`); see DH-17.
 - **Pairing by code only, with no approval** (later the same day). The link
   method and the host-side confirmation of a code are removed; see DH-18.
-- **No host install over SSH, and no host command.** The user installs
-  `dream-host` on an SSH host; Dream runs it by name. See DH-19.
+- **No host command for SSH hosts.** Dream installs and runs its own host
+  runtime on every SSH host. See DH-19 (its first decision, no install over
+  SSH, was reversed on 2026-10-31).
 - **No remote-only desktop, and no option list in the host's report.** The
   desktop always runs a host of its own; `/api/host/settings` reports only who
   the host is. See DH-20.
@@ -875,7 +876,8 @@ against a real host, and a visual check of the new dialogs.
 
 ## DH-19: No host install over SSH, and no host command
 
-Status: implemented
+Status: partly reversed 2026-10-31. The install over SSH is back; the host
+command stays removed (see the scope change at the end).
 
 Problem and trigger: decided 2026-10-30. The SSH host form's **Host command**
 field was confusing, and it existed only to opt out of Dream installing its
@@ -915,6 +917,18 @@ and `pnpm check`.
 Remaining/deferred: a walkthrough against a real SSH host with `dream-host`
 installed by `install-host.sh`, and one without it (the not-found message);
 a visual check of the form.
+
+Scope change (2026-10-31): requiring `dream-host` on an SSH host before
+connecting was too cumbersome. The managed install is restored as it was
+(`electron/ssh/host-install.js`, the download-or-upload fallback, the
+runtime cache, `runtimeVersion` from main, `pnpm host:install-dev` into
+`versions/dev/`), and runs in `~/.dream/` on the host. The host command
+stays removed, so the install is the only way: `hostCommand` is gone from the
+SSH connection and manager too, and a saved one is still dropped. The SSH
+form keeps two fields; its target hint no longer asks for an install. The
+shell install script is back in `host-install.js`, which
+`install-host.sh` is built from. `pnpm ssh-host-check` takes `--runtime
+<version>` (default `dev`) instead of `--host-command`.
 
 ## DH-20: No remote-only desktop, and no option list in the host's report
 

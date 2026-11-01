@@ -346,10 +346,10 @@ stopped and gets only what it missed.
 ## Host runtime
 
 Dream's host bundled with its own Node and terminal support, one archive per
-platform, installed per version in `~/.dream/host/versions/<version>/` by the
-npm launcher or the install scripts (`docs/host-service.md`). The user
-installs it; Dream never does. An SSH host runs it as `dream-host`, found on
-the PATH of the user's login shell there.
+platform, installed per version in `~/.dream/host/versions/<version>/`. On an
+SSH host Dream installs the runtime of its own version there when it
+connects, needing nothing installed first; elsewhere the npm launcher or the
+install scripts do (`docs/host-service.md`).
 
 ## Host catalog
 

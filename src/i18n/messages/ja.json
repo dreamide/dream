@@ -1011,7 +1011,7 @@
     "name": "名前（任意）",
     "target": "SSH の接続先",
     "targetPlaceholder": "devbox または user@host",
-    "targetHint": "SSH 設定のエイリアス、または user@host。接続先に dream-host をインストールし、ログインシェルの PATH に含めておく必要があります。",
+    "targetHint": "SSH 設定のエイリアス、または user@host。",
     "remove": "削除",
     "removeTitle": "{name} を削除しますか？",
     "removeDescription": "プロジェクトは Dream から削除され、そのターミナルは停止されます。ホスト上のファイルとチャットは変更されません。",

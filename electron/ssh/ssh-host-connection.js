@@ -21,16 +21,26 @@
 // Electron-free: the process spawner, port picker, fetch and timers are
 // injected, so it runs under plain Node and in tests.
 import { spawn as spawnChildProcess } from "node:child_process";
+import { createReadStream } from "node:fs";
 import net from "node:net";
 import { API_SESSION_TOKEN_HEADER } from "../api/shared/session-token.js";
 import { hostProtocolProblem } from "../host/protocol.js";
+import {
+  buildInstallScript,
+  buildPlatformScript,
+  downloadRuntimeArchive,
+  INSTALL_EXIT,
+  managedHostCommand,
+  parsePlatform,
+} from "./host-install.js";
 import {
   buildDirectForwardArgs,
   buildEnsureArgs,
   buildMasterArgs,
   buildMasterCheckArgs,
   buildMasterForwardArgs,
-  HOST_COMMAND,
+  buildScriptArgs,
+  buildUploadArgs,
 } from "./ssh-args.js";
 
 const RETRY_DELAYS_MS = [2_000, 4_000, 8_000, 16_000, 30_000, 60_000];
@@ -79,12 +89,20 @@ const lastLine = (text) =>
  *   now?: () => number,
  *   random?: () => number,
  *   isLocalPortOpen?: (port: number) => Promise<boolean>,
+ *   runtimeVersion?: string | null,
+ *   runtimeBaseUrl?: string,
+ *   runtimeCacheDirectory?: string | null,
  *   expectedIdentity?: { hostId: string, fingerprint?: string | null } | null,
  *   autoReconnect?: boolean,
  *   interactive?: boolean,
  * }} options
  *   `target`: what the user would type after `ssh` (an alias from
  *   ~/.ssh/config, or user@host).
+ *   `runtimeVersion`: the host runtime installed there (in
+ *   ~/.dream/host/versions/<version>/) and run; without one (tests,
+ *   scripts), `dream-host` on the host's PATH.
+ *   `runtimeCacheDirectory`: where this machine keeps archives it uploads
+ *   to hosts that cannot download them.
  *   `controlPath`: a ControlMaster socket path to multiplex through; null
  *   where the client cannot (Windows).
  *   `env`: the ssh processes' environment (askpass variables included).
@@ -93,6 +111,9 @@ const lastLine = (text) =>
  */
 export function createSshHostConnection({
   target,
+  runtimeVersion = null,
+  runtimeBaseUrl,
+  runtimeCacheDirectory = null,
   expectedIdentity = null,
   autoReconnect = true,
   interactive = true,
@@ -168,9 +189,22 @@ export function createSshHostConnection({
   const spawnSsh = (args, { holdOpen = false } = {}) =>
     spawnTracked(args, [holdOpen ? "pipe" : "ignore", "pipe", "pipe"]);
 
-  const runSsh = (args) =>
+  // Managed: the runtime of this app's version, installed by Dream.
+  const managed = Boolean(runtimeVersion);
+  const hostCommand = managed
+    ? managedHostCommand(runtimeVersion)
+    : "dream-host";
+
+  const runSsh = (args, { input = null } = {}) =>
     new Promise((resolve) => {
-      const child = spawnSsh(args);
+      const child = input
+        ? spawnTracked(args, ["pipe", "pipe", "pipe"])
+        : spawnSsh(args);
+      if (input) {
+        const source = createReadStream(input);
+        source.on("error", () => child.stdin?.destroy());
+        source.pipe(child.stdin);
+      }
       let stdout = "";
       let stderr = "";
       child.stdout?.setEncoding("utf8");
@@ -231,9 +265,80 @@ export function createSshHostConnection({
       void poll();
     });
 
+  /** Installs the managed runtime on the host if it is not there yet. */
+  const installRuntime = async () => {
+    const install = (uploaded = null) =>
+      runSsh(
+        buildScriptArgs({
+          controlPath,
+          script: buildInstallScript({
+            baseUrl: runtimeBaseUrl,
+            uploaded,
+            version: runtimeVersion,
+          }),
+          target,
+        }),
+      );
+    let result = await install();
+
+    if (result.code === INSTALL_EXIT.download && runtimeCacheDirectory) {
+      // The host could not download it: this machine does, and uploads it.
+      const platform = parsePlatform(
+        (
+          await runSsh(
+            buildScriptArgs({
+              controlPath,
+              script: buildPlatformScript(),
+              target,
+            }),
+          )
+        ).stdout,
+      );
+      if (platform) {
+        const { archivePath, name, sumsPath } = await downloadRuntimeArchive({
+          arch: platform.arch,
+          baseUrl: runtimeBaseUrl,
+          cacheDirectory: runtimeCacheDirectory,
+          fetchImpl,
+          os: platform.os,
+          version: runtimeVersion,
+        });
+        const remotePath = `.dream/host/upload/${name}`;
+        for (const [file, destination] of [
+          [archivePath, remotePath],
+          [sumsPath, `${remotePath}.sums`],
+        ]) {
+          const uploaded = await runSsh(
+            buildUploadArgs({ controlPath, remotePath: destination, target }),
+            { input: file },
+          );
+          if (uploaded.code !== 0) {
+            throw sshFailure("Could not upload Dream's host", uploaded.stderr);
+          }
+        }
+        result = await install(remotePath);
+      }
+    }
+
+    if (result.code !== 0) {
+      if (result.code === 255) throw sshFailure("SSH failed", result.stderr);
+      throw new SshHostError(
+        `Could not install Dream's host on ${target}: ${lastLine(result.stderr) || `exit ${result.code}`}`,
+        {
+          detail: result.stderr,
+          fatal: [
+            INSTALL_EXIT.broken,
+            INSTALL_EXIT.checksum,
+            INSTALL_EXIT.unsupported,
+          ].includes(result.code),
+        },
+      );
+    }
+  };
+
   const runEnsure = async () => {
     const { code, stdout, stderr } = await runSsh(
-      buildEnsureArgs({ controlPath, target }),
+      buildEnsureArgs({ controlPath, hostCommand, target }),
     );
     let result = null;
     try {
@@ -242,15 +347,9 @@ export function createSshHostConnection({
       // Reported below.
     }
     if (code !== 0 || !result || result.error) {
-      if (code === 127) {
-        throw new SshHostError(
-          `dream-host was not found on ${target}. Install it there, on the PATH of your login shell, then connect again.`,
-          { detail: stderr, fatal: true },
-        );
-      }
       if (!result && code !== 255) {
         throw new SshHostError(
-          `Could not run "${HOST_COMMAND}" on ${target}: ${lastLine(stderr) || `exit ${code}`}`,
+          `Could not run "${hostCommand}" on ${target}: ${lastLine(stderr) || `exit ${code}`}`,
           { detail: stderr, fatal: true },
         );
       }
@@ -289,7 +388,7 @@ export function createSshHostConnection({
     if (!pinnedIdentity) return null;
     const hostId = typeof info?.hostId === "string" ? info.hostId : null;
     if (!hostId) {
-      return `The Dream host at ${target} did not identify itself, so it cannot be confirmed as the host saved for it. Update dream-host there.`;
+      return `The Dream host at ${target} did not identify itself, so it cannot be confirmed as the host saved for it. Reconnect so Dream installs a matching one.`;
     }
     if (
       hostId !== pinnedIdentity.hostId ||
@@ -315,6 +414,7 @@ export function createSshHostConnection({
         );
       }
 
+      if (managed) await installRuntime();
       const daemon = await runEnsure();
       const localPort = await getLocalPort();
       const ports = { localPort, remotePort: daemon.port };

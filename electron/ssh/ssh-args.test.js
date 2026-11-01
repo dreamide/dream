@@ -33,15 +33,12 @@ test("the multiplexed master holds the connection open on stdin", () => {
 });
 
 test("ensure goes through the master when there is one", () => {
-  expect(buildEnsureArgs({ controlPath: "/c/%C", target: "box" })).toEqual(
-    expect.arrayContaining(["-S", "/c/%C", "-T", "box"]),
-  );
-  expect(buildEnsureArgs({ controlPath: null, target: "box" })).not.toContain(
-    "-S",
-  );
   expect(
-    buildEnsureArgs({ controlPath: null, target: "box" }).at(-1),
-  ).toContain("dream-host ensure");
+    buildEnsureArgs({ controlPath: "/c/%C", hostCommand: "dh", target: "box" }),
+  ).toEqual(expect.arrayContaining(["-S", "/c/%C", "-T", "box"]));
+  expect(
+    buildEnsureArgs({ controlPath: null, hostCommand: "dh", target: "box" }),
+  ).not.toContain("-S");
 });
 
 test("forwards bind loopback on both ends", () => {

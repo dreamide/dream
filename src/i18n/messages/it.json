@@ -1011,7 +1011,7 @@
     "name": "Nome (facoltativo)",
     "target": "Destinazione SSH",
     "targetPlaceholder": "devbox o utente@host",
-    "targetHint": "Un alias della tua configurazione SSH, oppure user@host. dream-host deve essere installato lì, nel PATH della tua shell di login.",
+    "targetHint": "Un alias della tua configurazione SSH, oppure user@host.",
     "remove": "Rimuovi",
     "removeTitle": "Rimuovere {name}?",
     "removeDescription": "I suoi progetti vengono rimossi da Dream e i relativi terminali vengono chiusi. File e chat sull’host restano invariati.",

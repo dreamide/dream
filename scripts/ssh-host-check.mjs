@@ -2,25 +2,29 @@
 // terminal, and reports what answered. Prompts (passwords, 2FA, host keys)
 // are asked here.
 //
-//   pnpm ssh-host-check <target>
+//   pnpm ssh-host-check <target> [--runtime <version>]
 //
-// The host needs dream-host on the PATH of the user's login shell there
-// (docs/host-service.md; for a development build, pnpm host:install-dev).
+// Like the app, it runs the host runtime of a version installed in
+// ~/.dream/host/versions/ (installing a released one if it is missing). The
+// default is `dev`, a development build's, which `pnpm host:install-dev
+// <target>` puts there.
 import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
+import { DEV_RUNTIME_VERSION } from "../electron/ssh/host-install.js";
 import { createSshHostManager } from "../electron/ssh/ssh-hosts.js";
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
   options: {
+    runtime: { type: "string" },
     "ssh-path": { type: "string" },
   },
 });
 const [target] = positionals;
 if (!target) {
-  console.error("Usage: pnpm ssh-host-check <target>");
+  console.error("Usage: pnpm ssh-host-check <target> [--runtime <version>]");
   process.exit(2);
 }
 
@@ -33,6 +37,7 @@ const hosts = createSshHostManager({
     (await readline.question(`${message} `)) || null,
   onStatus: (status) =>
     console.error(`[${status.state}]${status.error ? ` ${status.error}` : ""}`),
+  runtimeVersion: values.runtime ?? DEV_RUNTIME_VERSION,
   sshPath: values["ssh-path"],
   stateDirectory: path.join(os.homedir(), ".dream", "ssh"),
 });

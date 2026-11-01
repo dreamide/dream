@@ -8,10 +8,10 @@ support, and its HTTPS certificate must be trusted by the desktop's Node runtime
 Tailscale Serve's HTTPS origin works as a direct route; no Dream account is needed.
 
 For an **SSH host**, enter what you would type after `ssh`: an alias from your SSH
-config, or `user@host`. Dream uses your own OpenSSH, keys and config, and runs
-`dream-host ensure` there through your login shell, so `dream-host` must be installed
-on that machine and on that shell's `PATH` ([Run the host](host-service.md)). The name
-is optional and defaults to the target.
+config, or `user@host`. Dream uses your own OpenSSH, keys and config. When it connects,
+it installs the host of its own version in `~/.dream/host/versions/` there (or uploads
+it, when that machine cannot download) and runs it; nothing needs installing first.
+The name is optional and defaults to the target.
 
 Each verified host has one entry. Adding another route to the same authenticated
 host merges it into that entry and keeps the existing project, chat and workspace

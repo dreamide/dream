@@ -48,9 +48,8 @@ computer's browser. The same round removes CONN-06's service management
 Scope decision (2026-10-30, later): pairing is by short code only, redeemed at
 once with no host-side confirmation. The pairing link (its URL fragment and
 `/pair` entry point) and code claims below are removed; see DH-18 in
-[detached-host.md](detached-host.md). Dream also no longer installs its host
-runtime over SSH, and SSH hosts have no host command: `dream-host` is run by
-name (DH-19). The remote-only desktop (`DREAM_HOST_MODE=remote`) below is
+[detached-host.md](detached-host.md). SSH hosts have no host command: Dream
+installs and runs its own host runtime there (DH-19). The remote-only desktop (`DREAM_HOST_MODE=remote`) below is
 removed; the desktop always runs a host of its own (DH-20).
 
 Ship milestone 1 before adding tunnel management. It requires no Dream account

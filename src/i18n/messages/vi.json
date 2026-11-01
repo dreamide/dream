@@ -1011,7 +1011,7 @@
     "name": "Tên (tùy chọn)",
     "target": "Đích SSH",
     "targetPlaceholder": "devbox hoặc user@host",
-    "targetHint": "Một bí danh trong cấu hình SSH của bạn, hoặc user@host. dream-host phải được cài đặt ở đó, trong PATH của shell đăng nhập.",
+    "targetHint": "Một bí danh trong cấu hình SSH của bạn, hoặc user@host.",
     "remove": "Xóa",
     "removeTitle": "Xóa {name}?",
     "removeDescription": "Các dự án sẽ bị xóa khỏi Dream và terminal của chúng sẽ bị dừng. Tệp và cuộc trò chuyện trên máy chủ không bị ảnh hưởng.",

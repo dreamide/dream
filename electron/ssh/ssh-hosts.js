@@ -19,10 +19,13 @@ import {
  *   onStatus?: (status: object) => void,
  *   sshPath?: string,
  *   multiplex?: boolean,
+ *   runtimeVersion?: string | null,
  * }} options
  *   `stateDirectory`: private folder for control sockets and the askpass
  *   wrapper (keep it short: socket paths are limited to ~100 characters).
  *   `multiplex`: use ControlMaster; OpenSSH on Windows cannot.
+ *   `runtimeVersion`: the host runtime every SSH host gets installed (this
+ *   app's version).
  */
 export function createSshHostManager({
   stateDirectory,
@@ -30,6 +33,7 @@ export function createSshHostManager({
   onStatus = () => {},
   sshPath = "ssh",
   multiplex = process.platform !== "win32",
+  runtimeVersion = null,
 }) {
   const connections = new Map();
   const controlNamespace = randomUUID();
@@ -140,6 +144,8 @@ export function createSshHostManager({
         },
         expectedIdentity,
         getLocalPort: () => getPort({ host: "127.0.0.1" }),
+        runtimeCacheDirectory: path.join(stateDirectory, "runtime"),
+        runtimeVersion,
         onStatus: (status) => onStatus({ ...status, hostId }),
         sshPath,
         target,

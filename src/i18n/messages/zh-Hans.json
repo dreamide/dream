@@ -1011,7 +1011,7 @@
     "name": "名称（可选）",
     "target": "SSH 目标",
     "targetPlaceholder": "devbox 或 user@host",
-    "targetHint": "SSH 配置中的别名，或 user@host。该机器上必须已安装 dream-host，并位于登录 shell 的 PATH 中。",
+    "targetHint": "SSH 配置中的别名，或 user@host。",
     "remove": "移除",
     "removeTitle": "移除 {name}？",
     "removeDescription": "其项目将从 Dream 中移除，相关终端会被停止。主机上的文件和对话不受影响。",
