@@ -402,7 +402,7 @@
     "speed": "속도",
     "terminalDescription": "터미널 세션에 사용할 shell을 설정합니다.",
     "mcpServers": "MCP 서버",
-    "mcpServersDescription": "Claude Code, Codex, OpenCode, Grok에서 사용할 수 있는 Model Context Protocol 서버입니다. Cursor 및 Antigravity는 지원되지 않습니다.",
+    "mcpServersDescription": "Claude Code, Codex, OpenCode, Grok에서 사용할 수 있는 Model Context Protocol 서버입니다.",
     "mcpAddServer": "서버 추가",
     "mcpEditServer": "서버 편집",
     "mcpImport": "가져오기…",

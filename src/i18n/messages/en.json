@@ -402,7 +402,7 @@
     "speed": "Speed",
     "terminalDescription": "Sets the shell used for terminal sessions.",
     "mcpServers": "MCP servers",
-    "mcpServersDescription": "Model Context Protocol servers available to Claude Code, Codex, OpenCode and Grok. Cursor and Antigravity are not supported.",
+    "mcpServersDescription": "Model Context Protocol servers available to Claude Code, Codex, OpenCode and Grok.",
     "mcpAddServer": "Add server",
     "mcpEditServer": "Edit server",
     "mcpImport": "Import…",

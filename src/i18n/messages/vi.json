@@ -402,7 +402,7 @@
     "speed": "Tốc độ",
     "terminalDescription": "Đặt shell dùng cho phiên terminal.",
     "mcpServers": "Máy chủ MCP",
-    "mcpServersDescription": "Máy chủ Model Context Protocol dùng cho Claude Code, Codex, OpenCode và Grok. Không hỗ trợ Cursor và Antigravity.",
+    "mcpServersDescription": "Máy chủ Model Context Protocol dùng cho Claude Code, Codex, OpenCode và Grok.",
     "mcpAddServer": "Thêm máy chủ",
     "mcpEditServer": "Sửa máy chủ",
     "mcpImport": "Nhập…",

@@ -402,7 +402,7 @@
     "speed": "速度",
     "terminalDescription": "ターミナルセッションで使用する shell を設定します。",
     "mcpServers": "MCP サーバー",
-    "mcpServersDescription": "Claude Code、Codex、OpenCode、Grok で利用できる Model Context Protocol サーバー。Cursor と Antigravity には対応していません。",
+    "mcpServersDescription": "Claude Code、Codex、OpenCode、Grok で利用できる Model Context Protocol サーバー。",
     "mcpAddServer": "サーバーを追加",
     "mcpEditServer": "サーバーを編集",
     "mcpImport": "インポート…",

@@ -402,7 +402,7 @@
     "speed": "Vitesse",
     "terminalDescription": "Définit le shell utilisé pour les sessions de terminal.",
     "mcpServers": "Serveurs MCP",
-    "mcpServersDescription": "Serveurs Model Context Protocol disponibles pour Claude Code, Codex, OpenCode et Grok. Cursor et Antigravity ne sont pas pris en charge.",
+    "mcpServersDescription": "Serveurs Model Context Protocol disponibles pour Claude Code, Codex, OpenCode et Grok.",
     "mcpAddServer": "Ajouter un serveur",
     "mcpEditServer": "Modifier le serveur",
     "mcpImport": "Importer…",

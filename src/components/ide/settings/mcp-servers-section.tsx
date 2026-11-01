@@ -76,14 +76,14 @@ export const McpServersSection = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 space-y-1">
           <h3 className="font-medium text-base">{settingsT("mcpServers")}</h3>
           <p className="text-muted-foreground text-sm">
             {settingsT("mcpServersDescription")}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <Button
             onClick={() => setDialog({ kind: "import" })}
             size="sm"

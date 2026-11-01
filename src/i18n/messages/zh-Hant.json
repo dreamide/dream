@@ -402,7 +402,7 @@
     "speed": "速度",
     "terminalDescription": "設定終端機工作階段使用的 shell。",
     "mcpServers": "MCP 伺服器",
-    "mcpServersDescription": "可供 Claude Code、Codex、OpenCode 和 Grok 使用的 Model Context Protocol 伺服器。不支援 Cursor 與 Antigravity。",
+    "mcpServersDescription": "可供 Claude Code、Codex、OpenCode 和 Grok 使用的 Model Context Protocol 伺服器。",
     "mcpAddServer": "新增伺服器",
     "mcpEditServer": "編輯伺服器",
     "mcpImport": "匯入…",
