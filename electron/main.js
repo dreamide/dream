@@ -741,7 +741,7 @@ app
 
     rendererServerManager = await createStartupRendererServerManager();
     await rendererServerManager.start();
-    // Remote access as the user left it (Settings > Remote access). Never
+    // Remote access as the user left it (Settings > Connections). Never
     // holds the window up: its setup can wait on Tailscale.
     void host
       .startRemoteAccess()

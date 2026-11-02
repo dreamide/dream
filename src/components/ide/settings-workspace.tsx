@@ -11,7 +11,6 @@ import {
   RotateCw,
   Server,
   Settings,
-  ShieldCheck,
   Sun,
   Trash2,
 } from "lucide-react";
@@ -652,39 +651,21 @@ export const SettingsWorkspace = () => {
                 {settingsT("mcpServers")}
               </span>
             </button>
-            {/* The hosts this desktop uses: its own. */}
+            {/* The hosts this desktop uses, and its own sharing. */}
             {platform.kind === "desktop" ? (
               <button
                 className={cn(
                   "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
-                  settingsSection === "hosts"
+                  settingsSection === "connections"
                     ? "font-semibold text-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
-                onClick={() => setSettingsSection("hosts")}
+                onClick={() => setSettingsSection("connections")}
                 type="button"
               >
                 <span className="flex items-center gap-2">
                   <Server className="size-4" />
-                  {settingsT("hosts")}
-                </span>
-              </button>
-            ) : null}
-            {/* This computer's sharing: the desktop's own host only. */}
-            {platform.kind === "desktop" ? (
-              <button
-                className={cn(
-                  "w-full rounded-md border border-transparent px-3 py-2 text-left font-medium text-sm outline-none transition-colors focus-visible:border-ring",
-                  settingsSection === "sharing"
-                    ? "font-semibold text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                onClick={() => setSettingsSection("sharing")}
-                type="button"
-              >
-                <span className="flex items-center gap-2">
-                  <ShieldCheck className="size-4" />
-                  {settingsT("sharingAccess")}
+                  {settingsT("connections")}
                 </span>
               </button>
             ) : null}
@@ -1554,12 +1535,12 @@ export const SettingsWorkspace = () => {
 
               {settingsSection === "skills" ? <SkillsSettingsSection /> : null}
 
-              {settingsSection === "hosts" && platform.kind === "desktop" ? (
-                <SshHostsSettingsSection />
-              ) : null}
-
-              {settingsSection === "sharing" && platform.kind === "desktop" ? (
-                <SharingAccessSection appVersion={appVersion} />
+              {settingsSection === "connections" &&
+              platform.kind === "desktop" ? (
+                <div className="space-y-8">
+                  <SshHostsSettingsSection />
+                  <SharingAccessSection appVersion={appVersion} />
+                </div>
               ) : null}
 
               {settingsSection === "chats" ? (

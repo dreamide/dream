@@ -1,5 +1,5 @@
 /**
- * Settings > Remote hosts: one row per host this client can open projects
+ * Settings > Connections > Remote hosts: one row per host this client can open projects
  * on, with its connection state and the route it uses. A host reached more
  * than one way keeps its ordered routes in a dialog, not on the page.
  */

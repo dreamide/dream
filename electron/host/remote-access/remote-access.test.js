@@ -27,6 +27,7 @@ const withSaved = (saved) => {
     close: async () => {
       calls.push("close");
     },
+    fetchImpl: async () => Response.json({ hostId: "host" }),
     tailscale: {
       device: async () => {
         calls.push("tailscale");
@@ -87,6 +88,23 @@ test("a saved Cloudflare route keeps its settings", async () => {
   expect(status.cloudflare.managed).toBe(false);
 });
 
+test("switching to Tailscale keeps the Cloudflare address for switching back", async () => {
+  const { access } = withSaved({
+    enabled: false,
+    mode: "cloudflare",
+    origin: "https://dream.example.com",
+    port: 5410,
+    version: 1,
+  });
+  await access.start();
+  const status = await access.enable({ mode: "tailscale", port: null });
+  await access.disable();
+  expect(status.mode).toBe("tailscale");
+  // Not the active route's address, which the settings row and CLI show.
+  expect(status.requestedOrigin).toBeNull();
+  expect(status.cloudflare.origin).toBe("https://dream.example.com");
+});
+
 test("the host says whether the saved settings can be turned on", async () => {
   const cloudflare = {
     mode: "cloudflare",
@@ -116,7 +134,11 @@ test("startup removes the token and runtime Dream once kept for cloudflared", as
   writeFileSync(path.join(retired, "tunnel-token"), "eyJ-secret");
   const status = await access.start();
   expect(existsSync(retired)).toBe(false);
-  expect(status.cloudflare).toEqual({ managed: false, defaultPort: 5410 });
+  expect(status.cloudflare).toEqual({
+    managed: false,
+    defaultPort: 5410,
+    origin: "https://dream.example.com",
+  });
 });
 
 test("an unusable Cloudflare setup is refused and saves nothing", async () => {

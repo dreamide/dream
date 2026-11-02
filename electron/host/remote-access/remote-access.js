@@ -281,8 +281,13 @@ export function createRemoteAccess({
     // Whether the saved settings can be turned on as they are.
     configured: settings.mode === "tailscale" || Boolean(settings.origin),
     // `managed: false` keeps a desktop older than 2026-10-28 on its
-    // user-run connector form instead of asking for a token.
-    cloudflare: { managed: false, defaultPort: CLOUDFLARE_PORT },
+    // user-run connector form instead of asking for a token. `origin` is the
+    // saved address in any mode, so switching back need not retype it.
+    cloudflare: {
+      managed: false,
+      defaultPort: CLOUDFLARE_PORT,
+      origin: settings.origin,
+    },
   });
 
   /** Verify reachability; Cloudflare must also prove the installation key. */

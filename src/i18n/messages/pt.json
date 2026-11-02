@@ -15,7 +15,7 @@
     "removeRoute": "Remover rota",
     "addSshRoute": "Adicionar rota SSH",
     "addHttpsRoute": "Adicionar rota HTTPS",
-    "pairCodeHint": "No host, escolha Emparelhar um computador em Compartilhamento e acesso (ou execute dream-host pair) e depois insira o endereço do host e o código exibido.",
+    "pairCodeHint": "No host, escolha Emparelhar um computador em Acesso remoto (ou execute dream-host pair) e depois insira o endereço do host e o código exibido.",
     "hostAddress": "Endereço do host",
     "pairingCode": "Código de emparelhamento",
     "name": "Nome (opcional)",
@@ -445,8 +445,7 @@
     "chatNotificationsDescription": "Notificar quando um chat terminar, falhar ou precisar da sua resposta enquanto o app estiver em segundo plano",
     "chatNotificationSound": "Som de notificação",
     "chatNotificationSoundDescription": "Tocar um som quando um chat terminar, falhar ou precisar da sua resposta",
-    "hosts": "Hosts",
-    "sharingAccess": "Compartilhamento e acesso"
+    "connections": "Conexões"
   },
   "models": {
     "fast": "Rápido",
@@ -1119,9 +1118,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Use um túnel e nome de host persistentes da sua conta Cloudflare.",
-    "cloudflareStepTunnel": "No Cloudflare, crie um túnel e execute o comando de instalação dele neste computador.",
-    "cloudflareStepRoute": "Direcione um nome de host do seu domínio para http://127.0.0.1:{port} e ignore o cache de /api/*.",
-    "cloudflareStepAddress": "Digite esse nome de host abaixo.",
     "pairTitle": "Emparelhar este dispositivo",
     "pairDescription": "Insira o código de emparelhamento criado em {host}.",
     "pairing": "Emparelhando…",
@@ -1181,7 +1177,6 @@
     "setUp": "Configurar",
     "change": "Alterar",
     "setupTitle": "Configurar acesso remoto",
-    "advanced": "Avançado",
     "needsOrigin": "Digite o endereço público.",
     "save": "Salvar",
     "problems": {
@@ -1190,11 +1185,11 @@
       "needsLogin": "Entre no Tailscale neste computador e verifique novamente.",
       "needsApproval": "Este computador está aguardando aprovação no console de administração do Tailscale.",
       "httpsDisabled": "Ative o MagicDNS e os certificados HTTPS da sua tailnet no console de administração do Tailscale e verifique novamente.",
-      "portTaken": "O Tailscale já serve outra coisa na porta HTTPS {port}. Escolha outra porta HTTPS em Avançado.",
+      "portTaken": "O Tailscale já serve outra coisa na porta HTTPS {port}. Escolha outra porta HTTPS.",
       "permission": "O Tailscale não permite que este usuário altere as configurações do Serve. No Linux, execute uma vez sudo tailscale set --operator=$USER e verifique novamente.",
       "needsOrigin": "Digite o nome de host do Cloudflare como um endereço https://, como https://dream.example.com.",
       "quickTunnel": "Use um túnel persistente do Cloudflare com um nome de host estável. Quick Tunnels não oferecem suporte a streaming do chat.",
-      "portInUse": "A porta {port} já está em uso neste computador. Escolha outra porta local em Avançado.",
+      "portInUse": "A porta {port} já está em uso neste computador. Escolha outra porta local.",
       "unreachableTailscale": "Não foi possível alcançar este computador por {origin}. O Tailscale pode ainda estar obtendo o certificado; verifique novamente em um minuto.",
       "unreachableCloudflare": "Não foi possível alcançar este computador por {origin}. Verifique se o cloudflared está em execução para o seu túnel e se a URL de serviço deste nome de host é http://127.0.0.1:{port}."
     },
@@ -1209,7 +1204,7 @@
     "hostAddress": "Endereço do host"
   },
   "sharing": {
-    "title": "Compartilhamento e acesso",
+    "title": "Acesso remoto",
     "description": "Use os projetos deste computador a partir de outro computador. Cada um precisa ser emparelhado primeiro.",
     "hostOlder": "O host deste computador executa o Dream {version}, mais antigo que este app ({appVersion}). Atualize o dream-host e reinicie-o.",
     "hostNewer": "O host deste computador executa o Dream {version}, mais recente que este app ({appVersion}). Atualize o Dream."

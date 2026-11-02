@@ -208,14 +208,14 @@ Options belong in documentation, not the app. Remote access set by
 `--remote-port` reports where it came from, and Settings shows it read-only
 with the reason.
 
-## Settings pages for hosts
+## Connections settings page
 
-Both are desktop only. **Hosts** is the hosts this app uses. **Sharing &
-access** is this computer's own host: remote access, authorized clients and
-pairing a computer (`src/components/ide/settings/sharing-access-section.tsx`).
-Dream never changes another machine's sharing; that is done on that machine
-(its own Dream, or `dream-host remote` and `dream-host pair`). A browser client
-has neither page.
+Desktop only; a browser client does not have it. **Remote hosts** is the hosts
+this app uses. **Remote access** is this computer's own host: remote access,
+authorized clients and pairing a computer
+(`src/components/ide/settings/sharing-access-section.tsx`). Dream never changes
+another machine's sharing; that is done on that machine (its own Dream, or
+`dream-host remote` and `dream-host pair`).
 
 ## Connection runtime
 
@@ -290,7 +290,7 @@ An address is **ready** only once a request through it reached this host;
 Cloudflare also requires proof of the host's installation key. The user runs
 the tunnel's cloudflared connector; Dream never installs, starts or stops it.
 Dream changes only the Serve entry it created (`servedBy`).
-Configured in Settings > Sharing & access on the host's own computer, or with
+Configured in Settings > Connections on the host's own computer, or with
 `dream-host remote` on a headless machine. Started with `--remote-port` (and
 its variables), a host serves paired devices through the user's own reverse
 proxy for that run (`mode: "proxy"`), and Settings shows it read-only.

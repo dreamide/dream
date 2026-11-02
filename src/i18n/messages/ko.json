@@ -15,7 +15,7 @@
     "removeRoute": "경로 삭제",
     "addSshRoute": "SSH 경로 추가",
     "addHttpsRoute": "HTTPS 경로 추가",
-    "pairCodeHint": "호스트의 공유 및 액세스에서 컴퓨터 페어링을 선택하거나 dream-host pair를 실행한 다음, 호스트 주소와 표시된 코드를 입력하세요.",
+    "pairCodeHint": "호스트의 원격 액세스에서 컴퓨터 페어링을 선택하거나 dream-host pair를 실행한 다음, 호스트 주소와 표시된 코드를 입력하세요.",
     "hostAddress": "호스트 주소",
     "pairingCode": "페어링 코드",
     "name": "이름 (선택 사항)",
@@ -445,8 +445,7 @@
     "chatNotificationsDescription": "앱이 백그라운드에 있을 때 채팅이 완료되거나 실패하거나 입력이 필요하면 알립니다",
     "chatNotificationSound": "알림음",
     "chatNotificationSoundDescription": "채팅이 완료되거나 실패하거나 입력이 필요할 때 소리를 재생합니다",
-    "hosts": "호스트",
-    "sharingAccess": "공유 및 접근"
+    "connections": "연결"
   },
   "models": {
     "fast": "빠름",
@@ -1119,9 +1118,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Cloudflare 계정의 고정 터널과 호스트 이름을 사용합니다.",
-    "cloudflareStepTunnel": "Cloudflare에서 터널을 만들고 이 컴퓨터에서 설치 명령을 실행하세요.",
-    "cloudflareStepRoute": "도메인의 호스트 이름을 http://127.0.0.1:{port}(으)로 연결하고 /api/* 캐시를 우회하세요.",
-    "cloudflareStepAddress": "아래에 해당 호스트 이름을 입력하세요.",
     "pairTitle": "이 기기 페어링",
     "pairDescription": "{host}에서 만든 페어링 코드를 입력하세요.",
     "pairing": "페어링 중…",
@@ -1181,7 +1177,6 @@
     "setUp": "설정",
     "change": "변경",
     "setupTitle": "원격 액세스 설정",
-    "advanced": "고급",
     "needsOrigin": "공개 주소를 입력하세요.",
     "save": "저장",
     "problems": {
@@ -1190,11 +1185,11 @@
       "needsLogin": "이 컴퓨터에서 Tailscale에 로그인한 다음 다시 확인하세요.",
       "needsApproval": "이 컴퓨터는 Tailscale 관리 콘솔에서 승인을 기다리고 있습니다.",
       "httpsDisabled": "Tailscale 관리 콘솔에서 tailnet의 MagicDNS와 HTTPS 인증서를 켠 다음 다시 확인하세요.",
-      "portTaken": "Tailscale이 HTTPS 포트 {port}에서 이미 다른 항목을 제공하고 있습니다. 고급에서 다른 HTTPS 포트를 선택하세요.",
+      "portTaken": "Tailscale이 HTTPS 포트 {port}에서 이미 다른 항목을 제공하고 있습니다. 다른 HTTPS 포트를 선택하세요.",
       "permission": "Tailscale이 이 사용자의 Serve 설정 변경을 허용하지 않습니다. Linux에서는 sudo tailscale set --operator=$USER를 한 번 실행한 다음 다시 확인하세요.",
       "needsOrigin": "Cloudflare 호스트 이름을 https:// 주소로 입력하세요(예: https://dream.example.com).",
       "quickTunnel": "고정 호스트 이름이 있는 영구 Cloudflare 터널을 사용하세요. Quick Tunnel은 채팅 스트리밍을 지원하지 않습니다.",
-      "portInUse": "이 컴퓨터의 포트 {port}이(가) 이미 사용 중입니다. 고급에서 다른 로컬 포트를 선택하세요.",
+      "portInUse": "이 컴퓨터의 포트 {port}이(가) 이미 사용 중입니다. 다른 로컬 포트를 선택하세요.",
       "unreachableTailscale": "{origin}을(를) 통해 이 컴퓨터에 연결할 수 없습니다. Tailscale이 아직 인증서를 받는 중일 수 있으니 1분 후 다시 확인하세요.",
       "unreachableCloudflare": "{origin}을(를) 통해 이 컴퓨터에 연결할 수 없습니다. 터널의 cloudflared가 실행 중인지, 이 호스트 이름의 서비스 URL이 http://127.0.0.1:{port}인지 확인하세요."
     },
@@ -1209,7 +1204,7 @@
     "hostAddress": "호스트 주소"
   },
   "sharing": {
-    "title": "공유 및 접근",
+    "title": "원격 액세스",
     "description": "다른 컴퓨터에서 이 컴퓨터의 프로젝트를 사용합니다. 각 컴퓨터는 먼저 페어링해야 합니다.",
     "hostOlder": "이 컴퓨터의 호스트는 Dream {version}을(를) 실행 중이며, 이 앱({appVersion})보다 오래되었습니다. dream-host를 업데이트하고 다시 시작하세요.",
     "hostNewer": "이 컴퓨터의 호스트는 Dream {version}을(를) 실행 중이며, 이 앱({appVersion})보다 최신입니다. Dream을 업데이트하세요."

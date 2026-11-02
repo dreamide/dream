@@ -140,7 +140,7 @@ export const REMOTE_ROUTE_POLICY = Object.freeze({
   "POST /api/remote/sessions": "manage",
   "POST /api/remote/sessions/revoke": "manage",
 
-  // The host's own settings and where they came from (Sharing & access).
+  // The host's own settings and where they came from (Remote access).
   "POST /api/remote/access": "manage",
 });
 

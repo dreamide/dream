@@ -15,7 +15,7 @@
     "removeRoute": "Xóa tuyến",
     "addSshRoute": "Thêm tuyến SSH",
     "addHttpsRoute": "Thêm tuyến HTTPS",
-    "pairCodeHint": "Trên máy chủ, chọn Ghép nối máy tính trong Chia sẻ và truy cập (hoặc chạy dream-host pair), rồi nhập địa chỉ máy chủ và mã hiển thị ở đó.",
+    "pairCodeHint": "Trên máy chủ, chọn Ghép nối máy tính trong Truy cập từ xa (hoặc chạy dream-host pair), rồi nhập địa chỉ máy chủ và mã hiển thị ở đó.",
     "hostAddress": "Địa chỉ máy chủ",
     "pairingCode": "Mã ghép nối",
     "name": "Tên (tùy chọn)",
@@ -445,8 +445,7 @@
     "chatNotificationsDescription": "Thông báo khi một cuộc trò chuyện hoàn tất, thất bại hoặc cần bạn phản hồi trong lúc ứng dụng chạy nền",
     "chatNotificationSound": "Âm thanh thông báo",
     "chatNotificationSoundDescription": "Phát âm thanh khi một cuộc trò chuyện hoàn tất, thất bại hoặc cần bạn phản hồi",
-    "hosts": "Máy chủ",
-    "sharingAccess": "Chia sẻ & truy cập"
+    "connections": "Kết nối"
   },
   "models": {
     "fast": "Nhanh",
@@ -1119,9 +1118,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Dùng đường hầm và tên máy chủ cố định từ tài khoản Cloudflare của bạn.",
-    "cloudflareStepTunnel": "Trong Cloudflare, tạo một đường hầm và chạy lệnh cài đặt của nó trên máy tính này.",
-    "cloudflareStepRoute": "Trỏ một tên máy chủ thuộc tên miền của bạn đến http://127.0.0.1:{port} và bỏ qua bộ nhớ đệm cho /api/*.",
-    "cloudflareStepAddress": "Nhập tên máy chủ đó bên dưới.",
     "pairTitle": "Ghép nối thiết bị này",
     "pairDescription": "Nhập mã ghép nối được tạo trên {host}.",
     "pairing": "Đang ghép nối…",
@@ -1181,7 +1177,6 @@
     "setUp": "Thiết lập",
     "change": "Thay đổi",
     "setupTitle": "Thiết lập truy cập từ xa",
-    "advanced": "Nâng cao",
     "needsOrigin": "Nhập địa chỉ công khai.",
     "save": "Lưu",
     "problems": {
@@ -1190,11 +1185,11 @@
       "needsLogin": "Hãy đăng nhập Tailscale trên máy tính này rồi kiểm tra lại.",
       "needsApproval": "Máy tính này đang chờ được phê duyệt trong bảng quản trị Tailscale.",
       "httpsDisabled": "Hãy bật MagicDNS và chứng chỉ HTTPS cho tailnet trong bảng quản trị Tailscale rồi kiểm tra lại.",
-      "portTaken": "Tailscale đã phục vụ nội dung khác trên cổng HTTPS {port}. Hãy chọn cổng HTTPS khác trong Nâng cao.",
+      "portTaken": "Tailscale đã phục vụ nội dung khác trên cổng HTTPS {port}. Hãy chọn cổng HTTPS khác.",
       "permission": "Tailscale không cho người dùng này thay đổi cài đặt Serve. Trên Linux, hãy chạy sudo tailscale set --operator=$USER một lần rồi kiểm tra lại.",
       "needsOrigin": "Nhập tên máy chủ Cloudflare dưới dạng địa chỉ https://, ví dụ https://dream.example.com.",
       "quickTunnel": "Hãy dùng đường hầm Cloudflare cố định với tên máy chủ ổn định. Quick Tunnel không hỗ trợ truyền phát trò chuyện.",
-      "portInUse": "Cổng {port} trên máy tính này đang được sử dụng. Hãy chọn cổng cục bộ khác trong Nâng cao.",
+      "portInUse": "Cổng {port} trên máy tính này đang được sử dụng. Hãy chọn cổng cục bộ khác.",
       "unreachableTailscale": "Không thể truy cập máy tính này qua {origin}. Có thể Tailscale vẫn đang lấy chứng chỉ; hãy kiểm tra lại sau một phút.",
       "unreachableCloudflare": "Không thể truy cập máy tính này qua {origin}. Hãy kiểm tra cloudflared đang chạy cho đường hầm của bạn và URL dịch vụ của tên máy chủ này là http://127.0.0.1:{port}."
     },
@@ -1209,7 +1204,7 @@
     "hostAddress": "Địa chỉ máy chủ"
   },
   "sharing": {
-    "title": "Chia sẻ & truy cập",
+    "title": "Truy cập từ xa",
     "description": "Dùng các dự án của máy tính này từ một máy tính khác. Mỗi máy phải được ghép nối trước.",
     "hostOlder": "Máy chủ của máy tính này chạy Dream {version}, cũ hơn ứng dụng này ({appVersion}). Hãy cập nhật dream-host và khởi động lại.",
     "hostNewer": "Máy chủ của máy tính này chạy Dream {version}, mới hơn ứng dụng này ({appVersion}). Hãy cập nhật Dream."

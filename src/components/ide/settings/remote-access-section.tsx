@@ -1,5 +1,5 @@
 /**
- * This computer's remote access, on Settings > Sharing & access: whether
+ * This computer's remote access, on Settings > Connections: whether
  * paired devices can reach it and how (Tailscale Serve or a Cloudflare
  * Tunnel), then its authorized clients and pairing a computer with a
  * one-time code. The host owns all of it (host/remote-access/, host/auth/).
@@ -10,7 +10,6 @@
  */
 import {
   Check,
-  ChevronRight,
   Copy,
   ExternalLink,
   KeyRound,
@@ -32,11 +31,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -400,7 +394,6 @@ export const RemoteAccessSection = () => {
           error={error}
           initial={status}
           onCancel={() => setSetupOpen(false)}
-          onOpenUrl={openExternalUrl}
           onSave={save}
           status={status}
         />
@@ -645,7 +638,6 @@ const RemoteAccessSetupDialog = ({
   error,
   initial,
   onCancel,
-  onOpenUrl,
   onSave,
   status,
 }: {
@@ -653,7 +645,6 @@ const RemoteAccessSetupDialog = ({
   error: string | null;
   initial: RemoteAccessStatus;
   onCancel: () => void;
-  onOpenUrl: (url: string) => void;
   onSave: (options: ApiRequestOf<"remoteAccessEnable">) => Promise<void>;
   status: RemoteAccessStatus;
 }) => {
@@ -662,7 +653,9 @@ const RemoteAccessSetupDialog = ({
   const [mode, setMode] = useState<SetupMode>(
     initial.mode === "proxy" ? "tailscale" : initial.mode,
   );
-  const [origin, setOrigin] = useState(initial.requestedOrigin ?? "");
+  const [origin, setOrigin] = useState(
+    initial.cloudflare?.origin ?? initial.requestedOrigin ?? "",
+  );
   const [httpsPort, setHttpsPort] = useState(String(initial.httpsPort));
   const [localPort, setLocalPort] = useState(
     initial.port == null ? "" : String(initial.port),
@@ -677,9 +670,6 @@ const RemoteAccessSetupDialog = ({
       ? t("needsOrigin")
       : null;
   const port = localPort === "" ? null : Number(localPort);
-  const shownPort = String(
-    status.port ?? (localPort || status.cloudflare?.defaultPort || "—"),
-  );
   const problemText = useProblemText();
   // Only a save made in this dialog can have been refused here.
   const [attempted, setAttempted] = useState(false);
@@ -753,84 +743,54 @@ const RemoteAccessSetupDialog = ({
           </RadioGroup>
 
           {mode === "cloudflare" ? (
-            <>
-              <div className="grid gap-2 rounded-md border px-3 py-2.5">
-                <ol className="grid list-decimal gap-1 pl-4 text-muted-foreground text-xs">
-                  <li>{t("cloudflareStepTunnel")}</li>
-                  <li className="select-text break-words">
-                    {t("cloudflareStepRoute", { port: shownPort })}
-                  </li>
-                  <li>{t("cloudflareStepAddress")}</li>
-                </ol>
-                <Button
-                  className="w-fit"
-                  onClick={() => onOpenUrl("https://one.dash.cloudflare.com/")}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  <ExternalLink className="size-3.5" />
-                  {t("openSetupPage")}
-                </Button>
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="remote-access-origin">{t("originLabel")}</Label>
-                <Input
-                  className="font-mono"
-                  id="remote-access-origin"
-                  onChange={(event) => setOrigin(event.target.value)}
-                  placeholder="https://dream.example.com"
-                  spellCheck={false}
-                  value={origin}
-                />
-              </div>
-            </>
-          ) : null}
+            <div className="grid gap-1.5">
+              <Label htmlFor="remote-access-origin">{t("originLabel")}</Label>
+              <Input
+                className="font-mono"
+                id="remote-access-origin"
+                onChange={(event) => setOrigin(event.target.value)}
+                placeholder="https://dream.example.com"
+                spellCheck={false}
+                value={origin}
+              />
+            </div>
+          ) : (
+            <div className="grid gap-1.5">
+              <Label htmlFor="remote-access-https-port">
+                {t("httpsPortLabel")}
+              </Label>
+              <Input
+                aria-invalid={!isValidPort(httpsPort)}
+                className="w-28 font-mono"
+                id="remote-access-https-port"
+                inputMode="numeric"
+                onChange={(event) =>
+                  setHttpsPort(event.target.value.replace(/\D/g, ""))
+                }
+                value={httpsPort}
+              />
+            </div>
+          )}
 
-          <Collapsible>
-            <CollapsibleTrigger className="group flex items-center gap-1 text-muted-foreground text-sm hover:text-foreground">
-              <ChevronRight className="size-3.5 transition-transform group-data-[panel-open]:rotate-90" />
-              {t("advanced")}
-            </CollapsibleTrigger>
-            <CollapsibleContent className="grid gap-3 pt-3">
-              {mode === "tailscale" ? (
-                <div className="grid gap-1.5">
-                  <Label htmlFor="remote-access-https-port">
-                    {t("httpsPortLabel")}
-                  </Label>
-                  <Input
-                    aria-invalid={!isValidPort(httpsPort)}
-                    className="w-28 font-mono"
-                    id="remote-access-https-port"
-                    inputMode="numeric"
-                    onChange={(event) =>
-                      setHttpsPort(event.target.value.replace(/\D/g, ""))
-                    }
-                    value={httpsPort}
-                  />
-                </div>
-              ) : null}
-              <div className="grid gap-1.5">
-                <Label htmlFor="remote-access-local-port">
-                  {t("localPortLabel")}
-                </Label>
-                <Input
-                  aria-invalid={localPort !== "" && !isValidPort(localPort)}
-                  className="w-28 font-mono"
-                  id="remote-access-local-port"
-                  inputMode="numeric"
-                  onChange={(event) =>
-                    setLocalPort(event.target.value.replace(/\D/g, ""))
-                  }
-                  placeholder={t("portAutomatic")}
-                  value={localPort}
-                />
-                <span className="text-muted-foreground text-xs">
-                  {t("localPortHint")}
-                </span>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
+          <div className="grid gap-1.5">
+            <Label htmlFor="remote-access-local-port">
+              {t("localPortLabel")}
+            </Label>
+            <Input
+              aria-invalid={localPort !== "" && !isValidPort(localPort)}
+              className="w-28 font-mono"
+              id="remote-access-local-port"
+              inputMode="numeric"
+              onChange={(event) =>
+                setLocalPort(event.target.value.replace(/\D/g, ""))
+              }
+              placeholder={t("portAutomatic")}
+              value={localPort}
+            />
+            <span className="text-muted-foreground text-xs">
+              {t("localPortHint")}
+            </span>
+          </div>
 
           {refused || error ? (
             <p

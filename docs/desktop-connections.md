@@ -1,7 +1,7 @@
 # Desktop connections
 
-In Settings > Hosts, choose **Add host**, then **SSH host**, or **Pairing code** and enter
-the host's HTTPS address and a code created on the host (Settings > Sharing & access >
+In Settings > Connections, choose **Add host**, then **SSH host**, or **Pairing code** and enter
+the host's HTTPS address and a code created on the host (Settings > Connections >
 **Pair a computer**, or `dream-host pair`). The code works once and expires after ten
 minutes. The host must run a version with native identity proof
 support, and its HTTPS certificate must be trusted by the desktop's Node runtime.

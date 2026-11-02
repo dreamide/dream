@@ -182,6 +182,11 @@ export interface RemoteAccessStatus {
   cloudflare?: {
     /** The loopback port used when none is saved and it is free. */
     defaultPort: number;
+    /**
+     * The saved address, kept while another mode is active. Absent from a
+     * host older than this field, and when the host's start options set it.
+     */
+    origin?: string | null;
   };
   /** The listener's loopback port. */
   port: number | null;

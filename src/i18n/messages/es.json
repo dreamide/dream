@@ -15,7 +15,7 @@
     "removeRoute": "Eliminar ruta",
     "addSshRoute": "Añadir ruta SSH",
     "addHttpsRoute": "Añadir ruta HTTPS",
-    "pairCodeHint": "En el host, elige Vincular un equipo en Compartir y acceso (o ejecuta dream-host pair) y luego introduce la dirección del host y el código que aparece allí.",
+    "pairCodeHint": "En el host, elige Vincular un equipo en Acceso remoto (o ejecuta dream-host pair) y luego introduce la dirección del host y el código que aparece allí.",
     "hostAddress": "Dirección del host",
     "pairingCode": "Código de vinculación",
     "name": "Nombre (opcional)",
@@ -445,8 +445,7 @@
     "chatNotificationsDescription": "Avisar cuando un chat termine, falle o necesite tu respuesta mientras la aplicación está en segundo plano",
     "chatNotificationSound": "Sonido de notificación",
     "chatNotificationSoundDescription": "Reproducir un sonido cuando un chat termine, falle o necesite tu respuesta",
-    "hosts": "Hosts",
-    "sharingAccess": "Uso compartido y acceso"
+    "connections": "Conexiones"
   },
   "models": {
     "fast": "Rápido",
@@ -1119,9 +1118,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Usa un túnel y un nombre de host persistentes de tu cuenta de Cloudflare.",
-    "cloudflareStepTunnel": "En Cloudflare, crea un túnel y ejecuta su comando de instalación en este equipo.",
-    "cloudflareStepRoute": "Dirige un nombre de host de tu dominio a http://127.0.0.1:{port} y omite la caché para /api/*.",
-    "cloudflareStepAddress": "Escribe ese nombre de host abajo.",
     "pairTitle": "Vincular este dispositivo",
     "pairDescription": "Introduce el código de vinculación creado en {host}.",
     "pairing": "Vinculando…",
@@ -1181,7 +1177,6 @@
     "setUp": "Configurar",
     "change": "Cambiar",
     "setupTitle": "Configurar el acceso remoto",
-    "advanced": "Avanzado",
     "needsOrigin": "Introduce la dirección pública.",
     "save": "Guardar",
     "problems": {
@@ -1190,11 +1185,11 @@
       "needsLogin": "Inicia sesión en Tailscale en este equipo y vuelve a comprobar.",
       "needsApproval": "Este equipo está esperando aprobación en la consola de administración de Tailscale.",
       "httpsDisabled": "Activa MagicDNS y los certificados HTTPS de tu tailnet en la consola de administración de Tailscale y vuelve a comprobar.",
-      "portTaken": "Tailscale ya sirve otra cosa en el puerto HTTPS {port}. Elige otro puerto HTTPS en Avanzado.",
+      "portTaken": "Tailscale ya sirve otra cosa en el puerto HTTPS {port}. Elige otro puerto HTTPS.",
       "permission": "Tailscale no permite que este usuario cambie su configuración de Serve. En Linux, ejecuta una vez sudo tailscale set --operator=$USER y vuelve a comprobar.",
       "needsOrigin": "Introduce tu nombre de host de Cloudflare como dirección https://, por ejemplo https://dream.example.com.",
       "quickTunnel": "Usa un túnel persistente de Cloudflare con un nombre de host estable. Los Quick Tunnels no admiten la transmisión del chat.",
-      "portInUse": "El puerto {port} ya está en uso en este equipo. Elige otro puerto local en Avanzado.",
+      "portInUse": "El puerto {port} ya está en uso en este equipo. Elige otro puerto local.",
       "unreachableTailscale": "No se pudo llegar a este equipo a través de {origin}. Puede que Tailscale aún esté obteniendo su certificado; vuelve a comprobar en un minuto.",
       "unreachableCloudflare": "No se pudo llegar a este equipo a través de {origin}. Comprueba que cloudflared se esté ejecutando para tu túnel y que la URL del servicio de este nombre de host sea http://127.0.0.1:{port}."
     },
@@ -1209,7 +1204,7 @@
     "hostAddress": "Dirección del host"
   },
   "sharing": {
-    "title": "Uso compartido y acceso",
+    "title": "Acceso remoto",
     "description": "Usa los proyectos de este equipo desde otro equipo. Cada uno debe vincularse primero.",
     "hostOlder": "El host de este equipo ejecuta Dream {version}, anterior a esta app ({appVersion}). Actualiza dream-host y reinícialo.",
     "hostNewer": "El host de este equipo ejecuta Dream {version}, más reciente que esta app ({appVersion}). Actualiza Dream."

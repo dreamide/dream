@@ -1,5 +1,5 @@
 /**
- * Settings > Sharing & access, on the desktop: whether other computers may
+ * Settings > Connections > Remote access, on the desktop: whether other computers may
  * use this computer's host, how they reach it, and which are paired. It is
  * about this computer only; another machine's sharing is managed on that
  * machine (its own Dream, or `dream-host remote` / `dream-host pair`).

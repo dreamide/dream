@@ -15,7 +15,7 @@
     "removeRoute": "Supprimer la route",
     "addSshRoute": "Ajouter une route SSH",
     "addHttpsRoute": "Ajouter une route HTTPS",
-    "pairCodeHint": "Sur l’hôte, choisissez Associer un ordinateur dans Partage et accès (ou exécutez dream-host pair), puis saisissez l’adresse de l’hôte et le code affiché.",
+    "pairCodeHint": "Sur l’hôte, choisissez Associer un ordinateur dans Accès à distance (ou exécutez dream-host pair), puis saisissez l’adresse de l’hôte et le code affiché.",
     "hostAddress": "Adresse de l’hôte",
     "pairingCode": "Code d’association",
     "name": "Nom (facultatif)",
@@ -445,8 +445,7 @@
     "chatNotificationsDescription": "Notifier lorsqu'un chat se termine, échoue ou attend votre réponse pendant que l'application est en arrière-plan",
     "chatNotificationSound": "Son de notification",
     "chatNotificationSoundDescription": "Jouer un son lorsqu'un chat se termine, échoue ou attend votre réponse",
-    "hosts": "Hôtes",
-    "sharingAccess": "Partage et accès"
+    "connections": "Connexions"
   },
   "models": {
     "fast": "Rapide",
@@ -1119,9 +1118,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Utilisez un tunnel et un nom d’hôte persistants de votre compte Cloudflare.",
-    "cloudflareStepTunnel": "Dans Cloudflare, créez un tunnel et exécutez sa commande d’installation sur cet ordinateur.",
-    "cloudflareStepRoute": "Dirigez un nom d’hôte de votre domaine vers http://127.0.0.1:{port} et désactivez le cache pour /api/*.",
-    "cloudflareStepAddress": "Saisissez ce nom d’hôte ci-dessous.",
     "pairTitle": "Associer cet appareil",
     "pairDescription": "Saisissez le code d’association créé sur {host}.",
     "pairing": "Association…",
@@ -1181,7 +1177,6 @@
     "setUp": "Configurer",
     "change": "Modifier",
     "setupTitle": "Configurer l’accès à distance",
-    "advanced": "Avancé",
     "needsOrigin": "Saisissez l’adresse publique.",
     "save": "Enregistrer",
     "problems": {
@@ -1190,11 +1185,11 @@
       "needsLogin": "Connectez-vous à Tailscale sur cet ordinateur, puis vérifiez à nouveau.",
       "needsApproval": "Cet ordinateur attend une approbation dans la console d’administration Tailscale.",
       "httpsDisabled": "Activez MagicDNS et les certificats HTTPS de votre tailnet dans la console d’administration Tailscale, puis vérifiez à nouveau.",
-      "portTaken": "Tailscale sert déjà autre chose sur le port HTTPS {port}. Choisissez un autre port HTTPS dans Avancé.",
+      "portTaken": "Tailscale sert déjà autre chose sur le port HTTPS {port}. Choisissez un autre port HTTPS.",
       "permission": "Tailscale n’autorise pas cet utilisateur à modifier ses réglages Serve. Sous Linux, exécutez une fois sudo tailscale set --operator=$USER, puis vérifiez à nouveau.",
       "needsOrigin": "Saisissez votre nom d’hôte Cloudflare sous forme d’adresse https://, par exemple https://dream.example.com.",
       "quickTunnel": "Utilisez un tunnel Cloudflare persistant avec un nom d’hôte stable. Les Quick Tunnels ne prennent pas en charge le streaming du chat.",
-      "portInUse": "Le port {port} est déjà utilisé sur cet ordinateur. Choisissez un autre port local dans Avancé.",
+      "portInUse": "Le port {port} est déjà utilisé sur cet ordinateur. Choisissez un autre port local.",
       "unreachableTailscale": "Impossible de joindre cet ordinateur via {origin}. Tailscale est peut-être encore en train d’obtenir son certificat ; vérifiez à nouveau dans une minute.",
       "unreachableCloudflare": "Impossible de joindre cet ordinateur via {origin}. Vérifiez que cloudflared est en cours d’exécution pour votre tunnel et que l’URL de service de ce nom d’hôte est http://127.0.0.1:{port}."
     },
@@ -1209,7 +1204,7 @@
     "hostAddress": "Adresse de l’hôte"
   },
   "sharing": {
-    "title": "Partage et accès",
+    "title": "Accès à distance",
     "description": "Utilisez les projets de cet ordinateur depuis un autre ordinateur. Chacun doit d’abord être associé.",
     "hostOlder": "L’hôte de cet ordinateur exécute Dream {version}, plus ancien que cette app ({appVersion}). Mettez à jour dream-host et redémarrez-le.",
     "hostNewer": "L’hôte de cet ordinateur exécute Dream {version}, plus récent que cette app ({appVersion}). Mettez à jour Dream."

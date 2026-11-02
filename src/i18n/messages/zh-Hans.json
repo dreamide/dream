@@ -15,7 +15,7 @@
     "removeRoute": "移除路由",
     "addSshRoute": "添加 SSH 路由",
     "addHttpsRoute": "添加 HTTPS 路由",
-    "pairCodeHint": "在主机的“共享与访问”中选择“配对电脑”（或运行 dream-host pair），然后输入主机地址和显示的配对码。",
+    "pairCodeHint": "在主机的“远程访问”中选择“配对电脑”（或运行 dream-host pair），然后输入主机地址和显示的配对码。",
     "hostAddress": "主机地址",
     "pairingCode": "配对码",
     "name": "名称（可选）",
@@ -445,8 +445,7 @@
     "chatNotificationsDescription": "当应用处于后台时，在聊天完成、失败或需要你的输入时发出通知",
     "chatNotificationSound": "通知提示音",
     "chatNotificationSoundDescription": "在聊天完成、失败或需要你的输入时播放提示音",
-    "hosts": "主机",
-    "sharingAccess": "共享与访问"
+    "connections": "连接"
   },
   "models": {
     "fast": "快速",
@@ -1119,9 +1118,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "使用 Cloudflare 账户中的持久隧道和主机名。",
-    "cloudflareStepTunnel": "在 Cloudflare 中创建隧道，并在这台电脑上运行它的安装命令。",
-    "cloudflareStepRoute": "将你域名下的主机名指向 http://127.0.0.1:{port}，并对 /api/* 绕过缓存。",
-    "cloudflareStepAddress": "在下方输入该主机名。",
     "pairTitle": "配对此设备",
     "pairDescription": "输入在 {host} 上创建的配对码。",
     "pairing": "正在配对…",
@@ -1181,7 +1177,6 @@
     "setUp": "设置",
     "change": "更改",
     "setupTitle": "设置远程访问",
-    "advanced": "高级",
     "needsOrigin": "请输入公开地址。",
     "save": "保存",
     "problems": {
@@ -1190,11 +1185,11 @@
       "needsLogin": "请在这台电脑上登录 Tailscale，然后重新检查。",
       "needsApproval": "这台电脑正在等待 Tailscale 管理控制台中的批准。",
       "httpsDisabled": "请在 Tailscale 管理控制台中为你的 tailnet 开启 MagicDNS 和 HTTPS 证书，然后重新检查。",
-      "portTaken": "Tailscale 已在 HTTPS 端口 {port} 上提供其他内容。请在“高级”中选择其他 HTTPS 端口。",
+      "portTaken": "Tailscale 已在 HTTPS 端口 {port} 上提供其他内容。请选择其他 HTTPS 端口。",
       "permission": "Tailscale 不允许此用户更改其 Serve 设置。在 Linux 上，请运行一次 sudo tailscale set --operator=$USER，然后重新检查。",
       "needsOrigin": "请以 https:// 地址输入你的 Cloudflare 主机名，例如 https://dream.example.com。",
       "quickTunnel": "请使用具有固定主机名的持久 Cloudflare 隧道。Quick Tunnel 不支持聊天流式传输。",
-      "portInUse": "这台电脑上的端口 {port} 已被占用。请在“高级”中选择其他本地端口。",
+      "portInUse": "这台电脑上的端口 {port} 已被占用。请选择其他本地端口。",
       "unreachableTailscale": "无法通过 {origin} 访问这台电脑。Tailscale 可能仍在获取证书；请一分钟后重新检查。",
       "unreachableCloudflare": "无法通过 {origin} 访问这台电脑。请确认隧道的 cloudflared 正在运行，且此主机名的服务 URL 为 http://127.0.0.1:{port}。"
     },
@@ -1209,7 +1204,7 @@
     "hostAddress": "主机地址"
   },
   "sharing": {
-    "title": "共享与访问",
+    "title": "远程访问",
     "description": "从另一台电脑使用这台电脑的项目。每台电脑都需要先配对。",
     "hostOlder": "这台电脑的主机运行 Dream {version}，比此应用（{appVersion}）旧。请更新 dream-host 并重新启动。",
     "hostNewer": "这台电脑的主机运行 Dream {version}，比此应用（{appVersion}）新。请更新 Dream。"

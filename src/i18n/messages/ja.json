@@ -15,7 +15,7 @@
     "removeRoute": "経路を削除",
     "addSshRoute": "SSH 経路を追加",
     "addHttpsRoute": "HTTPS 経路を追加",
-    "pairCodeHint": "ホストの「共有とアクセス」で「コンピューターをペアリング」を選ぶか dream-host pair を実行し、ホストのアドレスと表示されたコードを入力してください。",
+    "pairCodeHint": "ホストの「リモートアクセス」で「コンピューターをペアリング」を選ぶか dream-host pair を実行し、ホストのアドレスと表示されたコードを入力してください。",
     "hostAddress": "ホストのアドレス",
     "pairingCode": "ペアリングコード",
     "name": "名前（任意）",
@@ -445,8 +445,7 @@
     "chatNotificationsDescription": "アプリがバックグラウンドにあるとき、チャットの完了、失敗、入力待ちを通知します",
     "chatNotificationSound": "通知音",
     "chatNotificationSoundDescription": "チャットの完了、失敗、入力待ちのときに音を鳴らします",
-    "hosts": "ホスト",
-    "sharingAccess": "共有とアクセス"
+    "connections": "接続"
   },
   "models": {
     "fast": "高速",
@@ -1119,9 +1118,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "Cloudflare アカウントの永続トンネルとホスト名を使用します。",
-    "cloudflareStepTunnel": "Cloudflare でトンネルを作成し、そのインストールコマンドをこのコンピューターで実行してください。",
-    "cloudflareStepRoute": "ドメインのホスト名を http://127.0.0.1:{port} に転送し、/api/* のキャッシュを無効にしてください。",
-    "cloudflareStepAddress": "そのホスト名を下に入力してください。",
     "pairTitle": "このデバイスをペアリング",
     "pairDescription": "{host} で作成したペアリングコードを入力してください。",
     "pairing": "ペアリング中…",
@@ -1181,7 +1177,6 @@
     "setUp": "設定",
     "change": "変更",
     "setupTitle": "リモートアクセスを設定",
-    "advanced": "詳細設定",
     "needsOrigin": "公開アドレスを入力してください。",
     "save": "保存",
     "problems": {
@@ -1190,11 +1185,11 @@
       "needsLogin": "このコンピューターで Tailscale にサインインしてから再確認してください。",
       "needsApproval": "このコンピューターは Tailscale 管理コンソールで承認を待っています。",
       "httpsDisabled": "Tailscale 管理コンソールで tailnet の MagicDNS と HTTPS 証明書を有効にしてから再確認してください。",
-      "portTaken": "Tailscale は HTTPS ポート {port} で既に別のものを提供しています。詳細設定で別の HTTPS ポートを選択してください。",
+      "portTaken": "Tailscale は HTTPS ポート {port} で既に別のものを提供しています。別の HTTPS ポートを選択してください。",
       "permission": "Tailscale はこのユーザーによる Serve 設定の変更を許可していません。Linux では sudo tailscale set --operator=$USER を一度実行してから再確認してください。",
       "needsOrigin": "Cloudflare のホスト名を https:// アドレスで入力してください（例: https://dream.example.com）。",
       "quickTunnel": "固定ホスト名の永続的な Cloudflare トンネルを使用してください。Quick Tunnel はチャットのストリーミングに対応していません。",
-      "portInUse": "このコンピューターのポート {port} は既に使用中です。詳細設定で別のローカルポートを選択してください。",
+      "portInUse": "このコンピューターのポート {port} は既に使用中です。別のローカルポートを選択してください。",
       "unreachableTailscale": "{origin} 経由でこのコンピューターに到達できませんでした。Tailscale がまだ証明書を取得中の可能性があります。1 分後に再確認してください。",
       "unreachableCloudflare": "{origin} 経由でこのコンピューターに到達できませんでした。トンネルの cloudflared が実行中であること、このホスト名のサービス URL が http://127.0.0.1:{port} であることを確認してください。"
     },
@@ -1209,7 +1204,7 @@
     "hostAddress": "ホストのアドレス"
   },
   "sharing": {
-    "title": "共有とアクセス",
+    "title": "リモートアクセス",
     "description": "別のコンピュータからこのコンピュータのプロジェクトを使用します。各コンピュータは先にペアリングが必要です。",
     "hostOlder": "このコンピュータのホストは Dream {version} で、このアプリ ({appVersion}) より古いバージョンです。dream-host を更新して再起動してください。",
     "hostNewer": "このコンピュータのホストは Dream {version} で、このアプリ ({appVersion}) より新しいバージョンです。Dream を更新してください。"

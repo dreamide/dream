@@ -15,7 +15,7 @@
     "removeRoute": "移除路由",
     "addSshRoute": "新增 SSH 路由",
     "addHttpsRoute": "新增 HTTPS 路由",
-    "pairCodeHint": "在主機的「共享與存取」中選擇「配對電腦」（或執行 dream-host pair），然後輸入主機位址和顯示的配對碼。",
+    "pairCodeHint": "在主機的「遠端存取」中選擇「配對電腦」（或執行 dream-host pair），然後輸入主機位址和顯示的配對碼。",
     "hostAddress": "主機位址",
     "pairingCode": "配對碼",
     "name": "名稱（選填）",
@@ -445,8 +445,7 @@
     "chatNotificationsDescription": "當應用程式在背景執行時，於聊天完成、失敗或需要你的輸入時發出通知",
     "chatNotificationSound": "通知提示音",
     "chatNotificationSoundDescription": "在聊天完成、失敗或需要你的輸入時播放提示音",
-    "hosts": "主機",
-    "sharingAccess": "共享與存取"
+    "connections": "連線"
   },
   "models": {
     "fast": "快速",
@@ -1119,9 +1118,6 @@
   "remote": {
     "modeCloudflare": "Cloudflare Tunnel",
     "modeCloudflareHint": "使用 Cloudflare 帳戶中的持久隧道和主機名稱。",
-    "cloudflareStepTunnel": "在 Cloudflare 中建立隧道，並在這台電腦上執行它的安裝指令。",
-    "cloudflareStepRoute": "將你網域下的主機名稱指向 http://127.0.0.1:{port}，並對 /api/* 略過快取。",
-    "cloudflareStepAddress": "在下方輸入該主機名稱。",
     "pairTitle": "配對此裝置",
     "pairDescription": "輸入在 {host} 上建立的配對碼。",
     "pairing": "正在配對…",
@@ -1181,7 +1177,6 @@
     "setUp": "設定",
     "change": "變更",
     "setupTitle": "設定遠端存取",
-    "advanced": "進階",
     "needsOrigin": "請輸入公開位址。",
     "save": "儲存",
     "problems": {
@@ -1190,11 +1185,11 @@
       "needsLogin": "請在這台電腦上登入 Tailscale，然後重新檢查。",
       "needsApproval": "這台電腦正在等待 Tailscale 管理主控台中的核准。",
       "httpsDisabled": "請在 Tailscale 管理主控台中為你的 tailnet 開啟 MagicDNS 和 HTTPS 憑證，然後重新檢查。",
-      "portTaken": "Tailscale 已在 HTTPS 連接埠 {port} 上提供其他內容。請在「進階」中選擇其他 HTTPS 連接埠。",
+      "portTaken": "Tailscale 已在 HTTPS 連接埠 {port} 上提供其他內容。請選擇其他 HTTPS 連接埠。",
       "permission": "Tailscale 不允許此使用者變更其 Serve 設定。在 Linux 上，請執行一次 sudo tailscale set --operator=$USER，然後重新檢查。",
       "needsOrigin": "請以 https:// 位址輸入你的 Cloudflare 主機名稱，例如 https://dream.example.com。",
       "quickTunnel": "請使用具有固定主機名稱的永久 Cloudflare 通道。Quick Tunnel 不支援聊天串流。",
-      "portInUse": "這台電腦上的連接埠 {port} 已被占用。請在「進階」中選擇其他本機連接埠。",
+      "portInUse": "這台電腦上的連接埠 {port} 已被占用。請選擇其他本機連接埠。",
       "unreachableTailscale": "無法透過 {origin} 連到這台電腦。Tailscale 可能仍在取得憑證；請一分鐘後重新檢查。",
       "unreachableCloudflare": "無法透過 {origin} 連到這台電腦。請確認隧道的 cloudflared 正在執行，且此主機名稱的服務 URL 為 http://127.0.0.1:{port}。"
     },
@@ -1209,7 +1204,7 @@
     "hostAddress": "主機位址"
   },
   "sharing": {
-    "title": "共享與存取",
+    "title": "遠端存取",
     "description": "從另一台電腦使用這台電腦的專案。每台電腦都需要先配對。",
     "hostOlder": "這台電腦的主機執行 Dream {version}，比此應用程式（{appVersion}）舊。請更新 dream-host 並重新啟動。",
     "hostNewer": "這台電腦的主機執行 Dream {version}，比此應用程式（{appVersion}）新。請更新 Dream。"

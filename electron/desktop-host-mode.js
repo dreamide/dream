@@ -29,7 +29,7 @@ export function resolveDesktopHostMode({ envMode, workspaceSeparate }) {
   }
   if (requested === "remote") {
     throw new Error(
-      "DREAM_HOST_MODE=remote was removed: the desktop always runs a host of its own. Add other hosts in Settings > Hosts.",
+      "DREAM_HOST_MODE=remote was removed: the desktop always runs a host of its own. Add other hosts in Settings > Connections.",
     );
   }
   if (requested && !ENV_MODES.has(requested)) {
