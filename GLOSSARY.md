@@ -87,6 +87,12 @@ Older code calls this a _thread_; the chat runtime calls a running one a
 _session_; _remote conversation_ is the provider's id for it (see Provider
 session). All of them mean chat.
 
+**Chat attachment files** (`electron/host/chat-attachments.js`) are a chat's
+non-image attachments saved beside the state database for agents to open. The
+transcript holds the bytes, so the files are a cache: each turn rewrites what
+is missing, and they are removed once the chat's row is gone. Claude uses them;
+other providers still write per-turn temporary copies.
+
 ## Chat transcript cache
 
 The transcripts this client currently holds for its chats. It owns both the
@@ -212,7 +218,7 @@ with the reason.
 
 Desktop only; a browser client does not have it. **Remote hosts** is the hosts
 this app uses. **Remote access** is this computer's own host: remote access,
-authorized clients and pairing a computer
+paired devices and pairing a device
 (`src/components/ide/settings/sharing-access-section.tsx`). Dream never changes
 another machine's sharing; that is done on that machine (its own Dream, or
 `dream-host remote` and `dream-host pair`).

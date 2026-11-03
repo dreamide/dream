@@ -51,7 +51,7 @@ showing **Ready**. Use **Check again** (the refresh button) after correcting
 the hostname, service URL or connector. The host keeps checking even when
 Settings is closed.
 
-Under Settings > Connections, choose **Pair a computer** (or run
+Under Settings > Connections, choose **Pair a device** (or run
 `dream-host pair`) to create a one-time code. Open the public address in a
 computer's browser and enter the code there, or enter the address and code under
 **Add host > Pairing code** on another Dream desktop. Normal reconnection reuses the

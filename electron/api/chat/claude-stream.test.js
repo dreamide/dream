@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import { test } from "vitest";
 import { createAgentTurn } from "./agent-turn.js";
 import {
@@ -122,4 +123,58 @@ test("Skill tool invocations are allowed without an approval prompt", async () =
   assert.equal(result.toolUseID, "skill-1");
   assert.deepEqual(result.updatedInput, { skill: "deploy" });
   assert.equal(parts.length, 0);
+});
+
+test("attachment files are readable but not writable, and only this chat's", async () => {
+  const projectPath = path.resolve("project");
+  const attachments = path.resolve("state.attachments", "chat-1");
+  const file = path.join(attachments, "abc", "report.xlsx");
+  const { turn } = createTestTurn();
+  const handler = createClaudePermissionHandler(turn, {
+    mode: "accept-edits",
+    projectPath,
+    readableDirectories: [attachments],
+  });
+  const decide = async (toolName, input) =>
+    (await handler(toolName, input, { toolUseID: "t1" })).behavior;
+
+  assert.equal(await decide("Read", { file_path: file }), "allow");
+  assert.equal(await decide("Grep", { path: attachments }), "allow");
+  assert.equal(await decide("Write", { file_path: file }), "deny");
+  assert.equal(await decide("Edit", { file_path: file }), "deny");
+
+  // Another chat's files, and everything else outside the project.
+  const otherChat = path.resolve("state.attachments", "chat-2", "x.xlsx");
+  assert.equal(await decide("Read", { file_path: otherChat }), "deny");
+  assert.equal(
+    await decide("Read", { file_path: `${attachments}-extra/x.xlsx` }),
+    "deny",
+  );
+  assert.equal(
+    await decide("Read", {
+      file_path: path.join(attachments, "..", "chat-2", "x.xlsx"),
+    }),
+    "deny",
+  );
+  // A relative path means the project, wherever it would land from the folder.
+  assert.equal(
+    await decide("Read", {
+      file_path: `../${path.basename(attachments)}/abc/report.xlsx`,
+    }),
+    "deny",
+  );
+});
+
+test("without attachments, reads outside the project stay denied", async () => {
+  const { turn } = createTestTurn();
+  const handler = createClaudePermissionHandler(turn, {
+    mode: "accept-edits",
+    projectPath: path.resolve("project"),
+  });
+  const result = await handler(
+    "Read",
+    { file_path: path.resolve("elsewhere", "x.txt") },
+    { toolUseID: "t1" },
+  );
+  assert.equal(result.behavior, "deny");
 });

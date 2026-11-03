@@ -1,7 +1,7 @@
 /**
  * This computer's remote access, on Settings > Connections: whether
  * paired devices can reach it and how (Tailscale Serve or a Cloudflare
- * Tunnel), then its authorized clients and pairing a computer with a
+ * Tunnel), then its paired devices and pairing a device with a
  * one-time code. The host owns all of it (host/remote-access/, host/auth/).
  *
  * Remote access the host was started with (`--remote-port`, `mode:
@@ -399,17 +399,17 @@ export const RemoteAccessSection = () => {
         />
       ) : null}
 
-      <SettingsGroup>
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-1">
-            <h4 className="font-medium text-sm">
+            <h3 className="font-medium text-base">
               {t("devicesTitle")}
               <span className="ml-2 font-normal text-muted-foreground text-xs">
                 {t("devicesCount", { count: devices.length })}
               </span>
-            </h4>
+            </h3>
             {status?.ready ? null : (
-              <p className="text-muted-foreground text-xs">
+              <p className="text-muted-foreground text-sm">
                 {t("pairNeedsAccess")}
               </p>
             )}
@@ -441,39 +441,41 @@ export const RemoteAccessSection = () => {
           </div>
         </div>
 
-        {devices.length === 0 ? (
-          <p className="px-4 py-3 text-center text-muted-foreground text-sm">
-            {t("noDevices")}
-          </p>
-        ) : null}
-        {devices.map((device) => (
-          <div className="flex items-center gap-3 px-4 py-3" key={device.id}>
-            <Laptop className="size-4 shrink-0 text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-medium text-sm">
-                {device.deviceName}
+        <SettingsGroup>
+          {devices.length === 0 ? (
+            <p className="px-4 py-8 text-center text-muted-foreground text-sm">
+              {t("noDevices")}
+            </p>
+          ) : null}
+          {devices.map((device) => (
+            <div className="flex items-center gap-3 px-4 py-3" key={device.id}>
+              <Laptop className="size-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium text-sm">
+                  {device.deviceName}
+                </div>
+                <div className="text-muted-foreground text-xs">
+                  {scopeLabel(device.scopes)} ·{" "}
+                  {t("lastUsed", {
+                    time: new Date(device.lastUsedAt).toLocaleString(),
+                  })}
+                </div>
               </div>
-              <div className="text-muted-foreground text-xs">
-                {scopeLabel(device.scopes)} ·{" "}
-                {t("lastUsed", {
-                  time: new Date(device.lastUsedAt).toLocaleString(),
-                })}
-              </div>
+              <Button
+                aria-label={t("revokeTitle", { device: device.deviceName })}
+                disabled={busy}
+                onClick={() => setPendingRevoke(device)}
+                size="icon-sm"
+                title={t("revoke")}
+                type="button"
+                variant="ghost"
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
             </div>
-            <Button
-              aria-label={t("revokeTitle", { device: device.deviceName })}
-              disabled={busy}
-              onClick={() => setPendingRevoke(device)}
-              size="icon-sm"
-              title={t("revoke")}
-              type="button"
-              variant="ghost"
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
-          </div>
-        ))}
-      </SettingsGroup>
+          ))}
+        </SettingsGroup>
+      </div>
 
       <Dialog onOpenChange={changePairOpen} open={pairOpen}>
         <DialogContent className="sm:max-w-md">

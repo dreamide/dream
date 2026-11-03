@@ -2,6 +2,8 @@
 // its text, reasoning and tool parts arrive as an SDK stream merged into
 // the turn; Dream's own concerns (permission prompts, context compaction,
 // the session id, usage) go through the turn like every other provider.
+
+import path from "node:path";
 import {
   convertToModelMessages,
   isStepCount,
@@ -9,6 +11,7 @@ import {
   toUIMessageStream,
 } from "ai";
 import { claudeCode, getSessionInfo } from "ai-sdk-provider-claude-code";
+import { saveChatAttachments } from "../../host/chat-attachments.js";
 import {
   CLAUDE_REASONING_EFFORT_MAP,
   getModelReasoningEfforts,
@@ -23,8 +26,11 @@ import {
   createBrowserMcpServer,
 } from "./browser-tools.js";
 import {
-  buildCodexMessageFilePartsSummary,
+  buildCodexFilePartSummary,
+  getCodexAttachmentLabel,
+  getCodexMessageFileParts,
   getLatestUserMessage,
+  isAttachmentContentInPrompt,
 } from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
 import { toClaudeMcpServers } from "./mcp-servers.js";
@@ -40,18 +46,47 @@ const CLAUDE_PERMISSION_MODE_MAP = {
   "full-access": "bypassPermissions",
 };
 
-const appendClaudeAttachmentTextToLatestUserMessage = (messages) => {
-  const latestUserMessage = getLatestUserMessage(messages);
-  const attachmentText = buildCodexMessageFilePartsSummary(latestUserMessage);
-  if (!latestUserMessage || !attachmentText) {
-    return messages;
-  }
+const describeClaudeAttachment = (part, filePath) => {
+  const summary = buildCodexFilePartSummary(part);
+  if (filePath) return `${summary}\nSaved at: ${filePath}`;
+  return isAttachmentContentInPrompt(part)
+    ? summary
+    : `${summary}\nContents unavailable: only the file name was received. Ask the user to attach it again.`;
+};
 
-  const attachmentPrompt = [
-    "Current turn attachments:",
-    attachmentText,
-    "Use these attachment contents as part of the user's latest request.",
-  ].join("\n\n");
+// The provider forwards only images, so the rest reach the agent as text and
+// saved paths. Earlier files are listed every turn: a resumed session is sent
+// only this message, and compaction can lose the path it saw before.
+const appendClaudeAttachmentTextToLatestUserMessage = (messages, filePaths) => {
+  const latestUserMessage = getLatestUserMessage(messages);
+  if (!latestUserMessage) return messages;
+
+  const currentParts = getCodexMessageFileParts(latestUserMessage);
+  const earlierFiles = new Map();
+  for (const [part, filePath] of filePaths) {
+    if (!currentParts.includes(part)) {
+      earlierFiles.set(filePath, getCodexAttachmentLabel(part));
+    }
+  }
+  const sections = [];
+  if (currentParts.length > 0) {
+    sections.push(
+      "Current turn attachments:",
+      currentParts
+        .map((part) => describeClaudeAttachment(part, filePaths.get(part)))
+        .join("\n\n"),
+      "Treat these attachments as part of the user's latest request. Where a saved path is listed, read that file with your tools; a binary format such as a spreadsheet needs a skill or shell command.",
+    );
+  }
+  if (earlierFiles.size > 0) {
+    const list = [...earlierFiles]
+      .map(([filePath, label]) => `- ${label}: ${filePath}`)
+      .join("\n");
+    sections.push(
+      `Files attached earlier in this chat, to read with your tools if the request needs them:\n${list}`,
+    );
+  }
+  if (sections.length === 0) return messages;
 
   return messages.map((message) =>
     message === latestUserMessage
@@ -60,7 +95,7 @@ const appendClaudeAttachmentTextToLatestUserMessage = (messages) => {
           parts: [
             ...(Array.isArray(message.parts) ? message.parts : []),
             {
-              text: attachmentPrompt,
+              text: sections.join("\n\n"),
               type: "text",
             },
           ],
@@ -164,6 +199,9 @@ const CLAUDE_PATH_GUARDED_TOOLS = new Set([
   "write",
 ]);
 
+// The guarded tools that may also look inside the chat's attachment files.
+const CLAUDE_READ_ONLY_PATH_TOOLS = new Set(["glob", "grep", "ls", "read"]);
+
 const CLAUDE_PATH_INPUT_KEYS = [
   "file_path",
   "filePath",
@@ -182,20 +220,39 @@ const getClaudeToolInputPaths = (input) => {
   );
 };
 
-const findClaudeBlockedPath = (projectPath, toolName, input) => {
-  if (
-    !projectPath ||
-    !CLAUDE_PATH_GUARDED_TOOLS.has(normalizeClaudeToolName(toolName))
-  ) {
+const isInsideDirectory = (directory, absolutePath) => {
+  try {
+    resolveProjectPath(directory, absolutePath);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const findClaudeBlockedPath = (
+  projectPath,
+  toolName,
+  input,
+  readableDirectories,
+) => {
+  const normalizedToolName = normalizeClaudeToolName(toolName);
+  if (!projectPath || !CLAUDE_PATH_GUARDED_TOOLS.has(normalizedToolName)) {
     return null;
   }
 
   for (const candidate of getClaudeToolInputPaths(input)) {
-    try {
-      resolveProjectPath(projectPath, candidate);
-    } catch {
-      return candidate;
+    // A relative path means the tool's working directory: the project.
+    const absolutePath = path.resolve(projectPath, candidate);
+    if (isInsideDirectory(projectPath, absolutePath)) continue;
+    if (
+      CLAUDE_READ_ONLY_PATH_TOOLS.has(normalizedToolName) &&
+      readableDirectories.some((directory) =>
+        isInsideDirectory(directory, absolutePath),
+      )
+    ) {
+      continue;
     }
+    return candidate;
   }
 
   return null;
@@ -244,7 +301,10 @@ const isPreloadedClaudeToolSearch = (input) => {
  * The SDK's `canUseTool` callback: decides locally what the permission mode
  * allows, and asks the user through the turn for everything else.
  */
-export const createClaudePermissionHandler = (turn, { mode, projectPath }) => {
+export const createClaudePermissionHandler = (
+  turn,
+  { mode, projectPath, readableDirectories = [] },
+) => {
   return async (toolName, input, options) => {
     const normalizedToolName = normalizeClaudeToolName(toolName);
     const attachedInput = keepClaudeAgentAttachedToTurn(toolName, input);
@@ -279,6 +339,7 @@ export const createClaudePermissionHandler = (turn, { mode, projectPath }) => {
       projectPath,
       toolName,
       attachedInput,
+      readableDirectories,
     );
     if (blockedProjectPath) {
       return {
@@ -426,6 +487,7 @@ const parseAskUserQuestionApproval = (reason) => {
 
 export const streamClaudeResponse = async ({
   abortSignal,
+  chatId,
   permissionMode,
   mcpServers = [],
   messages,
@@ -454,6 +516,8 @@ export const streamClaudeResponse = async ({
   // agent can open tabs, navigate, inspect and interact with the same
   // <webview> tabs the user sees. Absent when there is no project context.
   const browserMcpServer = createBrowserMcpServer({ projectId });
+  const { directory: attachmentDirectory, filePaths: attachmentPaths } =
+    await saveChatAttachments({ chatId, messages });
   let resumeSessionId = null;
   if (
     shouldResumeProviderSession({
@@ -490,6 +554,7 @@ export const streamClaudeResponse = async ({
       canUseTool: createClaudePermissionHandler(turn, {
         mode: claudePermissionHandlerMode,
         projectPath,
+        readableDirectories: attachmentDirectory ? [attachmentDirectory] : [],
       }),
       streamingInput: "auto",
       onSdkMessage: (message) => {
@@ -502,6 +567,9 @@ export const streamClaudeResponse = async ({
       },
       continue: false,
       cwd: projectPath,
+      ...(attachmentDirectory
+        ? { additionalDirectories: [attachmentDirectory] }
+        : {}),
       // Dream closes the transport when this request finishes, so background
       // task notifications cannot start another turn. Disable background mode
       // for Bash as well as subagents, including automatic backgrounding of
@@ -583,7 +651,10 @@ export const streamClaudeResponse = async ({
       ? [getLatestUserMessage(messages)].filter(Boolean)
       : messages;
     modelMessages = await convertToModelMessages(
-      appendClaudeAttachmentTextToLatestUserMessage(messagesForModel),
+      appendClaudeAttachmentTextToLatestUserMessage(
+        messagesForModel,
+        attachmentPaths,
+      ),
     );
   } catch (err) {
     console.error("[chat] Failed to convert messages:", err);

@@ -29,6 +29,7 @@ import { createStateSaveQueue } from "../state-save-queue.js";
 import { detectAvailableTerminalShells } from "../terminal-shells.js";
 import { createHostAuth } from "./auth/host-auth.js";
 import { createHostCatalog } from "./catalog.js";
+import { sweepChatAttachments } from "./chat-attachments.js";
 import { configureHostDataDirectory } from "./host-paths.js";
 import { createHostProofSigner, loadHostIdentity } from "./identity.js";
 import { HOST_CAPABILITIES, HOST_PROTOCOL_VERSION } from "./protocol.js";
@@ -152,6 +153,7 @@ export function createHost({
     getReader,
     getRunningChatIds: turns.streamingChatIds,
     getWriter,
+    onChatsRemoved: () => void sweepChatAttachments(catalog),
   });
   // A chat waiting on its user is news to every client, open or not.
   const stopApprovalEvents = onToolApprovalsChange(({ awaiting, chatId }) =>
@@ -287,6 +289,8 @@ export function createHost({
     async listen({ apiToken, port }) {
       if (server) throw new Error("Host is already listening.");
       await scheduler.initialize();
+      // Removals a previous run could not finish.
+      void sweepChatAttachments(catalog);
       // Paired devices' sessions; local work never waits on them. A failed
       // load is tried again by the next remote request, which fails closed.
       await auth.load().catch((error) => {

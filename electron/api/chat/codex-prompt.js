@@ -160,7 +160,7 @@ const buildBoundedCodexTranscript = (serializedMessages, maxChars) => {
   return [notice, ...selectedMessages].join("\n\n");
 };
 
-const getCodexAttachmentLabel = (part) => {
+export const getCodexAttachmentLabel = (part) => {
   return (
     (typeof part.filename === "string" && part.filename.trim()) ||
     (typeof part.mediaType === "string" && part.mediaType.trim()) ||
@@ -168,7 +168,7 @@ const getCodexAttachmentLabel = (part) => {
   );
 };
 
-const parseCodexDataUrl = (value) => {
+export const parseCodexDataUrl = (value) => {
   if (typeof value !== "string" || !value.startsWith("data:")) {
     return null;
   }
@@ -196,7 +196,7 @@ const parseCodexDataUrl = (value) => {
   }
 };
 
-const getAttachmentExtensionFromMediaType = (mediaType) => {
+export const getAttachmentExtensionFromMediaType = (mediaType) => {
   switch (mediaType) {
     case "application/javascript":
       return ".js";
@@ -254,7 +254,7 @@ const getAttachmentExtensionFromMediaType = (mediaType) => {
   }
 };
 
-const sanitizeCodexAttachmentFilename = (filename, fallback) => {
+export const sanitizeCodexAttachmentFilename = (filename, fallback) => {
   const basename = path.basename(
     typeof filename === "string" && filename.trim()
       ? filename.trim()
@@ -285,18 +285,36 @@ const isCodexTextAttachment = (mediaType, filename) => {
     }
   }
 
-  return /\.(?:c|cc|cpp|css|go|html?|java|js|json|jsx|md|mjs|php|py|rb|rs|sh|sql|svg|toml|ts|tsx|txt|xml|ya?ml)$/i.test(
+  return /\.(?:c|cc|cpp|css|csv|go|html?|java|js|json|jsx|log|md|mjs|php|py|rb|rs|sh|sql|svg|toml|ts|tsv|tsx|txt|xml|ya?ml)$/i.test(
     filename || "",
   );
 };
 
-const buildCodexFilePartSummary = (part) => {
+const getAttachmentMediaType = (part, parsedDataUrl) =>
+  (typeof part.mediaType === "string" && part.mediaType.trim()) ||
+  parsedDataUrl?.mediaType ||
+  null;
+
+/** Whether a provider that forwards images inline will receive this part. */
+export const isImageFilePart = (part) =>
+  /^image\//i.test(
+    getAttachmentMediaType(part, parseCodexDataUrl(part.url)) ?? "",
+  );
+
+/** Whether a summary of this part stands for its contents, not just its name. */
+export const isAttachmentContentInPrompt = (part) => {
+  const parsedDataUrl = parseCodexDataUrl(part.url);
+  const mediaType = getAttachmentMediaType(part, parsedDataUrl);
+  return (
+    isCodexImageAttachment(mediaType, part.filename) ||
+    (Boolean(parsedDataUrl) && isCodexTextAttachment(mediaType, part.filename))
+  );
+};
+
+export const buildCodexFilePartSummary = (part) => {
   const label = getCodexAttachmentLabel(part);
   const parsedDataUrl = parseCodexDataUrl(part.url);
-  const mediaType =
-    (typeof part.mediaType === "string" && part.mediaType.trim()) ||
-    parsedDataUrl?.mediaType ||
-    null;
+  const mediaType = getAttachmentMediaType(part, parsedDataUrl);
 
   if (isCodexImageAttachment(mediaType, part.filename)) {
     return `[Attached image: ${label}${mediaType ? ` (${mediaType})` : ""}]`;
@@ -322,15 +340,6 @@ const buildCodexFilePartSummary = (part) => {
   }
 
   return `[Attached file: ${label}${mediaType ? ` (${mediaType})` : ""}]`;
-};
-
-export const buildCodexMessageFilePartsSummary = (message) => {
-  const fileParts = getCodexMessageFileParts(message);
-  if (fileParts.length === 0) {
-    return null;
-  }
-
-  return fileParts.map(buildCodexFilePartSummary).join("\n\n");
 };
 
 export const getCodexMessageFileParts = (message) => {
