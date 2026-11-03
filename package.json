@@ -43,7 +43,7 @@
     "@hono/node-server": "^2.1.4",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@opencode-ai/sdk": "1.17.11",
-    "@pierre/diffs": "^1.5.2",
+    "@pierre/diffs": "^1.6.2",
     "ai": "^7.0.137",
     "ai-sdk-provider-claude-code": "^4.3.3",
     "ccount": "2.0.1",
