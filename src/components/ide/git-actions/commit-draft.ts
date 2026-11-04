@@ -12,6 +12,7 @@
  */
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { toast } from "sonner";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type {
@@ -28,6 +29,8 @@ import {
 import { useIdeStore } from "../ide-store";
 import type { GitWriteOutcome } from "../store/ide-store-types";
 import { hasPushDestination } from "./utils";
+
+const PUSH_FAILURE_TOAST_DURATION_MS = 8000;
 
 export type CommitAction = "commit" | "commit-push";
 
@@ -68,6 +71,11 @@ export interface CommitRequest {
 export interface CommitDraftDependencies {
   /** Commits (and pushes) the project; the store's `commitProject`. */
   commit: (request: CommitRequest) => Promise<GitWriteOutcome<unknown>>;
+  /**
+   * A commit-and-push failed. The commit may have landed before the push did,
+   * leaving nothing to commit and so no composer to show the error in.
+   */
+  onPushFailure: (error: unknown) => void;
   text?: {
     cached: (request: CommitMessageRequest) => string | undefined;
     generate: (request: CommitMessageRequest) => Promise<string>;
@@ -88,6 +96,7 @@ const INITIAL: CommitDraftSnapshot = {
 
 export class CommitDraft {
   readonly #commit: CommitDraftDependencies["commit"];
+  readonly #onPushFailure: CommitDraftDependencies["onPushFailure"];
   readonly #text: NonNullable<CommitDraftDependencies["text"]>;
   readonly #listeners = new Set<() => void>();
   #inputs: CommitDraftInputs | null = null;
@@ -97,9 +106,11 @@ export class CommitDraft {
 
   constructor({
     commit,
+    onPushFailure,
     text = { cached: cachedCommitMessage, generate: generateCommitMessage },
   }: CommitDraftDependencies) {
     this.#commit = commit;
+    this.#onPushFailure = onPushFailure;
     this.#text = text;
   }
 
@@ -175,6 +186,7 @@ export class CommitDraft {
       error: { action, error: outcome.error, kind: "submit" },
       submitting: null,
     });
+    if (action === "commit-push") this.#onPushFailure(outcome.error);
     return false;
   }
 
@@ -267,6 +279,9 @@ export const useCommitDraft = ({
         (project) => project.id === projectId,
       )?.hostId ?? LOCAL_HOST_ID,
   );
+  const gitT = useTranslations("git");
+  const gitTRef = useRef(gitT);
+  gitTRef.current = gitT;
   const projectIdRef = useRef(projectId);
   projectIdRef.current = projectId;
   const [draft] = useState(
@@ -274,6 +289,12 @@ export const useCommitDraft = ({
       new CommitDraft({
         commit: (request) =>
           useIdeStore.getState().commitProject(projectIdRef.current, request),
+        onPushFailure: (error) => {
+          toast.error(
+            getApiErrorMessage(error, gitTRef.current("unableToCommitAndPush")),
+            { duration: PUSH_FAILURE_TOAST_DURATION_MS },
+          );
+        },
       }),
   );
   const snapshot = useSyncExternalStore(draft.subscribe, draft.getSnapshot);

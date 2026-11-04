@@ -479,6 +479,20 @@ const resolveGitPushBranch = async (repoInfo, requestedBranch) => {
   return { branch, headRef: `refs/heads/${branch}`, named: true };
 };
 
+/**
+ * Why a push failed, in words: git's hint-laden answer to a branch behind its
+ * remote is replaced, any other failure keeps git's own reason. A commit made
+ * just before stays in the repository, which the message has to say.
+ */
+const getGitPushFailureMessage = (error, { committed }) => {
+  const reason = /\((?:fetch first|non-fast-forward)\)/.test(error.message)
+    ? "The remote has commits you don't have yet. Pull, then push again."
+    : error.message;
+  return committed
+    ? `Committed locally, but the push failed. ${reason}`
+    : reason;
+};
+
 export const pushProjectGitChanges = async (
   projectPath,
   {
@@ -538,7 +552,13 @@ export const pushProjectGitChanges = async (
     throw new Error("No Git remote is configured for this repository.");
   }
 
-  await runGitCommand(repoInfo.repoRoot, args);
+  try {
+    await runGitCommand(repoInfo.repoRoot, args);
+  } catch (error) {
+    throw new Error(getGitPushFailureMessage(error, { committed: !!commit }), {
+      cause: error,
+    });
+  }
 
   const status = await listProjectGitChanges(projectPath);
   return {
