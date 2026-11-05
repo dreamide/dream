@@ -827,6 +827,9 @@ Validation:
   remain.
 - Phone wording is gone from the UI messages in all locales, the docs and the
   glossary. `remote-connections.md` records the reversal (2026-10-30).
+- Leftovers removed 2026-11-04: the safe-area padding and mobile viewport
+  options, `minColumnWidth`, phone wording in code comments, and the unused
+  `ui/sidebar.tsx` (its mobile sheet), `ui/sheet.tsx` and `use-mobile.ts`.
 
 Remaining/deferred: none.
 

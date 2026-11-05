@@ -798,7 +798,6 @@
   "navigation": {
     "breadcrumb": "Breadcrumb",
     "closeNamedTab": "{name} schließen",
-    "mobileSidebarDescription": "Zeigt die mobile Seitenleiste an.",
     "morePages": "Weitere Seiten",
     "next": "Weiter",
     "nextPage": "Zur nächsten Seite gehen",
@@ -808,9 +807,7 @@
     "resizeChatColumns": "Größe der Chatspalten ändern",
     "resizePanel": "Bedienfeldgröße ändern",
     "scrollTabsLeft": "Tabs nach links scrollen",
-    "scrollTabsRight": "Tabs nach rechts scrollen",
-    "sidebar": "Seitenleiste",
-    "toggleSidebar": "Seitenleiste umschalten"
+    "scrollTabsRight": "Tabs nach rechts scrollen"
   },
   "terminal": {
     "closeNamedTerminal": "{name} schließen",

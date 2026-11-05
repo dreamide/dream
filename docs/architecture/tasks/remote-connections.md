@@ -8,11 +8,11 @@ This connection effort covers the existing desktop and browser clients. A native
 mobile application requires a separate project with its own scope, architecture,
 estimates and release work; it is not a delivery milestone of this plan.
 
-Status: CONN-01 to CONN-06 implemented; CONN-06's native Windows/Linux update,
-login/reboot and live-provider walkthroughs remain unverified;
+Status: CONN-01 to CONN-06 implemented, with CONN-06's service management since
+removed (DH-10; see the scope decisions below);
 CONN-07 implemented (physical-network and cross-platform walkthroughs pending);
-CONN-08 implemented, validation pending: the real-tunnel completion criteria
-and native Windows/Linux walkthroughs are unmet.
+CONN-08 implemented, then revised on 2026-10-28 so the user runs the connector;
+its real-tunnel walkthrough is pending.
 CONN-09 and CONN-10
 are reserved references for a separate, unscheduled mobile project. CONN-11 is
 an independent future browser project. Current connection work ends at CONN-08.

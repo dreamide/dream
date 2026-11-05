@@ -798,7 +798,6 @@
   "navigation": {
     "breadcrumb": "Đường dẫn",
     "closeNamedTab": "Đóng {name}",
-    "mobileSidebarDescription": "Hiển thị thanh bên di động.",
     "morePages": "Trang khác",
     "next": "Tiếp theo",
     "nextPage": "Chuyển tới trang tiếp theo",
@@ -808,9 +807,7 @@
     "resizeChatColumns": "Thay đổi kích thước cột trò chuyện",
     "resizePanel": "Thay đổi kích thước bảng điều khiển",
     "scrollTabsLeft": "Cuộn tab sang trái",
-    "scrollTabsRight": "Cuộn tab sang phải",
-    "sidebar": "Thanh bên",
-    "toggleSidebar": "Chuyển đổi thanh bên"
+    "scrollTabsRight": "Cuộn tab sang phải"
   },
   "terminal": {
     "closeNamedTerminal": "Đóng {name}",

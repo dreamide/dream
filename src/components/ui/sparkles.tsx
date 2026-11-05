@@ -134,7 +134,7 @@ function ensureSparklesStyles() {
       height: var(--sp-h, 360px);
       pointer-events: none;
       /* Particles rise above the field; sideways they stop at its edges, so
-         a narrow column (a phone's chat) never scrolls sideways under them. */
+         a narrow column never scrolls sideways under them. */
       overflow-x: clip;
       overflow-y: visible;
       z-index: 3;

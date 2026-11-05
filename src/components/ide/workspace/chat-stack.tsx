@@ -56,11 +56,6 @@ export interface WorkspaceChatStackProps {
   onChatReorder: (fromIndex: number, toIndex: number) => void;
   openChatIds: string[];
   project: ProjectConfig;
-  /**
-   * The narrowest a column may be; side by side columns need room, a phone's
-   * one column takes whatever width there is (0).
-   */
-  minColumnWidth?: number;
 }
 
 const clamp = (value: number, min: number, max: number) =>
@@ -185,7 +180,6 @@ const WorkspaceChatStackImpl = ({
   onChatReorder,
   openChatIds,
   project,
-  minColumnWidth = CHAT_PANEL_MIN_WIDTH_PX,
 }: WorkspaceChatStackProps) => {
   const navigationT = useTranslations("navigation");
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -338,7 +332,7 @@ const WorkspaceChatStackImpl = ({
   const getFallbackWidth = () => {
     const containerWidth = containerRef.current?.clientWidth ?? 0;
     const visibleCount = Math.max(visibleChats.length, 1);
-    return Math.max(minColumnWidth, containerWidth / visibleCount);
+    return Math.max(CHAT_PANEL_MIN_WIDTH_PX, containerWidth / visibleCount);
   };
 
   const getColumnWidth = (chatId: string) =>
@@ -798,7 +792,7 @@ const WorkspaceChatStackImpl = ({
           const columnStyle: CSSProperties = {
             backgroundColor: WORKSPACE_VIEWPORT_BACKGROUND,
             flex: `1 1 ${width}px`,
-            minWidth: minColumnWidth,
+            minWidth: CHAT_PANEL_MIN_WIDTH_PX,
             opacity: isClosing ? 0 : 1,
             pointerEvents: isClosing ? "none" : undefined,
             transform: `translateX(${chatOffset}px)`,

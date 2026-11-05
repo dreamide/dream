@@ -798,7 +798,6 @@
   "navigation": {
     "breadcrumb": "面包屑",
     "closeNamedTab": "关闭{name}",
-    "mobileSidebarDescription": "显示移动侧边栏。",
     "morePages": "更多页面",
     "next": "下一步",
     "nextPage": "转到下一页",
@@ -808,9 +807,7 @@
     "resizeChatColumns": "调整聊天栏大小",
     "resizePanel": "调整面板大小",
     "scrollTabsLeft": "向左滚动选项卡",
-    "scrollTabsRight": "向右滚动选项卡",
-    "sidebar": "侧边栏",
-    "toggleSidebar": "切换侧边栏"
+    "scrollTabsRight": "向右滚动选项卡"
   },
   "terminal": {
     "closeNamedTerminal": "关闭{name}",

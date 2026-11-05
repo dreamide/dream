@@ -43,7 +43,7 @@ export const PairingScreen = ({ host }: { host: string }) => {
   };
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-surface-50 px-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] text-foreground dark:bg-surface-900">
+    <div className="flex min-h-screen items-center justify-center bg-surface-50 px-4 text-foreground dark:bg-surface-900">
       <div className="flex w-full max-w-sm flex-col gap-5">
         <div className="flex flex-col items-center gap-2 text-center">
           <div className="flex size-10 items-center justify-center rounded-full bg-muted">

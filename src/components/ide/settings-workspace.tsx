@@ -166,8 +166,6 @@ export const SettingsWorkspace = () => {
   // A browser client: SSH hosts are the desktop's; signing out is its own.
   const platform = getClientPlatform();
   const [signingOut, setSigningOut] = useState(false);
-  // A phone-sized window shows the section list, or one section, full width:
-  // Back returns from a section to the list.
   const promptsT = useTranslations("savedPrompts");
   const skillsT = useTranslations("skills");
   const shortcutsT = useTranslations("shortcuts");

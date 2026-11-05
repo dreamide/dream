@@ -33,7 +33,6 @@ const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
 
 const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
   const projectId = project.id;
-  // A phone-sized window: one chat, and every other panel as a full sheet.
 
   // ── Store selectors ─────────────────────────────────────────────────
   const projectUi = useIdeStore(

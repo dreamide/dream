@@ -798,7 +798,6 @@
   "navigation": {
     "breadcrumb": "Fil d'Ariane",
     "closeNamedTab": "Fermer {name}",
-    "mobileSidebarDescription": "Affiche la barre latérale mobile.",
     "morePages": "Plus de pages",
     "next": "Suivant",
     "nextPage": "Aller à la page suivante",
@@ -808,9 +807,7 @@
     "resizeChatColumns": "Redimensionner les colonnes de discussion",
     "resizePanel": "Redimensionner le panneau",
     "scrollTabsLeft": "Faire défiler les onglets vers la gauche",
-    "scrollTabsRight": "Faire défiler les onglets vers la droite",
-    "sidebar": "Barre latérale",
-    "toggleSidebar": "Basculer la barre latérale"
+    "scrollTabsRight": "Faire défiler les onglets vers la droite"
   },
   "terminal": {
     "closeNamedTerminal": "Fermer {name}",

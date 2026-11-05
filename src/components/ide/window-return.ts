@@ -1,7 +1,7 @@
 /**
  * Calls back when the person comes back to this window from somewhere
- * else: another app (the window regains focus) or another tab or phone app
- * (the page becomes visible). Focus moving into one of this window's own
+ * else: another app (the window regains focus) or another tab (the page
+ * becomes visible). Focus moving into one of this window's own
  * frames (the browser panel's webview) is not leaving, so clicking between
  * the page and the panel does not count.
  */

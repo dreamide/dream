@@ -149,7 +149,8 @@ unverified or unsupported boundaries reconstruct from canonical history.
 
 The machine whose filesystem, agent CLIs and terminals a project uses. The
 **local host** is the machine Dream's window runs on; an **SSH host** is
-another machine Dream reaches over SSH. Not to be
+another machine Dream reaches over SSH; a **paired host** is one reached
+over HTTPS with a device session. Not to be
 confused with a provider session, which lives on the provider's side
 whatever the host.
 
@@ -589,7 +590,8 @@ or output shape, is a change to that file alone.
 ## Provider
 
 One of the agent CLIs Dream can run a chat through: `openai` (Codex),
-`anthropic` (Claude Code), `opencode`, `cursor`, `grok`. `AiProvider`.
+`anthropic` (Claude Code), `opencode`, `cursor`, `grok`, `antigravity`
+(Google Antigravity). `AiProvider`.
 Each has a record in the **provider registry**
 (`electron/api/providers/registry.js`: readiness, stream, one-shot text,
 title model, model and usage fetchers) built on its row in the shared

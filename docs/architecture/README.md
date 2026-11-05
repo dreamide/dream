@@ -76,16 +76,14 @@ The generated HTML goes to a temporary directory; Markdown remains authoritative
 
 - `tasks/remote-connections.md` tracks CONN-01 to CONN-05 (host identity,
   pairing and device sessions, the shared connection runtime, the browser
-  client and phone layout, Tailscale and direct access setup; implemented),
-  CONN-06 unattended hosting (all four slices implemented, including verified
-  runtime updates and recovery; macOS service and desktop walkthrough checked,
-  cross-platform and live-provider validation pending), CONN-07 multiple routes
-  (implemented: ordered route management, direct desktop pairing and remote-only
-  mode; live SSH/network and cross-platform walkthroughs remain), and CONN-08
-  Cloudflare Tunnel integration (implemented, validation pending: private
-  runtime/token management, host-owned lifecycle, desktop/headless controls;
-  the real-tunnel completion criteria and native Windows/Linux walkthroughs are
-  unmet).
+  client, Tailscale and direct access setup; implemented, with the phone layout
+  later removed by DH-17 and pairing links by DH-18), CONN-06 unattended hosting
+  (implemented, with its service management later removed by DH-10), CONN-07
+  multiple routes (implemented: ordered route management and direct desktop
+  pairing, with remote-only mode later removed by DH-20; live SSH/network and
+  cross-platform walkthroughs remain), and CONN-08 Cloudflare Tunnel integration
+  (implemented, then revised on 2026-10-28 so the user runs the connector; the
+  real-tunnel walkthrough is pending).
   CONN-09/10 are reserved for a separate, unscheduled mobile project and its
   push notifications; CONN-11 is an independent future host-browser project.
 
@@ -106,10 +104,10 @@ Module names and current ownership live in ../../GLOSSARY.md.
   first-class AI coding-agent provider in Dream.
 - `tasks/detached-host.md` tracks DH-01 to DH-06 from the 2026-10-29 T3 Code
   `t3 serve` comparison: an OS-held state lock, the desktop's host in a child
-  process, host mode in Settings, one-line installs, turn resume from a byte
-  offset, and headless pairing and the approval signal (WSL hosts were added,
-  then removed). DH-07 to
-  DH-17 (proposed, 2026-10-30): one option table for starting `dream-host`,
-  settings with their sources, the desktop managing only its own host,
-  service management removed, Hosts and Sharing & access pages, and no phone
-  client.
+  process, one-line installs, turn resume from a byte offset, and headless
+  pairing. DH-07 to DH-21 (2026-10-30) then narrowed that: one option table for
+  starting `dream-host`, the desktop managing only its own host, service
+  management removed, no phone client, pairing by code only, and no remote-only
+  desktop. Host mode in Settings and WSL hosts were removed along the way, and
+  some of these tasks were later reversed; each section's status says which.
+  Their Hosts and Sharing & access pages are now one Connections page.

@@ -798,7 +798,6 @@
   "navigation": {
     "breadcrumb": "Breadcrumb",
     "closeNamedTab": "Close {name}",
-    "mobileSidebarDescription": "Displays the mobile sidebar.",
     "morePages": "More pages",
     "next": "Next",
     "nextPage": "Go to next page",
@@ -808,9 +807,7 @@
     "resizeChatColumns": "Resize chat columns",
     "resizePanel": "Resize panel",
     "scrollTabsLeft": "Scroll tabs left",
-    "scrollTabsRight": "Scroll tabs right",
-    "sidebar": "Sidebar",
-    "toggleSidebar": "Toggle sidebar"
+    "scrollTabsRight": "Scroll tabs right"
   },
   "terminal": {
     "closeNamedTerminal": "Close {name}",
