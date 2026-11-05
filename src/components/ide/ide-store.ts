@@ -21,6 +21,7 @@ import {
 import { createHostActions } from "./store/host-actions";
 import { hostCatalogLifecycle } from "./store/host-catalog-lifecycle";
 import {
+  getLoadedAwaitingApprovalChatIds,
   getLoadedLocalHost,
   getLoadedRunningChatIds,
   getLoadedWorkspace,
@@ -87,6 +88,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   // ── Runtime state ───────────────────────────────────────────────────
   streamingChatIds: {},
   hostRunningChatIds: {},
+  hostAwaitingApprovalChatIds: {},
   hosts: {},
   awaitingAnswerChatIds: {},
   completedChatIds: {},
@@ -215,6 +217,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       browserTabsByProject: loaded.browserTabsByProject,
       hostRunningChatIds: Object.fromEntries(
         getLoadedRunningChatIds().map((chatId) => [chatId, true as const]),
+      ),
+      hostAwaitingApprovalChatIds: Object.fromEntries(
+        getLoadedAwaitingApprovalChatIds().map((chatId) => [
+          chatId,
+          true as const,
+        ]),
       ),
       stateHydrated: true,
       persistenceBlocked: !isWorkspaceLoaded(),

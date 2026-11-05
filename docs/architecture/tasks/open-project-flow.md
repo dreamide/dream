@@ -25,7 +25,7 @@ which read as Tailscale being a third way to open a project.
 Scope:
 
 - `src/components/ide/open-project/open-project-dialog.tsx` is the only
-  open flow: an "Open on" select (this computer, SSH hosts, Add SSH host…;
+  open flow: an "Open on" select (this computer and SSH hosts;
   shown once an SSH host exists), a path field, and on the desktop's own
   computer a Browse… button for the native picker. Picking an SSH host
   connects it; a failure waits for Connect rather than retrying. Open asks
@@ -83,8 +83,9 @@ Validation:
 Remaining/deferred:
 
 - Inspect the dialog in the desktop app and a browser client: keyboard
-  completion, the connect states of an SSH host, Add SSH host from the
-  select, Browse…, light and dark themes, and the Connections section.
+  completion, the connect states of an SSH host, Add SSH host from the footer
+  (shown until an SSH host exists), Browse…, light and dark themes, and the
+  Connections section.
 - Resolve the conflict markers in `remote-access-section.tsx`
   (pre-existing, outside this task).
 

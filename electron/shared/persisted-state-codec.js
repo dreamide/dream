@@ -930,9 +930,9 @@ export const normalizeSshHosts = (value) => {
     const target = asString(raw.target).trim();
     if (!id || !target || seen.has(id)) continue;
     seen.add(id);
+    // A saved `hostCommand` (from when an SSH host could name its own
+    // dream-host) is dropped: Dream installs and runs its own.
     hosts.push({
-      // Empty: Dream installs its host runtime there and uses it.
-      hostCommand: asString(raw.hostCommand).trim(),
       id,
       label: asString(raw.label).trim() || target,
       target,

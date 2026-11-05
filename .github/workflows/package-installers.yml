@@ -580,6 +580,9 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+    env:
+      # Read by the npm launcher step's condition (a secret cannot be).
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.3
@@ -618,6 +621,18 @@ jobs:
           sha256sum dream-host-*.tar.gz > SHA256SUMS
           cat SHA256SUMS
 
+      - name: Setup Node
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # One-command installs of the host runtime (scripts/build-host-installers.mjs):
+      # install-host.sh and install-host.ps1 as release assets, and the npm
+      # launcher package `dream-host`. They need no dependencies installed.
+      - name: Build host installers
+        run: node scripts/build-host-installers.mjs --out release-assets --version "${GITHUB_REF_NAME#v}"
+
       - name: Publish release assets
         shell: bash
         run: |
@@ -635,6 +650,8 @@ jobs:
               -name '*.yml' -o \
               -name '*.zip' -o \
               -name 'dream-host-*.tar.gz' -o \
+              -name 'install-host.sh' -o \
+              -name 'install-host.ps1' -o \
               -name 'SHA256SUMS' \
             \) -print | sort
           )
@@ -659,3 +676,17 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ github.token }}
+
+      # `npx dream-host`: published once the release's runtimes it downloads
+      # exist. Skipped without an NPM_TOKEN secret; prereleases go to `next`.
+      - name: Publish npm launcher
+        if: env.NPM_TOKEN != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          dist_tag=latest
+          if [[ "$tag" == *-* ]]; then dist_tag=next; fi
+          npm publish release-assets/npm/dream-host --access public --tag "$dist_tag"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

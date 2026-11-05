@@ -109,10 +109,6 @@ const createFakes = ({ window = true } = {}) => {
         return { hostProtocolVersion: 3, token: "secret", version: "1.2" };
       },
       disconnect: record("disconnect"),
-      pair: async (options) => {
-        log.push(["pair", options.deviceName]);
-        return { connectionId: "paired" };
-      },
       forwardPort: (_hostId, port) => 40000 + port,
       getState: () => "connected",
       pairWithCode: (options) => {
@@ -244,7 +240,6 @@ test("SSH host calls are checked before they reach the hosts", async () => {
   await assert.rejects(() => handlers.connectHost({ hostId: "h" }));
   assert.deepEqual(
     await handlers.connectHost({
-      hostCommand: " ",
       hostId: "h",
       target: " box ",
     }),
@@ -260,7 +255,6 @@ test("SSH host calls are checked before they reach the hosts", async () => {
       "connect",
       {
         expectedIdentity: null,
-        hostCommand: undefined,
         hostId: "h",
         target: "box",
       },
@@ -279,7 +273,7 @@ const REGISTERED_ELSEWHERE = [
   "sendBrowserCommandResult",
 ];
 
-test("a code pairing waits until it is confirmed or cancelled", async () => {
+test("a code pairing names this desktop and can be cancelled", async () => {
   const { handlers, log } = createFakes();
   const confirmed = await handlers.pairHostWithCode({
     address: "https://host.example",
@@ -302,6 +296,15 @@ test("a code pairing waits until it is confirmed or cancelled", async () => {
     { hostId: "host-1", fingerprint: "fp" },
   ]);
 
+  await handlers.pairHostWithCode({
+    address: "https://host.example",
+    code: "WORKS-NOW",
+    attemptId: "a0",
+    deviceName: "Studio",
+  });
+  assert.equal(log[1][1].deviceName, "Studio");
+  assert.equal(desktopDeviceName(""), "Computer · Dream desktop");
+
   const waiting = handlers.pairHostWithCode({
     address: "https://host.example",
     code: "ABCD-EFGH",
@@ -321,18 +324,6 @@ test("a code pairing waits until it is confirmed or cancelled", async () => {
   await assert.rejects(
     handlers.pairHostWithCode({ address: 1, code: "x", attemptId: "a3" }),
   );
-});
-
-test("a pairing names this desktop by its computer, then the client", async () => {
-  const { handlers, log } = createFakes();
-  const url = "https://host.example/pair#pair=secret";
-  await handlers.pairHost({ url });
-  await handlers.pairHost({ url, deviceName: "Studio" });
-  assert.deepEqual(log, [
-    ["pair", "Mikes-MacBook-Pro · Dream desktop"],
-    ["pair", "Studio"],
-  ]);
-  assert.equal(desktopDeviceName(""), "Computer · Dream desktop");
 });
 
 test("every method the renderer calls is handled once, on its channel", () => {

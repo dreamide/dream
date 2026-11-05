@@ -64,7 +64,7 @@ export {
  * the agents' MCP endpoints, the window's browser or the SSH proxy.
  * @param {import("hono").Hono} app
  * @param {object} deps what startApiServer documents
- * @param {{ remote: boolean, pairingUrls?: (fragment: string) => string[] }} options
+ * @param {{ remote: boolean, publicOrigins?: () => string[] }} options
  */
 export function registerHostRoutes(
   app,
@@ -83,7 +83,7 @@ export function registerHostRoutes(
     remoteAccess,
     onShutdownRequest,
   },
-  { remote, pairingUrls },
+  { remote, publicOrigins },
 ) {
   if (!remote) {
     // A daemon asked to stop by its local operator (`dream-host stop`):
@@ -124,7 +124,7 @@ export function registerHostRoutes(
       auth,
       describeHost: getHostDescriptor,
       signHostProof,
-      pairingUrls,
+      publicOrigins,
       remote,
       remoteAccess: remoteAccess ?? null,
     });
@@ -214,7 +214,7 @@ function createApiApp(deps) {
   }
 
   registerHostRoutes(guardedApp, deps, {
-    pairingUrls: deps.pairingUrls,
+    publicOrigins: deps.publicOrigins,
     remote: false,
   });
   return guardedApp;
@@ -231,12 +231,12 @@ function createApiApp(deps) {
  * `{ socket, tickets }` for the host socket (host-socket-routes.js).
  * `auth`, the host's device sessions (host/auth/host-auth.js), serves the
  * remote-access management routes and binds socket tickets; without it
- * there are none. `pairingUrls` turns a new pairing's fragment into the
- * links the remote listener can open it at. `activity`, when given, is told
+ * there are none. `publicOrigins` names the origins the remote listener is
+ * served at (a proof's audience). `activity`, when given, is told
  * when each request begins and ends (see shared/request-activity.js).
  */
-export function startApiServer({ port, pairingUrls, ...deps }) {
-  const guardedApp = createApiApp({ ...deps, pairingUrls });
+export function startApiServer({ port, publicOrigins, ...deps }) {
+  const guardedApp = createApiApp({ ...deps, publicOrigins });
   const { apiToken, delegation } = deps;
   return serveApp(guardedApp, {
     hostname: "127.0.0.1",

@@ -8,7 +8,8 @@ export type AiProvider =
   | "anthropic"
   | "opencode"
   | "cursor"
-  | "grok";
+  | "grok"
+  | "antigravity";
 export type AccentColor =
   | "black-white"
   | "red"
@@ -245,6 +246,7 @@ export interface AppSettings {
   openCodeSelectedModels: string[];
   cursorSelectedModels: string[];
   grokSelectedModels: string[];
+  antigravitySelectedModels: string[];
   locale: AppLocale;
   mcpServers: McpServerConfig[];
   showReasoningSummaries: boolean;
@@ -301,8 +303,6 @@ export interface SshHostConfig {
   label: string;
   /** What you would type after `ssh`: an ~/.ssh/config alias or user@host. */
   target: string;
-  /** How to run dream-host there; empty: Dream installs and runs its own. */
-  hostCommand: string;
 }
 
 /**
@@ -817,6 +817,18 @@ export interface ProjectGitPushPreviewResponse {
   upstreamBranch: string | null;
 }
 
+export interface ProjectGitPullResponse {
+  commitCount: number;
+  upstreamBranch: string;
+  /**
+   * The commits the pull brought in, newest first and capped like the push
+   * preview, and the files they changed. Absent from older hosts.
+   */
+  commits?: ProjectGitPushPreviewCommit[];
+  files?: ProjectGitStatusEntry[];
+  truncated?: boolean;
+}
+
 export interface ProjectGitPushResponse {
   branch: string;
   commit: ProjectGitCommitResponse | null;
@@ -910,10 +922,13 @@ export type AppScreenshotResult =
   | { status: "copied"; error: string }
   | { status: "failed"; error: string };
 
+/** How the home host runs: in its own process, or inside the app. */
+export type HomeHostMode = "detached" | "in-process";
+
 export interface DesktopApi {
   isElectron: true;
   apiSessionToken: string;
-  hostMode?: "desktop" | "service" | "remote";
+  hostMode?: HomeHostMode;
   initialThemePreferences?: {
     accentColor?: string;
     baseColor?: string;
@@ -965,12 +980,11 @@ export interface DesktopApi {
   connectHost: (payload: {
     hostId: string;
     target?: string;
-    hostCommand?: string;
     expectedHostId?: string | null;
     expectedFingerprint?: string | null;
-    sshRoutes?: { id: string; target: string; hostCommand?: string }[];
+    sshRoutes?: { id: string; target: string }[];
     routes?: (
-      | { id: string; kind: "ssh"; target: string; hostCommand?: string }
+      | { id: string; kind: "ssh"; target: string }
       | { id: string; kind: "https"; origin: string; credentialId: string }
     )[];
   }) => Promise<{
@@ -982,17 +996,10 @@ export interface DesktopApi {
     routeId?: string;
     routes?: HostRouteRuntimeState[];
   }>;
-  pairHost: (payload: {
-    url: string;
-    knownIdentities?: { hostId: string; fingerprint: string | null }[];
-    deviceName?: string;
-    expectedHostId?: string;
-    expectedFingerprint?: string | null;
-  }) => Promise<{ credentialId: string; origin: string; host: HostDescriptor }>;
   /**
-   * Pairs with a short code from the host's Remote access settings. Resolves
-   * once someone confirms this device on the host; `cancelHostPairing` with
-   * the same attempt id stops waiting.
+   * Pairs with a short code created on the host, which redeems it for this
+   * desktop's session at once. `cancelHostPairing` with the same attempt id
+   * stops an attempt in flight.
    */
   pairHostWithCode: (payload: {
     address: string;

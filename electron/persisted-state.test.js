@@ -781,6 +781,7 @@ const FULL_SETTINGS = {
   archiveChatsAfterDays: 14,
   autoCompactContext: false,
   anthropicSelectedModels: ["opus"],
+  antigravitySelectedModels: ["gemini-3.8-flash-low"],
   defaultGitGenerationModel: "opus",
   defaultGitGenerationModelSpeed: "fast",
   defaultGitGenerationReasoningEffort: "high",
@@ -818,7 +819,6 @@ const FULL_SETTINGS = {
   shellPath: "/bin/zsh",
   sshHosts: [
     {
-      hostCommand: "node ~/dream/electron/host/dream-host.js",
       id: "devbox",
       label: "Devbox",
       target: "me@devbox",

@@ -32,7 +32,7 @@ vi.mock("electron", () => ({
       channel === "api:get-session-token"
         ? "session-token"
         : channel === "host:get-mode"
-          ? "service"
+          ? "detached"
           : { accentColor: "rose", baseColor: "neutral", theme: "light" },
   },
 }));
@@ -98,7 +98,6 @@ const SENT = [
   ["windowClose", [], ["invoke", "window:close"]],
   ["pickProjectDirectory", [], ["invoke", "projects:pick-directory"]],
   ["loadState", [], ["invoke", "state:load"]],
-  ["pairHost", [payload], ["invoke", "hosts:pair", payload]],
   ["pairHostWithCode", [payload], ["invoke", "hosts:pair-with-code", payload]],
   [
     "cancelHostPairing",
@@ -194,7 +193,7 @@ test("window.dream has exactly the methods above, and its values", () => {
   } = exposed.dream;
   assert.equal(isElectron, true);
   assert.equal(apiSessionToken, "session-token");
-  assert.equal(hostMode, "service");
+  assert.equal(hostMode, "detached");
   assert.deepEqual(initialThemePreferences, {
     accentColor: "rose",
     baseColor: "neutral",

@@ -185,7 +185,16 @@ export const ProjectTabs = () => {
     },
     [projects, sshHosts],
   );
-  const awaitingAnswerChatIds = useIdeStore((s) => s.awaitingAnswerChatIds);
+  const windowAwaitingChatIds = useIdeStore((s) => s.awaitingAnswerChatIds);
+  const hostAwaitingApprovalChatIds = useIdeStore(
+    (s) => s.hostAwaitingApprovalChatIds,
+  );
+  // Waiting on its user, as this window's sessions see it or as the host
+  // announces it for a chat no session follows.
+  const awaitingAnswerChatIds = useMemo(
+    () => ({ ...windowAwaitingChatIds, ...hostAwaitingApprovalChatIds }),
+    [windowAwaitingChatIds, hostAwaitingApprovalChatIds],
+  );
   const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
   const accentColor = useUiStore((s) => s.accentColor);
@@ -218,9 +227,21 @@ export const ProjectTabs = () => {
       getAwaitingAnswerProjectIds({
         chats,
         awaitingAnswerChatIds,
-        streamingProjectIds,
+        // A chat the host says is waiting has a turn running there, even
+        // when no session in this window streams it.
+        streamingProjectIds: new Set([
+          ...streamingProjectIds,
+          ...chats
+            .filter((chat) => hostAwaitingApprovalChatIds[chat.id])
+            .map((chat) => chat.projectId),
+        ]),
       }),
-    [awaitingAnswerChatIds, chats, streamingProjectIds],
+    [
+      awaitingAnswerChatIds,
+      chats,
+      hostAwaitingApprovalChatIds,
+      streamingProjectIds,
+    ],
   );
   const projectIconScanSignature = projects
     .map((project) => `${project.id}\x00${project.path}`)

@@ -1,16 +1,23 @@
 # Desktop connections
 
-In Settings > Connections, choose **Add host**, then **SSH host**, or **Pairing link** and paste
-a complete HTTPS pairing link created in the host's Remote access settings.
-The link is single-use. The host must run a version with native identity proof
+In Settings > Connections, choose **Add host**, then **SSH host**, or **Pairing code** and enter
+the host's HTTPS address and a code created on the host (Settings > Connections >
+**Pair a device**, or `dream-host pair`). The code works once and expires after ten
+minutes. The host must run a version with native identity proof
 support, and its HTTPS certificate must be trusted by the desktop's Node runtime.
 Tailscale Serve's HTTPS origin works as a direct route; no Dream account is needed.
+
+For an **SSH host**, enter what you would type after `ssh`: an alias from your SSH
+config, or `user@host`. Dream uses your own OpenSSH, keys and config. When it connects,
+it installs the host of its own version in `~/.dream/host/versions/` there (or uploads
+it, when that machine cannot download) and runs it; nothing needs installing first.
+The name is optional and defaults to the target.
 
 Each verified host has one entry. Adding another route to the same authenticated
 host merges it into that entry and keeps the existing project, chat and workspace
 IDs. Edit that entry and use **Add SSH route** or **Add HTTPS route** to pin the new
 route to that host before pairing or loading its catalog. SSH routes can be edited;
-editing an HTTPS route requires a fresh pairing link. Re-pairing the same origin
+editing an HTTPS route requires a fresh pairing code. Re-pairing the same origin
 replaces its old desktop credential. A new origin gets its own device grant.
 
 Routes are tried from top to bottom. In the entry's edit dialog, arrow buttons
@@ -36,27 +43,6 @@ An imported workspace needs pairing again on a desktop without those credentials
 Every new TLS connection must pass a fresh, signed nonce proof before a pairing
 secret or saved grant is sent on that same socket. Redirects and HTTP downgrade
 are refused. Revocation on the host closes the device's live observers.
-
-## Remote-only desktop
-
-Launch the packaged desktop with `DREAM_HOST_MODE=remote` in its environment.
-It keeps local workspace storage and the desktop UI/proxy, but starts no local
-execution host, scheduler, terminal owner or host remote-access listener. The
-project picker offers remote connections. Pair or connect a host in Connections
-before opening a folder there. Global provider settings use the first connected
-remote host; project requests continue to name their own host.
-
-For example on macOS:
-
-```sh
-DREAM_HOST_MODE=remote /Applications/Dream.app/Contents/MacOS/Dream
-```
-
-Cached home projects remain unavailable until their original host is connected.
-Authenticating that former home host moves its cached workspace references to a
-remote connection without changing project or chat IDs. Returning to ordinary
-desktop hosting still requires stopping any service that owns the local host's
-database, as described in [Host service](host-service.md).
 
 Arbitrary site port forwarding and the desktop browser relay require a selected
 SSH route. HTTPS-only clients can work with host projects, chats, files and

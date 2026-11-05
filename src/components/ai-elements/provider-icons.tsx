@@ -1,10 +1,15 @@
 import type { ComponentProps } from "react";
 
+import antigravityLogoMarkup from "@/assets/antigravity.svg?raw";
 import grokLogoMarkup from "@/assets/grok.svg?raw";
 import { cn } from "@/lib/utils";
 import type { AiProvider } from "@/types/ide";
 
 type IconProps = ComponentProps<"svg">;
+
+const antigravityLogoContent = antigravityLogoMarkup
+  .replace(/^<svg[^>]*>/, "")
+  .replace(/<\/svg>\s*$/, "");
 
 const grokLogoContent = grokLogoMarkup
   .replace(/^<svg[^>]*>/, "")
@@ -90,6 +95,22 @@ export const GrokIcon = ({
   </svg>
 );
 
+export const AntigravityIcon = ({
+  className,
+  role = "img",
+  ...props
+}: IconProps) => (
+  <svg
+    className={cn("size-3.5", className)}
+    role={role}
+    viewBox="0 0 128 128"
+    xmlns="http://www.w3.org/2000/svg"
+    {...props}
+  >
+    <g dangerouslySetInnerHTML={{ __html: antigravityLogoContent }} />
+  </svg>
+);
+
 export const ProviderIcon = ({
   provider,
   ...props
@@ -98,5 +119,6 @@ export const ProviderIcon = ({
   if (provider === "opencode") return <OpenCodeIcon {...props} />;
   if (provider === "cursor") return <CursorIcon {...props} />;
   if (provider === "grok") return <GrokIcon {...props} />;
+  if (provider === "antigravity") return <AntigravityIcon {...props} />;
   return <OpenAiIcon {...props} />;
 };

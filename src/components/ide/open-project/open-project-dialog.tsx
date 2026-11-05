@@ -5,7 +5,7 @@
  * connected as soon as it is picked. On the desktop's own computer the
  * system's folder picker is offered too.
  */
-import { FolderOpen, PlugZap, Plus } from "lucide-react";
+import { FolderOpen, Laptop, PlugZap, Plus, Server } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,6 @@ import {
   Select,
   SelectContent,
   SelectItem,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -44,9 +43,6 @@ import { createOpenProjectAttempt } from "./open-project-attempt";
 import { useOpenProjectDialog } from "./open-project-dialog-state";
 
 const NO_SSH_HOSTS: SshHostConfig[] = [];
-
-/** The Select value that opens the Add SSH host form instead of a host. */
-const ADD_SSH_HOST = "__add-ssh-host__";
 
 export const OpenProjectDialog = () => {
   const open = useOpenProjectDialog((state) => state.open);
@@ -71,9 +67,7 @@ const OpenProjectForm = ({ onClose }: { onClose: () => void }) => {
   const addSshHost = useAddSshHost();
   const homeState = useConnectionState(LOCAL_HOST_ID);
 
-  const [hostId, setHostId] = useState(
-    platform.hasHomeHost ? LOCAL_HOST_ID : (sshHosts[0]?.id ?? ""),
-  );
+  const [hostId, setHostId] = useState(LOCAL_HOST_ID);
   const [path, setPath] = useState(HOME_FOLDER_INPUT);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +109,7 @@ const OpenProjectForm = ({ onClose }: { onClose: () => void }) => {
     ? homeState.status === "ready"
     : runtime?.state === "connected";
   const hostLabel = home ? platform.homeLabel : (sshHost?.label ?? hostId);
+  const HostIcon = home ? Laptop : Server;
 
   // A host removed while picked falls back to this computer.
   useEffect(() => {
@@ -126,20 +121,9 @@ const OpenProjectForm = ({ onClose }: { onClose: () => void }) => {
           (route) => route.kind === "ssh" && route.sshHostId === hostId,
         ),
       );
-      setHostId(
-        merged?.id ??
-          (platform.hasHomeHost ? LOCAL_HOST_ID : (sshHosts[0]?.id ?? "")),
-      );
+      setHostId(merged?.id ?? LOCAL_HOST_ID);
     }
-  }, [
-    attempt,
-    home,
-    sshHost,
-    platform.hasHomeHost,
-    sshHosts,
-    connections,
-    hostId,
-  ]);
+  }, [attempt, home, sshHost, connections, hostId]);
 
   // Picking an SSH host connects it; ssh's prompts appear in their own
   // dialog. A failed attempt waits for Connect rather than retrying.
@@ -153,10 +137,6 @@ const OpenProjectForm = ({ onClose }: { onClose: () => void }) => {
 
   const pickHost = (next: string) => {
     cancelAttempt();
-    if (next === ADD_SSH_HOST) {
-      setAddingHost(true);
-      return;
-    }
     setHostId(next);
     setPath(HOME_FOLDER_INPUT);
     setError(null);
@@ -222,7 +202,7 @@ const OpenProjectForm = ({ onClose }: { onClose: () => void }) => {
             if (path.trim()) void handleAttempt(attempt.typed(hostId, path));
           }}
         >
-          {sshHosts.length > 0 || !platform.hasHomeHost ? (
+          {sshHosts.length > 0 ? (
             <div className="grid gap-1.5">
               <Label htmlFor="open-project-host">{t("openOn")}</Label>
               <Select
@@ -232,24 +212,28 @@ const OpenProjectForm = ({ onClose }: { onClose: () => void }) => {
                 value={hostId}
               >
                 <SelectTrigger className="w-full" id="open-project-host">
-                  <SelectValue>{hostLabel}</SelectValue>
+                  <SelectValue>
+                    <span className="flex items-center gap-2">
+                      <HostIcon className="size-4 shrink-0" />
+                      {hostLabel}
+                    </span>
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent align="start" alignItemWithTrigger={false}>
-                  {platform.hasHomeHost ? (
-                    <SelectItem value={LOCAL_HOST_ID}>
+                  <SelectItem value={LOCAL_HOST_ID}>
+                    <span className="flex items-center gap-2">
+                      <Laptop className="size-4 shrink-0" />
                       {platform.homeLabel}
-                    </SelectItem>
-                  ) : null}
+                    </span>
+                  </SelectItem>
                   {sshHosts.map((host) => (
                     <SelectItem key={host.id} value={host.id}>
-                      {host.label}
+                      <span className="flex items-center gap-2">
+                        <Server className="size-4 shrink-0" />
+                        {host.label}
+                      </span>
                     </SelectItem>
                   ))}
-                  <SelectSeparator />
-                  <SelectItem value={ADD_SSH_HOST}>
-                    <Plus className="size-3.5" />
-                    {t("addSshHost")}
-                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

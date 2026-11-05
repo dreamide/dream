@@ -22,8 +22,6 @@ const CONSOLE_BUFFER_LIMIT = 300;
 const NETWORK_BUFFER_LIMIT = 400;
 const CDP_PROTOCOL_VERSION = "1.3";
 
-const CONSOLE_LEVELS = ["debug", "info", "warning", "error"];
-
 const createId = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -165,18 +163,9 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
       return;
     }
 
-    // Electron >= 32 passes a details object; older versions pass positional
-    // arguments. Support both so the buffer never silently stays empty.
-    const handleConsole = (eventOrDetails, level, message, line, sourceId) => {
-      const details =
-        eventOrDetails && typeof eventOrDetails.message === "string"
-          ? eventOrDetails
-          : {
-              level: CONSOLE_LEVELS[Number(level)] ?? String(level),
-              lineNumber: line,
-              message,
-              sourceId,
-            };
+    // One argument: Electron's event carries the message's details, and a
+    // listener taking the old positional arguments is deprecated.
+    const handleConsole = (details) => {
       const meta = guestMeta.get(webContentsId);
       if (!meta) {
         return;

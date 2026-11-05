@@ -10,6 +10,7 @@ const providerId = z.enum([
   "opencode",
   "cursor",
   "grok",
+  "antigravity",
 ]);
 const delegateSchema = z.object({
   key: z

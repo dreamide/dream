@@ -90,9 +90,8 @@ export interface CloseProjectTerminalOptions {
  * code typed with the host's address, which waits for the host to confirm.
  * `attemptId` names a code attempt so it can be cancelled.
  */
-export type HostPairing =
-  | { kind: "link"; url: string }
-  | { kind: "code"; address: string; code: string; attemptId: string };
+/** A pairing code created on the host, entered with the host's address. */
+export type HostPairing = { address: string; code: string; attemptId: string };
 
 export interface HostRuntimeState {
   state: HostConnectionState;
@@ -129,6 +128,11 @@ export interface IdeState {
    * for one resumes the turn's stream (chat-runtime.ts).
    */
   hostRunningChatIds: Record<string, true>;
+  /**
+   * Chats whose turn waits on a tool approval on their host, whether this
+   * window follows the turn or not (host catalog `approval` events).
+   */
+  hostAwaitingApprovalChatIds: Record<string, true>;
   /** SSH hosts' connection state (the local host is always there). */
   hosts: Record<string, HostRuntimeState>;
   /**
@@ -153,7 +157,7 @@ export interface IdeState {
    */
   updateSshHost: (
     hostId: string,
-    patch: Partial<Pick<SshHostConfig, "label" | "target" | "hostCommand">>,
+    patch: Partial<Pick<SshHostConfig, "label" | "target">>,
   ) => Promise<void>;
   awaitingAnswerChatIds: Record<string, boolean>;
   completedChatIds: Record<string, boolean>;
@@ -466,7 +470,7 @@ export interface IdeState {
 
   // Actions - runtime
   setTerminalStatus: (projectId: string, status: "running" | "stopped") => void;
-  restoreServiceTerminal: (sessionId: string) => void;
+  restoreHostTerminal: (sessionId: string) => void;
   setTerminalTransport: (projectId: string, transport: "pty" | "pipe") => void;
   setTerminalShell: (projectId: string, shell: string) => void;
   setTerminalSessionName: (sessionId: string, name: string) => void;
@@ -589,7 +593,7 @@ export interface IdeState {
   loadHostCatalog: (hostId: string) => Promise<void>;
   /** Connects an SSH host from settings and loads its catalog. */
   connectHost: (hostId: string) => Promise<boolean>;
-  /** Pairs by link, or by code (waiting until the host confirms it). */
+  /** Pairs with a code created on the host. */
   pairHost: (
     how: HostPairing,
     label: string,
@@ -598,7 +602,7 @@ export interface IdeState {
   ) => Promise<string>;
   addSshRoute: (
     connectionId: string,
-    values: Pick<SshHostConfig, "label" | "target" | "hostCommand">,
+    values: Pick<SshHostConfig, "label" | "target">,
   ) => Promise<void>;
   setHostRoutes: (
     hostId: string,
@@ -620,6 +624,8 @@ export interface IdeState {
   removeSshHost: (hostId: string) => Promise<void>;
   /** A turn started or ended on the host. */
   setHostTurnRunning: (chatId: string, running: boolean) => void;
+  /** A chat started or stopped waiting on a tool approval on its host. */
+  setHostChatAwaitingApproval: (chatId: string, awaiting: boolean) => void;
   persist: () => void;
 }
 

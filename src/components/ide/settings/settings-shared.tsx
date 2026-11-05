@@ -1,4 +1,4 @@
-import { CircleArrowUp } from "lucide-react";
+import { Check, CircleArrowUp } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
@@ -164,6 +164,38 @@ export const ProviderStatusCard = ({
     </div>
   );
 };
+
+export const ProviderModelRow = ({
+  label,
+  onSelectedChange,
+  selected,
+}: {
+  label: string;
+  onSelectedChange: (selected: boolean) => void;
+  selected: boolean;
+}) => (
+  <button
+    aria-pressed={selected}
+    className="flex h-9 w-full cursor-pointer items-center justify-between gap-3 rounded-md bg-muted/50 px-3 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-surface-400 dark:focus-visible:ring-surface-500"
+    onClick={() => onSelectedChange(!selected)}
+    type="button"
+  >
+    <span
+      className={cn(
+        "truncate text-sm",
+        selected ? "text-foreground" : "text-muted-foreground",
+      )}
+    >
+      {label}
+    </span>
+    {selected ? (
+      <Check
+        aria-hidden="true"
+        className="size-4 shrink-0 text-accent-primary"
+      />
+    ) : null}
+  </button>
+);
 
 export const SettingsGroup = ({
   children,

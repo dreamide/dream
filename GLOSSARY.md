@@ -87,6 +87,12 @@ Older code calls this a _thread_; the chat runtime calls a running one a
 _session_; _remote conversation_ is the provider's id for it (see Provider
 session). All of them mean chat.
 
+**Chat attachment files** (`electron/host/chat-attachments.js`) are a chat's
+non-image attachments saved beside the state database for agents to open. The
+transcript holds the bytes, so the files are a cache: each turn rewrites what
+is missing, and they are removed once the chat's row is gone. Claude uses them;
+other providers still write per-turn temporary copies.
+
 ## Chat transcript cache
 
 The transcripts this client currently holds for its chats. It owns both the
@@ -143,8 +149,9 @@ unverified or unsupported boundaries reconstruct from canonical history.
 
 The machine whose filesystem, agent CLIs and terminals a project uses. The
 **local host** is the machine Dream's window runs on; an **SSH host** is
-another machine Dream reaches over SSH. Not to be confused with a provider
-session, which lives on the provider's side whatever the host.
+another machine Dream reaches over SSH. Not to be
+confused with a provider session, which lives on the provider's side
+whatever the host.
 
 ## Host identity
 
@@ -176,14 +183,45 @@ authorization, which is a separate concern.
 
 ## Home host
 
-The host a client's `local` connection reaches. On the desktop it is the
-host inside the app, or its installed service with `DREAM_HOST_MODE=service`
-(route `local`). A service attachment verifies the state database owner and
-the existing host identity before forwarding requests. In a browser it is the
+The host a client's `local` connection reaches. On the desktop it is the host
+running on the desktop's database, found from its state lock whoever started
+it, or else one the desktop starts (`createHomeHostAttachment` in
+`electron/desktop-host.js`: `dream-host serve --owner desktop` in its own
+process); with `DREAM_HOST_MODE=in-process` it is the host inside the app
+(route `local`). The desktop manages only its own process: a host a desktop
+started is stopped when it quits and replaced when its version differs; a
+host the user started with `dream-host` is attached to and left running. The
+attachment verifies the state database owner and the existing host identity
+before forwarding requests. In a browser it is the
 paired host serving the page (route `origin`), pinned like any address.
-Projects without a `hostId` live on the home host.
-A desktop in remote-only mode has no home execution host; its workspace stays
-on that desktop and it connects to remote hosts.
+Projects without a `hostId` live on the home host. A desktop always has one.
+
+## Host mode
+
+How a desktop launch runs its home host (`electron/desktop-host-mode.js`):
+`DREAM_HOST_MODE=in-process` when set; the host in this
+process while the workspace shares the state database's writer; otherwise
+**detached** (the Home host in its own process). It is not a setting in the
+app.
+
+## Host options
+
+Every option a host starts with (`electron/host/options.js`): a flag and an
+environment variable each, resolved flag, then variable, then a setting the
+host saved (remote access), then the default, with the source of each value
+kept. `dream-host help` and the table in `docs/host-service.md` come from it.
+Options belong in documentation, not the app. Remote access set by
+`--remote-port` reports where it came from, and Settings shows it read-only
+with the reason.
+
+## Connections settings page
+
+Desktop only; a browser client does not have it. **Remote hosts** is the hosts
+this app uses. **Remote access** is this computer's own host: remote access,
+paired devices and pairing a device
+(`src/components/ide/settings/sharing-access-section.tsx`). Dream never changes
+another machine's sharing; that is done on that machine (its own Dream, or
+`dream-host remote` and `dream-host pair`).
 
 ## Connection runtime
 
@@ -218,8 +256,8 @@ Dream's renderer in a plain browser, served by a paired host's remote
 listener (`electron/api/client-assets.js`). Its home host is that origin;
 its workspace is in IndexedDB; it pairs on the pairing screen
 (`src/components/remote/`) and signs out from Settings. It has no SSH hosts
-and no webview browser. Below 640px wide it uses the **compact layout**: one
-chat, and the project's panels as full sheets (`use-compact-layout.ts`).
+and no webview browser. It is for a computer's browser: Dream has no phone
+layout (mobile is a separate, future project).
 
 ## Workspace database
 
@@ -228,32 +266,25 @@ The desktop's own SQLite file (`<name>.workspace.db`,
 and workspace rows. It sits beside the host's state database, which holds
 the catalog. Each file has one writer: the desktop's save queue for the
 workspace, the host's for the catalog. One host runs per state database,
-held by its **state lock** (`<state db>.host-lock`,
-`electron/host/state-lock.js`). An existing workspace moved out of the
+held by its **state lock** (`electron/host/state-lock.js`): an exclusive
+SQLite transaction on `<state db>.host-owner` that the operating system
+releases however the host ends, described by `<state db>.host-lock` (who
+holds it). One desktop runs per workspace database, by the same lock on that
+file. An existing workspace moved out of the
 state database once, from a backed-up copy, leaving the original untouched.
 
-## Host service
+## Edge listener
 
-The host installed to run without the desktop (`electron/host/service/`):
-its own `serve`, supervised by the platform's service manager (a
-`systemd --user` unit, a LaunchAgent, or a Task Scheduler logon task) and
-restarted if it fails. `dream-host service` installs, starts, stops,
-restarts, updates, recovers, reports and uninstalls it; `<home>/service.json` names the service
-of a host home, which `ensure` starts instead of spawning a second host.
-Uninstalling keeps the host's data and identity.
+The desktop's API port when its home host runs in another process
+(`electron/desktop-host.js`): it forwards the home host's HTTP/streams and
+socket, replacing the desktop token with the host's token. SSH forwarding and
+browser tool execution stay in the desktop. Closing the edge detaches its
+clients; host turns and terminals keep running in a host the user started. A
+fresh desktop discovers surviving terminals for its known projects.
 
-A **service runtime update** (`electron/host/service/update.js`) verifies and
-stages a packaged runtime, then replaces the service while preserving its
-captured environment, database and identity. Service runtimes are retained under
-`<home>/service-runtimes`, outside SSH's pruning. The private update journal
-survives interruption; recovery starts the previous binary only if its storage
-format and exact migration history remain compatible. No data is rolled back.
-
-In service mode the desktop's **edge listener** (`electron/desktop-host.js`)
-forwards its home host's HTTP/streams and socket, replacing the desktop token
-with the service token. SSH forwarding and browser tool execution stay in the
-desktop. Closing the edge detaches its clients; host turns and terminals keep
-running. A fresh desktop discovers surviving terminals for its known projects.
+Keeping a host running without the desktop is the user's: `dream-host serve`
+under their own service manager (`docs/host-service.md`). Dream manages no
+services.
 
 ## Remote access
 
@@ -262,17 +293,18 @@ It is the host's setting, saved beside its state database: on or off; through
 **Tailscale Serve** (HTTPS on the tailnet) or **Cloudflare Tunnel**; and a
 stable loopback port for the remote listener.
 An address is **ready** only once a request through it reached this host;
-Cloudflare also requires proof of the host's installation key. A **managed
-connector** is the cloudflared process owned by this host; an **external
-connector** is operated independently and left running when access is disabled.
-Dream changes only its own connector and the Serve entry it created (`servedBy`).
-Configured in Settings > Connections on the desktop, or with `dream-host remote`
-on a headless machine.
+Cloudflare also requires proof of the host's installation key. The user runs
+the tunnel's cloudflared connector; Dream never installs, starts or stops it.
+Dream changes only the Serve entry it created (`servedBy`).
+Configured in Settings > Connections on the host's own computer, or with
+`dream-host remote` on a headless machine. Started with `--remote-port` (and
+its variables), a host serves paired devices through the user's own reverse
+proxy for that run (`mode: "proxy"`), and Settings shows it read-only.
 
 ## Remote access state
 
-**Remote access state** is the operator's current view of Remote access,
-pairing claims and Device sessions. A successful change supersedes older
+**Remote access state** is the operator's current view of Remote access
+and Device sessions. A successful change supersedes older
 reads; a failed refresh preserves the last accepted state. Form drafts are
 the operator's edits and do not follow background refreshes.
 
@@ -280,10 +312,11 @@ the operator's edits and do not follow background refreshes.
 
 A paired device's credential on one host (`electron/host/auth/`). A
 **pairing** is minted by the host's local operator (holding the launch token)
-or by a device with `manage`. It is a single-use link secret carried in a
-URL fragment, or a short code that an operator then confirms by device name.
-Both expire after ten minutes. Exchanging a pairing creates a **session**
-with **scopes**, a ladder of `view`, `operate` and `manage`. The device keeps
+or by a device with `manage`. It is a short code (8 characters) that works
+once and expires after ten minutes; attempts are rate limited host-wide.
+Entering it on another computer, with the host's address, creates a
+**session** at once: whoever created the code approved it. The session has
+**scopes**, a ladder of `view`, `operate` and `manage`. The device keeps
 the token: as an HttpOnly cookie in a browser, or in OS secure storage for a
 native client. The host stores only a verifier of the token, written through
 the save queue. A session expires after 30 days unused. Renewing it never
@@ -318,19 +351,21 @@ stopped and gets only what it missed.
 
 ## Host runtime
 
-What an SSH host runs as Dream's host, needing nothing installed there: the
-host bundled with its own Node and terminal support, one archive per
-platform, installed per version on the host. A **managed** SSH host gets
-the runtime of the app's version installed by Dream; otherwise its host
-command says how to run one.
+Dream's host bundled with its own Node and terminal support, one archive per
+platform, installed per version in `~/.dream/host/versions/<version>/`. On an
+SSH host Dream installs the runtime of its own version there when it
+connects, needing nothing installed first; elsewhere the npm launcher or the
+install scripts do (`docs/host-service.md`).
 
 ## Host catalog
 
 What exists on one host, owned by that host and the same for every client
 that connects to it: its projects (directories on that machine, identified
 by the host), their chats and chat metadata, transcripts, provider sessions
-and checkpoints. A turn is written into the host catalog as it runs, whether
-or not any client is watching: the request's messages once, then only the
+and checkpoints. Listed with it are the chats with a turn running and those
+waiting on a tool approval (`electron/api/tool-approvals.js`, announced as
+`approval` events on the catalog channel). A turn is written into the host
+catalog as it runs, whether or not any client is watching: the request's messages once, then only the
 assistant message being written. A transcript save replaces the chat's
 transcript from an index on and writes only the rows that differ from what
 is stored (`saveChatMessages` in `electron/host/catalog-store.js`), so
@@ -517,6 +552,16 @@ Behind the writer, every turn's output passes one **output stage**
 joined, waiting at most 50 ms, so how often the client and the host's
 turn observer hear from a turn does not depend on how chatty the provider
 is or how its adapter names parts.
+
+## Turn stream
+
+A running turn's response as the host keeps it (`electron/api/chat/turn-registry.js`):
+every byte from the first, under a **turn id** (`x-dream-turn-id`). A client
+that reconnects with the bytes it read asks for the rest (`?turn=<id>&from=<n>`,
+answered from `x-dream-turn-offset`); the renderer's **turn stream cache**
+(`src/components/ide/chat/turn-stream-cache.ts`) puts its copy back in front,
+so the AI SDK still replays the turn whole. Without a copy, or for another
+turn, the host sends it from the start.
 
 ## Turn contract
 

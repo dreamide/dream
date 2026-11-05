@@ -38,6 +38,7 @@ import type {
   ProjectGitDiffResponse,
   ProjectGitLogResponse,
   ProjectGitPullRequestDetailsResponse,
+  ProjectGitPullResponse,
   ProjectGitPushPreviewResponse,
   ProjectGitPushResponse,
   ProjectGitStatusResponse,
@@ -113,7 +114,6 @@ import type {
 } from "../../electron/api/providers/schemas.js";
 import type {
   remoteAccessEnableSchema,
-  remoteClaimAnswerRequestSchema,
   remotePairingCreateRequestSchema,
   remoteSessionRevokeRequestSchema,
 } from "../../electron/api/remote-access-routes.js";
@@ -148,11 +148,7 @@ export type RemoteAccessProblemCode =
   | "https-disabled"
   | "port-taken"
   | "permission"
-  // Cloudflare (cloudflare.js, cloudflared-runtime.js)
-  | "cloudflare-token"
-  | "cloudflare-connecting"
-  | "cloudflare-connector"
-  | "cloudflared-install"
+  // Cloudflare (remote-access.js; the user runs cloudflared)
   | "needs-origin"
   | "quick-tunnel"
   // Either route (remote-access.js)
@@ -176,17 +172,21 @@ export interface RemoteAccessProblem {
 /** Whether and how paired devices reach a host (host/remote-access/). */
 export interface RemoteAccessStatus {
   enabled: boolean;
-  mode: "tailscale" | "cloudflare";
+  /**
+   * `proxy`: set when the host started (`--remote-port` and its variables),
+   * for the user's own reverse proxy; Settings cannot change it.
+   */
+  mode: "tailscale" | "cloudflare" | "proxy";
+  /** With `proxy`: the flag or variable that set each part. */
+  override?: { sources: Record<string, string> };
   cloudflare?: {
-    managed: boolean;
-    installed: boolean;
-    version: string | null;
-    tokenSaved: boolean;
-    state: "idle" | "starting" | "connected" | "reconnecting" | "failed";
-    error: string | null;
-    retryAt: number | null;
     /** The loopback port used when none is saved and it is free. */
     defaultPort: number;
+    /**
+     * The saved address, kept while another mode is active. Absent from a
+     * host older than this field, and when the host's start options set it.
+     */
+    origin?: string | null;
   };
   /** The listener's loopback port. */
   port: number | null;
@@ -206,24 +206,12 @@ export interface RemoteAccessStatus {
   checkedAt: string | null;
 }
 
-/** A pairing just minted: a link secret and a short code, once each. */
+/** A pairing just minted: a short code that works once. */
 export interface RemotePairing {
   pairingId: string;
   code: string;
-  fragment: string;
   expiresAt: string;
   scopes: string[];
-  urls: string[];
-}
-
-/** A device asking to pair with a code, waiting for confirmation. */
-export interface RemoteClaim {
-  claimId: string;
-  deviceName: string;
-  clientKind: "web" | "native";
-  scopes: string[];
-  createdAt: string;
-  expiresAt: string;
 }
 
 /** A paired device's session (never its secret). */
@@ -391,6 +379,8 @@ export interface CatalogResponse {
   host?: HostDescriptor;
   /** Chats with a turn running on the host now. */
   runningChatIds?: string[];
+  /** Chats whose turn waits on a tool approval now. */
+  awaitingApprovalChatIds?: string[];
 }
 
 export interface ChatRunSummary {
@@ -581,7 +571,7 @@ export const API_ROUTES = {
   >("/api/project-git-fetch"),
   gitPull: post<
     Input<typeof projectGitPullRequestSchema>,
-    { commitCount: number; upstreamBranch: string }
+    ProjectGitPullResponse
   >("/api/project-git-pull"),
   gitRemoteUrl: post<
     Input<typeof projectGitRemoteUrlRequestSchema>,
@@ -750,20 +740,10 @@ export const API_ROUTES = {
   remoteAccessCheck: post<Record<string, never>, RemoteAccessStatus>(
     "/api/remote/access/check",
   ),
-  remoteCloudflareInstall: post<Record<string, never>, RemoteAccessStatus>(
-    "/api/remote/access/cloudflare/install",
-  ),
   remotePairingCreate: post<
     Input<typeof remotePairingCreateRequestSchema>,
     RemotePairing
   >("/api/remote/pairings"),
-  remoteClaims: post<Record<string, never>, { claims: RemoteClaim[] }>(
-    "/api/remote/claims",
-  ),
-  remoteClaimAnswer: post<
-    Input<typeof remoteClaimAnswerRequestSchema>,
-    { approved: boolean; session?: RemoteDeviceSession }
-  >("/api/remote/claims/answer"),
   remoteSessions: post<
     Record<string, never>,
     { sessions: RemoteDeviceSession[] }

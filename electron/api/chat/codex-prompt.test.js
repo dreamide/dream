@@ -142,3 +142,33 @@ test("combines the latest user message with references and attachments", () => {
     "REFERENCES\n\nATTACHMENTS",
   );
 });
+
+test("treats a CSV as text even when it is labelled as a spreadsheet", () => {
+  const serialized = serializeCodexMessage({
+    parts: [
+      {
+        filename: "mrr-waterfall.csv",
+        mediaType: "application/vnd.ms-excel",
+        type: "file",
+        url: `data:application/vnd.ms-excel;base64,${Buffer.from("a,b\n1,2\n").toString("base64")}`,
+      },
+    ],
+    role: "user",
+  });
+  assert.ok(serialized.includes("a,b\n1,2"));
+});
+
+test("does not treat a real spreadsheet as text", () => {
+  const serialized = serializeCodexMessage({
+    parts: [
+      {
+        filename: "report.xlsx",
+        mediaType: "application/vnd.ms-excel",
+        type: "file",
+        url: `data:application/vnd.ms-excel;base64,${Buffer.from("PK-binary").toString("base64")}`,
+      },
+    ],
+    role: "user",
+  });
+  assert.equal(serialized.includes("PK-binary"), false);
+});

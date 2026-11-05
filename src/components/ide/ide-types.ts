@@ -91,5 +91,6 @@ export const getProviderLabel = (provider: AiProvider): string => {
   if (provider === "opencode") return "OpenCode";
   if (provider === "cursor") return "Cursor";
   if (provider === "grok") return "Grok Build";
+  if (provider === "antigravity") return "Antigravity";
   return "Anthropic";
 };

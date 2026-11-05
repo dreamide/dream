@@ -63,6 +63,8 @@ export const watchHostCatalog = (hostId: string) => {
       });
     } else if (event.kind === "turn" && typeof event.chatId === "string") {
       store.setHostTurnRunning(event.chatId, event.running === true);
+    } else if (event.kind === "approval" && typeof event.chatId === "string") {
+      store.setHostChatAwaitingApproval(event.chatId, event.awaiting === true);
     }
   });
   const removeResets = client.onReset(reload);

@@ -233,7 +233,7 @@ export const acceptHostDescriptor = (
       ? refuse(
           route.kind === "origin"
             ? `“${labelOf(connectionId)}” did not identify itself, so it cannot be confirmed as the host this device paired with. Update the Dream host there.`
-            : `“${labelOf(connectionId)}” did not identify itself, so it cannot be confirmed as the host saved for it. Update the Dream host there, or remove its custom host command so Dream installs a matching one.`,
+            : `“${labelOf(connectionId)}” did not identify itself, so it cannot be confirmed as the host saved for it. Update dream-host there.`,
         )
       : { connections, error: null };
   }
@@ -325,7 +325,6 @@ export const listHostChoices = (connections, sshHosts) => {
           id: host.id,
           label: host.label ?? ssh?.label ?? direct?.origin ?? host.id,
           target: ssh?.target ?? "",
-          hostCommand: ssh?.hostCommand ?? "",
         };
       }),
     ...sshHosts.filter(

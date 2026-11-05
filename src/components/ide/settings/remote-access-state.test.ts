@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type {
   RemoteAccessStatus,
-  RemoteClaim,
   RemoteDeviceSession,
   RemotePairing,
 } from "@/lib/api-client";
@@ -37,11 +36,9 @@ const status: RemoteAccessStatus = {
 };
 const pairing: RemotePairing = {
   pairingId: "pair",
-  code: "123456",
-  fragment: "pair=secret",
+  code: "ABCD-EFGH",
   scopes: ["view"],
   expiresAt: "2026-10-25",
-  urls: ["https://host.example/pair#pair=secret"],
 };
 const deferred = <T>() => {
   let resolve!: (value: T) => void;
@@ -63,11 +60,9 @@ const setup = (overrides: FakeApiHandlers = {}) => {
   const server = {
     status: { ...status },
     devices: [{ ...device }],
-    claims: [] as RemoteClaim[],
   };
   const { client, calls } = createFakeApiClient({
     remoteAccess: () => server.status,
-    remoteClaims: () => ({ claims: server.claims }),
     remoteSessions: () => ({ sessions: server.devices }),
     remoteSessionRevoke: ({ sessionId }) => {
       const revoked = { ...device, id: sessionId, revokedAt: "2026-10-26" };
@@ -84,10 +79,6 @@ const setup = (overrides: FakeApiHandlers = {}) => {
     },
     remoteAccessCheck: () => server.status,
     remotePairingCreate: () => pairing,
-    remoteClaimAnswer: () => {
-      server.claims = [];
-      return { approved: true, session: device };
-    },
     ...overrides,
   });
   const model = createRemoteAccessState({ api: client });
@@ -195,7 +186,7 @@ test("a pending mutation refuses duplicate writes and cannot publish after dispo
   expect(model.getSnapshot().busy).toBe(false);
 });
 
-test("pairing results are discarded after the dialog resets; fresh results choose the verified address", async () => {
+test("pairing results are discarded after the dialog resets", async () => {
   const pending = deferred<RemotePairing>();
   let requests = 0;
   const { model } = setup({
@@ -208,26 +199,12 @@ test("pairing results are discarded after the dialog resets; fresh results choos
   await first;
   expect(model.getSnapshot().pairing).toBeNull();
   await model.createPairing(["view"]);
-  expect(model.getSnapshot().pairingUrl).toBe(pairing.urls[0]);
+  expect(model.getSnapshot().pairing?.code).toBe(pairing.code);
 });
 
-test("claim answers and access commands share the accepted snapshot", async () => {
-  const { model, server } = setup();
-  server.claims = [
-    {
-      claimId: "claim",
-      deviceName: "Phone",
-      clientKind: "web",
-      scopes: ["view"],
-      createdAt: "2026-10-25",
-      expiresAt: "2026-10-26",
-    },
-  ];
+test("access commands share the accepted snapshot", async () => {
+  const { model } = setup();
   await loaded(model);
-  await model.refresh();
-  expect(model.getSnapshot().claims).toHaveLength(1);
-  await model.answer("claim", true);
-  expect(model.getSnapshot().claims).toEqual([]);
   await model.enable({ mode: "tailscale", httpsPort: 443 });
   await model.check();
   expect(model.getSnapshot().status?.mode).toBe("tailscale");

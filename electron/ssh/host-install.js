@@ -189,7 +189,7 @@ export async function downloadRuntimeArchive({
       // The release has no runtime for this platform: one from before the
       // host runtime was published, or a development version.
       throw new Error(
-        `Dream ${version} has no host runtime to install (${url} was not found). Set this SSH host's Host command in Settings to run a dream-host you installed there.`,
+        `Dream ${version} has no host runtime to install (${url} was not found). Use a released version of Dream to connect to SSH hosts.`,
       );
     }
     if (!response.ok) {

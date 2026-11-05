@@ -203,7 +203,7 @@ test("a release without a host runtime says how to connect anyway", async () => 
       os: "linux",
       version: "0.24.0",
     }),
-  ).rejects.toThrow(/Dream 0\.24\.0 has no host runtime.*Host command/);
+  ).rejects.toThrow(/Dream 0\.24\.0 has no host runtime.*released version/);
 });
 
 test("a development build never downloads a runtime and says how to install one", async () => {

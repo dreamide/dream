@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { claudeCode, getSessionInfo } from "ai-sdk-provider-claude-code";
 import { beforeEach, test, vi } from "vitest";
+import { configureHostDataDirectory } from "../../host/host-paths.js";
 import { streamClaudeResponse } from "./claude-stream.js";
 import { executeAgentTurn } from "./turn-execution.js";
 import { createTurnRegistry } from "./turn-registry.js";
@@ -265,4 +269,162 @@ test("stopping the turn aborts the Claude query and ends the stream cleanly", as
     chunks.some((part) => part.type === "error"),
     false,
   );
+});
+
+const XLSX_TYPE =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const fileOf = (filename, mediaType, content) => ({
+  type: "file",
+  filename,
+  mediaType,
+  url: `data:${mediaType};base64,${Buffer.from(content).toString("base64")}`,
+});
+const xlsxMessage = {
+  id: "user-2",
+  role: "user",
+  parts: [
+    { type: "text", text: "how about this?" },
+    fileOf("grid-stripe-integration.xlsx", XLSX_TYPE, "PK-spreadsheet"),
+  ],
+};
+const promptText = (call) =>
+  call.prompt
+    .filter((message) => message.role === "user")
+    .at(-1)
+    .content.filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("\n");
+const savedPath = (text) => /Saved at: (.+)/.exec(text)?.[1];
+
+const withHostDirectory = async (run) => {
+  const directory = await fs.mkdtemp(
+    path.join(os.tmpdir(), "dream-claude-attachments-"),
+  );
+  configureHostDataDirectory(directory);
+  try {
+    await run(directory);
+  } finally {
+    await fs.rm(directory, { force: true, recursive: true });
+  }
+};
+
+test("gives the agent a readable path to a file the provider cannot forward", async () => {
+  await withHostDirectory(async () => {
+    await readChunks(
+      await streamClaudeResponse({
+        ...request,
+        chatId: "chat-1",
+        messages: [xlsxMessage],
+      }),
+    );
+
+    const text = promptText(calls[0]);
+    assert.ok(text.includes("grid-stripe-integration.xlsx"));
+    assert.equal(await fs.readFile(savedPath(text), "utf8"), "PK-spreadsheet");
+    const { additionalDirectories } = claudeCode.mock.calls[0][1];
+    assert.equal(additionalDirectories.length, 1);
+    assert.ok(savedPath(text).startsWith(additionalDirectories[0]));
+  });
+});
+
+test("a resumed follow-up can still reach an earlier attachment", async () => {
+  await withHostDirectory(async () => {
+    getSessionInfo.mockResolvedValue({ sessionId: "session-1" });
+    await readChunks(
+      await streamClaudeResponse({
+        ...request,
+        chatId: "chat-1",
+        remoteConversationId: "session-1",
+        remoteConversationModel: "haiku",
+        remoteConversationProjectPath: request.projectPath,
+        messages: [
+          xlsxMessage,
+          { id: "assistant-1", role: "assistant", parts: [] },
+          {
+            id: "user-3",
+            role: "user",
+            parts: [{ type: "text", text: "now the second sheet" }],
+          },
+        ],
+      }),
+    );
+
+    const text = promptText(calls[0]);
+    assert.equal(
+      calls[0].prompt.filter((message) => message.role === "user").length,
+      1,
+    );
+    assert.equal(text.includes("Current turn attachments"), false);
+    const listed = /grid-stripe-integration\.xlsx: (.+)/.exec(text)?.[1];
+    assert.equal(await fs.readFile(listed, "utf8"), "PK-spreadsheet");
+  });
+});
+
+test("a truncated text attachment points at the full file", async () => {
+  await withHostDirectory(async () => {
+    const csv = "a,b,c\n".repeat(20_000);
+    await readChunks(
+      await streamClaudeResponse({
+        ...request,
+        chatId: "chat-1",
+        messages: [
+          {
+            id: "user-2",
+            role: "user",
+            parts: [fileOf("mrr-waterfall.csv", "text/csv", csv)],
+          },
+        ],
+      }),
+    );
+
+    const text = promptText(calls[0]);
+    assert.ok(text.includes("[File content truncated for prompt size.]"));
+    assert.equal(await fs.readFile(savedPath(text), "utf8"), csv);
+  });
+});
+
+test("says so when an attachment could not be saved", async () => {
+  await withHostDirectory(async (directory) => {
+    // A file where the attachments folder belongs makes every save fail.
+    await fs.writeFile(path.join(directory, "dream.db.attachments"), "");
+    await readChunks(
+      await streamClaudeResponse({
+        ...request,
+        chatId: "chat-1",
+        messages: [xlsxMessage],
+      }),
+    );
+
+    const text = promptText(calls[0]);
+    assert.ok(text.includes("Contents unavailable"));
+    assert.equal(savedPath(text), undefined);
+    assert.equal(claudeCode.mock.calls[0][1].additionalDirectories, undefined);
+  });
+});
+
+test("an image-only turn gains no saved path or extra directory", async () => {
+  await withHostDirectory(async () => {
+    await readChunks(
+      await streamClaudeResponse({
+        ...request,
+        chatId: "chat-1",
+        messages: [
+          {
+            id: "user-2",
+            role: "user",
+            parts: [
+              {
+                type: "file",
+                mediaType: "image/png",
+                url: "data:image/png;base64,iVBORw0KGgo=",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    assert.equal(savedPath(promptText(calls[0])), undefined);
+    assert.equal(claudeCode.mock.calls[0][1].additionalDirectories, undefined);
+  });
 });

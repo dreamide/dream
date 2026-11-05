@@ -77,7 +77,6 @@ const lastLine = (text) =>
 /**
  * @param {{
  *   target: string,
- *   hostCommand?: string,
  *   sshPath?: string,
  *   controlPath?: string | null,
  *   env?: Record<string, string | undefined>,
@@ -99,9 +98,9 @@ const lastLine = (text) =>
  * }} options
  *   `target`: what the user would type after `ssh` (an alias from
  *   ~/.ssh/config, or user@host).
- *   `hostCommand`: how to run dream-host on the host. Without one, the
- *   host runtime of `runtimeVersion` is installed there and used (managed);
- *   without either, `dream-host` on the host's PATH.
+ *   `runtimeVersion`: the host runtime installed there (in
+ *   ~/.dream/host/versions/<version>/) and run; without one (tests,
+ *   scripts), `dream-host` on the host's PATH.
  *   `runtimeCacheDirectory`: where this machine keeps archives it uploads
  *   to hosts that cannot download them.
  *   `controlPath`: a ControlMaster socket path to multiplex through; null
@@ -112,7 +111,6 @@ const lastLine = (text) =>
  */
 export function createSshHostConnection({
   target,
-  hostCommand: configuredHostCommand = null,
   runtimeVersion = null,
   runtimeBaseUrl,
   runtimeCacheDirectory = null,
@@ -192,10 +190,10 @@ export function createSshHostConnection({
     spawnTracked(args, [holdOpen ? "pipe" : "ignore", "pipe", "pipe"]);
 
   // Managed: the runtime of this app's version, installed by Dream.
-  const managed = !configuredHostCommand && Boolean(runtimeVersion);
-  const hostCommand =
-    configuredHostCommand ||
-    (managed ? managedHostCommand(runtimeVersion) : "dream-host");
+  const managed = Boolean(runtimeVersion);
+  const hostCommand = managed
+    ? managedHostCommand(runtimeVersion)
+    : "dream-host";
 
   const runSsh = (args, { input = null } = {}) =>
     new Promise((resolve) => {
@@ -390,7 +388,7 @@ export function createSshHostConnection({
     if (!pinnedIdentity) return null;
     const hostId = typeof info?.hostId === "string" ? info.hostId : null;
     if (!hostId) {
-      return `The Dream host at ${target} did not identify itself, so it cannot be confirmed as the host saved for it. Update the Dream host there, or remove its custom host command so Dream installs a matching one.`;
+      return `The Dream host at ${target} did not identify itself, so it cannot be confirmed as the host saved for it. Reconnect so Dream installs a matching one.`;
     }
     if (
       hostId !== pinnedIdentity.hostId ||

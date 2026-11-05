@@ -157,7 +157,7 @@ rmSync(listDirectory, { force: true, recursive: true });
 
 if (exitCode === 0) {
   console.log(
-    `\nDone. In Dream (a development build), leave this host's Host command empty and connect.`,
+    `\nDone. Connect to ${target} from a development build of Dream.`,
   );
 }
 process.exit(exitCode);

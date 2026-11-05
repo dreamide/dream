@@ -4,9 +4,7 @@ import { isHostAway } from "./host-away";
 
 const settings = {
   ...DEFAULT_SETTINGS,
-  sshHosts: [
-    { hostCommand: "", id: "devbox", label: "Devbox", target: "me@devbox" },
-  ],
+  sshHosts: [{ id: "devbox", label: "Devbox", target: "me@devbox" }],
 };
 
 test("a local project's host is never away", () => {

@@ -107,7 +107,7 @@ export const closableOnRevoke = (response, principal, auth) => {
  *   clientAssets?: ((c: import("hono").Context) => Response | Promise<Response>) | null,
  * }} options
  *   `origins`: where clients load from (each `scheme://host[:port]`).
- *   `advertisedOrigins`: the ones pairing links name (never loopback when
+ *   `advertisedOrigins`: the ones a client is told to reach (never loopback when
  *   there is a public one); `origins` when absent.
  *   `clientAssets`: serves the browser client for every request no route
  *   answered (client-assets.js); without it those are 404s.
@@ -195,8 +195,7 @@ export function createRemoteApiApp(
   }
 
   registerHostRoutes(app, deps, {
-    pairingUrls: (fragment) =>
-      advertisedOrigins().map((origin) => `${origin}/pair#${fragment}`),
+    publicOrigins: advertisedOrigins,
     remote: true,
   });
   assertRoutePolicy(app, { middlewarePaths: ["/*", "/api/*"] });
@@ -239,7 +238,7 @@ export async function startRemoteApiServer(
   });
   // Accepted: the public origins and the listener's own loopback address
   // (what a reverse proxy on this machine may name as the Host). Advertised
-  // in pairing links: the public origins only, so another device is never
+  // as the host's address: the public origins only, so another device is never
   // sent to 127.0.0.1; loopback only when there is no public origin at all
   // (trying the listener on this machine).
   let accepted = configured;

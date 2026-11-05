@@ -34,9 +34,9 @@ export const createTerminalActions = (
   | "setActiveProjectTerminalId"
   | "reorderProjectTerminals"
   | "closeProjectTerminal"
-  | "restoreServiceTerminal"
+  | "restoreHostTerminal"
 > => ({
-  restoreServiceTerminal: (sessionId) => {
+  restoreHostTerminal: (sessionId) => {
     const project = get().projects.find(
       (project) =>
         getProjectHostId(project) === LOCAL_HOST_ID &&

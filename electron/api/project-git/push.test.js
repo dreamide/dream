@@ -130,3 +130,55 @@ test("without a branch the checked-out branch is pushed as before", async () => 
   assert.equal(result.branch, "main");
   assert.equal(git(origin, "rev-parse", "main"), head);
 });
+
+test("a push behind the remote says why, whether or not it has been fetched", async () => {
+  const { other, repo } = createClones();
+  commitFile(other, "remote.txt", "Remote change");
+  git(other, "push", "-q", "origin", "main");
+  commitFile(repo, "local.txt", "Local change");
+
+  // Not fetched yet: git answers "fetch first".
+  await assert.rejects(pushProjectGitChanges(repo), {
+    message:
+      "The remote has commits you don't have yet. Pull, then push again.",
+  });
+  // Fetched: git answers "non-fast-forward".
+  git(repo, "fetch", "-q", "origin");
+  await assert.rejects(pushProjectGitChanges(repo), {
+    message:
+      "The remote has commits you don't have yet. Pull, then push again.",
+  });
+});
+
+test("commit and push rejected by the remote keeps the commit and says so", async () => {
+  const { origin, other, repo } = createClones();
+  const remoteOnly = commitFile(other, "remote.txt", "Remote change");
+  git(other, "push", "-q", "origin", "main");
+  writeFileSync(path.join(repo, "local.txt"), "Local change\n");
+
+  await assert.rejects(
+    pushProjectGitChanges(repo, {
+      commitMessage: "Local change",
+      nextStep: "commit-push",
+    }),
+    {
+      message:
+        "Committed locally, but the push failed. The remote has commits you don't have yet. Pull, then push again.",
+    },
+  );
+
+  assert.equal(git(repo, "log", "-1", "--format=%s"), "Local change");
+  assert.equal(git(origin, "rev-parse", "main"), remoteOnly);
+});
+
+test("any other push failure keeps git's own reason", async () => {
+  const { repo } = createClones();
+  commitFile(repo, "local.txt", "Local change");
+  git(repo, "remote", "set-url", "origin", path.join(repo, "missing.git"));
+
+  await assert.rejects(pushProjectGitChanges(repo), (error) => {
+    assert.match(error.message, /missing\.git/);
+    assert.doesNotMatch(error.message, /Committed locally/);
+    return true;
+  });
+});

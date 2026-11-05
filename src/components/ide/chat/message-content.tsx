@@ -210,7 +210,7 @@ const ImageAttachmentPreview = ({
       >
         <img
           alt={label}
-          className="block max-h-48 w-auto rounded-lg object-contain shadow-md"
+          className="block max-h-24 w-auto max-w-full rounded-lg object-contain shadow-md"
           src={url}
         />
       </DialogTrigger>

@@ -11,6 +11,7 @@ import {
   getProjectGitMetadata,
   gitRefExists,
   listProjectGitChanges,
+  readGitRangeFiles,
   resolveGitBranchUpstream,
   runGhCommand,
   runGitCommand,
@@ -103,6 +104,7 @@ export const pullProjectGitChanges = async (projectPath) => {
       "The local and remote branches have diverged. Merge or rebase them before pulling.",
     );
   }
+  const previousHead = await readGitHead(repoInfo.repoRoot);
   // Fetch followed by a fast-forward merge is a pull without implicit rebasing,
   // merge commits or auto-stashing from the user's Git configuration.
   await runGitCommand(repoInfo.repoRoot, [
@@ -112,7 +114,36 @@ export const pullProjectGitChanges = async (projectPath) => {
     "--no-squash",
     upstream.ref,
   ]);
-  return { commitCount: behindCount, upstreamBranch: upstream.upstream };
+  return {
+    commitCount: behindCount,
+    upstreamBranch: upstream.upstream,
+    ...(await readPulledChanges(repoInfo.repoRoot, previousHead, behindCount)),
+  };
+};
+
+const readGitHead = async (repoRoot) => {
+  const result = await runGitCommand(
+    repoRoot,
+    ["rev-parse", "--verify", "--quiet", "HEAD"],
+    { allowFailure: true },
+  );
+  return result.ok ? result.stdout.trim() || null : null;
+};
+
+/**
+ * What a fast-forward from `previousHead` brought in: its commits, newest
+ * first, and the files it changed, like the summary `git pull` prints.
+ * A branch with no commits before the pull has nothing to compare against.
+ */
+const readPulledChanges = async (repoRoot, previousHead, commitCount) => {
+  if (!previousHead || commitCount === 0) {
+    return { commits: [], files: [], truncated: false };
+  }
+  const [commits, files] = await Promise.all([
+    readGitPushPreviewCommits(repoRoot, `${previousHead}..HEAD`),
+    readGitRangeFiles(repoRoot, previousHead, "HEAD"),
+  ]);
+  return { commits, files, truncated: commits.length < commitCount };
 };
 
 export const getProjectGitRemoteUrl = async (projectPath) => {
@@ -448,6 +479,20 @@ const resolveGitPushBranch = async (repoInfo, requestedBranch) => {
   return { branch, headRef: `refs/heads/${branch}`, named: true };
 };
 
+/**
+ * Why a push failed, in words: git's hint-laden answer to a branch behind its
+ * remote is replaced, any other failure keeps git's own reason. A commit made
+ * just before stays in the repository, which the message has to say.
+ */
+const getGitPushFailureMessage = (error, { committed }) => {
+  const reason = /\((?:fetch first|non-fast-forward)\)/.test(error.message)
+    ? "The remote has commits you don't have yet. Pull, then push again."
+    : error.message;
+  return committed
+    ? `Committed locally, but the push failed. ${reason}`
+    : reason;
+};
+
 export const pushProjectGitChanges = async (
   projectPath,
   {
@@ -507,7 +552,13 @@ export const pushProjectGitChanges = async (
     throw new Error("No Git remote is configured for this repository.");
   }
 
-  await runGitCommand(repoInfo.repoRoot, args);
+  try {
+    await runGitCommand(repoInfo.repoRoot, args);
+  } catch (error) {
+    throw new Error(getGitPushFailureMessage(error, { committed: !!commit }), {
+      cause: error,
+    });
+  }
 
   const status = await listProjectGitChanges(projectPath);
   return {

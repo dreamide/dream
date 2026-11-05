@@ -23,6 +23,8 @@ At least one supported agent CLI:
 - Claude Code
 - OpenCode
 - Cursor Agent
+- Grok Build
+- Google Antigravity
 
 ## Download
 

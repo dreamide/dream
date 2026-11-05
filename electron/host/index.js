@@ -10,6 +10,7 @@ import {
   getBrowserToolRelay,
   setBrowserToolRelay,
 } from "../api/browser-bridge.js";
+import { stopCodexAppServer } from "../api/chat/codex-app-server-client.js";
 import { createDelegationService } from "../api/chat/delegation.js";
 import { createRunScheduler } from "../api/chat/run-scheduler.js";
 import { createTurnRegistry } from "../api/chat/turn-registry.js";
@@ -17,6 +18,10 @@ import { executeChatRequest } from "../api/chat-routes.js";
 import { createHostSocket } from "../api/host-socket/host-socket.js";
 import { startRemoteApiServer } from "../api/remote-app.js";
 import { createSocketTickets } from "../api/shared/socket-tickets.js";
+import {
+  awaitingApprovalChatIds,
+  onToolApprovalsChange,
+} from "../api/tool-approvals.js";
 import { resolveStateDatabasePath } from "../persisted-state.js";
 import { createProcessSessionManager } from "../process-sessions.js";
 import { createStateReadPool } from "../state-read-pool.js";
@@ -24,6 +29,7 @@ import { createStateSaveQueue } from "../state-save-queue.js";
 import { detectAvailableTerminalShells } from "../terminal-shells.js";
 import { createHostAuth } from "./auth/host-auth.js";
 import { createHostCatalog } from "./catalog.js";
+import { sweepChatAttachments } from "./chat-attachments.js";
 import { configureHostDataDirectory } from "./host-paths.js";
 import { createHostProofSigner, loadHostIdentity } from "./identity.js";
 import { HOST_CAPABILITIES, HOST_PROTOCOL_VERSION } from "./protocol.js";
@@ -41,10 +47,14 @@ import { acquireStateLock } from "./state-lock.js";
  *   resolveRemoteHost?: (hostId: string) => { baseUrl: string, token: string } | null,
  *   clientDirectory?: string | null,
  *   tailscale?: ReturnType<typeof createTailscale>,
- *   cloudflare?: ReturnType<typeof import("./remote-access/cloudflare.js").createCloudflareConnector>,
  *   kind?: string,
  *   onShutdownRequest?: (reason: string) => void,
+ *   lockDetails?: Record<string, unknown>,
+ *   remoteOverride?: Parameters<typeof createRemoteAccess>[0]["override"],
  * }} options
+ *   `lockDetails`: more for the state lock's record (a daemon's run
+ *   directory and owner), so a desktop can find a host on its database.
+ *   `remoteOverride`: remote access set when the host started.
  *   `dataDirectory`: where the host keeps its files.
  *   `diagnosticsEnabled`: whether terminal flow-control diagnostics are served.
  *   `trackActivity`: count in-flight requests so `isBusy` sees them (a
@@ -80,14 +90,16 @@ export function createHost({
   resolveRemoteHost,
   clientDirectory = null,
   tailscale = createTailscale(),
-  cloudflare,
   kind = "host",
   onShutdownRequest,
+  lockDetails = {},
+  remoteOverride = null,
 }) {
   configureHostDataDirectory(dataDirectory);
   const databasePath = resolveStateDatabasePath();
   // One host per state database: its catalog has one writer.
   const releaseStateLock = acquireStateLock(databasePath, {
+    details: lockDetails,
     kind,
   });
   // Before anything else: a host that cannot say who it is serves nobody.
@@ -137,10 +149,21 @@ export function createHost({
   });
   const catalog = createHostCatalog({
     events: hostSocket.catalog,
+    getAwaitingApprovalChatIds: awaitingApprovalChatIds,
     getReader,
     getRunningChatIds: turns.streamingChatIds,
     getWriter,
+    onChatsRemoved: () => void sweepChatAttachments(catalog),
   });
+  // A chat waiting on its user is news to every client, open or not.
+  const stopApprovalEvents = onToolApprovalsChange(({ awaiting, chatId }) =>
+    hostSocket.catalog.publish({
+      awaiting,
+      chatId,
+      kind: "approval",
+      origin: null,
+    }),
+  );
   const scheduler = createRunScheduler({
     catalog,
     turns,
@@ -181,6 +204,7 @@ export function createHost({
 
   let server = null;
   let remoteServer = null;
+
   /** What both listeners serve, besides their own guards. */
   // Whether and how paired devices reach this host; the listener it starts
   // is this host's remote listener (below).
@@ -199,6 +223,7 @@ export function createHost({
         : `${databasePath}.remote-access.json`,
     hostId: () => identity.hostId,
     hostIdentity: getHostDescriptor,
+    override: remoteOverride,
     listen: async (options) => {
       if (!server) throw new Error("Start the host's local listener first.");
       if (remoteServer) await remoteServer.close();
@@ -210,7 +235,6 @@ export function createHost({
       return { origins: remoteServer.origins, port: remoteServer.port };
     },
     tailscale,
-    cloudflare,
   });
 
   const services = () => ({
@@ -265,6 +289,8 @@ export function createHost({
     async listen({ apiToken, port }) {
       if (server) throw new Error("Host is already listening.");
       await scheduler.initialize();
+      // Removals a previous run could not finish.
+      void sweepChatAttachments(catalog);
       // Paired devices' sessions; local work never waits on them. A failed
       // load is tried again by the next remote request, which fails closed.
       await auth.load().catch((error) => {
@@ -273,10 +299,7 @@ export function createHost({
       server = await startApiServer({
         ...services(),
         apiToken,
-        pairingUrls: (fragment) =>
-          (remoteServer?.origins ?? []).map(
-            (origin) => `${origin}/pair#${fragment}`,
-          ),
+        publicOrigins: () => remoteServer?.origins ?? [],
         port,
         resolveRemoteHost,
       });
@@ -330,7 +353,12 @@ export function createHost({
      * to flush).
      */
     async close() {
+      stopApprovalEvents();
       await scheduler.close();
+      // Codex turns run through one app server per process: the host's.
+      await stopCodexAppServer().catch((error) =>
+        console.warn("Could not stop the Codex app server.", error),
+      );
       if (getBrowserToolRelay() === hostSocket.browser) {
         setBrowserToolRelay(null);
       }

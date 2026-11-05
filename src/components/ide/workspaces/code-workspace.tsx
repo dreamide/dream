@@ -1,12 +1,9 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { useCompactLayout } from "@/lib/use-compact-layout";
 import type { BrowserTabState, GitPanelTab, ProjectConfig } from "@/types/ide";
 import { areProjectsEqualExceptLastUsedAt } from "../ide-state";
 import { useIdeStore } from "../ide-store";
 import type { RightPanelView } from "../ide-types";
-import { ProjectSidebar } from "../projects-panel";
-import { RightPanelViews } from "../right-panel-views";
 import { useShortcut } from "../shortcuts/shortcuts";
 import {
   BROWSER_PANEL_DEFAULT_WIDTH_PX,
@@ -21,7 +18,6 @@ import {
   WORKSPACE_SIDE_NAV_WIDTH_PX,
 } from "../workspace";
 import { WorkspaceChatStack } from "../workspace/chat-stack";
-import { WorkspaceCompactBar } from "../workspace/compact-bar";
 import { WorkspaceHistoryPanel } from "../workspace/history-panel";
 import { WorkspaceRightPanel } from "../workspace/right-panel";
 import { WorkspaceRightRail } from "../workspace/right-rail";
@@ -38,7 +34,6 @@ const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
 const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
   const projectId = project.id;
   // A phone-sized window: one chat, and every other panel as a full sheet.
-  const compact = useCompactLayout();
 
   // ── Store selectors ─────────────────────────────────────────────────
   const projectUi = useIdeStore(
@@ -404,20 +399,6 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
     closeRightPanel(projectId);
   }, [closeRightPanel, projectId]);
 
-  // A phone-sized window opens on the chat: a side panel left open (as a
-  // project starts) would cover it as a sheet. Closed once as the compact
-  // layout takes over; opening one from the bar afterwards is the user's.
-  const compactSettledRef = useRef(false);
-  useEffect(() => {
-    if (!compact) {
-      compactSettledRef.current = false;
-      return;
-    }
-    if (compactSettledRef.current) return;
-    compactSettledRef.current = true;
-    if (rightVisible) handleCloseRightPanel();
-  }, [compact, handleCloseRightPanel, rightVisible]);
-
   const handleSelectRightPanelView = useCallback(
     (view: RightPanelView) => {
       showRightPanelView(projectId, view, { toggle: true });
@@ -588,74 +569,6 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
     BROWSER_PANEL_MIN_WIDTH_PX,
     workspaceWidth || renderedRightWidthRef.current,
   );
-
-  if (compact) {
-    const singleChatIds = activeChatId ? [activeChatId] : [];
-    return (
-      <div
-        className="relative flex h-full flex-col overflow-hidden"
-        ref={horizontalPanelsRef}
-      >
-        <WorkspaceCompactBar
-          active={active}
-          historyHasUnseenChats={historyHasUnseenChats}
-          historyOpen={historyOpen}
-          onAddChat={handleAddChat}
-          onOpenTerminal={handleOpenTerminal}
-          onSelectRightPanelView={handleSelectRightPanelView}
-          onToggleHistory={handleToggleHistory}
-          projectId={projectId}
-          projectPath={project.path}
-          rightPanelView={rightPanelView}
-          rightVisible={rightVisible}
-          stashAvailable={stashAvailable}
-          terminalHiddenWithActiveSession={terminalHiddenWithActiveSession}
-        />
-        <div className="relative min-h-0 flex-1">
-          <div className="flex h-full w-full flex-col">
-            <WorkspaceChatStack
-              active={active}
-              activeChatId={activeChatId}
-              chatColumnWidths={chatColumnWidths}
-              mountedChats={mountedChats}
-              onActivateChat={handleActivateChat}
-              onChatColumnWidthsChange={handleChatColumnWidthsChange}
-              onCloseChat={handleCloseChat}
-              onChatReorder={handleChatReorder}
-              minColumnWidth={0}
-              openChatIds={singleChatIds}
-              project={project}
-            />
-          </div>
-          {rightVisible ? (
-            <div className="absolute inset-0 z-30 flex flex-col bg-surface-50 dark:bg-surface-900">
-              <RightPanelViews
-                active={active}
-                onClosePanel={handleCloseRightPanel}
-                onTogglePanelExpanded={() => undefined}
-                open
-                panelExpanded
-                project={project}
-                rightPanelView={rightPanelView}
-              />
-            </div>
-          ) : null}
-          {historyOpen ? (
-            <div className="absolute inset-0 z-40 bg-surface-50 py-2 dark:bg-surface-900">
-              {active ? (
-                <ProjectSidebar
-                  className="h-full"
-                  onChatSelect={closeHistoryPanel}
-                  project={project}
-                  visible
-                />
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div

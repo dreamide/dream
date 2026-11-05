@@ -1,4 +1,3 @@
-import { getClientPlatform } from "@/lib/connections/platform";
 import type { HostConnectionState, ProjectConfig } from "@/types/ide";
 import { listHostChoices } from "../../../../electron/shared/host-connections.js";
 import type { IdeState } from "../store/ide-store-types";
@@ -21,10 +20,7 @@ export const isHostAway = (
     Partial<Pick<IdeState, "hostConnections">>,
   project: Pick<ProjectConfig, "hostId"> | null | undefined,
 ): HostAway | null => {
-  const platform = getClientPlatform();
-  const hostId = project
-    ? (project.hostId ?? (platform.hasHomeHost ? undefined : "local"))
-    : undefined;
+  const hostId = project?.hostId;
   if (!hostId) return null;
   const runtime = state.hosts[hostId];
   if (runtime?.state === "connected" && runtime.loaded) return null;

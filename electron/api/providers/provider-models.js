@@ -3,6 +3,12 @@ import {
   getCliVersion,
   isCliCommandAvailable,
 } from "../shared/cli.js";
+import {
+  execAntigravityCliCommand,
+  getAntigravityCliUnavailableMessage,
+  getAntigravityCliVersion,
+  isAntigravityCliAvailable,
+} from "./antigravity-cli.js";
 import { readCodexAccessToken, readCodexModelsCache } from "./codex-auth.js";
 import { fetchCursorAcpModels, toDreamCursorModelId } from "./cursor-acp.js";
 import {
@@ -449,6 +455,99 @@ export const fetchAnthropicModels = async ({ force = false } = {}) => {
         error instanceof Error
           ? error.message
           : "Unable to fetch Claude Code models.",
+      installed: true,
+      models: [],
+      source: "unavailable",
+      version,
+    };
+  }
+};
+
+export const parseAntigravityModelsOutput = (output) => {
+  const clean = stripAnsi(output);
+  const models = [];
+  const lines = clean.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (
+      !trimmed ||
+      trimmed.startsWith("Fetching available models") ||
+      trimmed.startsWith("Usage:")
+    ) {
+      continue;
+    }
+    let id;
+    let label;
+    if (trimmed.includes("\t")) {
+      const parts = trimmed.split(/\t+/);
+      id = parts[0]?.trim();
+      label = parts.slice(1).join("\t").trim() || id;
+    } else {
+      const firstSpace = trimmed.indexOf(" ");
+      if (firstSpace !== -1) {
+        id = trimmed.slice(0, firstSpace).trim();
+        label = trimmed.slice(firstSpace + 1).trim() || id;
+      } else {
+        id = trimmed;
+        label = trimmed;
+      }
+    }
+
+    if (!id || id.toLowerCase() === "model" || id.toLowerCase() === "id") {
+      continue;
+    }
+    const modelId = id;
+    const contextWindow = modelId.startsWith("gemini-") ? 1_000_000 : undefined;
+    models.push(
+      createModelOption(
+        "antigravity",
+        modelId,
+        label,
+        getModelReasoningEfforts("antigravity", modelId),
+        getModelSpeedTiers("antigravity", modelId),
+        contextWindow,
+      ),
+    );
+  }
+  return models;
+};
+
+export const fetchAntigravityModels = async ({ force = false } = {}) => {
+  const installed = await isAntigravityCliAvailable({ force });
+  if (!installed) {
+    return {
+      error: getAntigravityCliUnavailableMessage(),
+      installed: false,
+      models: [],
+      source: "unavailable",
+      version: null,
+    };
+  }
+  const version = await getAntigravityCliVersion({ force });
+
+  try {
+    const result = await execAntigravityCliCommand(["models"], {
+      closeStdin: true,
+      timeout: 15_000,
+    });
+    const models = dedupeAndSort(parseAntigravityModelsOutput(result.stdout));
+    if (models.length === 0) {
+      return {
+        error: "Antigravity returned no models.",
+        installed: true,
+        models: [],
+        source: "unavailable",
+        version,
+      };
+    }
+
+    return { installed: true, models, source: "cli", version };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to fetch Antigravity models.",
       installed: true,
       models: [],
       source: "unavailable",

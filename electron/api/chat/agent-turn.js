@@ -180,6 +180,7 @@ export const createAgentTurn = ({
   responseMessageMetadata = {},
   abortSignal,
   maxTextChars = DEFAULT_MAX_TEXT_CHARS,
+  chatId = null,
 }) => {
   let sessionId = null;
   let streamedChars = 0;
@@ -405,6 +406,7 @@ export const createAgentTurn = ({
       const approvalId = formatApprovalId(provider, toolCallId);
       write({ approvalId, toolCallId, type: "tool-approval-request" });
       return waitForToolApproval({
+        chatId,
         id: approvalId,
         provider,
         request: request ?? { input, toolName },
@@ -484,7 +486,9 @@ export const createAgentTurn = ({
  * `streamAgentTurn` reads it, so no provider adapter has to know.
  * It is told the assistant message being written (continuing the last one
  * when the turn does).
- * @type {AsyncLocalStorage<{ onMessage: (message: unknown, options: { final: boolean }) => Promise<unknown> | unknown }>}
+ * Its `chatId` names the chat (a turn waiting on an approval is announced
+ * under it, api/tool-approvals.js).
+ * @type {AsyncLocalStorage<{ chatId?: string, onMessage: (message: unknown, options: { final: boolean }) => Promise<unknown> | unknown }>}
  */
 export const turnObservers = new AsyncLocalStorage();
 
@@ -552,6 +556,8 @@ const observeTurn = async (stream, originalMessages, observer) => {
  */
 export const streamAgentTurn = ({ execute, messages, ...turnOptions }) => {
   const { label = turnOptions.provider, provider } = turnOptions;
+  // The host's observer of this turn, which knows the chat it belongs to.
+  const observer = turnObservers.getStore();
   const written = createUIMessageStream({
     originalMessages: messages,
     onError: (error) => {
@@ -559,7 +565,11 @@ export const streamAgentTurn = ({ execute, messages, ...turnOptions }) => {
       return formatStreamError(error) || `${label} request failed.`;
     },
     execute: async ({ writer }) => {
-      const turn = createAgentTurn({ writer, ...turnOptions });
+      const turn = createAgentTurn({
+        writer,
+        chatId: observer?.chatId ?? null,
+        ...turnOptions,
+      });
       // Establish the response identity before metadata can create a temporary
       // message on a client following the turn through resumeStream().
       writer.write({ type: "start" });
@@ -581,7 +591,6 @@ export const streamAgentTurn = ({ execute, messages, ...turnOptions }) => {
     .pipeThrough(createDeltaJoiner())
     .pipeThrough(createTurnStopBoundary(turnOptions.abortSignal));
 
-  const observer = turnObservers.getStore();
   if (!observer) {
     return createUIMessageStreamResponse({ stream });
   }

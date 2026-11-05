@@ -103,7 +103,7 @@ const pairingIdentity = (payload, fallbackName) => {
  * @param {() => string} deps.hostname The OS host name, for naming this
  *   desktop to a host it pairs with.
  * @param {{ loadWorkspace: () => unknown, saveWorkspaceChanges: (changes: unknown) => unknown }} deps.state
- * @param {{ connect: (options: { hostCommand?: string, hostId: string, target: string, expectedIdentity?: { hostId: string, fingerprint?: string | null } | null }) => Promise<{ hostProtocolVersion: number, version?: string | null, hostId?: string | null, fingerprint?: string | null }>, disconnect: (hostId: string) => void, getState: (hostId: string) => unknown, forwardPort: (hostId: string, port: number) => unknown }} deps.sshHosts
+ * @param {{ connect: (options: { hostId: string, target: string, expectedIdentity?: { hostId: string, fingerprint?: string | null } | null }) => Promise<{ hostProtocolVersion: number, version?: string | null, hostId?: string | null, fingerprint?: string | null }>, disconnect: (hostId: string) => void, getState: (hostId: string) => unknown, forwardPort: (hostId: string, port: number) => unknown }} deps.sshHosts
  * @param {() => Promise<string[]>} deps.sshConfigHosts The aliases in the
  *   user's ssh config.
  * @param {{ answer: (promptId: unknown, answer: unknown) => void }} deps.sshPrompts
@@ -339,19 +339,6 @@ export const createDesktopHandlers = ({
       return true;
     },
 
-    pairHost: async (payload) => {
-      const { url, deviceName } = fields(payload);
-      if (
-        typeof url !== "string" ||
-        url.length > 2000 ||
-        (deviceName !== undefined && typeof deviceName !== "string")
-      )
-        throw new Error("A pairing link and device name are required.");
-      return sshHosts.pair({
-        url,
-        ...pairingIdentity(payload, desktopDeviceName(hostname())),
-      });
-    },
     pairHostWithCode: async (payload) => {
       const { address, code, attemptId, deviceName } = fields(payload);
       if (
@@ -398,7 +385,6 @@ export const createDesktopHandlers = ({
       const {
         expectedHostId,
         expectedFingerprint,
-        hostCommand,
         hostId,
         target,
         sshRoutes,
@@ -437,14 +423,12 @@ export const createDesktopHandlers = ({
           if (
             route.kind === "ssh" &&
             typeof route.target === "string" &&
-            route.target.trim() &&
-            (!route.hostCommand || typeof route.hostCommand === "string")
+            route.target.trim()
           )
             return {
               id: route.id,
               kind: "ssh",
               target: route.target.trim(),
-              hostCommand: route.hostCommand?.trim() || undefined,
             };
           throw new Error(
             "Each route needs an SSH target or paired HTTPS origin.",
@@ -467,15 +451,12 @@ export const createDesktopHandlers = ({
             typeof route?.id !== "string" ||
             !route.id.trim() ||
             typeof route?.target !== "string" ||
-            !route.target.trim() ||
-            (route.hostCommand !== undefined &&
-              typeof route.hostCommand !== "string")
+            !route.target.trim()
           )
             throw new Error("Each SSH route needs a distinct id and target.");
           return {
             id: route.id.trim(),
             target: route.target.trim(),
-            hostCommand: route.hostCommand?.trim() || undefined,
           };
         });
         if (new Set(routes.map((route) => route.id)).size !== routes.length)
@@ -487,10 +468,6 @@ export const createDesktopHandlers = ({
             ? { routes }
             : { sshRoutes: routes }
           : {}),
-        hostCommand:
-          typeof hostCommand === "string" && hostCommand.trim()
-            ? hostCommand.trim()
-            : undefined,
         hostId,
         target: typeof target === "string" ? target.trim() : undefined,
         expectedIdentity:

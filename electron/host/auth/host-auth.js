@@ -4,16 +4,13 @@
 //
 //   Pairing    A locally authorized operator (the desktop or a CLI holding
 //              the host's launch token) or a device with `manage` mints a
-//              pairing: the scopes it grants, a link secret and a short code.
-//              It expires after PAIRING_TTL_MS and works once.
-//     link     `#pair=<pairingId>.<secret>` in a URL fragment (never sent to
-//              a server); the client posts it to exchange it for a session
-//              and removes it from its address bar.
-//     code     8 characters typed on the device with its name. That only
-//              asks: an operator confirms the device by name on the host,
-//              and the device, polling with the claim secret it was given,
-//              then receives its session once. Code attempts are rate
-//              limited host-wide.
+//              pairing: the scopes it grants and a short code. It expires
+//              after PAIRING_TTL_MS and works once.
+//     code     8 characters (Crockford base32, 40 bits) typed on the other
+//              computer with its name, which redeems it for a session at
+//              once: whoever created the code is the one who approves it.
+//              Attempts are rate limited host-wide, so a code cannot be
+//              guessed in the minutes it lives.
 //   Session    `dsess.<id>.<secret>`, held by the device: an HttpOnly cookie
 //              for the same-origin web client, OS secure storage for native
 //              ones. The host keeps only sha256(secret). A session expires
@@ -24,7 +21,7 @@
 //   Tickets    A socket ticket is bound to the principal that asked for it,
 //              and redeeming it checks again that the session is live.
 //
-// Pairings and claims live in memory only (they last minutes; a restart
+// Pairings live in memory only (they last minutes; a restart
 // forgets them). Sessions are kept in the host database through the save
 // queue, and in memory for checking each request.
 import {
@@ -41,7 +38,6 @@ const TOUCH_WRITE_MS = 60 * 60_000;
 /** Revoked and expired sessions stay listed this long, then are dropped. */
 const RETAIN_ENDED_MS = 30 * 24 * 60 * 60_000;
 const CODE_ATTEMPTS_PER_MINUTE = 10;
-const SECRET_FAILURES_PER_MINUTE = 30;
 const CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"; // Crockford base32
 const MAX_DEVICE_NAME = 80;
 
@@ -139,15 +135,8 @@ export function createHostAuth({
   const live = new Map();
   /** @type {Map<string, any>} */
   const pairings = new Map();
-  /** @type {Map<string, any>} */
-  const claims = new Map();
   const codeAttempts = createRateLimiter({
     limit: CODE_ATTEMPTS_PER_MINUTE,
-    now,
-    windowMs: 60_000,
-  });
-  const secretFailures = createRateLimiter({
-    limit: SECRET_FAILURES_PER_MINUTE,
     now,
     windowMs: 60_000,
   });
@@ -161,9 +150,6 @@ export function createHostAuth({
     const time = now();
     for (const [id, pairing] of pairings) {
       if (pairing.expiresAt <= time) pairings.delete(id);
-    }
-    for (const [id, claim] of claims) {
-      if (claim.expiresAt <= time) claims.delete(id);
     }
   };
 
@@ -213,31 +199,6 @@ export function createHostAuth({
     session.revokedAt === null &&
     Date.parse(session.expiresAt) > now();
 
-  /** The pairing a link secret names, consumed; throws when there is none. */
-  const takePairingBySecret = (pairingSecret) => {
-    prune();
-    const [pairingId, secret] =
-      typeof pairingSecret === "string" ? pairingSecret.split(".") : [];
-    const pairing = pairingId ? pairings.get(pairingId) : null;
-    if (
-      !pairing ||
-      typeof secret !== "string" ||
-      !sameDigest(pairing.secretVerifier, secret)
-    ) {
-      if (!secretFailures.take()) {
-        throw new AuthError(
-          "Too many pairing attempts. Try again in a minute.",
-          429,
-        );
-      }
-      throw new AuthError(
-        "This pairing link is invalid, used or expired. Ask for a new one.",
-      );
-    }
-    pairings.delete(pairing.id);
-    return pairing;
-  };
-
   /** Reads the stored sessions; every check waits for it. */
   const load = () => {
     loaded ??= (async () => {
@@ -273,7 +234,6 @@ export function createHostAuth({
       }
       prune();
       const id = randomBytes(12).toString("hex");
-      const secret = token(32);
       const expiresAt = now() + PAIRING_TTL_MS;
       const code = createCode();
       pairings.set(id, {
@@ -286,149 +246,45 @@ export function createHostAuth({
         expiresAt,
         id,
         scopes: granted,
-        secretVerifier: sha256(secret).toString("hex"),
       });
       return {
         code: `${code.slice(0, 4)}-${code.slice(4)}`,
         expiresAt: iso(expiresAt),
-        /** Goes after `#` in a pairing URL, never in its path or query. */
-        fragment: `pair=${id}.${secret}`,
         pairingId: id,
         scopes: granted,
       };
     },
 
     /**
-     * Exchanges a pairing link's secret for a session. Works once.
-     * @param {{ pairingSecret: unknown, deviceName?: unknown, clientKind?: unknown }} request
-     */
-    async exchangePairing({ pairingSecret, deviceName, clientKind }) {
-      await load();
-      const pairing = takePairingBySecret(pairingSecret);
-      return startSession({
-        clientKind,
-        deviceName: deviceName ?? pairing.deviceName,
-        grantedBy: pairing.createdBy,
-        scopes: pairing.scopes,
-      });
-    },
-
-    /**
-     * Asks to pair with a short code. Grants nothing yet: an operator has
-     * to confirm the device by name. Resolves with what the device polls
-     * with.
+     * Redeems a pairing code for a session, at once. Works once; attempts
+     * are rate limited host-wide.
      * @param {{ code: unknown, deviceName?: unknown, clientKind?: unknown }} request
      */
-    claimPairingCode({ code, deviceName, clientKind }) {
+    async redeemPairingCode({ code, deviceName, clientKind }) {
       if (!codeAttempts.take()) {
         throw new AuthError(
           "Too many pairing attempts. Try again in a minute.",
           429,
         );
       }
+      await load();
       prune();
       const normalized = normalizePairingCode(code);
       const pairing = [...pairings.values()].find(
         (candidate) => normalized && candidate.code === normalized,
       );
       if (!pairing) {
-        throw new AuthError("This pairing code is invalid, used or expired.");
+        throw new AuthError(
+          "This pairing code is invalid, used or expired. Create a new one on the host.",
+        );
       }
       pairings.delete(pairing.id);
-      const id = randomBytes(12).toString("hex");
-      const secret = token(32);
-      claims.set(id, {
-        clientKind: clientKind === "native" ? "native" : "web",
-        createdAt: iso(now()),
-        deviceName: normalizeDeviceName(deviceName ?? pairing.deviceName),
-        expiresAt: pairing.expiresAt,
-        id,
-        pairing,
-        result: null,
-        secretVerifier: sha256(secret).toString("hex"),
-        state: "pending",
+      return startSession({
+        clientKind,
+        deviceName: deviceName ?? pairing.deviceName,
+        grantedBy: pairing.createdBy,
+        scopes: pairing.scopes,
       });
-      return {
-        claimId: id,
-        claimSecret: secret,
-        expiresAt: iso(pairing.expiresAt),
-      };
-    },
-
-    /** Code claims waiting for an operator, for it to confirm or deny. */
-    listClaims(principal) {
-      if (!hasScope(principal.scopes, "manage")) {
-        throw new AuthError("Only a manager can see pairing requests.", 403);
-      }
-      prune();
-      return [...claims.values()]
-        .filter((claim) => claim.state === "pending")
-        .map((claim) => ({
-          claimId: claim.id,
-          clientKind: claim.clientKind,
-          createdAt: claim.createdAt,
-          deviceName: claim.deviceName,
-          expiresAt: iso(claim.expiresAt),
-          scopes: claim.pairing.scopes,
-        }));
-    },
-
-    /**
-     * An operator's answer to a code claim: confirmed, the device's next
-     * poll receives its session; denied, it never does.
-     * @param {Principal} principal
-     * @param {{ claimId: unknown, approve: boolean }} answer
-     */
-    async answerClaim(principal, { claimId, approve }) {
-      if (!hasScope(principal.scopes, "manage")) {
-        throw new AuthError("Only a manager can confirm devices.", 403);
-      }
-      await load();
-      prune();
-      const claim = typeof claimId === "string" ? claims.get(claimId) : null;
-      if (!claim || claim.state !== "pending") {
-        throw new AuthError("That pairing request is no longer waiting.", 404);
-      }
-      if (!approve) {
-        claim.state = "denied";
-        return { approved: false };
-      }
-      claim.state = "confirmed";
-      claim.result = await startSession({
-        clientKind: claim.clientKind,
-        deviceName: claim.deviceName,
-        grantedBy: principal.kind === "local" ? "local" : principal.sessionId,
-        scopes: claim.pairing.scopes,
-      });
-      return { approved: true, session: claim.result.session };
-    },
-
-    /**
-     * A device polling its code claim. The session is handed over once.
-     * @param {{ claimId: unknown, claimSecret: unknown }} request
-     */
-    pollClaim({ claimId, claimSecret }) {
-      prune();
-      const claim = typeof claimId === "string" ? claims.get(claimId) : null;
-      if (
-        !claim ||
-        typeof claimSecret !== "string" ||
-        !sameDigest(claim.secretVerifier, claimSecret)
-      ) {
-        if (!secretFailures.take()) {
-          throw new AuthError(
-            "Too many pairing attempts. Try again in a minute.",
-            429,
-          );
-        }
-        throw new AuthError("This pairing request is invalid or expired.");
-      }
-      if (claim.state === "pending") return { status: "pending" };
-      claims.delete(claim.id);
-      if (claim.state === "denied") {
-        throw new AuthError("This device was not confirmed on the host.", 403);
-      }
-      return { status: "confirmed", ...claim.result };
     },
 
     /**

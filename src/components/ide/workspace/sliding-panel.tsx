@@ -13,6 +13,14 @@ import { PANEL_RESIZE_HANDLE_SIZE_PX } from "./constants";
 
 type SlideSide = "left" | "right";
 
+const withoutWidthTransition = (transition: string) =>
+  transition
+    // Split on top-level commas only: easing functions carry their own.
+    .split(/,(?![^(]*\))/)
+    .map((part) => part.trim())
+    .filter((part) => part && !/^width\b/.test(part))
+    .join(", ") || "none";
+
 export interface WorkspaceSlidingPanelProps {
   className?: string;
   contentClassName?: string;
@@ -104,6 +112,10 @@ export const WorkspaceSlidingPanel = ({
   const slotWidth = panelWidth + handleWidth;
   const closedTransform =
     side === "right" ? "translateX(100%)" : "translateX(-100%)";
+  // The track holds the panel against its outer edge. Animating its width
+  // would let the panel drift off that edge mid-resize (a gap opens beside
+  // the rail), so only the slot animates width; the track snaps.
+  const trackTransition = withoutWidthTransition(transition);
 
   const applyWidth = useCallback(
     (nextWidth: number) => {
@@ -162,11 +174,11 @@ export const WorkspaceSlidingPanel = ({
     }
 
     if (internalTrackRef.current) {
-      internalTrackRef.current.style.transition = transition;
+      internalTrackRef.current.style.transition = trackTransition;
     }
 
     onResizeEnd?.(widthRef.current);
-  }, [onResizeEnd, transition, widthRef]);
+  }, [onResizeEnd, trackTransition, transition, widthRef]);
 
   useEffect(() => {
     widthRef.current = panelWidth;
@@ -237,7 +249,7 @@ export const WorkspaceSlidingPanel = ({
         ref={internalTrackRef}
         style={{
           transform: open ? "translateX(0)" : closedTransform,
-          transition,
+          transition: trackTransition,
           width: slotWidth,
           willChange: "transform",
         }}

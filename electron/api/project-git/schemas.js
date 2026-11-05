@@ -123,7 +123,7 @@ export const projectGitCommitMessageRequestSchema = z.object({
   modelSpeed: gitGenerationModelSpeedSchema,
   projectPath: z.string().min(1),
   provider: z
-    .enum(["openai", "anthropic", "opencode", "cursor", "grok"])
+    .enum(["openai", "anthropic", "opencode", "cursor", "grok", "antigravity"])
     .default("openai"),
   reasoningEffort: gitGenerationReasoningEffortSchema,
 });
@@ -176,7 +176,7 @@ export const projectGitPullRequestDetailsRequestSchema = z.object({
     .default("create"),
   projectPath: z.string().min(1),
   provider: z
-    .enum(["openai", "anthropic", "opencode", "cursor", "grok"])
+    .enum(["openai", "anthropic", "opencode", "cursor", "grok", "antigravity"])
     .default("openai"),
   reasoningEffort: gitGenerationReasoningEffortSchema,
 });

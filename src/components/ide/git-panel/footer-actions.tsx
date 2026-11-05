@@ -25,9 +25,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
-import type { ProjectConfig, ProjectWorktreeInfo } from "@/types/ide";
+import type {
+  ProjectConfig,
+  ProjectGitPullResponse,
+  ProjectWorktreeInfo,
+} from "@/types/ide";
 import { getPullRequestBranchError } from "../git-actions/branch-utils";
 import { CreatePrDialog } from "../git-actions/create-pr-dialog";
+import { PullDialog } from "../git-actions/pull-dialog";
 import { PushDialog } from "../git-actions/push-dialog";
 import { GitMenuDeltaSummary } from "../git-actions/summary";
 import { getStatusFileCount, hasPushableCommits } from "../git-actions/utils";
@@ -41,6 +46,9 @@ import { SourceControlIcon } from "../source-control-icon";
 import { useShowGitPanel } from "./show-git-panel";
 
 type WorktreeProject = ProjectConfig & { worktree: ProjectWorktreeInfo };
+
+// Long enough to reach the toast's View changes action.
+const PULL_TOAST_DURATION_MS = 8000;
 
 /** A commit count on the right of a git menu item, e.g. "↑ 2". */
 const MenuCommitCount = ({
@@ -105,6 +113,11 @@ const GitFooterActionsImpl = ({
   const [openingRepository, setOpeningRepository] = useState(false);
   const [createPrOpen, setCreatePrOpen] = useState(false);
   const [pushOpen, setPushOpen] = useState(false);
+  const [pullOpen, setPullOpen] = useState(false);
+  // Kept after close, so the closing dialog keeps its contents.
+  const [pullResult, setPullResult] = useState<ProjectGitPullResponse | null>(
+    null,
+  );
   const [worktreeDialogOpen, setWorktreeDialogOpen] = useState(false);
   // Kept after close, so a closing dialog does not switch modes mid-animation.
   const [worktreeAction, setWorktreeAction] =
@@ -145,12 +158,40 @@ const GitFooterActionsImpl = ({
     }
     const outcome = await store.pullProject(projectId);
     if (outcome.ok) {
-      const { commitCount, upstreamBranch } = outcome.result;
-      toast.success(
-        commitCount > 0
-          ? gitT("pulledFrom", { count: commitCount, target: upstreamBranch })
-          : gitT("alreadyUpToDate", { target: upstreamBranch }),
-      );
+      const result = outcome.result;
+      const { commitCount, upstreamBranch } = result;
+      if (commitCount === 0) {
+        toast.success(gitT("alreadyUpToDate", { target: upstreamBranch }));
+        return;
+      }
+      const title = gitT("pulledFrom", {
+        count: commitCount,
+        target: upstreamBranch,
+      });
+      // Older hosts answer with the count alone.
+      if (!result.commits?.length && !result.files?.length) {
+        toast.success(title);
+        return;
+      }
+      const id = crypto.randomUUID();
+      toast.success(title, {
+        // A React element is rendered as-is, so the toast doesn't dismiss
+        // itself on click the way a { label, onClick } action does.
+        action: (
+          <Button
+            onClick={() => {
+              toast.dismiss(id);
+              setPullResult(result);
+              setPullOpen(true);
+            }}
+            size="sm"
+          >
+            {gitT("viewChanges")}
+          </Button>
+        ),
+        duration: PULL_TOAST_DURATION_MS,
+        id,
+      });
     } else {
       toast.error(getApiErrorMessage(outcome.error, gitT("unableToPull")));
     }
@@ -342,6 +383,11 @@ const GitFooterActionsImpl = ({
           status={status}
         />
       ) : null}
+      <PullDialog
+        onOpenChange={setPullOpen}
+        open={pullOpen}
+        result={pullResult}
+      />
       {worktreeProject ? (
         <WorktreeActionDialog
           action={worktreeAction}

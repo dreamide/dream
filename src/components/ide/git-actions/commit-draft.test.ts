@@ -68,8 +68,10 @@ const createDraft = ({
         }
       : { ok: true as const, result: {} };
   };
+  const pushFailures: unknown[] = [];
   const draft = new CommitDraft({
     commit,
+    onPushFailure: (error) => pushFailures.push(error),
     text: {
       cached: (request) =>
         cached.get(request.changes.map((item) => item.path).join(",")),
@@ -89,7 +91,7 @@ const createDraft = ({
     projectPath: "/work/app",
     status,
   });
-  return { commits, draft, generations, inputs };
+  return { commits, draft, generations, inputs, pushFailures };
 };
 
 test("a message already generated for these changes shows at once", () => {
@@ -226,6 +228,33 @@ test("a commit that fails keeps the message and says why", async () => {
     message: "Fix the thing",
     submitting: null,
   });
+});
+
+test("a failed commit-and-push is reported past the composer", async () => {
+  const cached = new Map([["a.ts", "Fix the thing"]]);
+  const { draft, inputs, pushFailures } = createDraft({
+    cached,
+    failCommit: true,
+  });
+  draft.update(inputs(statusOf([change("a.ts")])));
+
+  await expect(draft.submit("commit-push")).resolves.toBe(false);
+
+  expect(pushFailures).toHaveLength(1);
+  expect(pushFailures[0]).toMatchObject({ message: "nothing to commit" });
+});
+
+test("a failed plain commit stays with the composer", async () => {
+  const cached = new Map([["a.ts", "Fix the thing"]]);
+  const { draft, inputs, pushFailures } = createDraft({
+    cached,
+    failCommit: true,
+  });
+  draft.update(inputs(statusOf([change("a.ts")])));
+
+  await draft.submit("commit");
+
+  expect(pushFailures).toHaveLength(0);
 });
 
 test("nothing to commit means no commit", async () => {

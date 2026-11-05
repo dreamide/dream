@@ -24,8 +24,8 @@ import {
  *   `stateDirectory`: private folder for control sockets and the askpass
  *   wrapper (keep it short: socket paths are limited to ~100 characters).
  *   `multiplex`: use ControlMaster; OpenSSH on Windows cannot.
- *   `runtimeVersion`: the host runtime a host without its own host command
- *   gets installed (this app's version).
+ *   `runtimeVersion`: the host runtime every SSH host gets installed (this
+ *   app's version).
  */
 export function createSshHostManager({
   stateDirectory,
@@ -94,7 +94,6 @@ export function createSshHostManager({
      * @param {{
      *   hostId?: string,
      *   target: string,
-     *   hostCommand?: string,
      *   expectedIdentity?: { hostId: string, fingerprint?: string | null } | null,
      *   signal?: AbortSignal,
      *   autoReconnect?: boolean,
@@ -104,7 +103,6 @@ export function createSshHostManager({
     async connect({
       hostId: requestedHostId,
       target,
-      hostCommand,
       expectedIdentity = null,
       signal,
       autoReconnect = true,
@@ -146,7 +144,6 @@ export function createSshHostManager({
         },
         expectedIdentity,
         getLocalPort: () => getPort({ host: "127.0.0.1" }),
-        hostCommand: hostCommand || null,
         runtimeCacheDirectory: path.join(stateDirectory, "runtime"),
         runtimeVersion,
         onStatus: (status) => onStatus({ ...status, hostId }),

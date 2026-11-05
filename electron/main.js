@@ -19,7 +19,6 @@ import {
 } from "electron";
 import getPort from "get-port";
 import { setBrowserBridge } from "./api/browser-bridge.js";
-import { stopCodexAppServer } from "./api/chat/codex-app-server-client.js";
 import {
   configureApplicationMenu,
   toggleWebContentsDevToolsDetached,
@@ -39,15 +38,16 @@ import {
   registerDesktopHandlers,
 } from "./desktop-handlers.js";
 import {
-  createRemoteOnlyHost,
-  createServiceHostAttachment,
+  createHomeHostAttachment,
+  withInProcessFallback,
 } from "./desktop-host.js";
+import { resolveDesktopHostMode } from "./desktop-host-mode.js";
 import { createDevLogger, publishDevSession } from "./dev-inspection.js";
 import { detectAvailableEditors, openProjectInEditor } from "./editors.js";
 import { getHelloUrl } from "./hello.js";
 import { configureHostDataDirectory } from "./host/host-paths.js";
 import { createHost } from "./host/index.js";
-import { getHostHome } from "./host/run-directory.js";
+import { acquireStateLock, StateLockedError } from "./host/state-lock.js";
 import {
   closePersistedStateDatabase,
   installIdConfigValue,
@@ -107,10 +107,9 @@ const readDreamVersion = () => {
   }
 };
 const dreamVersion = readDreamVersion();
-const hostMode = process.env.DREAM_HOST_MODE?.trim() || "desktop";
-if (!["desktop", "service", "remote"].includes(hostMode)) {
-  throw new Error("DREAM_HOST_MODE must be desktop, service or remote.");
-}
+// A host mode named in the environment (desktop-host-mode.js); `desktop` and
+// `auto` choose as if unset.
+const requestedHostMode = process.env.DREAM_HOST_MODE?.trim() || "";
 
 // Diagnostic only: opt-in via env var to test whether software rendering is
 // caused by Chromium's GPU blocklist (do NOT enable in production builds —
@@ -169,58 +168,94 @@ try {
     );
   }
 } catch (error) {
-  if (hostMode !== "desktop") throw error;
   // The workspace stays where it was, with the one shared writer it had:
   // nothing is lost, and the move is tried again at the next start.
   console.error("Could not move the workspace to its own database:", error);
 }
 
-// The home host runs here by default, or in the installed service when
-// requested. Both use this desktop's identity and catalog in userData.
-const host =
-  hostMode === "remote"
-    ? createRemoteOnlyHost({
-        resolveRemoteHost: (id) => desktopConnections.getEndpoint(id),
-        resolveProviderHost: () => desktopConnections.getFirstEndpoint(),
-      })
-    : hostMode === "service"
-      ? createServiceHostAttachment({
-          dataDirectory: APP_USER_DATA_PATH,
-          home: path.resolve(getHostHome()),
-          resolveRemoteHost: (hostId) => desktopConnections.getEndpoint(hostId),
-          stateDatabasePath: STATE_DATABASE_PATH,
-        })
-      : createHost({
-          // The browser client paired devices load: this app's renderer build.
+// One desktop per workspace: two would be two writers of one file. A host
+// in this process on the shared database takes the state lock instead.
+let releaseWorkspaceLock = () => {};
+if (workspaceSeparate) {
+  try {
+    releaseWorkspaceLock = acquireStateLock(WORKSPACE_DATABASE_PATH, {
+      kind: "desktop",
+    });
+  } catch (error) {
+    if (!(error instanceof StateLockedError)) throw error;
+    dialog.showErrorBox(
+      "Dream is already running",
+      `Another Dream window (process ${error.holder?.pid ?? "unknown"}) is using this workspace. Switch to it, or quit it first.`,
+    );
+    process.exit(1);
+  }
+}
+
+// The home host: the host running on this desktop's database (whoever
+// started it) or one the desktop starts, or inside this process. All of them use this desktop's identity and catalog.
+const resolvedHostMode = resolveDesktopHostMode({
+  envMode: requestedHostMode,
+  workspaceSeparate,
+});
+const resolveRemoteHost = (hostId) => desktopConnections.getEndpoint(hostId);
+const createInProcessHost = () =>
+  createHost({
+    // The browser client paired devices load: this app's renderer build.
+    clientDirectory: path.join(__dirname, "..", "dist"),
+    dataDirectory: APP_USER_DATA_PATH,
+    diagnosticsEnabled: !app.isPackaged,
+    kind: "desktop",
+    // Only while the workspace could not move out: then the host's catalog
+    // writes share the workspace's queue, one writer for the one file.
+    ...(workspaceSeparate
+      ? {}
+      : {
+          getStateWriter: () => ({
+            applyCatalogChanges: (changes) =>
+              getStateSaveQueue().applyCatalogChanges(changes),
+            mutateRunQueue: (operation) =>
+              getStateSaveQueue().mutateRunQueue(operation),
+            ready: () => getStateSaveQueue().ready(),
+            saveChatMessages: (payload) =>
+              getStateSaveQueue().saveChatMessages(payload),
+            saveProviderSession: (payload) =>
+              getStateSaveQueue().saveProviderSession(payload),
+            settled: () => getStateSaveQueue().settled(),
+            writeDeviceSession: (operation) =>
+              getStateSaveQueue().writeDeviceSession(operation),
+          }),
+        }),
+    version: dreamVersion,
+    // Requests for SSH-host projects go through the local API to the host's
+    // forwarded port (api/host-proxy-routes.js).
+    resolveRemoteHost,
+  });
+
+const host = (() => {
+  switch (resolvedHostMode.mode) {
+    case "detached":
+      // A host that cannot start in its own process, with nothing else on
+      // the data, leaves the window working with a host in this one.
+      return withInProcessFallback({
+        attached: createHomeHostAttachment({
           clientDirectory: path.join(__dirname, "..", "dist"),
           dataDirectory: APP_USER_DATA_PATH,
           diagnosticsEnabled: !app.isPackaged,
-          kind: "desktop",
-          // Only while the workspace could not move out: then the host's catalog
-          // writes share the workspace's queue, one writer for the one file.
-          ...(workspaceSeparate
-            ? {}
-            : {
-                getStateWriter: () => ({
-                  applyCatalogChanges: (changes) =>
-                    getStateSaveQueue().applyCatalogChanges(changes),
-                  mutateRunQueue: (operation) =>
-                    getStateSaveQueue().mutateRunQueue(operation),
-                  ready: () => getStateSaveQueue().ready(),
-                  saveChatMessages: (payload) =>
-                    getStateSaveQueue().saveChatMessages(payload),
-                  saveProviderSession: (payload) =>
-                    getStateSaveQueue().saveProviderSession(payload),
-                  settled: () => getStateSaveQueue().settled(),
-                  writeDeviceSession: (operation) =>
-                    getStateSaveQueue().writeDeviceSession(operation),
-                }),
-              }),
+          resolveRemoteHost,
+          stateDatabasePath: STATE_DATABASE_PATH,
           version: dreamVersion,
-          // Requests for SSH-host projects go through the local API to the host's
-          // forwarded port (api/host-proxy-routes.js).
-          resolveRemoteHost: (hostId) => desktopConnections.getEndpoint(hostId),
-        });
+        }),
+        createInProcess: createInProcessHost,
+        fallBack: true,
+        stateDatabasePath: STATE_DATABASE_PATH,
+      });
+    default:
+      return createInProcessHost();
+  }
+})();
+
+/** The host mode now: a detached host that could not start fell back. */
+const currentHostMode = () => host.mode ?? resolvedHostMode.mode;
 
 let mainWindow = null;
 let updateManager = null;
@@ -294,7 +329,7 @@ const desktopConnections = createDesktopHostConnections({
     });
   },
   stateDirectory: path.join(os.homedir(), ".dream", "ssh"),
-  // A host without its own host command gets this version installed. A
+  // Every SSH host gets this version's host runtime installed. A
   // development build has nothing published: its runtime is built on the
   // host from the working tree (pnpm host:install-dev <target>).
   runtimeVersion: app.isPackaged ? dreamVersion : DEV_RUNTIME_VERSION,
@@ -319,8 +354,8 @@ function isDevToolsShortcut(input) {
   );
 }
 
-// Stop desktop-owned terminals before unload. A service attachment owns
-// no processes, so its guard only reloads/detaches the page.
+// Stop desktop-owned terminals before unload. With a detached host the
+// desktop owns no processes, so its guard only reloads/detaches the page.
 const rendererUnloadGuard = createRendererUnloadGuard({
   processes: processSessionManager,
 });
@@ -647,7 +682,7 @@ ipcMain.on(DESKTOP_SYNC_CHANNELS.initialThemePreferences, (event) => {
 });
 
 ipcMain.on(DESKTOP_SYNC_CHANNELS.hostMode, (event) => {
-  event.returnValue = hostMode;
+  event.returnValue = currentHostMode();
 });
 
 // Every desktop method the renderer calls (desktop-handlers.js), on its
@@ -706,7 +741,7 @@ app
 
     rendererServerManager = await createStartupRendererServerManager();
     await rendererServerManager.start();
-    // Remote access as the user left it (Settings > Remote access). Never
+    // Remote access as the user left it (Settings > Connections). Never
     // holds the window up: its setup can wait on Tailscale.
     void host
       .startRemoteAccess()
@@ -741,7 +776,7 @@ app
 
     await createMainWindow();
     if (devLogger) {
-      mainWindow.webContents.on("console-message", (_event, details) => {
+      mainWindow.webContents.on("console-message", (details) => {
         devLogger.log(`renderer:${details.level}`, details.message);
       });
     }
@@ -780,12 +815,12 @@ app.on("before-quit", (event) => {
 
   Promise.resolve()
     .then(async () => {
-      if (hostMode === "desktop") await stopCodexAppServer();
       await host.close();
       await desktopConnections.disconnectAll();
       await rendererServerManager?.stop();
       await stateSaveQueue?.flushAndClose();
       closePersistedStateDatabase();
+      releaseWorkspaceLock();
     })
     .catch((error) => {
       console.error("Error during quit cleanup:", error);

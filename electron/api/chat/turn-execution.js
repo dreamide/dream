@@ -79,6 +79,8 @@ export const createTurnRecorder = ({
   };
 
   return {
+    // The chat this turn belongs to (agent-turn.js announces its approvals).
+    chatId,
     done,
     onChunk,
     onFailure: (error) => {

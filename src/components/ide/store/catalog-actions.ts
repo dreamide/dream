@@ -37,6 +37,7 @@ export const createCatalogActions = (
   | "loadHostCatalog"
   | "refreshHostCatalog"
   | "setHostTurnRunning"
+  | "setHostChatAwaitingApproval"
 > => {
   const applyCatalogChanges: IdeState["applyCatalogChanges"] = (
     changes,
@@ -72,8 +73,15 @@ export const createCatalogActions = (
     });
   };
 
-  /** Replaces the running turns this host reports. */
-  const setRunning = (hostId: string, chatIds: string[]) => {
+  /**
+   * Replaces this host's chats in one of the host chat sets (running turns,
+   * awaiting approvals), keeping other hosts' entries.
+   */
+  const replaceHostChats = (
+    field: "hostRunningChatIds" | "hostAwaitingApprovalChatIds",
+    hostId: string,
+    chatIds: string[],
+  ) => {
     const state = get();
     const projectsById = new Map(
       [...state.projects, ...state.closedProjects].map((project) => [
@@ -87,11 +95,27 @@ export const createCatalogActions = (
       return project ? getProjectHostId(project) : LOCAL_HOST_ID;
     };
     const next: Record<string, true> = {};
-    for (const chatId of Object.keys(state.hostRunningChatIds)) {
+    for (const chatId of Object.keys(state[field])) {
       if (hostOfChat(chatId) !== hostId) next[chatId] = true;
     }
     for (const chatId of chatIds) next[chatId] = true;
-    set({ hostRunningChatIds: next });
+    set({ [field]: next });
+  };
+  /** What a host's catalog says is running and waiting on it now. */
+  const setRunning = (
+    hostId: string,
+    catalog: { runningChatIds?: string[]; awaitingApprovalChatIds?: string[] },
+  ) => {
+    replaceHostChats(
+      "hostRunningChatIds",
+      hostId,
+      catalog.runningChatIds ?? [],
+    );
+    replaceHostChats(
+      "hostAwaitingApprovalChatIds",
+      hostId,
+      catalog.awaitingApprovalChatIds ?? [],
+    );
   };
 
   return {
@@ -148,7 +172,26 @@ export const createCatalogActions = (
       const next = { ...current };
       if (running) next[chatId] = true;
       else delete next[chatId];
+      // A turn that ended waits on nothing.
+      if (!running && get().hostAwaitingApprovalChatIds[chatId]) {
+        const awaiting = { ...get().hostAwaitingApprovalChatIds };
+        delete awaiting[chatId];
+        set({
+          hostAwaitingApprovalChatIds: awaiting,
+          hostRunningChatIds: next,
+        });
+        return;
+      }
       set({ hostRunningChatIds: next });
+    },
+
+    setHostChatAwaitingApproval: (chatId, awaiting) => {
+      const current = get().hostAwaitingApprovalChatIds;
+      if (Boolean(current[chatId]) === awaiting) return;
+      const next = { ...current };
+      if (awaiting) next[chatId] = true;
+      else delete next[chatId];
+      set({ hostAwaitingApprovalChatIds: next });
     },
 
     loadHostCatalog: (hostId) =>
@@ -179,13 +222,13 @@ export const createCatalogActions = (
           projects: after.projects.filter(onHost),
         });
         markHostLoaded(hostId);
-        setRunning(hostId, catalog.runningChatIds ?? []);
+        setRunning(hostId, catalog);
       }),
 
     reloadCatalog: async (hostId = LOCAL_HOST_ID) => {
       if (!get().stateHydrated) return;
       await hostCatalogLifecycle(set, get).read(hostId, (catalog) => {
-        setRunning(hostId, catalog.runningChatIds ?? []);
+        setRunning(hostId, catalog);
         const state = get();
         const sync = getCatalogSync(hostId);
         const catalogProjectIds = new Set(

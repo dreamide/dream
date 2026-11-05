@@ -12,7 +12,11 @@ export default defineConfig({
     // empty so dotenv cannot restore it; host tests configure their temp paths.
     env: { DREAM_DB_PATH: "" },
     environment: "node",
-    include: ["electron/**/*.test.js", "src/**/*.test.ts"],
+    include: [
+      "electron/**/*.test.js",
+      "scripts/**/*.test.js",
+      "src/**/*.test.ts",
+    ],
     exclude: ["**/node_modules/**", "dist/**", "release/**", "build/**"],
   },
 });
