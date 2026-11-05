@@ -10,6 +10,7 @@ import {
   describeMcp,
   describeRead,
   describeSearch,
+  describeSessionFile,
   describeTaskOutput,
   describeWebFetch,
   describeWrite,
@@ -483,4 +484,35 @@ test("a tool search for only the direct web tools is redundant", () => {
     false,
   );
   assert.equal(isDirectWebToolSearch({ input: { query: "databases" } }), false);
+});
+
+// ── Session files ─────────────────────────────────────────────────────
+
+test("a Grok image tool's output names its file in the session folder", () => {
+  assert.deepEqual(
+    describeSessionFile({
+      output: {
+        filename: "1.jpg",
+        path: "/Users/me/.grok/sessions/%2FUsers%2Fme%2Fapp/s1/images/1.jpg",
+        session_folder: "images",
+        type: "ImageEdit",
+      },
+    }),
+    {
+      path: "/Users/me/.grok/sessions/%2FUsers%2Fme%2Fapp/s1/images/1.jpg",
+      sessionPath: "images/1.jpg",
+    },
+  );
+});
+
+test("other tool outputs name no session file", () => {
+  for (const output of [
+    undefined,
+    "images/1.jpg",
+    { path: "/tmp/1.jpg" },
+    { filename: "1.jpg", path: "/tmp/1.jpg" },
+    { filename: "", path: "/tmp/1.jpg", session_folder: "images" },
+  ]) {
+    assert.equal(describeSessionFile({ output }), null);
+  }
 });

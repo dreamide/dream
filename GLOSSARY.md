@@ -587,6 +587,15 @@ readers that turn a tool's raw input and output into the typed fields its
 chip shows (a **tool call** descriptor). A new tool spelling, or a new input
 or output shape, is a change to that file alone.
 
+## Session file
+
+A file an agent saved in its own session folder, outside the project, and links
+by a path relative to that folder (Grok Build's `images/1.jpg`). Its tool part
+reports the absolute path (`describeSessionFile`). A chat link resolves against
+the session files known as of its own message
+(`src/components/ide/chat/session-files.tsx`), because a later session can reuse
+the name, and otherwise against the project.
+
 ## Provider
 
 One of the agent CLIs Dream can run a chat through: `openai` (Codex),

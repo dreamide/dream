@@ -142,3 +142,47 @@ test("rewrites out-of-project absolute links to the external-file prefix", () =>
     "see [notes](</__dream_external_file__/Users/mike/notes.md>)",
   );
 });
+
+test("keeps percent-encoded separators in a folder name literal", () => {
+  const sessionImage =
+    "/Users/mike/.grok/sessions/%2FUsers%2Fmike%2Fumami/s1/images/1.jpg";
+  assert.equal(
+    getExternalFilePathFromHref(sessionImage, "/Users/mike/umami"),
+    sessionImage,
+  );
+  assert.equal(
+    getExternalFilePathFromHref(
+      "/__dream_external_file__/Users/mike/.grok/sessions/%2FUsers%2Fmike%2Fumami/s1/images/1.jpg",
+      "/Users/mike/umami",
+    ),
+    sessionImage,
+  );
+  assert.equal(
+    normalizeProjectFileLinksInMarkdown(
+      `[poster](${sessionImage})`,
+      "/Users/mike/umami",
+    ),
+    "[poster](</__dream_external_file__/Users/mike/.grok/sessions/%2FUsers%2Fmike%2Fumami/s1/images/1.jpg>)",
+  );
+  assert.equal(
+    getExternalFilePathFromHref(
+      "E:/.grok/sessions/E%3A%5Cdev%5Cumami/s1/images/1.jpg",
+      "e:/dev/umami",
+    ),
+    "E:/.grok/sessions/E%3A%5Cdev%5Cumami/s1/images/1.jpg",
+  );
+});
+
+test("still decodes other percent-encoded characters", () => {
+  assert.equal(
+    getExternalFilePathFromHref(
+      "file:///Users/mike/my%20notes/a%20b.md",
+      "/Users/mike/umami",
+    ),
+    "/Users/mike/my notes/a b.md",
+  );
+  assert.equal(
+    getProjectFilePathFromHref("src/my%20file.ts", "/Users/mike/umami"),
+    "src/my file.ts",
+  );
+});

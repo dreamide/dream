@@ -23,6 +23,7 @@ export {
   describeMcp,
   describeRead,
   describeSearch,
+  describeSessionFile,
   describeTaskOutput,
   describeWebFetch,
   describeWrite,
