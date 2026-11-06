@@ -76,6 +76,7 @@ export const REMOTE_ROUTE_POLICY = Object.freeze({
   // Git
   "POST /api/project-git-status": "view",
   "POST /api/project-git-branches": "view",
+  "POST /api/project-git-branch-delete-preview": "view",
   "POST /api/project-git-worktrees": "view",
   "POST /api/project-git-remote-url": "view",
   "POST /api/project-git-push-preview": "view",
@@ -86,6 +87,7 @@ export const REMOTE_ROUTE_POLICY = Object.freeze({
   "POST /api/project-git-diff": "view",
   "GET /api/project-git-file-at-head-raw": "view",
   "POST /api/project-git-checkout": "operate",
+  "POST /api/project-git-branch-delete": "operate",
   "POST /api/project-git-worktree-create": "operate",
   "POST /api/project-git-commit": "operate",
   "POST /api/project-git-commit-message": "operate",

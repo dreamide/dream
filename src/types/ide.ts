@@ -612,8 +612,14 @@ export interface ProjectGitStatusResponse {
   upstreamBranch: string | null;
 }
 
+/** Why a listed branch cannot be deleted from where it is listed. */
+export type ProjectGitBranchDeleteBlock = "base" | "current" | "main-checkout";
+
 export interface ProjectGitBranchEntry {
+  /** The worktree that has the branch checked out, if any. */
+  checkedOutAt: string | null;
   current: boolean;
+  deleteBlockedReason: ProjectGitBranchDeleteBlock | null;
   name: string;
 }
 
@@ -626,6 +632,27 @@ export interface ProjectGitBranchesResponse {
 
 export interface ProjectGitCheckoutResponse extends ProjectGitBranchesResponse {
   created: boolean;
+}
+
+export interface ProjectGitBranchDeleteResponse
+  extends ProjectGitBranchesResponse {
+  deleted: string;
+}
+
+/** What deleting a branch would cost, and what stands in its way. */
+export interface ProjectGitBranchDeletePreview {
+  baseBranch: string | null;
+  blockedReason: ProjectGitBranchDeleteBlock | null;
+  branch: string;
+  /** The worktree that would have to go with the branch, if any. */
+  checkedOutAt: string | null;
+  /** Sent back as the confirmed head to delete an unmerged branch. */
+  head: string | null;
+  /** Commits that are in neither the base branch nor on any remote. */
+  localOnlyCount: number | null;
+  pullRequest: ProjectGitPullRequest | null;
+  /** Commits not in the base branch; null when there is none to compare. */
+  unmergedCount: number | null;
 }
 
 export interface ProjectGitWorktreeInfo {

@@ -11,7 +11,8 @@ import { getApiErrorMessage } from "@/lib/api-client";
 /**
  * A project's local branches, from the project resource cache (read again
  * when the project's git refresh key moves while `active`), and switching
- * between them (a git write of `projectId`: store/git-write-actions.ts).
+ * between them or deleting one (git writes of `projectId`:
+ * store/git-write-actions.ts).
  */
 export const useProjectGitBranches = (
   projectPath: string | null | undefined,
@@ -28,6 +29,7 @@ export const useProjectGitBranches = (
     projectId: string;
   },
 ) => {
+  const branchT = useTranslations("branches");
   const uiT = useTranslations("ui");
   const path = projectPath?.trim() ?? "";
   const key = useMemo(
@@ -82,6 +84,33 @@ export const useProjectGitBranches = (
     [key, projectId, uiT],
   );
 
+  /** Answers once the branch is gone; throws a displayable error if not. */
+  const deleteBranch = useCallback(
+    async (branchName: string, confirmedHead: string | null) => {
+      if (!key) {
+        throw new Error(uiT("noActiveProjectSelected"));
+      }
+
+      setSwitching(true);
+      const outcome = await useIdeStore
+        .getState()
+        .deleteProjectBranch(projectId, branchName, { confirmedHead });
+      setSwitching(false);
+      if (outcome.ok) {
+        projectResources.set(key, outcome.result);
+        return;
+      }
+      throw new Error(
+        getApiErrorMessage(
+          outcome.error,
+          branchT("unableToDeleteBranch"),
+          (status) => uiT("requestFailedStatus", { status }),
+        ),
+      );
+    },
+    [branchT, key, projectId, uiT],
+  );
+
   const clearError = useCallback(() => {
     setCheckoutError(null);
     setDismissedError(resource.error);
@@ -93,6 +122,7 @@ export const useProjectGitBranches = (
     checkoutBranch,
     clearError,
     currentBranch: status?.currentBranch ?? null,
+    deleteBranch,
     error: checkoutError ?? readError,
     isRepo: status?.isRepo ?? false,
     loading: resource.loading,

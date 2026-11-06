@@ -148,6 +148,15 @@ export const gitRefExists = async (repoRoot, ref) => {
 const getGitDefaultBranch = (repoRoot, remoteName) =>
   gitRepositories.defaultBranch(repoRoot, remoteName);
 
+/** The repository's base branch and the remote it was read from. */
+export const readGitBaseBranch = async (repoRoot) => {
+  const remoteName = await getPreferredGitRemote(repoRoot);
+  return {
+    baseBranch: await getGitDefaultBranch(repoRoot, remoteName),
+    remoteName,
+  };
+};
+
 /**
  * The upstream of the checked-out branch, or of `branch` when given, as
  * `remote/branch`.
@@ -597,6 +606,80 @@ export const listProjectGitBranches = (projectPath) =>
     readProjectGitBranches(projectPath),
   );
 
+export const parseWorktreePorcelain = (output) => {
+  const worktrees = [];
+  let current = null;
+
+  const pushCurrent = () => {
+    if (current?.path) {
+      worktrees.push({
+        bare: current.bare === true,
+        branch: current.branch ?? null,
+        commit: current.commit ?? null,
+        detached: current.detached === true,
+        locked: current.locked === true,
+        path: current.path,
+        prunable: current.prunable === true,
+      });
+    }
+    current = null;
+  };
+
+  for (const line of output.split(/\r?\n/)) {
+    if (!line.trim()) {
+      pushCurrent();
+      continue;
+    }
+
+    if (line.startsWith("worktree ")) {
+      pushCurrent();
+      current = { path: line.slice("worktree ".length).trim() };
+      continue;
+    }
+
+    if (!current) {
+      continue;
+    }
+
+    if (line.startsWith("HEAD ")) {
+      current.commit = line.slice("HEAD ".length).trim() || null;
+    } else if (line.startsWith("branch ")) {
+      current.branch =
+        line
+          .slice("branch ".length)
+          .trim()
+          .replace(/^refs\/heads\//, "") || null;
+    } else if (line === "detached") {
+      current.detached = true;
+    } else if (line === "bare") {
+      current.bare = true;
+    } else if (line.startsWith("locked")) {
+      current.locked = true;
+    } else if (line.startsWith("prunable")) {
+      current.prunable = true;
+    }
+  }
+
+  pushCurrent();
+  return worktrees;
+};
+
+/**
+ * Why a branch cannot be deleted from where it is listed. A branch checked out
+ * in a linked worktree is not among these: the worktree can be removed with it.
+ */
+const readBranchDeleteBlock = (
+  name,
+  { baseBranch, checkedOutAt, currentBranch, mainWorktreePath },
+) => {
+  if (name === currentBranch) return "current";
+  if (name === baseBranch) return "base";
+  if (checkedOutAt !== null && checkedOutAt === mainWorktreePath) {
+    return "main-checkout";
+  }
+  return null;
+};
+
 const readProjectGitBranches = async (projectPath) => {
   const repoInfo = await getGitRepositoryInfo(projectPath);
   if (!repoInfo.isRepo || !repoInfo.repoRoot) {
@@ -608,11 +691,22 @@ const readProjectGitBranches = async (projectPath) => {
     };
   }
 
-  const branchResult = await runGitCommand(repoInfo.repoRoot, [
-    "for-each-ref",
-    "--format=%(refname:short)",
-    "refs/heads",
+  const [branchResult, worktreeResult, { baseBranch }] = await Promise.all([
+    runGitCommand(repoInfo.repoRoot, [
+      "for-each-ref",
+      "--format=%(refname:short)",
+      "refs/heads",
+    ]),
+    runGitCommand(repoInfo.repoRoot, ["worktree", "list", "--porcelain"], {
+      allowFailure: true,
+    }),
+    readGitBaseBranch(repoInfo.repoRoot),
   ]);
+  const worktrees = worktreeResult.ok
+    ? parseWorktreePorcelain(worktreeResult.stdout)
+    : [];
+  const mainWorktreePath =
+    worktrees.find((worktree) => !worktree.bare)?.path ?? null;
   const currentBranch = repoInfo.branch;
   const branchNames = branchResult.stdout
     .split(/\r?\n/)
@@ -631,10 +725,21 @@ const readProjectGitBranches = async (projectPath) => {
     });
 
   return {
-    branches: branchNames.map((name) => ({
-      current: name === currentBranch,
-      name,
-    })),
+    branches: branchNames.map((name) => {
+      const checkedOutAt =
+        worktrees.find((worktree) => worktree.branch === name)?.path ?? null;
+      return {
+        checkedOutAt,
+        current: name === currentBranch,
+        deleteBlockedReason: readBranchDeleteBlock(name, {
+          baseBranch,
+          checkedOutAt,
+          currentBranch,
+          mainWorktreePath,
+        }),
+        name,
+      };
+    }),
     currentBranch,
     isRepo: true,
     repoRoot: repoInfo.repoRoot,

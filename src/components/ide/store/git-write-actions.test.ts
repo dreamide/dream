@@ -232,6 +232,46 @@ test("every write runs on its project's own host", async () => {
   ]);
 });
 
+test("deleting a branch sends the confirmed head and refreshes the project", async () => {
+  const answer = {
+    branches: [],
+    currentBranch: "main",
+    deleted: "topic",
+    isRepo: true,
+    repoRoot: "/work/app",
+  };
+  const { api, local, store } = createTestStore({
+    gitBranchDelete: () => answer,
+  });
+
+  const merged = await store.getState().deleteProjectBranch(local.id, "topic");
+  const unmerged = await store
+    .getState()
+    .deleteProjectBranch(local.id, "other", { confirmedHead: "abc" });
+
+  expect(merged).toEqual({ ok: true, result: answer });
+  expect(unmerged).toEqual({ ok: true, result: answer });
+  expect(api.calls.map((call) => call.request)).toEqual([
+    { branchName: "topic", confirmedHead: null, projectPath: local.path },
+    { branchName: "other", confirmedHead: "abc", projectPath: local.path },
+  ]);
+  expect(refreshKey(store, local.id)).toBe(2);
+  expect(store.getState().gitWriteByProject).toEqual({});
+});
+
+test("a refused branch delete answers the failure and still refreshes", async () => {
+  const { local, store } = createTestStore({
+    gitBranchDelete: () => {
+      throw fakeApiError("gitBranchDelete", 409, "not merged");
+    },
+  });
+
+  const outcome = await store.getState().deleteProjectBranch(local.id, "topic");
+
+  expect(outcome.ok).toBe(false);
+  expect(refreshKey(store, local.id)).toBe(1);
+});
+
 test("a project that is not open is not written to", async () => {
   const { api, store } = createTestStore();
   const outcome = await store.getState().pushProject("gone");

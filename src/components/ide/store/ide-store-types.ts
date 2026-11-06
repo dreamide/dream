@@ -44,6 +44,7 @@ export type GitWrite =
   | "checkout"
   | "commit"
   | "commit-push"
+  | "delete-branch"
   | "fetch"
   | "pull"
   | "pull-request"
@@ -278,6 +279,8 @@ export interface IdeState {
   forgetWorktree: (options: {
     /** The branch as listed; resolved from the project record when omitted. */
     branch?: string | null;
+    /** The branch head agreed to be lost, for an unmerged branch. */
+    confirmedBranchHead?: string | null;
     deleteBranch?: boolean;
     force?: boolean;
     /** The host the worktree is on; the local host when absent. */
@@ -506,6 +509,11 @@ export interface IdeState {
     branchName: string,
     options?: { create?: boolean },
   ) => Promise<GitWriteOutcome<ApiResponseOf<"gitCheckout">>>;
+  deleteProjectBranch: (
+    projectId: string,
+    branchName: string,
+    options?: { confirmedHead?: string | null },
+  ) => Promise<GitWriteOutcome<ApiResponseOf<"gitBranchDelete">>>;
   createProjectPullRequest: (
     projectId: string,
     request: Omit<ApiRequestOf<"gitCreatePullRequest">, "projectPath">,

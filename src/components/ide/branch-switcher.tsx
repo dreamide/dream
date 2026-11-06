@@ -1,4 +1,4 @@
-import { Check, FolderTree, GitBranch, Plus } from "lucide-react";
+import { Check, FolderTree, GitBranch, Plus, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitBranches } from "@/hooks/use-project-git-branches";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { cn } from "@/lib/utils";
+import { branchDeleteBlockedKey } from "./git-actions/branch-delete-summary";
+import { DeleteBranchDialog } from "./git-actions/delete-branch-dialog";
 import { useIdeStore } from "./ide-store";
 
 const normalizeBranchName = (value: string) => value.trim();
@@ -73,6 +75,7 @@ const BranchSwitcherImpl = ({
     checkoutBranch,
     clearError,
     currentBranch: listedBranch,
+    deleteBranch,
     error,
     loading,
     refresh,
@@ -86,6 +89,9 @@ const BranchSwitcherImpl = ({
 
   const [open, setOpen] = useState(false);
   const [createBranchOpen, setCreateBranchOpen] = useState(false);
+  const [pendingDeleteBranch, setPendingDeleteBranch] = useState<string | null>(
+    null,
+  );
   const [listScrolled, setListScrolled] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [createBranchName, setCreateBranchName] = useState("");
@@ -251,6 +257,43 @@ const BranchSwitcherImpl = ({
                         <span className="min-w-0 flex-1 truncate">
                           {branch.name}
                         </span>
+                        {/* A row of the list: a click or key here must not
+                            also select the row, which checks the branch out. */}
+                        {/* biome-ignore lint/a11y/noStaticElementInteractions: only stops events reaching the row */}
+                        <span
+                          className="opacity-0 focus-within:opacity-100 group-hover/command-item:opacity-100 group-data-selected/command-item:opacity-100"
+                          onClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => event.stopPropagation()}
+                          title={
+                            branch.deleteBlockedReason
+                              ? branchT(
+                                  branchDeleteBlockedKey(
+                                    branch.deleteBlockedReason,
+                                  ),
+                                )
+                              : branchT("deleteBranch")
+                          }
+                        >
+                          <Button
+                            aria-label={branchT("deleteNamedBranch", {
+                              name: branch.name,
+                            })}
+                            className="size-5 rounded-sm p-0 text-muted-foreground hover:bg-surface-200 hover:text-destructive dark:hover:bg-surface-800"
+                            disabled={
+                              switching || branch.deleteBlockedReason !== null
+                            }
+                            onClick={() => {
+                              clearError();
+                              setOpen(false);
+                              setPendingDeleteBranch(branch.name);
+                            }}
+                            size="icon-sm"
+                            type="button"
+                            variant="ghost"
+                          >
+                            <Trash2 className="size-3" />
+                          </Button>
+                        </span>
                         <Check
                           className={cn(
                             "absolute right-2 size-3.5 text-foreground transition-opacity",
@@ -322,6 +365,17 @@ const BranchSwitcherImpl = ({
           </Command>
         </PopoverContent>
       </Popover>
+
+      {pendingDeleteBranch ? (
+        <DeleteBranchDialog
+          branchName={pendingDeleteBranch}
+          hostId={projectHostId}
+          onClose={() => setPendingDeleteBranch(null)}
+          onDelete={deleteBranch}
+          projectId={projectId}
+          projectPath={projectPath}
+        />
+      ) : null}
 
       <Dialog onOpenChange={setCreateBranchOpen} open={createBranchOpen}>
         <DialogContent>

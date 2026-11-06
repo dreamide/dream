@@ -2,14 +2,6 @@ import { Archive, FolderTree, FolderX, Pin, PinOff } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
@@ -21,6 +13,7 @@ import type {
   ProjectGitWorktreeInfo,
 } from "@/types/ide";
 import { formatLastActiveTime } from "./activity-time";
+import { RemoveWorktreeDialog } from "./git-actions/remove-worktree-dialog";
 import { normalizeProjectPathKey } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import { projectResourceKey, useProjectResource } from "./project-resources";
@@ -71,7 +64,6 @@ export const ProjectSidebar = ({
   visible?: boolean;
 }) => {
   const locale = useLocale();
-  const commonT = useTranslations("common");
   const projectsT = useTranslations("projects");
   const panelsT = useTranslations("panels");
   const worktreeT = useTranslations("worktrees");
@@ -96,11 +88,6 @@ export const ProjectSidebar = ({
   const toggleChatPinned = useIdeStore((s) => s.toggleChatPinned);
   const addProject = useIdeStore((s) => s.addProject);
   const attachWorktreeProject = useIdeStore((s) => s.attachWorktreeProject);
-  const forgetWorktree = useIdeStore((s) => s.forgetWorktree);
-  const purgeWorktreeProject = useIdeStore((s) => s.purgeWorktreeProject);
-  const bumpProjectGitRefreshKey = useIdeStore(
-    (s) => s.bumpProjectGitRefreshKey,
-  );
   const {
     loading: worktreesLoading,
     repoPaths,
@@ -108,12 +95,8 @@ export const ProjectSidebar = ({
   } = useAppManagedWorktrees(project.path, visible);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [removingWorktreePath, setRemovingWorktreePath] = useState<
-    string | null
-  >(null);
   const [pendingRemoveWorktree, setPendingRemoveWorktree] =
     useState<ProjectGitWorktreeInfo | null>(null);
-  const [worktreeError, setWorktreeError] = useState<string | null>(null);
 
   const activeProjectChats = useMemo<ChatConfig[]>(() => {
     return allChats
@@ -180,52 +163,7 @@ export const ProjectSidebar = ({
     ],
   );
 
-  const handleRemoveWorktree = useCallback(async () => {
-    if (!pendingRemoveWorktree) {
-      return;
-    }
-
-    setRemovingWorktreePath(pendingRemoveWorktree.path);
-    setWorktreeError(null);
-    try {
-      await forgetWorktree({
-        branch: pendingRemoveWorktree.branch,
-        hostId: project.hostId,
-        mainWorktreePath: project.path,
-        worktreePath: pendingRemoveWorktree.path,
-      });
-      purgeWorktreeProject(pendingRemoveWorktree.path, {
-        hostId: project.hostId,
-      });
-      setPendingRemoveWorktree(null);
-    } catch (error) {
-      setWorktreeError(
-        error instanceof Error ? error.message : worktreeT("unableToRemove"),
-      );
-    } finally {
-      bumpProjectGitRefreshKey(project.id);
-      setRemovingWorktreePath(null);
-    }
-  }, [
-    bumpProjectGitRefreshKey,
-    forgetWorktree,
-    pendingRemoveWorktree,
-    project.id,
-    project.path,
-    purgeWorktreeProject,
-    worktreeT,
-    project.hostId,
-  ]);
-
   const activeProjectPathKey = normalizeProjectPathKey(project.path);
-  const pendingRemoveWorktreeLabel =
-    pendingRemoveWorktree?.branch ??
-    pendingRemoveWorktree?.path ??
-    worktreeT("worktree");
-  const isRemovingPendingWorktree =
-    !!pendingRemoveWorktree &&
-    removingWorktreePath === pendingRemoveWorktree.path;
-
   return (
     <div
       id="projects-panel"
@@ -257,7 +195,6 @@ export const ProjectSidebar = ({
                 const isActiveWorktree =
                   normalizeProjectPathKey(worktree.path) ===
                   activeProjectPathKey;
-                const removing = removingWorktreePath === worktree.path;
 
                 return (
                   <div
@@ -297,10 +234,8 @@ export const ProjectSidebar = ({
                           name: worktree.branch ?? worktree.path,
                         })}
                         className="size-7 rounded-md p-0 text-muted-foreground hover:bg-muted hover:text-destructive"
-                        disabled={removing}
                         onClick={(event) => {
                           event.stopPropagation();
-                          setWorktreeError(null);
                           setPendingRemoveWorktree(worktree);
                         }}
                         size="icon-sm"
@@ -308,19 +243,12 @@ export const ProjectSidebar = ({
                         type="button"
                         variant="ghost"
                       >
-                        {removing ? (
-                          <Spinner className="size-3.5" />
-                        ) : (
-                          <FolderX className="size-3.5" />
-                        )}
+                        <FolderX className="size-3.5" />
                       </Button>
                     </div>
                   </div>
                 );
               })}
-              {worktreeError ? (
-                <p className="px-2 text-destructive text-sm">{worktreeError}</p>
-              ) : null}
             </section>
           ) : null}
 
@@ -464,63 +392,13 @@ export const ProjectSidebar = ({
           </section>
         </div>
       </ScrollArea>
-      <Dialog
-        onOpenChange={(open) => {
-          if (open || isRemovingPendingWorktree) {
-            return;
-          }
-
-          setPendingRemoveWorktree(null);
-        }}
-        open={!!pendingRemoveWorktree}
-      >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{worktreeT("removeWorktree")}</DialogTitle>
-            <DialogDescription>
-              {worktreeT.rich("removeDescription", {
-                name: pendingRemoveWorktreeLabel,
-                strong: (chunks) => (
-                  <span className="break-all font-medium text-foreground">
-                    {chunks}
-                  </span>
-                ),
-              })}
-            </DialogDescription>
-          </DialogHeader>
-          {worktreeError ? (
-            <p className="min-w-0 whitespace-pre-wrap break-words rounded-md border border-destructive-border bg-destructive-surface px-3 py-2 text-destructive text-sm">
-              {worktreeError}
-            </p>
-          ) : null}
-          <DialogFooter>
-            <Button
-              disabled={isRemovingPendingWorktree}
-              onClick={() => setPendingRemoveWorktree(null)}
-              type="button"
-              variant="outline"
-            >
-              {commonT("cancel")}
-            </Button>
-            <Button
-              disabled={isRemovingPendingWorktree}
-              onClick={() => {
-                void handleRemoveWorktree();
-              }}
-              variant="destructive"
-            >
-              {isRemovingPendingWorktree ? (
-                <>
-                  <Spinner className="size-4" />
-                  {worktreeT("removing")}
-                </>
-              ) : (
-                worktreeT("removeWorktree")
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {pendingRemoveWorktree ? (
+        <RemoveWorktreeDialog
+          onClose={() => setPendingRemoveWorktree(null)}
+          project={project}
+          worktree={pendingRemoveWorktree}
+        />
+      ) : null}
     </div>
   );
 };

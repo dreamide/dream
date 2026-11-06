@@ -228,6 +228,7 @@ export const createWorktreeActions = (
 
   forgetWorktree: async ({
     branch,
+    confirmedBranchHead = null,
     deleteBranch = false,
     force = false,
     hostId,
@@ -248,6 +249,7 @@ export const createWorktreeActions = (
       return await api.gitWorktreeCleanup(
         {
           branch: knownBranch,
+          confirmedBranchHead,
           deleteBranch,
           force,
           projectPath: mainWorktreePath,

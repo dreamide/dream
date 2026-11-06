@@ -13,6 +13,10 @@ import {
   pushProjectGitChanges,
 } from "./project-git/actions.js";
 import {
+  deleteProjectGitBranch,
+  previewProjectGitBranchDelete,
+} from "./project-git/branches.js";
+import {
   checkoutProjectGitBranch,
   getProjectGitDiff,
   getProjectGitFileAtHead,
@@ -35,6 +39,8 @@ import {
   projectFileRequestSchema,
   projectFilesRequestSchema,
   projectFileWriteRequestSchema,
+  projectGitBranchDeletePreviewRequestSchema,
+  projectGitBranchDeleteRequestSchema,
   projectGitBranchesRequestSchema,
   projectGitCheckoutRequestSchema,
   projectGitCommitMessageRequestSchema,
@@ -312,6 +318,24 @@ export const registerProjectGitRoutes = (app) => {
     ({ branchName, create, projectPath }) =>
       checkoutProjectGitBranch(projectPath, branchName, create),
     { errorMessage: "Unable to switch Git branches." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-branch-delete-preview",
+    projectGitBranchDeletePreviewRequestSchema,
+    ({ projectPath, ...options }) =>
+      previewProjectGitBranchDelete(projectPath, options),
+    { errorMessage: "Unable to check this branch." },
+  );
+
+  postProjectRoute(
+    app,
+    "/api/project-git-branch-delete",
+    projectGitBranchDeleteRequestSchema,
+    ({ projectPath, ...options }) =>
+      deleteProjectGitBranch(projectPath, options),
+    { errorMessage: "Unable to delete branch." },
   );
 
   postProjectRoute(

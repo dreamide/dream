@@ -29,6 +29,8 @@ import type {
   CheckpointRestoreResponse,
   HostDescriptor,
   McpServerTransport,
+  ProjectGitBranchDeletePreview,
+  ProjectGitBranchDeleteResponse,
   ProjectGitBranchesResponse,
   ProjectGitCheckoutResponse,
   ProjectGitCommitMessageResponse,
@@ -81,6 +83,8 @@ import type {
   projectFileRequestSchema,
   projectFilesRequestSchema,
   projectFileWriteRequestSchema,
+  projectGitBranchDeletePreviewRequestSchema,
+  projectGitBranchDeleteRequestSchema,
   projectGitBranchesRequestSchema,
   projectGitCheckoutRequestSchema,
   projectGitCommitMessageRequestSchema,
@@ -537,6 +541,14 @@ export const API_ROUTES = {
     Input<typeof projectGitCheckoutRequestSchema>,
     ProjectGitCheckoutResponse
   >("/api/project-git-checkout"),
+  gitBranchDeletePreview: post<
+    Input<typeof projectGitBranchDeletePreviewRequestSchema>,
+    ProjectGitBranchDeletePreview
+  >("/api/project-git-branch-delete-preview"),
+  gitBranchDelete: post<
+    Input<typeof projectGitBranchDeleteRequestSchema>,
+    ProjectGitBranchDeleteResponse
+  >("/api/project-git-branch-delete"),
   gitDiff: post<
     Input<typeof projectGitDiffRequestSchema>,
     ProjectGitDiffResponse

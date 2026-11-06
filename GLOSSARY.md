@@ -61,6 +61,17 @@ checkout, its branch once merged, and what Dream kept for the directory
 included. A worktree git has already forgotten is answered as gone (404),
 never by matching the error text.
 
+## Branch deletion
+
+Deleting a local branch (`electron/api/project-git/branches.js`). A branch is
+**merged** when every commit is in the repository's base branch, locally or on
+its remote. A merged branch can simply be deleted; an unmerged one (a
+squash-merged pull request's branch looks like one) only against a **confirmed
+head**, the commit the **delete preview** showed, so a branch that has moved
+since is kept. The current branch, the base branch and the main checkout's
+branch are never deleted. A branch checked out in a linked worktree goes only
+with that worktree. Remote branches are not touched.
+
 ## Project runtime state
 
 The maps the store keeps per project outside the project record: refresh

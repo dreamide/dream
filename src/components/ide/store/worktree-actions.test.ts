@@ -137,6 +137,7 @@ test("forgetWorktree sends the recorded branch and stops the worktree's terminal
       name: "gitWorktreeCleanup",
       request: {
         branch: "feature",
+        confirmedBranchHead: null,
         deleteBranch: true,
         force: false,
         projectPath: parent.path,

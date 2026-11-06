@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
+import { useBranchDeletePreview } from "@/hooks/use-branch-delete-preview";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
 import { cn } from "@/lib/utils";
@@ -35,8 +36,14 @@ import {
 } from "../diff-viewer";
 import { useIdeStore } from "../ide-store";
 import { MaterialFileIcon } from "../material-file-icon";
+import {
+  BranchDeleteSummary,
+  branchDeleteBlockedKey,
+  confirmedHeadFor,
+} from "./branch-delete-summary";
 import { CommitDialog } from "./commit-dialog";
 import { ActionError, DialogMetricRow, GitDialogHeader } from "./dialog-layout";
+import { InfoLine } from "./info-line";
 import { GitChangesDeltaSummary } from "./summary";
 
 type WorktreeProject = ProjectConfig & { worktree: ProjectWorktreeInfo };
@@ -184,28 +191,6 @@ const CompareFileRow = ({
   );
 };
 
-const InfoLine = ({
-  children,
-  tone = "muted",
-}: {
-  children: React.ReactNode;
-  tone?: "muted" | "warning";
-}) => (
-  <div
-    className={cn(
-      "flex items-start gap-2 text-xs",
-      tone === "warning"
-        ? "text-amber-600 dark:text-amber-400"
-        : "text-muted-foreground",
-    )}
-  >
-    {tone === "warning" ? (
-      <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-    ) : null}
-    <span>{children}</span>
-  </div>
-);
-
 const MergeResultLine = ({
   result,
 }: {
@@ -253,6 +238,7 @@ export const WorktreeActionDialog = ({
   open: boolean;
   project: WorktreeProject;
 }) => {
+  const branchT = useTranslations("branches");
   const commonT = useTranslations("common");
   const gitT = useTranslations("git");
   const worktreeT = useTranslations("worktrees");
@@ -272,6 +258,7 @@ export const WorktreeActionDialog = ({
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
   const [discardUncommitted, setDiscardUncommitted] = useState(false);
+  const [alsoDeleteBranch, setAlsoDeleteBranch] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflictingFiles, setConflictingFiles] = useState<string[]>([]);
   const [workingLabel, setWorkingLabel] = useState<string | null>(null);
@@ -283,8 +270,19 @@ export const WorktreeActionDialog = ({
     useState<ProjectGitWorktreeCleanupResponse | null>(null);
   const [cleanupError, setCleanupError] = useState<string | null>(null);
   const [retryingCleanup, setRetryingCleanup] = useState(false);
-  const cleanupOptionsRef = useRef<{ deleteBranch: boolean }>({
+  const cleanupOptionsRef = useRef<{
+    confirmedBranchHead: string | null;
+    deleteBranch: boolean;
+  }>({
+    confirmedBranchHead: null,
     deleteBranch: false,
+  });
+  const branchPreview = useBranchDeletePreview({
+    branchName: project.worktree.branch,
+    enabled: open && action === "remove" && alsoDeleteBranch,
+    hostId: project.hostId,
+    projectPath: project.worktree.mainWorktreePath,
+    removingWorktreePath: project.path,
   });
 
   useEffect(() => {
@@ -294,6 +292,7 @@ export const WorktreeActionDialog = ({
 
     setPhase("review");
     setDiscardUncommitted(false);
+    setAlsoDeleteBranch(false);
     setError(null);
     setConflictingFiles([]);
     setMergeResult(null);
@@ -358,14 +357,21 @@ export const WorktreeActionDialog = ({
   const mergeEnabled = Boolean(compare) && !mergeDisabledReason;
 
   const runCleanup = useCallback(
-    async ({ deleteBranch }: { deleteBranch: boolean }) => {
-      cleanupOptionsRef.current = { deleteBranch };
+    async ({
+      confirmedBranchHead = null,
+      deleteBranch,
+    }: {
+      confirmedBranchHead?: string | null;
+      deleteBranch: boolean;
+    }) => {
+      cleanupOptionsRef.current = { confirmedBranchHead, deleteBranch };
       setPhase("working");
       setWorkingLabel(worktreeT("removingWorktree"));
       setCleanupError(null);
       try {
         setCleanupResult(
           await forgetWorktree({
+            confirmedBranchHead,
             deleteBranch,
             force: discardUncommitted,
             hostId: project.hostId,
@@ -453,8 +459,11 @@ export const WorktreeActionDialog = ({
       void runMerge();
       return;
     }
-    void runCleanup({ deleteBranch: false });
-  }, [action, runCleanup, runMerge]);
+    void runCleanup({
+      confirmedBranchHead: confirmedHeadFor(branchPreview.preview),
+      deleteBranch: alsoDeleteBranch,
+    });
+  }, [action, alsoDeleteBranch, branchPreview.preview, runCleanup, runMerge]);
 
   const handleRetryCleanup = useCallback(async () => {
     setRetryingCleanup(true);
@@ -495,7 +504,12 @@ export const WorktreeActionDialog = ({
   const isMerge = action === "merge";
   const primaryDisabled =
     compareLoading ||
-    (isMerge ? !mergeEnabled : isDirty && !discardUncommitted);
+    (isMerge
+      ? !mergeEnabled
+      : (isDirty && !discardUncommitted) ||
+        (alsoDeleteBranch &&
+          (!branchPreview.preview ||
+            branchPreview.preview.blockedReason !== null)));
   const baseBranch = compare?.baseBranch ?? null;
   const mergeLabel = baseBranch
     ? worktreeT("mergeInto", { base: baseBranch })
@@ -630,11 +644,44 @@ export const WorktreeActionDialog = ({
               {!isMerge ? (
                 <div className="space-y-1.5">
                   <p className="text-muted-foreground text-sm">
-                    {worktreeT("removeWorktreeSummary", {
-                      branch: project.worktree.branch,
-                    })}
+                    {worktreeT("removeWorktreeSummary")}
                   </p>
-                  {compare && unmergedCommits > 0 ? (
+                  <label
+                    className="flex cursor-pointer items-center gap-2 pt-1 text-xs"
+                    htmlFor="worktree-action-delete-branch"
+                  >
+                    <Checkbox
+                      checked={alsoDeleteBranch}
+                      id="worktree-action-delete-branch"
+                      onCheckedChange={(checked) =>
+                        setAlsoDeleteBranch(checked === true)
+                      }
+                    />
+                    <span className="min-w-0 break-all">
+                      {worktreeT("alsoDeleteBranch", {
+                        branch: project.worktree.branch,
+                      })}
+                    </span>
+                  </label>
+                  {alsoDeleteBranch && branchPreview.loading ? (
+                    <Spinner className="size-4 text-muted-foreground" />
+                  ) : null}
+                  {alsoDeleteBranch && branchPreview.error ? (
+                    <ActionError error={branchPreview.error} />
+                  ) : null}
+                  {alsoDeleteBranch && branchPreview.preview?.blockedReason ? (
+                    <InfoLine tone="warning">
+                      {branchT(
+                        branchDeleteBlockedKey(
+                          branchPreview.preview.blockedReason,
+                        ),
+                      )}
+                    </InfoLine>
+                  ) : null}
+                  {alsoDeleteBranch && branchPreview.preview ? (
+                    <BranchDeleteSummary preview={branchPreview.preview} />
+                  ) : null}
+                  {!alsoDeleteBranch && compare && unmergedCommits > 0 ? (
                     <InfoLine>
                       {worktreeT("unmergedCommitsKept", {
                         base: compare.baseBranch,
@@ -892,7 +939,11 @@ export const WorktreeActionDialog = ({
                 type="button"
                 variant={isMerge ? "default" : "destructive"}
               >
-                {isMerge ? mergeLabel : worktreeT("removeWorktree")}
+                {isMerge
+                  ? mergeLabel
+                  : alsoDeleteBranch
+                    ? worktreeT("removeWorktreeAndBranch")
+                    : worktreeT("removeWorktree")}
               </Button>
             </div>
           </div>

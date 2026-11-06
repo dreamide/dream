@@ -20,6 +20,7 @@ import {
   readGitCommitCount,
   readGitPushPreviewCommits,
 } from "./actions.js";
+import { deleteGitBranch, readBranchPullRequest } from "./branches.js";
 import {
   getGitAheadBehindCounts,
   getGitCommandErrorMessage,
@@ -29,6 +30,7 @@ import {
   gitRepositories,
   listProjectGitChanges,
   parseSingleFileDiff,
+  parseWorktreePorcelain,
   readGitRangeFiles,
   runGhCommand,
   runGitCommand,
@@ -40,7 +42,6 @@ import {
   normalizePath,
   toRepoRelativePath,
 } from "./files.js";
-import { gitHubPullRequests, pullRequestSummary } from "./pull-requests.js";
 
 const FULL_SHA_PATTERN = /^[0-9a-f]{40}$/i;
 
@@ -59,64 +60,6 @@ export class WorktreeNotFoundError extends RouteError {
 // ---------------------------------------------------------------------------
 // Listing
 // ---------------------------------------------------------------------------
-
-const parseWorktreePorcelain = (output) => {
-  const worktrees = [];
-  let current = null;
-
-  const pushCurrent = () => {
-    if (current?.path) {
-      worktrees.push({
-        bare: current.bare === true,
-        branch: current.branch ?? null,
-        commit: current.commit ?? null,
-        detached: current.detached === true,
-        locked: current.locked === true,
-        path: current.path,
-        prunable: current.prunable === true,
-      });
-    }
-    current = null;
-  };
-
-  for (const line of output.split(/\r?\n/)) {
-    if (!line.trim()) {
-      pushCurrent();
-      continue;
-    }
-
-    if (line.startsWith("worktree ")) {
-      pushCurrent();
-      current = { path: line.slice("worktree ".length).trim() };
-      continue;
-    }
-
-    if (!current) {
-      continue;
-    }
-
-    if (line.startsWith("HEAD ")) {
-      current.commit = line.slice("HEAD ".length).trim() || null;
-    } else if (line.startsWith("branch ")) {
-      current.branch =
-        line
-          .slice("branch ".length)
-          .trim()
-          .replace(/^refs\/heads\//, "") || null;
-    } else if (line === "detached") {
-      current.detached = true;
-    } else if (line === "bare") {
-      current.bare = true;
-    } else if (line.startsWith("locked")) {
-      current.locked = true;
-    } else if (line.startsWith("prunable")) {
-      current.prunable = true;
-    }
-  }
-
-  pushCurrent();
-  return worktrees;
-};
 
 const isPathInsideDirectory = (targetPath, directoryPath) => {
   const relativePath = path.relative(
@@ -444,31 +387,6 @@ const hasGitRef = async (cwd, ref) => {
 const hasInProgressOperation = async (cwd) =>
   (await hasGitRef(cwd, "MERGE_HEAD")) || (await hasGitRef(cwd, "REBASE_HEAD"));
 
-/**
- * The pull request that belongs to `branch` (the same rule as the PR panel,
- * project-git/pull-requests.js), or `null` when there is none or GitHub
- * cannot say (not logged in, no GitHub remote, ...).
- */
-const readBranchPullRequest = async (cwd, branch) => {
-  try {
-    const pr = await gitHubPullRequests.branchPullRequest(cwd, branch);
-    if (!pr) {
-      return null;
-    }
-    const { state } = pullRequestSummary(pr);
-    return {
-      isDraft: pr.draft === true,
-      mergedAt: typeof pr.merged_at === "string" ? pr.merged_at : null,
-      number: pr.number,
-      state:
-        state === "merged" ? "merged" : state === "closed" ? "closed" : "open",
-      url: typeof pr.html_url === "string" ? pr.html_url : "",
-    };
-  } catch {
-    return null;
-  }
-};
-
 // ---------------------------------------------------------------------------
 // Compare
 // ---------------------------------------------------------------------------
@@ -778,22 +696,10 @@ const pruneForgottenWorktree = async (commandCwd, targetPath) => {
   return true;
 };
 
-const deleteMergedBranch = async (commandCwd, branch) => {
-  // `-d`, never `-D`: git refuses when the branch holds unmerged work.
-  const result = await runGitCommand(commandCwd, ["branch", "-d", branch], {
-    allowFailure: true,
-  });
-  return {
-    branchDeleted: result.ok,
-    branchDeleteError: result.ok
-      ? null
-      : getGitCommandErrorMessage(result.error),
-  };
-};
-
 /**
  * Forgets a worktree: removes its checkout, deletes its branch when asked
- * and the branch is merged, and drops what Dream kept for the directory.
+ * and the branch is merged (or `confirmedBranchHead` agrees to lose its work:
+ * branches.js), and drops what Dream kept for the directory.
  *
  * `branch` is the worktree's branch as the app recorded it. It lets the
  * branch still be deleted when git has already forgotten the worktree; with
@@ -804,6 +710,7 @@ export const forgetProjectGitWorktree = async (
   projectPath,
   {
     branch: knownBranch = null,
+    confirmedBranchHead = null,
     deleteBranch = false,
     force = false,
     worktreePath = "",
@@ -843,7 +750,9 @@ export const forgetProjectGitWorktree = async (
     : false;
   const deletion =
     deleteBranch && branchExists
-      ? await deleteMergedBranch(commandCwd, branch)
+      ? await deleteGitBranch(commandCwd, branch, {
+          confirmedHead: confirmedBranchHead,
+        })
       : { branchDeleted: false, branchDeleteError: null };
 
   return {

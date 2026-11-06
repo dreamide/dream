@@ -1,5 +1,5 @@
 // Writing to a project's git: commit, push, pull, fetch, revert, checkout,
-// and creating a pull request. Every surface that writes (the Git panel's
+// deleting a branch, and creating a pull request. Every surface that writes (the Git panel's
 // footer and commit box, the Changes tab, the branch switcher, the PR and
 // worktree dialogs) goes through here, so the rules that go with a write
 // hold for all of them:
@@ -40,6 +40,7 @@ export const createGitWriteActions = (
   | "checkoutProjectBranch"
   | "commitProject"
   | "createProjectPullRequest"
+  | "deleteProjectBranch"
   | "fetchProject"
   | "pullProject"
   | "pushProject"
@@ -152,6 +153,18 @@ export const createGitWriteActions = (
       run(projectId, "checkout", (project, host) =>
         api.gitCheckout(
           { branchName, create, projectPath: project.path },
+          host,
+        ),
+      ),
+
+    deleteProjectBranch: (
+      projectId,
+      branchName,
+      { confirmedHead = null } = {},
+    ) =>
+      run(projectId, "delete-branch", (project, host) =>
+        api.gitBranchDelete(
+          { branchName, confirmedHead, projectPath: project.path },
           host,
         ),
       ),

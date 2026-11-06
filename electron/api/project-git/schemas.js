@@ -181,6 +181,26 @@ export const projectGitPullRequestDetailsRequestSchema = z.object({
   reasoningEffort: gitGenerationReasoningEffortSchema,
 });
 
+export const projectGitBranchDeletePreviewRequestSchema = z.object({
+  branchName: z.string().min(1),
+  projectPath: z.string().min(1),
+  /** Asks on behalf of removing this worktree, which has the branch open. */
+  removingWorktreePath: z.string().min(1).nullable().default(null),
+});
+
+/** The branch head someone saw when they agreed to lose its unmerged work. */
+const confirmedBranchHeadSchema = z
+  .string()
+  .regex(/^[0-9a-f]{40,64}$/i)
+  .nullable()
+  .default(null);
+
+export const projectGitBranchDeleteRequestSchema = z.object({
+  branchName: z.string().min(1),
+  confirmedHead: confirmedBranchHeadSchema,
+  projectPath: z.string().min(1),
+});
+
 export const projectGitWorktreeCompareRequestSchema = z.object({
   baseRef: nullableTrimmedStringSchema,
   projectPath: z.string().min(1),
@@ -212,6 +232,7 @@ export const projectGitWorktreeCleanupRequestSchema = z.object({
    * deleted when git has already forgotten the worktree itself.
    */
   branch: nullableTrimmedStringSchema,
+  confirmedBranchHead: confirmedBranchHeadSchema,
   deleteBranch: z.boolean().default(false),
   force: z.boolean().default(false),
   projectPath: z.string().min(1),
