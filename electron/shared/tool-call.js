@@ -857,3 +857,27 @@ export const describeTaskOutput = ({ input, output }) => {
       getStringFromPaths(input, idKeys) ?? getStringFromPaths(output, idKeys),
   };
 };
+
+// ── Session files ─────────────────────────────────────────────────────
+
+/**
+ * A file an agent saved in its own session folder, outside the project.
+ * @typedef {object} SessionFile
+ * @property {string} path Absolute, as the tool reported it.
+ * @property {string} sessionPath Relative to the session folder, as the agent
+ *   links it in its messages.
+ */
+
+/**
+ * Grok Build's image tools report this shape, and tell the model to link the
+ * short `images/1.jpg` rather than the absolute path.
+ * @param {ToolCallSource} part
+ * @returns {SessionFile | null}
+ */
+export const describeSessionFile = ({ output }) => {
+  if (!isRecord(output)) return null;
+  const { filename, path, session_folder: folder } = output;
+  if (!isString(filename) || !isString(path) || !isString(folder)) return null;
+  if (!filename || !path || !folder) return null;
+  return { path, sessionPath: `${folder}/${filename}` };
+};

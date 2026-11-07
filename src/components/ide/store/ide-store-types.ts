@@ -616,6 +616,11 @@ export interface IdeState {
     hostId: string,
     routes: SavedHostConnection["routes"],
   ) => Promise<void>;
+  /**
+   * Names a saved connection; an empty name goes back to its route's name
+   * (its SSH host's name, or its address).
+   */
+  renameHostConnection: (hostId: string, label: string) => void;
   /** Disconnects an SSH host; its work keeps running there. */
   disconnectHost: (hostId: string) => Promise<void>;
   /** Main reported a host's connection state. */

@@ -29,7 +29,7 @@ hosts stay blocked until explicit reconnection or pairing. Route changes recover
 catalogs and turn observers without resubmitting writes.
 
 Remove a route with its trash button; at least one route must remain. Removing
-an SSH route closes its forward and leaves the host service running. Removing
+an SSH route closes its forward and leaves the host running. Removing
 the whole connection removes its projects from this workspace using the existing
 host-removal behavior. It does not delete the host's catalog. Local home hosts
 always use their local route while this desktop hosts or attaches to them;

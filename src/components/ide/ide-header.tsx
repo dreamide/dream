@@ -47,8 +47,7 @@ export const IdeHeader = () => {
 
         <WorkspaceSwitcher />
 
-        {/* Back and forward through projects and chats: the room is the
-            project tabs' on a phone. */}
+        {/* Back and forward through projects and chats. */}
         <HistoryNavButtons />
 
         <ProjectTabs />

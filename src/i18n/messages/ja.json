@@ -817,7 +817,6 @@
   "navigation": {
     "breadcrumb": "ブレッドクラム",
     "closeNamedTab": "{name}を閉じる",
-    "mobileSidebarDescription": "モバイルサイドバーを表示します。",
     "morePages": "その他のページ",
     "next": "次へ",
     "nextPage": "次のページに進む",
@@ -827,9 +826,7 @@
     "resizeChatColumns": "チャット列のサイズを変更する",
     "resizePanel": "パネルのサイズを変更",
     "scrollTabsLeft": "タブを左にスクロールします",
-    "scrollTabsRight": "タブを右にスクロール",
-    "sidebar": "サイドバー",
-    "toggleSidebar": "サイドバーの切り替え"
+    "scrollTabsRight": "タブを右にスクロール"
   },
   "terminal": {
     "closeNamedTerminal": "{name}を閉じる",

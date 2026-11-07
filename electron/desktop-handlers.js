@@ -42,7 +42,7 @@ export const isHttpUrl = (value) => /^https?:\/\//i.test(value.trim());
 
 /**
  * How this desktop names itself to a host it pairs with: the computer, then
- * the client, as a browser does ("iPhone · Safari"). The host lists paired
+ * the client, as a browser does ("Mac · Safari"). The host lists paired
  * devices by this name.
  * @param {string} hostname The OS host name, e.g. `Mikes-MacBook-Pro.local`.
  */

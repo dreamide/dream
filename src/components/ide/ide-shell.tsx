@@ -362,10 +362,7 @@ export const IdeShell = () => {
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
-    // The dynamic viewport height and the safe areas: a phone's browser bars
-    // and keyboard (index.html resizes content for it) and its notch never
-    // cover the header or the composer. Both are zero on the desktop.
-    <div className="relative flex h-dvh flex-col overflow-hidden bg-surface-50 pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] text-foreground dark:bg-surface-900">
+    <div className="relative flex h-screen flex-col overflow-hidden bg-surface-50 text-foreground dark:bg-surface-900">
       {!appReady && <AppLoadingScreen />}
       <ChatRuntimeHost />
       <GlobalShortcuts />

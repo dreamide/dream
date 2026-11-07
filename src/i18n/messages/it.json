@@ -817,7 +817,6 @@
   "navigation": {
     "breadcrumb": "Percorso di navigazione",
     "closeNamedTab": "Chiudi {name}",
-    "mobileSidebarDescription": "Visualizza la barra laterale mobile.",
     "morePages": "Altre pagine",
     "next": "Avanti",
     "nextPage": "Vai alla pagina successiva",
@@ -827,9 +826,7 @@
     "resizeChatColumns": "Ridimensiona le colonne della chat",
     "resizePanel": "Ridimensiona il pannello",
     "scrollTabsLeft": "Scorri le schede a sinistra",
-    "scrollTabsRight": "Scorri le schede verso destra",
-    "sidebar": "Barra laterale",
-    "toggleSidebar": "Attiva/disattiva la barra laterale"
+    "scrollTabsRight": "Scorri le schede verso destra"
   },
   "terminal": {
     "closeNamedTerminal": "Chiudi {name}",

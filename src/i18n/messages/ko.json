@@ -817,7 +817,6 @@
   "navigation": {
     "breadcrumb": "탐색경로",
     "closeNamedTab": "{name} 닫기",
-    "mobileSidebarDescription": "모바일 사이드바를 표시합니다.",
     "morePages": "페이지 더보기",
     "next": "다음",
     "nextPage": "다음 페이지로 이동",
@@ -827,9 +826,7 @@
     "resizeChatColumns": "채팅 열 크기 조정",
     "resizePanel": "패널 크기 조정",
     "scrollTabsLeft": "탭을 왼쪽으로 스크롤",
-    "scrollTabsRight": "탭을 오른쪽으로 스크롤",
-    "sidebar": "사이드바",
-    "toggleSidebar": "사이드바 전환"
+    "scrollTabsRight": "탭을 오른쪽으로 스크롤"
   },
   "terminal": {
     "closeNamedTerminal": "{name} 닫기",

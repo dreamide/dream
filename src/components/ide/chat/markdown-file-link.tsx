@@ -5,6 +5,7 @@ import { useIdeStore } from "../ide-store";
 import { MaterialFileIcon } from "../material-file-icon";
 import { useOpenLocalPath } from "../ssh/use-open-local-path";
 import { useOpenProjectFile } from "../use-open-project-file";
+import { useSessionFiles } from "./session-files";
 
 type MarkdownFileLinkProps = ComponentProps<"a"> & {
   node?: unknown;
@@ -29,13 +30,24 @@ const hasWindowsDrive = (value: string) => /^[a-z]:[/]/i.test(value);
 const toComparablePath = (value: string) =>
   hasWindowsDrive(value) ? value.toLowerCase() : value;
 
-const decodePath = (value: string) => {
+const decodeSegment = (value: string) => {
   try {
     return decodeURIComponent(value);
   } catch {
     return value;
   }
 };
+
+// A segment holding an encoded separator is a folder literally named that (an
+// agent's session folder named after an encoded path); decoding it would split
+// it into folders that do not exist.
+const decodePath = (value: string) =>
+  value
+    .split("/")
+    .map((segment) =>
+      /%(?:2f|5c)/i.test(segment) ? segment : decodeSegment(segment),
+    )
+    .join("/");
 
 export const getProjectFilePathFromHref = (
   href: string | undefined,
@@ -190,10 +202,14 @@ export const MarkdownFileLink = ({
 }: MarkdownFileLinkProps) => {
   const openLocalPath = useOpenLocalPath();
   const projectId = useIdeStore((state) => state.activeProjectId);
-  const projectFilePath = useMemo(
+  const relativeFilePath = useMemo(
     () => getProjectFilePathFromHref(href, projectPath),
     [href, projectPath],
   );
+  // A relative link can name a file in the agent's session folder rather than
+  // the project.
+  const sessionFilePath = useSessionFiles().get(relativeFilePath ?? "");
+  const projectFilePath = sessionFilePath ? null : relativeFilePath;
   // In the chat's project, found by its folder, not the active project.
   const { open: openProjectFile } = useOpenProjectFile(
     projectPath,
@@ -201,8 +217,9 @@ export const MarkdownFileLink = ({
   );
   const externalFilePath = useMemo(
     () =>
-      projectFilePath ? null : getExternalFilePathFromHref(href, projectPath),
-    [href, projectFilePath, projectPath],
+      sessionFilePath ??
+      (projectFilePath ? null : getExternalFilePathFromHref(href, projectPath)),
+    [href, projectFilePath, projectPath, sessionFilePath],
   );
   const filePath = projectFilePath ?? externalFilePath;
 

@@ -13,8 +13,8 @@
  * opens they go out, but after an outage they are dropped rather than
  * delivered to a shell that may have moved on while the client was away.
  *
- * When the client comes back to the foreground after a while (a phone
- * unlocked, a laptop woken), a socket that still looks open may be dead:
+ * When the client comes back to the foreground after a while (a laptop
+ * woken), a socket that still looks open may be dead:
  * it is replaced rather than trusted, and the resume brings each channel
  * up to date. A replaced socket's late messages are ignored, so an old
  * connection cannot overwrite what the new one brought.

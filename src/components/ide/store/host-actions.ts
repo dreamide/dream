@@ -71,6 +71,7 @@ export const createHostActions = (
   | "pairHost"
   | "addSshRoute"
   | "setHostRoutes"
+  | "renameHostConnection"
 > => {
   // An SSH host's connection state is the main process's (it owns the ssh
   // session); the supervisor hears it from here.
@@ -440,6 +441,21 @@ export const createHostActions = (
       for (const route of removed)
         if (route.kind === "https")
           await getDesktopApi()?.forgetHostCredential(route.credentialId);
+    },
+
+    renameHostConnection: (hostId, label) => {
+      const saved = findHostConnection(get().hostConnections, hostId);
+      if (!saved) throw new Error("Only a saved connection can be renamed.");
+      const name = label.trim().slice(0, 200);
+      if (name === (saved.label ?? "")) return;
+      set((state) => ({
+        hostConnections: state.hostConnections.map((host) => {
+          if (host.id !== hostId) return host;
+          const { label: _previous, ...rest } = host;
+          return name ? { ...rest, label: name } : rest;
+        }),
+      }));
+      get().persist();
     },
 
     resumeHosts: async (openHostIds) => {

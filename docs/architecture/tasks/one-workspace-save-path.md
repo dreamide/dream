@@ -44,7 +44,8 @@ Correction to the review: `scripts/import-codex-chats.mjs` never used this
 path. Its `loadPersistedState` and `savePersistedState` are local functions
 that write a pre-relational JSON blob straight into `app_state`. A current
 database ignores that blob, since it already has relational state. That is
-a separate defect, left as is and noted below.
+a separate defect, left as is and noted below. The script was removed on
+2026-11-04.
 
 Scope:
 
@@ -106,8 +107,7 @@ Validation (2026-10-16):
   workspace, where the old path would also have deleted rows no longer
   listed.
 
-Remaining/deferred: the exclusions above. The Codex import script needs
-rewriting against the catalog and workspace change sets before it can work
-on a current database.
+Remaining/deferred: the exclusions above, except the Codex import script,
+which was removed on 2026-11-04 rather than rewritten.
 
 Recovery: docs/architecture/tasks/one-workspace-save-path.md#WSP-01.

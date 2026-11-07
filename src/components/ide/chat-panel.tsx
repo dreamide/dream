@@ -58,6 +58,10 @@ import {
 import type { ContinueChatPopoverContext } from "./chat/continue-chat-popover";
 import { EditChatDialog } from "./chat/edit-chat-dialog";
 import { estimateStableMessages } from "./chat/message-token-estimate";
+import {
+  getSessionFilesByMessage,
+  SessionFilesProvider,
+} from "./chat/session-files";
 import { useStableMessages } from "./chat/stable-messages";
 import { getLatestChatTodoSummary } from "./chat/todo-list";
 import {
@@ -248,6 +252,10 @@ export const ChatPanel = ({
   // Unchanged messages and parts keep their identity across stream updates,
   // so only what the live turn changed is rendered or scanned again.
   const messages = useStableMessages(streamedMessages);
+  const sessionFilesByMessage = useMemo(
+    () => getSessionFilesByMessage(messages),
+    [messages],
+  );
 
   const addToolApprovalResponse = useCallback<ToolApprovalResponder>(
     (response) => respondToToolApproval(chat.id, response),
@@ -556,17 +564,23 @@ export const ChatPanel = ({
                         isLastMessage ? undefined : CHAT_HISTORY_MESSAGE_STYLE
                       }
                     >
-                      <ChatMessage
-                        addToolApprovalResponse={addToolApprovalResponse}
-                        continueChat={continueChat}
-                        expandToolCalls={settings.expandToolCalls}
-                        groupToolCalls={settings.groupToolCalls}
-                        isLastMessage={isLastMessage}
-                        isStreaming={isStreaming}
-                        message={message}
-                        projectPath={project.path}
-                        showReasoningSummaries={settings.showReasoningSummaries}
-                      />
+                      <SessionFilesProvider
+                        files={sessionFilesByMessage.get(message.id)}
+                      >
+                        <ChatMessage
+                          addToolApprovalResponse={addToolApprovalResponse}
+                          continueChat={continueChat}
+                          expandToolCalls={settings.expandToolCalls}
+                          groupToolCalls={settings.groupToolCalls}
+                          isLastMessage={isLastMessage}
+                          isStreaming={isStreaming}
+                          message={message}
+                          projectPath={project.path}
+                          showReasoningSummaries={
+                            settings.showReasoningSummaries
+                          }
+                        />
+                      </SessionFilesProvider>
                     </div>
                   );
                 })}

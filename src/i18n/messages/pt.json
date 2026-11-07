@@ -817,7 +817,6 @@
   "navigation": {
     "breadcrumb": "Caminho de navegação",
     "closeNamedTab": "Fechar {name}",
-    "mobileSidebarDescription": "Exibe a barra lateral móvel.",
     "morePages": "Mais páginas",
     "next": "Próximo",
     "nextPage": "Ir para a próxima página",
@@ -827,9 +826,7 @@
     "resizeChatColumns": "Redimensionar colunas de bate-papo",
     "resizePanel": "Redimensionar painel",
     "scrollTabsLeft": "Rolar guias para a esquerda",
-    "scrollTabsRight": "Rolar as guias para a direita",
-    "sidebar": "Barra lateral",
-    "toggleSidebar": "Alternar barra lateral"
+    "scrollTabsRight": "Rolar as guias para a direita"
   },
   "terminal": {
     "closeNamedTerminal": "Fechar {name}",

@@ -272,6 +272,9 @@ export function ConnectionsSettingsSection() {
             setSshForm({ owner: routesView.id, back: routesView.id });
           }}
           onClose={() => setRoutesOf(null)}
+          onRename={(label) =>
+            useIdeStore.getState().renameHostConnection(routesView.id, label)
+          }
           onEditRoute={(route) => {
             setRoutesOf(null);
             if (route.kind === "ssh")
@@ -459,6 +462,7 @@ function HostRoutesDialog({
   onAddSsh,
   onClose,
   onEditRoute,
+  onRename,
   onSetRoutes,
   view,
 }: {
@@ -468,6 +472,7 @@ function HostRoutesDialog({
   onAddSsh: () => void;
   onClose: () => void;
   onEditRoute: (route: Exclude<HostRoute, { kind: "local" }>) => void;
+  onRename: (label: string) => void;
   onSetRoutes: (routes: HostRoute[]) => void;
   view: HostView;
 }) {
@@ -475,6 +480,20 @@ function HostRoutesDialog({
   const sshT = useTranslations("sshHosts");
   const routeTarget = useRouteTarget();
   const { routes, runtime, isHome } = view;
+  // The name is saved when the field is left or the dialog closes; empty
+  // goes back to the name its route gives it.
+  const [name, setName] = useState(view.saved?.label ?? "");
+  const sshHosts = useIdeStore((state) => state.settings.sshHosts);
+  const defaultName = view.saved
+    ? listHostChoices([{ ...view.saved, label: undefined }], sshHosts)[0]?.label
+    : undefined;
+  const saveName = () => {
+    if (!isHome && name.trim() !== (view.saved?.label ?? "")) onRename(name);
+  };
+  const close = () => {
+    saveName();
+    onClose();
+  };
   const swap = (index: number, other: number) =>
     onSetRoutes(
       routes.map((item, i) =>
@@ -486,7 +505,7 @@ function HostRoutesDialog({
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open) close();
       }}
     >
       <DialogContent className="sm:max-w-lg">
@@ -496,6 +515,25 @@ function HostRoutesDialog({
           </DialogTitle>
           <DialogDescription>{t("routesDescription")}</DialogDescription>
         </DialogHeader>
+        {isHome ? null : (
+          <form
+            className="space-y-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveName();
+            }}
+          >
+            <Label htmlFor="host-connection-name">{t("name")}</Label>
+            <Input
+              autoComplete="off"
+              id="host-connection-name"
+              onBlur={saveName}
+              onChange={(event) => setName(event.target.value)}
+              placeholder={defaultName}
+              value={name}
+            />
+          </form>
+        )}
         <ol className="divide-y rounded-md border">
           {routes.map((route, index) => {
             const status = runtime?.routes?.find(
@@ -610,7 +648,7 @@ function HostRoutesDialog({
               {t("addHttpsRoute")}
             </Button>
           </div>
-          <Button onClick={onClose} type="button">
+          <Button onClick={close} type="button">
             {t("done")}
           </Button>
         </DialogFooter>
