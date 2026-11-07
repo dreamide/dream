@@ -26,10 +26,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { BundledLanguage } from "shiki";
-import {
-  CodeBlockContainer,
-  CodeBlockCopyButton,
-} from "@/components/ai-elements/code-block";
+import { CodeBlockContainer } from "@/components/ai-elements/code-block";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1098,7 +1095,6 @@ const FileExplorerPanelImpl = ({
                   >
                     <Search className="size-3.5" />
                   </Button>
-                  <CodeBlockCopyButton text={selectedFileBuffer.draftContent} />
                   <Button
                     aria-label={commonT("save")}
                     className={
