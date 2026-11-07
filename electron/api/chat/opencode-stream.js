@@ -494,7 +494,6 @@ export const streamOpenCodeResponse = ({
     responseMessageMetadata,
     execute: (turn) =>
       new Promise((resolve, reject) => {
-        let stderrBuffer = "";
         let finished = false;
         let preparedAttachments = null;
         let textPartIndex = 0;
@@ -507,8 +506,6 @@ export const streamOpenCodeResponse = ({
         const pendingPartEventsByMessageId = new Map();
         let hasWrittenText = false;
         let opencode = null;
-        let eventsError = null;
-        let openCodeError = null;
         const serverAbortController = new AbortController();
 
         const finish = (callback) => {
@@ -519,6 +516,20 @@ export const streamOpenCodeResponse = ({
           preparedAttachments?.cleanup?.();
           opencode?.server.close();
           callback();
+        };
+
+        const fail = (error) => {
+          finish(() =>
+            reject(
+              new Error(
+                describeOpenCodeRequestError({
+                  error,
+                  model,
+                  sessionId: activeSessionId,
+                }),
+              ),
+            ),
+          );
         };
 
         const writeText = (text, idHint, type = "text", end = false) => {
@@ -583,7 +594,13 @@ export const streamOpenCodeResponse = ({
           messageRoleById.set(message.id, message.role);
 
           if (message.role === "assistant" && message.error) {
-            openCodeError ??= getOpenCodeErrorDetail(message.error);
+            fail(
+              new Error(
+                getOpenCodeErrorDetail(message.error) ||
+                  "OpenCode session failed.",
+              ),
+            );
+            return;
           }
 
           const pendingEvents = pendingPartEventsByMessageId.get(message.id);
@@ -816,15 +833,14 @@ export const streamOpenCodeResponse = ({
             return;
           }
 
-          const detail = getOpenCodeErrorDetail(event);
-          if (
-            detail &&
-            String(event.type ?? "")
-              .toLowerCase()
-              .includes("error")
-          ) {
-            openCodeError ??= detail;
-            stderrBuffer += `${detail}\n`;
+          if (event.type === "session.error") {
+            if (event.properties?.sessionID === activeSessionId) {
+              fail(
+                new Error(
+                  getOpenCodeErrorDetail(event) || "OpenCode session failed.",
+                ),
+              );
+            }
             return;
           }
 
@@ -902,10 +918,33 @@ export const streamOpenCodeResponse = ({
               const existingSession = await opencode.client.session.get({
                 path: { id: remoteConversationId },
                 query: { directory: projectPath },
+                signal: serverAbortController.signal,
               });
               if (existingSession.data?.id === remoteConversationId) {
-                activeSessionId = existingSession.data.id;
-                resumed = true;
+                // OpenCode persists failed and interrupted messages. Reusing
+                // that session can repeat the failure on every Retry. Inspect
+                // its last message before sending anything; reconstruct an
+                // unhealthy session from Dream's saved conversation instead.
+                const previousMessages = await opencode.client.session.messages(
+                  {
+                    path: { id: remoteConversationId },
+                    query: { directory: projectPath, limit: 1 },
+                    signal: serverAbortController.signal,
+                  },
+                );
+                const previous = Array.isArray(previousMessages.data)
+                  ? previousMessages.data.at(-1)?.info
+                  : null;
+                if (
+                  previous?.role === "assistant" &&
+                  !previous.error &&
+                  typeof previous.time?.completed === "number" &&
+                  previous.finish &&
+                  previous.finish !== "tool-calls"
+                ) {
+                  activeSessionId = existingSession.data.id;
+                  resumed = true;
+                }
               }
             }
 
@@ -919,6 +958,7 @@ export const streamOpenCodeResponse = ({
                   },
                 },
                 query: { directory: projectPath },
+                signal: serverAbortController.signal,
               });
               activeSessionId = sessionResult.data?.id;
             }
@@ -935,6 +975,11 @@ export const streamOpenCodeResponse = ({
               query: { directory: projectPath },
               signal: serverAbortController.signal,
               sseMaxRetryAttempts: 0,
+              onSseError: (error) => {
+                if (!finished && !serverAbortController.signal.aborted) {
+                  fail(error);
+                }
+              },
             });
 
             const eventsPromise = (async () => {
@@ -944,35 +989,39 @@ export const streamOpenCodeResponse = ({
                 }
                 await handleEvent(event);
               }
+              if (!finished && !serverAbortController.signal.aborted) {
+                fail(
+                  new Error(
+                    "OpenCode's event stream closed before the turn completed.",
+                  ),
+                );
+              }
             })().catch((error) => {
               if (
                 !finished &&
                 !abortSignal?.aborted &&
                 !serverAbortController.signal.aborted
               ) {
-                eventsError = error;
-                stderrBuffer += `${formatStreamError(error)}\n`;
+                fail(error);
               }
             });
 
-            const promptResult = await opencode.client.session.prompt(
-              {
-                body: {
-                  agent: "build",
-                  model: {
-                    modelID,
-                    providerID,
-                  },
-                  parts: chunkTextInput(prompt).map((text) => ({
-                    text,
-                    type: "text",
-                  })),
+            const promptResult = await opencode.client.session.prompt({
+              body: {
+                agent: "build",
+                model: {
+                  modelID,
+                  providerID,
                 },
-                path: { id: activeSessionId },
-                query: { directory: projectPath },
+                parts: chunkTextInput(prompt).map((text) => ({
+                  text,
+                  type: "text",
+                })),
               },
-              { signal: serverAbortController.signal },
-            );
+              path: { id: activeSessionId },
+              query: { directory: projectPath },
+              signal: serverAbortController.signal,
+            });
 
             const promptError = getOpenCodeErrorDetail(
               promptResult.error ?? promptResult.data?.info?.error,
@@ -998,14 +1047,6 @@ export const streamOpenCodeResponse = ({
               }
 
               if (!wroteFallbackText) {
-                if (eventsError) {
-                  throw eventsError;
-                }
-
-                if (openCodeError) {
-                  throw new Error(openCodeError);
-                }
-
                 throw new Error(
                   "OpenCode completed without returning assistant text.",
                 );
@@ -1016,19 +1057,6 @@ export const streamOpenCodeResponse = ({
             await eventsPromise;
             finish(resolve);
           })
-          .catch((error) => {
-            finish(() =>
-              reject(
-                new Error(
-                  describeOpenCodeRequestError({
-                    error,
-                    fallbackDetail: stderrBuffer,
-                    model,
-                    sessionId: activeSessionId,
-                  }),
-                ),
-              ),
-            );
-          });
+          .catch(fail);
       }),
   });
