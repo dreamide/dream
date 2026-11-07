@@ -203,7 +203,7 @@ const BranchSwitcherImpl = ({
           </span>
         </PopoverTrigger>
         <PopoverContent
-          align="end"
+          align="start"
           className="w-[360px] gap-0 overflow-hidden p-0"
           side="top"
           sideOffset={8}

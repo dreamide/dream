@@ -1,6 +1,12 @@
-import { FolderTree } from "lucide-react";
+import { Folder, FolderTree } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { type FormEvent, useEffect, useState } from "react";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -137,8 +143,8 @@ export const ProjectBranchFooter = ({
   });
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
 
-  // Where the project runs sits on the left, always; the branch and its git
-  // actions on the right, for a repository.
+  // A breadcrumb of where the chat works: the host, the project, then (for a
+  // repository) its branch. The branch's git actions sit on the right.
   const showBranch = Boolean(project.worktree) || isRepo || loading;
 
   return (
@@ -147,31 +153,54 @@ export const ProjectBranchFooter = ({
         {/* Fixed height (the branch switcher's) so the composer above does not
             shift when switching to a project without a branch. */}
         <div className="mx-auto flex h-8 w-full max-w-[700px] items-center justify-between gap-2">
-          <ProjectHostLabel className="-ml-2" project={project} />
-          {!showBranch ? null : (
-            <div className="flex min-w-0 items-center">
-              {project.worktree ? (
+          <Breadcrumb className="-ml-2 min-w-0">
+            <BreadcrumbList className="flex-nowrap gap-0 text-xs sm:gap-0">
+              <BreadcrumbItem className="min-w-0">
+                <ProjectHostLabel project={project} />
+              </BreadcrumbItem>
+              <BreadcrumbSeparator className="shrink-0 [&>svg]:size-3" />
+              <BreadcrumbItem className="min-w-0">
                 <div
-                  className="flex h-7 min-w-0 max-w-[280px] items-center gap-1.5 px-2 text-xs text-muted-foreground"
-                  title={project.worktree.branch}
+                  className="flex h-7 min-w-0 max-w-[220px] items-center gap-1.5 px-2"
+                  title={project.path}
                 >
-                  <FolderTree className="size-3.5 shrink-0" />
-                  <span className="shrink-0">{worktreeT("worktree")}</span>
-                  <span className="truncate text-foreground">
-                    {project.worktree.branch}
-                  </span>
+                  <Folder className="size-3.5 shrink-0" />
+                  <span className="truncate">{project.name}</span>
                 </div>
-              ) : (
-                <BranchSwitcher
-                  onCreateWorktree={
-                    isRepo ? () => setCreateWorktreeOpen(true) : undefined
-                  }
-                  projectId={project.id}
-                  projectPath={project.path}
-                />
+              </BreadcrumbItem>
+              {!showBranch ? null : (
+                <>
+                  <BreadcrumbSeparator className="shrink-0 [&>svg]:size-3" />
+                  <BreadcrumbItem className="min-w-0">
+                    {project.worktree ? (
+                      <div
+                        className="flex h-7 min-w-0 max-w-[280px] items-center gap-1.5 px-2"
+                        title={project.worktree.branch}
+                      >
+                        <FolderTree className="size-3.5 shrink-0" />
+                        <span className="shrink-0">
+                          {worktreeT("worktree")}
+                        </span>
+                        <span className="truncate text-foreground">
+                          {project.worktree.branch}
+                        </span>
+                      </div>
+                    ) : (
+                      <BranchSwitcher
+                        onCreateWorktree={
+                          isRepo ? () => setCreateWorktreeOpen(true) : undefined
+                        }
+                        projectId={project.id}
+                        projectPath={project.path}
+                      />
+                    )}
+                  </BreadcrumbItem>
+                </>
               )}
-              <GitFooterActions active={active} project={project} />
-            </div>
+            </BreadcrumbList>
+          </Breadcrumb>
+          {!showBranch ? null : (
+            <GitFooterActions active={active} project={project} />
           )}
         </div>
       </div>
