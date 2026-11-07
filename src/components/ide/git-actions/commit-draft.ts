@@ -182,11 +182,17 @@ export class CommitDraft {
       this.#set({ message: "", submitting: null });
       return true;
     }
+    if (action === "commit-push") {
+      // Reported once, past the composer: the commit has usually landed, so
+      // the composer is about to empty and an error shown in it only flashes.
+      this.#set({ submitting: null });
+      this.#onPushFailure(outcome.error);
+      return false;
+    }
     this.#set({
       error: { action, error: outcome.error, kind: "submit" },
       submitting: null,
     });
-    if (action === "commit-push") this.#onPushFailure(outcome.error);
     return false;
   }
 

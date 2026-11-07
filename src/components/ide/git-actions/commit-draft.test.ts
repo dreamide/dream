@@ -242,6 +242,12 @@ test("a failed commit-and-push is reported past the composer", async () => {
 
   expect(pushFailures).toHaveLength(1);
   expect(pushFailures[0]).toMatchObject({ message: "nothing to commit" });
+  // Not in the composer as well, where it would flash as the commit lands.
+  expect(draft.getSnapshot()).toMatchObject({
+    error: null,
+    message: "Fix the thing",
+    submitting: null,
+  });
 });
 
 test("a failed plain commit stays with the composer", async () => {
