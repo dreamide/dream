@@ -197,6 +197,11 @@ host's is refused. The local
 route is never refused. Device and session IDs belong to remote
 authorization, which is a separate concern.
 
+A saved connection edit is accepted against the current connection, after
+verification. An accepted edit or removal supersedes verification already
+under way; its late result cannot restore a removed route or Host. Credentials
+and SSH settings go only when no saved route still uses them.
+
 ## Home host
 
 The host a client's `local` connection reaches. On the desktop it is the host
