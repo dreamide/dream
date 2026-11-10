@@ -1,6 +1,4 @@
-import { promises as fs } from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import { describeAttachment } from "../../shared/attachment-content.js";
 
 export const getCodexSessionId = (value) => {
   if (typeof value !== "string") {
@@ -73,32 +71,10 @@ export const getCodexErrorDetail = (event) => {
   );
 };
 
-const CODEX_IMAGE_MEDIA_TYPES = new Set([
-  "image/avif",
-  "image/bmp",
-  "image/gif",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-]);
 const CODEX_APP_SERVER_MESSAGE_CHAR_LIMIT = 200_000;
 const CODEX_APP_SERVER_PROMPT_CHAR_BUDGET = 700_000;
 const CODEX_APP_SERVER_TOOL_VALUE_CHAR_LIMIT = 12_000;
-const TEXT_ATTACHMENT_CHAR_LIMIT = 60_000;
 const TEXT_INPUT_CHUNK_CHAR_LIMIT = 900_000;
-const TEXT_ATTACHMENT_MEDIA_TYPES = new Set([
-  "application/javascript",
-  "application/json",
-  "application/ld+json",
-  "application/sql",
-  "application/toml",
-  "application/typescript",
-  "application/x-httpd-php",
-  "application/x-sh",
-  "application/xml",
-  "application/yaml",
-]);
-
 const getCodexCharLimit = (value) =>
   typeof value === "number" && Number.isFinite(value)
     ? Math.max(0, Math.floor(value))
@@ -160,198 +136,6 @@ const buildBoundedCodexTranscript = (serializedMessages, maxChars) => {
   return [notice, ...selectedMessages].join("\n\n");
 };
 
-export const getCodexAttachmentLabel = (part) => {
-  return (
-    (typeof part.filename === "string" && part.filename.trim()) ||
-    (typeof part.mediaType === "string" && part.mediaType.trim()) ||
-    "attachment"
-  );
-};
-
-export const parseCodexDataUrl = (value) => {
-  if (typeof value !== "string" || !value.startsWith("data:")) {
-    return null;
-  }
-
-  const commaIndex = value.indexOf(",");
-  if (commaIndex < 0) {
-    return null;
-  }
-
-  const metadata = value.slice(5, commaIndex);
-  const payload = value.slice(commaIndex + 1);
-  const segments = metadata.split(";").filter(Boolean);
-  const isBase64 = segments.includes("base64");
-  const mediaType = segments.find((segment) => segment !== "base64") || null;
-
-  try {
-    return {
-      buffer: isBase64
-        ? Buffer.from(payload, "base64")
-        : Buffer.from(decodeURIComponent(payload), "utf8"),
-      mediaType,
-    };
-  } catch {
-    return null;
-  }
-};
-
-export const getAttachmentExtensionFromMediaType = (mediaType) => {
-  switch (mediaType) {
-    case "application/javascript":
-      return ".js";
-    case "application/json":
-    case "application/ld+json":
-      return ".json";
-    case "application/sql":
-      return ".sql";
-    case "application/toml":
-      return ".toml";
-    case "application/typescript":
-      return ".ts";
-    case "application/x-httpd-php":
-      return ".php";
-    case "application/x-sh":
-      return ".sh";
-    case "application/xml":
-      return ".xml";
-    case "application/yaml":
-      return ".yaml";
-    case "image/avif":
-      return ".avif";
-    case "image/bmp":
-      return ".bmp";
-    case "image/gif":
-      return ".gif";
-    case "image/jpeg":
-      return ".jpg";
-    case "image/png":
-      return ".png";
-    case "image/svg+xml":
-      return ".svg";
-    case "image/webp":
-      return ".webp";
-    case "text/css":
-      return ".css";
-    case "text/html":
-      return ".html";
-    case "text/javascript":
-      return ".js";
-    case "text/markdown":
-      return ".md";
-    case "text/plain":
-      return ".txt";
-    case "text/typescript":
-      return ".ts";
-    case "text/x-python":
-      return ".py";
-    case "text/xml":
-      return ".xml";
-    case "text/yaml":
-      return ".yaml";
-    default:
-      return "";
-  }
-};
-
-export const sanitizeCodexAttachmentFilename = (filename, fallback) => {
-  const basename = path.basename(
-    typeof filename === "string" && filename.trim()
-      ? filename.trim()
-      : fallback,
-  );
-  const sanitized = basename
-    .replace(/[^a-zA-Z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return sanitized || fallback;
-};
-
-const isCodexImageAttachment = (mediaType, filename) => {
-  if (typeof mediaType === "string" && CODEX_IMAGE_MEDIA_TYPES.has(mediaType)) {
-    return true;
-  }
-
-  return /\.(?:avif|bmp|gif|jpe?g|png|webp)$/i.test(filename || "");
-};
-
-const isCodexTextAttachment = (mediaType, filename) => {
-  if (typeof mediaType === "string") {
-    if (mediaType.startsWith("text/")) {
-      return true;
-    }
-
-    if (TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType)) {
-      return true;
-    }
-  }
-
-  return /\.(?:c|cc|cpp|css|csv|go|html?|java|js|json|jsx|log|md|mjs|php|py|rb|rs|sh|sql|svg|toml|ts|tsv|tsx|txt|xml|ya?ml)$/i.test(
-    filename || "",
-  );
-};
-
-const getAttachmentMediaType = (part, parsedDataUrl) =>
-  (typeof part.mediaType === "string" && part.mediaType.trim()) ||
-  parsedDataUrl?.mediaType ||
-  null;
-
-/** Whether a provider that forwards images inline will receive this part. */
-export const isImageFilePart = (part) =>
-  /^image\//i.test(
-    getAttachmentMediaType(part, parseCodexDataUrl(part.url)) ?? "",
-  );
-
-/** Whether a summary of this part stands for its contents, not just its name. */
-export const isAttachmentContentInPrompt = (part) => {
-  const parsedDataUrl = parseCodexDataUrl(part.url);
-  const mediaType = getAttachmentMediaType(part, parsedDataUrl);
-  return (
-    isCodexImageAttachment(mediaType, part.filename) ||
-    (Boolean(parsedDataUrl) && isCodexTextAttachment(mediaType, part.filename))
-  );
-};
-
-export const buildCodexFilePartSummary = (part) => {
-  const label = getCodexAttachmentLabel(part);
-  const parsedDataUrl = parseCodexDataUrl(part.url);
-  const mediaType = getAttachmentMediaType(part, parsedDataUrl);
-
-  if (isCodexImageAttachment(mediaType, part.filename)) {
-    return `[Attached image: ${label}${mediaType ? ` (${mediaType})` : ""}]`;
-  }
-
-  if (parsedDataUrl && isCodexTextAttachment(mediaType, part.filename)) {
-    const text = parsedDataUrl.buffer.toString("utf8");
-    const truncated = text.length > TEXT_ATTACHMENT_CHAR_LIMIT;
-    const content = truncated
-      ? text.slice(0, TEXT_ATTACHMENT_CHAR_LIMIT)
-      : text;
-
-    return [
-      `[Attached file: ${label}${mediaType ? ` (${mediaType})` : ""}]`,
-      "Attached file contents:",
-      "```text",
-      content,
-      "```",
-      truncated ? "[File content truncated for prompt size.]" : null,
-    ]
-      .filter(Boolean)
-      .join("\n");
-  }
-
-  return `[Attached file: ${label}${mediaType ? ` (${mediaType})` : ""}]`;
-};
-
-export const getCodexMessageFileParts = (message) => {
-  if (!message || typeof message !== "object") {
-    return [];
-  }
-
-  return (Array.isArray(message.parts) ? message.parts : []).filter(
-    (part) => part && typeof part === "object" && part.type === "file",
-  );
-};
-
 export const getLatestUserMessage = (messages) => {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i];
@@ -361,61 +145,6 @@ export const getLatestUserMessage = (messages) => {
   }
 
   return null;
-};
-
-export const prepareCodexPromptAttachments = async (message) => {
-  const fileParts = getCodexMessageFileParts(message);
-  if (fileParts.length === 0) {
-    return null;
-  }
-
-  const tempDir = await fs.mkdtemp(
-    path.join(os.tmpdir(), "dream-codex-attachments-"),
-  );
-  const imagePaths = [];
-  const promptLines = ["Current turn attachments:"];
-
-  for (const [index, part] of fileParts.entries()) {
-    const label = getCodexAttachmentLabel(part);
-    const parsedDataUrl = parseCodexDataUrl(part.url);
-    const mediaType =
-      (typeof part.mediaType === "string" && part.mediaType.trim()) ||
-      parsedDataUrl?.mediaType ||
-      null;
-
-    if (!parsedDataUrl) {
-      promptLines.push(
-        `- ${label}${mediaType ? ` (${mediaType})` : ""}: attachment payload unavailable in the Codex bridge.`,
-      );
-      continue;
-    }
-
-    const fallbackName = `attachment-${index + 1}${getAttachmentExtensionFromMediaType(mediaType)}`;
-    const filename = sanitizeCodexAttachmentFilename(
-      part.filename,
-      fallbackName,
-    );
-    const filePath = path.join(tempDir, `${index + 1}-${filename}`);
-    await fs.writeFile(filePath, parsedDataUrl.buffer);
-
-    const isImage = isCodexImageAttachment(mediaType, filePath);
-    if (isImage) {
-      imagePaths.push(filePath);
-    }
-
-    promptLines.push(
-      `- ${label}${mediaType ? ` (${mediaType})` : ""}: ${filePath}${isImage ? " [also passed via --image]" : ""}`,
-    );
-  }
-
-  return {
-    addDirs: [tempDir],
-    cleanup: () => {
-      void fs.rm(tempDir, { force: true, recursive: true }).catch(() => {});
-    },
-    imagePaths,
-    promptText: promptLines.join("\n"),
-  };
 };
 
 export const chunkTextInput = (
@@ -467,7 +196,7 @@ export const serializeCodexMessage = (message, options) => {
     }
 
     if (part.type === "file") {
-      sections.push(buildCodexFilePartSummary(part));
+      sections.push(describeAttachment(part));
       continue;
     }
 

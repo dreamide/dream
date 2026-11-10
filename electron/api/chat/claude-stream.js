@@ -13,6 +13,12 @@ import {
 import { claudeCode, getSessionInfo } from "ai-sdk-provider-claude-code";
 import { saveChatAttachments } from "../../host/chat-attachments.js";
 import {
+  describeAttachment,
+  getAttachmentLabel,
+  getMessageFileParts,
+  isAttachmentContentInPrompt,
+} from "../../shared/attachment-content.js";
+import {
   CLAUDE_REASONING_EFFORT_MAP,
   getModelReasoningEfforts,
   normalizeClaudeCodeModel,
@@ -25,13 +31,7 @@ import {
   BROWSER_READ_ONLY_TOOL_IDS,
   createBrowserMcpServer,
 } from "./browser-tools.js";
-import {
-  buildCodexFilePartSummary,
-  getCodexAttachmentLabel,
-  getCodexMessageFileParts,
-  getLatestUserMessage,
-  isAttachmentContentInPrompt,
-} from "./codex-prompt.js";
+import { getLatestUserMessage } from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
 import { toClaudeMcpServers } from "./mcp-servers.js";
 import { shouldResumeProviderSession } from "./provider-session.js";
@@ -47,7 +47,7 @@ const CLAUDE_PERMISSION_MODE_MAP = {
 };
 
 const describeClaudeAttachment = (part, filePath) => {
-  const summary = buildCodexFilePartSummary(part);
+  const summary = describeAttachment(part);
   if (filePath) return `${summary}\nSaved at: ${filePath}`;
   return isAttachmentContentInPrompt(part)
     ? summary
@@ -61,11 +61,11 @@ const appendClaudeAttachmentTextToLatestUserMessage = (messages, filePaths) => {
   const latestUserMessage = getLatestUserMessage(messages);
   if (!latestUserMessage) return messages;
 
-  const currentParts = getCodexMessageFileParts(latestUserMessage);
+  const currentParts = getMessageFileParts(latestUserMessage);
   const earlierFiles = new Map();
   for (const [part, filePath] of filePaths) {
     if (!currentParts.includes(part)) {
-      earlierFiles.set(filePath, getCodexAttachmentLabel(part));
+      earlierFiles.set(filePath, getAttachmentLabel(part));
     }
   }
   const sections = [];

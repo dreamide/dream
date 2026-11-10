@@ -6,9 +6,7 @@ import path from "node:path";
 import { streamAgentTurn } from "./agent-turn.js";
 import {
   buildCodexConversationPrompt,
-  getLatestUserMessage,
   getLatestUserPrompt,
-  prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
 import { toAcpMcpServers } from "./mcp-servers.js";
 import { shouldResumeProviderSession } from "./provider-session.js";
@@ -158,9 +156,9 @@ export const streamAcpResponse = ({
     projectPath,
     provider,
     responseMessageMetadata,
-    execute: async (turn) => {
+    prepareAttachments: true,
+    execute: async (turn, preparedAttachments) => {
       let connection = null;
-      let preparedAttachments = null;
       let sessionId = null;
       let loadingSession = false;
       let loadedSession = false;
@@ -301,9 +299,6 @@ export const streamAcpResponse = ({
       abortSignal?.addEventListener("abort", handleAbort, { once: true });
 
       try {
-        preparedAttachments = await prepareCodexPromptAttachments(
-          getLatestUserMessage(messages),
-        );
         if (stopIfAborted()) return;
         connection = await adapter.spawn({
           permissionMode,
@@ -428,7 +423,6 @@ export const streamAcpResponse = ({
       } finally {
         approvalController.abort();
         abortSignal?.removeEventListener("abort", handleAbort);
-        preparedAttachments?.cleanup?.();
         connection?.close();
       }
     },

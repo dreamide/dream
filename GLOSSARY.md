@@ -104,6 +104,11 @@ transcript holds the bytes, so the files are a cache: each turn rewrites what
 is missing, and they are removed once the chat's row is gone. Claude uses them;
 other providers still write per-turn temporary copies.
 
+Temporary attachment files belong to the Agent turn from preparation through
+provider completion. A failed preparation or a stopped turn releases them too;
+a client ceasing to observe the turn does not. Attachment content descriptions
+use the same decoding and naming rules whichever Provider reads them.
+
 ## Chat transcript cache
 
 The transcripts this client currently holds for its chats. It owns both the

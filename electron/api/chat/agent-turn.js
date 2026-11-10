@@ -32,6 +32,7 @@ import {
   createUIMessageStreamResponse,
   readUIMessageStream,
 } from "ai";
+import { withTemporaryChatAttachments } from "../../host/chat-attachments.js";
 import { formatApprovalId } from "../../shared/agent-turn-contract.js";
 import { getToolKindForName, isToolKind } from "../../shared/tool-call.js";
 import { waitForToolApproval } from "../tool-approvals.js";
@@ -554,7 +555,12 @@ const observeTurn = async (stream, originalMessages, observer) => {
  * open parts are closed after it, an error after the client aborted is
  * dropped, and any other error reaches the client formatted.
  */
-export const streamAgentTurn = ({ execute, messages, ...turnOptions }) => {
+export const streamAgentTurn = ({
+  execute,
+  messages,
+  prepareAttachments = false,
+  ...turnOptions
+}) => {
   const { label = turnOptions.provider, provider } = turnOptions;
   // The host's observer of this turn, which knows the chat it belongs to.
   const observer = turnObservers.getStore();
@@ -575,7 +581,14 @@ export const streamAgentTurn = ({ execute, messages, ...turnOptions }) => {
       writer.write({ type: "start" });
       turn.metadata();
       try {
-        await execute(turn);
+        if (prepareAttachments) {
+          await withTemporaryChatAttachments(
+            { messages, signal: turnOptions.abortSignal },
+            (attachments) => execute(turn, attachments),
+          );
+        } else {
+          await execute(turn);
+        }
       } catch (error) {
         if (!turn.aborted) {
           throw error;

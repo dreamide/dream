@@ -7,9 +7,7 @@ import { streamAgentTurn } from "./agent-turn.js";
 import {
   buildCodexConversationPrompt,
   chunkTextInput,
-  getLatestUserMessage,
   getLatestUserPrompt,
-  prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
 import { toOpenCodeMcpConfig } from "./mcp-servers.js";
@@ -492,10 +490,10 @@ export const streamOpenCodeResponse = ({
     projectPath,
     provider: "opencode",
     responseMessageMetadata,
-    execute: (turn) =>
+    prepareAttachments: true,
+    execute: (turn, preparedAttachments) =>
       new Promise((resolve, reject) => {
         let finished = false;
-        let preparedAttachments = null;
         let textPartIndex = 0;
         let activeSessionId = null;
         let activeCompactionId = null;
@@ -513,7 +511,6 @@ export const streamOpenCodeResponse = ({
           finished = true;
           abortSignal?.removeEventListener("abort", handleAbort);
           serverAbortController.abort();
-          preparedAttachments?.cleanup?.();
           opencode?.server.close();
           callback();
         };
@@ -873,190 +870,190 @@ export const streamOpenCodeResponse = ({
           finish(resolve);
         };
 
+        if (abortSignal?.aborted) {
+          handleAbort();
+          return;
+        }
         abortSignal?.addEventListener("abort", handleAbort, { once: true });
 
-        void prepareCodexPromptAttachments(getLatestUserMessage(messages))
-          .then(async (attachments) => {
-            preparedAttachments = attachments;
-            const fullPrompt = buildCodexConversationPrompt({
-              currentTurnAttachments: attachments?.promptText ?? null,
-              currentTurnProjectReferences: projectReferencesPrompt,
-              messages,
+        void (async () => {
+          if (finished || abortSignal?.aborted) return;
+          const fullPrompt = buildCodexConversationPrompt({
+            currentTurnAttachments: preparedAttachments?.promptText ?? null,
+            currentTurnProjectReferences: projectReferencesPrompt,
+            messages,
+            projectPath,
+            runtimeDescription:
+              "You are running through the real OpenCode server with native project tools. Respect the active project root and complete the latest user request.",
+            systemPrompt,
+          });
+          const currentTurnPrompt = getLatestUserPrompt(
+            messages,
+            preparedAttachments?.promptText ?? null,
+            projectReferencesPrompt,
+          );
+
+          const { modelID, providerID } = parseOpenCodeModel(model);
+          opencode = await createOpencode({
+            config: getOpenCodeServerConfig(permissionMode, mcpServers),
+            hostname: "127.0.0.1",
+            port: 0,
+            signal: serverAbortController.signal,
+            timeout: OPENCODE_SERVER_TIMEOUT_MS,
+          });
+
+          let resumed = false;
+          if (
+            shouldResumeProviderSession({
+              provider: "opencode",
+              model,
+              modelSpeed,
               projectPath,
-              runtimeDescription:
-                "You are running through the real OpenCode server with native project tools. Respect the active project root and complete the latest user request.",
-              systemPrompt,
-            });
-            const currentTurnPrompt = getLatestUserPrompt(
-              messages,
-              attachments?.promptText ?? null,
-              projectReferencesPrompt,
-            );
-
-            const { modelID, providerID } = parseOpenCodeModel(model);
-            opencode = await createOpencode({
-              config: getOpenCodeServerConfig(permissionMode, mcpServers),
-              hostname: "127.0.0.1",
-              port: 0,
-              signal: serverAbortController.signal,
-              timeout: OPENCODE_SERVER_TIMEOUT_MS,
-            });
-
-            let resumed = false;
-            if (
-              shouldResumeProviderSession({
-                provider: "opencode",
-                model,
-                modelSpeed,
-                projectPath,
-                remoteConversationId,
-                remoteConversationModel,
-                remoteConversationModelSpeed,
-                remoteConversationProjectPath,
-              })
-            ) {
-              const existingSession = await opencode.client.session.get({
-                path: { id: remoteConversationId },
-                query: { directory: projectPath },
-                signal: serverAbortController.signal,
-              });
-              if (existingSession.data?.id === remoteConversationId) {
-                // OpenCode persists failed and interrupted messages. Reusing
-                // that session can repeat the failure on every Retry. Inspect
-                // its last message before sending anything; reconstruct an
-                // unhealthy session from Dream's saved conversation instead.
-                const previousMessages = await opencode.client.session.messages(
-                  {
-                    path: { id: remoteConversationId },
-                    query: { directory: projectPath, limit: 1 },
-                    signal: serverAbortController.signal,
-                  },
-                );
-                const previous = Array.isArray(previousMessages.data)
-                  ? previousMessages.data.at(-1)?.info
-                  : null;
-                if (
-                  previous?.role === "assistant" &&
-                  !previous.error &&
-                  typeof previous.time?.completed === "number" &&
-                  previous.finish &&
-                  previous.finish !== "tool-calls"
-                ) {
-                  activeSessionId = existingSession.data.id;
-                  resumed = true;
-                }
-              }
-            }
-
-            if (!activeSessionId) {
-              const sessionResult = await opencode.client.session.create({
-                body: {
-                  agent: "build",
-                  model: {
-                    id: modelID,
-                    providerID,
-                  },
-                },
-                query: { directory: projectPath },
-                signal: serverAbortController.signal,
-              });
-              activeSessionId = sessionResult.data?.id;
-            }
-
-            if (!activeSessionId) {
-              throw new Error("OpenCode did not return a session id.");
-            }
-
-            turn.session(activeSessionId);
-            const prompt = resumed ? currentTurnPrompt : fullPrompt;
-            submittedPrompt = prompt;
-
-            const events = await opencode.client.event.subscribe({
+              remoteConversationId,
+              remoteConversationModel,
+              remoteConversationModelSpeed,
+              remoteConversationProjectPath,
+            })
+          ) {
+            const existingSession = await opencode.client.session.get({
+              path: { id: remoteConversationId },
               query: { directory: projectPath },
               signal: serverAbortController.signal,
-              sseMaxRetryAttempts: 0,
-              onSseError: (error) => {
-                if (!finished && !serverAbortController.signal.aborted) {
-                  fail(error);
-                }
-              },
             });
-
-            const eventsPromise = (async () => {
-              for await (const event of events.stream) {
-                if (finished || abortSignal?.aborted) {
-                  return;
-                }
-                await handleEvent(event);
-              }
-              if (!finished && !serverAbortController.signal.aborted) {
-                fail(
-                  new Error(
-                    "OpenCode's event stream closed before the turn completed.",
-                  ),
-                );
-              }
-            })().catch((error) => {
+            if (existingSession.data?.id === remoteConversationId) {
+              // OpenCode persists failed and interrupted messages. Reusing
+              // that session can repeat the failure on every Retry. Inspect
+              // its last message before sending anything; reconstruct an
+              // unhealthy session from Dream's saved conversation instead.
+              const previousMessages = await opencode.client.session.messages({
+                path: { id: remoteConversationId },
+                query: { directory: projectPath, limit: 1 },
+                signal: serverAbortController.signal,
+              });
+              const previous = Array.isArray(previousMessages.data)
+                ? previousMessages.data.at(-1)?.info
+                : null;
               if (
-                !finished &&
-                !abortSignal?.aborted &&
-                !serverAbortController.signal.aborted
+                previous?.role === "assistant" &&
+                !previous.error &&
+                typeof previous.time?.completed === "number" &&
+                previous.finish &&
+                previous.finish !== "tool-calls"
               ) {
-                fail(error);
+                activeSessionId = existingSession.data.id;
+                resumed = true;
               }
-            });
+            }
+          }
 
-            const promptResult = await opencode.client.session.prompt({
+          if (!activeSessionId) {
+            const sessionResult = await opencode.client.session.create({
               body: {
                 agent: "build",
                 model: {
-                  modelID,
+                  id: modelID,
                   providerID,
                 },
-                parts: chunkTextInput(prompt).map((text) => ({
-                  text,
-                  type: "text",
-                })),
               },
-              path: { id: activeSessionId },
               query: { directory: projectPath },
               signal: serverAbortController.signal,
             });
+            activeSessionId = sessionResult.data?.id;
+          }
 
-            const promptError = getOpenCodeErrorDetail(
-              promptResult.error ?? promptResult.data?.info?.error,
-            );
-            if (promptError) {
-              throw new Error(promptError);
+          if (!activeSessionId) {
+            throw new Error("OpenCode did not return a session id.");
+          }
+
+          turn.session(activeSessionId);
+          const prompt = resumed ? currentTurnPrompt : fullPrompt;
+          submittedPrompt = prompt;
+
+          const events = await opencode.client.event.subscribe({
+            query: { directory: projectPath },
+            signal: serverAbortController.signal,
+            sseMaxRetryAttempts: 0,
+            onSseError: (error) => {
+              if (!finished && !serverAbortController.signal.aborted) {
+                fail(error);
+              }
+            },
+          });
+
+          const eventsPromise = (async () => {
+            for await (const event of events.stream) {
+              if (finished || abortSignal?.aborted) {
+                return;
+              }
+              await handleEvent(event);
             }
-
-            if (finished || abortSignal?.aborted) {
-              return;
+            if (!finished && !serverAbortController.signal.aborted) {
+              fail(
+                new Error(
+                  "OpenCode's event stream closed before the turn completed.",
+                ),
+              );
             }
+          })().catch((error) => {
+            if (
+              !finished &&
+              !abortSignal?.aborted &&
+              !serverAbortController.signal.aborted
+            ) {
+              fail(error);
+            }
+          });
 
-            if (!hasWrittenText && !turn.textLimited) {
-              let wroteFallbackText = false;
-              for (const part of promptResult.data?.parts ?? []) {
-                const text = extractOpenCodePartText(part);
-                if (!text || isLikelySubmittedOpenCodePrompt(text, prompt)) {
-                  continue;
-                }
+          const promptResult = await opencode.client.session.prompt({
+            body: {
+              agent: "build",
+              model: {
+                modelID,
+                providerID,
+              },
+              parts: chunkTextInput(prompt).map((text) => ({
+                text,
+                type: "text",
+              })),
+            },
+            path: { id: activeSessionId },
+            query: { directory: projectPath },
+            signal: serverAbortController.signal,
+          });
 
-                writeText(text, part.id, getOpenCodePartType(part), true);
-                wroteFallbackText = true;
+          const promptError = getOpenCodeErrorDetail(
+            promptResult.error ?? promptResult.data?.info?.error,
+          );
+          if (promptError) {
+            throw new Error(promptError);
+          }
+
+          if (finished || abortSignal?.aborted) {
+            return;
+          }
+
+          if (!hasWrittenText && !turn.textLimited) {
+            let wroteFallbackText = false;
+            for (const part of promptResult.data?.parts ?? []) {
+              const text = extractOpenCodePartText(part);
+              if (!text || isLikelySubmittedOpenCodePrompt(text, prompt)) {
+                continue;
               }
 
-              if (!wroteFallbackText) {
-                throw new Error(
-                  "OpenCode completed without returning assistant text.",
-                );
-              }
+              writeText(text, part.id, getOpenCodePartType(part), true);
+              wroteFallbackText = true;
             }
 
-            serverAbortController.abort();
-            await eventsPromise;
-            finish(resolve);
-          })
-          .catch(fail);
+            if (!wroteFallbackText) {
+              throw new Error(
+                "OpenCode completed without returning assistant text.",
+              );
+            }
+          }
+
+          serverAbortController.abort();
+          await eventsPromise;
+          finish(resolve);
+        })().catch(fail);
       }),
   });

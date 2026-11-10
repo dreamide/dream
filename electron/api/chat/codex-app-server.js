@@ -20,9 +20,7 @@ import {
 } from "./codex-common.js";
 import {
   buildCodexAppServerConversationPrompt,
-  getLatestUserMessage,
   getLatestUserPrompt,
-  prepareCodexPromptAttachments,
 } from "./codex-prompt.js";
 import { shouldResumeProviderSession } from "./provider-session.js";
 
@@ -476,7 +474,8 @@ export const streamCodexAppServerResponse = ({
     projectPath,
     provider: "openai",
     responseMessageMetadata,
-    execute: (turn) =>
+    prepareAttachments: true,
+    execute: (turn, preparedAttachments) =>
       new Promise((resolve, reject) => {
         const commandOutputs = new Map();
         const activeSubagentToolCalls = new Set();
@@ -484,7 +483,6 @@ export const streamCodexAppServerResponse = ({
         const subagentToolCallIdsByThreadId = new Map();
         const pendingToolCompletions = new Set();
         let finished = false;
-        let preparedAttachments = null;
         let rootThreadId = null;
         let rootTurnId = null;
         let appServerClient = null;
@@ -500,7 +498,6 @@ export const streamCodexAppServerResponse = ({
           abortSignal?.removeEventListener("abort", handleAbort);
           unregisterThread?.();
           unregisterThread = null;
-          preparedAttachments?.cleanup?.();
           callback();
         };
 
@@ -1079,12 +1076,6 @@ export const streamCodexAppServerResponse = ({
         void getCodexAppServerClient({ mcpServers })
           .then(async (client) => {
             appServerClient = client;
-            if (finished) {
-              return;
-            }
-            preparedAttachments = await prepareCodexPromptAttachments(
-              getLatestUserMessage(messages),
-            );
             if (finished) {
               return;
             }
