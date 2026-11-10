@@ -151,6 +151,8 @@ test("text, thoughts, plans and tool calls become turn chunks", async () => {
   // a new part afterwards.
   const firstTextEnd = types.indexOf("text-end");
   const toolInputStart = types.indexOf("tool-input-start");
+  assert.ok(firstTextEnd >= 0, "prose emits a text-end event");
+  assert.ok(toolInputStart >= 0, "the tool emits a tool-input-start event");
   assert.ok(firstTextEnd < toolInputStart);
   const textDeltas = chunks.filter((c) => c.type === "text-delta");
   assert.deepEqual(

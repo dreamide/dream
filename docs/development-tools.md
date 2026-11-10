@@ -96,3 +96,8 @@ in scripts/; one-off tools belong in the task directory.
 of TypeScript streamed in 80-character updates, after highlighter warmup. It
 prints input size, update count, Node version, and elapsed milliseconds as JSON.
 It is a diagnostic, not a timing assertion or an end-to-end UI latency estimate.
+
+`pnpm bench:file-tree` measures a 10,000-file root listing loaded into the real
+file-tree model. It prints the entry count, Node version, and elapsed milliseconds
+as JSON, without a timing threshold. It uses an in-memory listing and does not
+measure filesystem or rendering time.

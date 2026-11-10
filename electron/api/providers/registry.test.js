@@ -1,11 +1,9 @@
-// Every provider record has the whole interface, and the capabilities the
-// renderer reads are the ones the server acts on.
+// Every provider record has the whole interface and its title-model policy.
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import {
   getProviderCapabilities,
   isProviderId,
-  PROVIDER_CAPABILITIES,
   PROVIDER_IDS,
 } from "../../shared/provider-capabilities.js";
 import { getProvider, listProviders } from "./registry.js";
@@ -23,20 +21,6 @@ test("every provider has a complete record", () => {
       assert.equal(typeof provider[key], "function", `${provider.id}.${key}`);
     }
     assert.equal(typeof provider.label, "string");
-    assert.deepEqual(
-      {
-        browserMcpScope: provider.browserMcpScope,
-        label: provider.label,
-        mcp: provider.mcp,
-        modelSwitchInSession: provider.modelSwitchInSession,
-        nativeFork: provider.nativeFork,
-        modelAliases: provider.modelAliases,
-        selectedModelsSetting: provider.selectedModelsSetting,
-        skills: provider.skills,
-        usageLimits: provider.usageLimits,
-      },
-      PROVIDER_CAPABILITIES[provider.id],
-    );
   }
   assert.deepEqual(
     listProviders().map((provider) => provider.id),

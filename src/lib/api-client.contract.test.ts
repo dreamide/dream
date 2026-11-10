@@ -1,73 +1,27 @@
-// The route client's paths against the routes the server registers: every
-// method the renderer can call is one the API server answers.
+// Check client paths against the same route assembly used by the host.
 import { Hono } from "hono";
 import { expect, test } from "vitest";
+import { registerHostRoutes } from "../../electron/api/app.js";
 import { API_ROUTES } from "./api-client";
 
-test("every client route is registered on the API server", async () => {
-  const [
-    { registerBrowserToolCallRoutes },
-    { registerCatalogRoutes },
-    { registerChatRoutes },
-    { registerCheckpointRoutes },
-    { registerCodePullRequestRoutes },
-    { registerHostDirectoryRoutes },
-    { registerMcpServerRoutes },
-    { registerProjectGitRoutes },
-    { registerProviderRoutes },
-    { registerHostSocketRoutes },
-    { registerRemoteAccessRoutes },
-    { registerSkillsRoutes },
-    { registerTerminalRoutes },
-    { registerToolApprovalRoutes },
-  ] = await Promise.all([
-    import("../../electron/api/browser-tool-call-routes.js"),
-    import("../../electron/api/catalog-routes.js"),
-    import("../../electron/api/chat-routes.js"),
-    import("../../electron/api/checkpoint-routes.js"),
-    import("../../electron/api/code-pull-request-routes.js"),
-    import("../../electron/api/host-directory-routes.js"),
-    import("../../electron/api/mcp-server-routes.js"),
-    import("../../electron/api/project-git-routes.js"),
-    import("../../electron/api/provider-routes.js"),
-    import("../../electron/api/host-socket-routes.js"),
-    import("../../electron/api/remote-access-routes.js"),
-    import("../../electron/api/skills-routes.js"),
-    import("../../electron/api/terminal-routes.js"),
-    import("../../electron/api/tool-approvals.js"),
-  ]);
-
+test("every client route is registered on the API server", () => {
   const app = new Hono();
-  for (const register of [
-    registerBrowserToolCallRoutes,
-    registerCheckpointRoutes,
-    registerCodePullRequestRoutes,
-    registerHostDirectoryRoutes,
-    registerMcpServerRoutes,
-    registerProjectGitRoutes,
-    registerProviderRoutes,
-    registerSkillsRoutes,
-    registerToolApprovalRoutes,
-  ]) {
-    register(app);
-  }
-  registerTerminalRoutes(app, {
-    detectShells: () => [],
-    sessions: {} as never,
-  });
-  registerCatalogRoutes(app, {} as never);
-  // The local listener's remote-access routes (the desktop's settings).
-  registerRemoteAccessRoutes(app, {
-    auth: {} as never,
-    describeHost: () => ({}),
-    remote: false,
-    remoteAccess: {} as never,
-  });
-  registerChatRoutes(app, { scheduler: {} as never });
-  registerHostSocketRoutes(app, {
-    socket: {} as never,
-    tickets: {} as never,
-  });
+  // Enable the local listener's catalog and device-management routes.
+  // Services are not invoked: this checks registration, not request handling.
+  registerHostRoutes(
+    app,
+    {
+      auth: {},
+      catalog: {},
+      getHostDescriptor: () => ({}),
+      getHostInfo: () => ({}),
+      hostSocket: { socket: {}, tickets: {} },
+      remoteAccess: {},
+      scheduler: {},
+      terminals: { detectShells: () => [], sessions: {} },
+    },
+    { remote: false },
+  );
 
   const served = new Set(
     app.routes.map((route) => `${route.method} ${route.path}`),

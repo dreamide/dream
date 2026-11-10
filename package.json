@@ -8,7 +8,7 @@
     "dev": "pnpm electron:dev",
     "build": "pnpm package:dir",
     "vite:dev": "vite --host 127.0.0.1 --port 3210 --strictPort",
-    "vite:build": "pnpm test:update-button-styles && vite build",
+    "vite:build": "vite build",
     "electron:dev": "node scripts/prepare-electron-dev-app.mjs && cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true DREAM_ENABLE_DEV_UPDATES=0 electron electron/main.js",
     "electron:dev:update": "node scripts/prepare-electron-dev-app.mjs && cross-env NODE_ENV=development ELECTRON_DISABLE_SECURITY_WARNINGS=true DREAM_ENABLE_DEV_UPDATES=1 DREAM_DEV_UPDATE_CURRENT_VERSION=0.1.0 electron electron/main.js",
     "dev:update": "pnpm electron:dev:update",
@@ -33,9 +33,9 @@
     "inspect:dev": "node scripts/inspect-dev.mjs",
     "scratch": "node scripts/create-scratch.mjs",
     "bench:highlight": "tsx scripts/bench-highlight.mts",
+    "bench:file-tree": "tsx scripts/bench-file-tree.mts",
     "architecture:report": "node scripts/render-architecture-report.mjs",
     "typecheck": "tsc --noEmit",
-    "test:update-button-styles": "vitest run src/components/ide/header/update-button-styles.test.ts",
     "format": "biome format --write ."
   },
   "dependencies": {

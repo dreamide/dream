@@ -1,4 +1,3 @@
-import { performance } from "node:perf_hooks";
 import { FileTree } from "@pierre/trees";
 import { afterEach, expect, test, vi } from "vitest";
 import type { ProjectDirectoryResponse } from "./project-directory-loader";
@@ -40,6 +39,7 @@ const allFiles = [
 const models: FileTree[] = [];
 afterEach(() => {
   for (const model of models.splice(0)) model.cleanUp();
+  vi.restoreAllMocks();
 });
 
 /** Lets fetches, timers at 0 ms and the loads they start settle. */
@@ -305,11 +305,12 @@ test("one listing of 10,000 entries lands in the model in one batch", async () =
     fetchDirectory: async (directory) => ({ directory, entries }),
   });
 
-  const startedAt = performance.now();
+  const batch = vi.spyOn(model, "batch");
   tree.load(0);
   await settle();
-  const durationMs = performance.now() - startedAt;
 
+  expect(batch).toHaveBeenCalledExactlyOnceWith(
+    entries.map(({ path }) => ({ path, type: "add" })),
+  );
   expect(model.getItem("file-09999.txt")?.getPath()).toBe("file-09999.txt");
-  expect(durationMs).toBeLessThan(5_000);
 });
