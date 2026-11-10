@@ -39,4 +39,6 @@ const request = http.request(
   },
 );
 request.on("error", () => process.exit(1));
-request.end(JSON.stringify({ message }));
+request.end(
+  JSON.stringify({ message, attemptId: process.env.DREAM_ASKPASS_ATTEMPT }),
+);

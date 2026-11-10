@@ -165,6 +165,10 @@ over HTTPS with a device session. Not to be
 confused with a provider session, which lives on the provider's side
 whatever the host.
 
+An **SSH prompt** belongs to the connection attempt that asked it, even when
+several Hosts connect at once. Declining it cancels that attempt alone;
+replacing or disconnecting the attempt makes its late answers ineligible.
+
 ## Host identity
 
 Who a host is, however it is reached (`electron/host/identity.js`): a

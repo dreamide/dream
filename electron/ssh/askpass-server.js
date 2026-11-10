@@ -42,7 +42,7 @@ function writeAskpassWrapper(directory) {
 /**
  * @param {{
  *   directory: string,
- *   onPrompt: (prompt: { message: string, kind: "secret" | "confirm" }) =>
+ *   onPrompt: (prompt: { message: string, kind: "secret" | "confirm" }, attemptId?: string) =>
  *     Promise<string | null>,
  * }} options
  *   `directory`: private folder for the wrapper script.
@@ -69,8 +69,12 @@ export async function startAskpassServer({ directory, onPrompt }) {
     });
     request.on("end", async () => {
       let message = "";
+      let attemptId;
       try {
-        message = String(JSON.parse(body).message ?? "");
+        const payload = JSON.parse(body);
+        message = String(payload.message ?? "");
+        attemptId =
+          typeof payload.attemptId === "string" ? payload.attemptId : undefined;
       } catch {
         response.writeHead(400).end();
         return;
@@ -80,7 +84,7 @@ export async function startAskpassServer({ directory, onPrompt }) {
       const kind = /\(yes\/no/i.test(message) ? "confirm" : "secret";
       let answer = null;
       try {
-        answer = await onPrompt({ kind, message });
+        answer = await onPrompt({ kind, message }, attemptId);
       } catch {
         answer = null;
       }

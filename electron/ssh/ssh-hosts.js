@@ -36,24 +36,38 @@ export function createSshHostManager({
   runtimeVersion = null,
 }) {
   const connections = new Map();
+  const attempts = new Map();
+  const prompts = new Map();
   const controlNamespace = randomUUID();
   let askpass = null;
-  // ssh does not say which connection a prompt belongs to; prompts are
-  // asked one at a time, labelled with the host being connected.
-  let prompting = null;
+
+  const retire = (hostId) => {
+    const attempt = attempts.get(hostId);
+    if (!attempt) return;
+    attempts.delete(hostId);
+    prompts.delete(attempt.id);
+    attempt.retire();
+  };
 
   // A declined prompt (cancelled, or left unanswered) ends the attempt.
   // ssh reads a failed askpass as an empty password and asks again, up to
   // NumberOfPasswordPrompts times; cancel has to mean cancel.
-  const askFor = async (prompt) => {
-    const asking = prompting;
-    if (asking?.cancelled) return null;
-    const answer = await onPrompt({
-      ...prompt,
-      hostId: asking?.hostId ?? null,
-      target: asking?.target ?? null,
-    });
-    if (answer === null && asking && !asking.cancelled) {
+  const askFor = async (prompt, attemptId) => {
+    const asking = prompts.get(attemptId);
+    if (!asking || asking.cancelled || !asking.connection) return null;
+    const epoch = asking.epoch;
+    const current = () =>
+      prompts.get(attemptId) === asking && asking.epoch === epoch;
+    const answer = await Promise.race([
+      Promise.resolve()
+        .then(() =>
+          onPrompt({ ...prompt, hostId: asking.hostId, target: asking.target }),
+        )
+        .catch(() => null),
+      asking.retired,
+    ]);
+    if (!current()) return null;
+    if (answer === null && !asking.cancelled) {
       asking.cancelled = true;
       asking.connection.cancel("Cancelled at the SSH prompt.");
     }
@@ -127,44 +141,79 @@ export function createSshHostManager({
         );
       }
       existing?.disconnect();
-
-      const { env } = await getAskpass();
-      signal?.throwIfAborted();
-      const connection = createSshHostConnection({
-        autoReconnect,
-        interactive,
-        controlPath: getControlPath(hostId, target),
-        // A silent probe keeps askpass forced but without its secret, so the
-        // helper declines at once. A prompt from a hop BatchMode does not
-        // reach (ProxyJump) cannot be shown under a foreground host's name.
-        env: {
-          ...process.env,
-          ...env,
-          ...(interactive ? {} : { DREAM_ASKPASS_SECRET: "" }),
-        },
-        expectedIdentity,
-        getLocalPort: () => getPort({ host: "127.0.0.1" }),
-        runtimeCacheDirectory: path.join(stateDirectory, "runtime"),
-        runtimeVersion,
-        onStatus: (status) => onStatus({ ...status, hostId }),
-        sshPath,
+      connections.delete(hostId);
+      retire(hostId);
+      // Register before the first await: replacement and disconnect retire
+      // even an attempt still waiting for the shared askpass listener.
+      const { promise: retired, resolve: settleRetired } =
+        Promise.withResolvers();
+      const attempt = {
+        id: randomUUID(),
+        hostId,
         target,
-      });
-      connections.set(hostId, connection);
-      const asking = { cancelled: false, connection, hostId, target };
-      // Silent preferred probes cannot take ownership of a foreground
-      // connection's password/host-key prompt.
-      if (interactive) prompting = asking;
+        connection: null,
+        cancelled: false,
+        epoch: 0,
+        retired,
+        retire: () => settleRetired(null),
+      };
+      attempts.set(hostId, attempt);
+      const current = () => attempts.get(hostId) === attempt;
       const cancel = () => {
-        connection.cancel();
-        connection.disconnect();
+        if (!current()) return;
+        retire(hostId);
+        attempt.connection?.cancel();
+        attempt.connection?.disconnect();
       };
       signal?.addEventListener("abort", cancel, { once: true });
       try {
-        return await connection.connect();
+        const { env } = await getAskpass();
+        signal?.throwIfAborted();
+        if (!current())
+          throw new SshHostError("Disconnected while connecting.");
+        const connection = createSshHostConnection({
+          autoReconnect,
+          interactive,
+          controlPath: getControlPath(hostId, target),
+          // A silent probe keeps askpass forced but without its secret, so the
+          // helper declines at once. A prompt from a hop BatchMode does not
+          // reach (ProxyJump) cannot be shown under a foreground host's name.
+          env: {
+            ...process.env,
+            ...env,
+            DREAM_ASKPASS_ATTEMPT: attempt.id,
+            ...(interactive ? {} : { DREAM_ASKPASS_SECRET: "" }),
+          },
+          expectedIdentity,
+          getLocalPort: () => getPort({ host: "127.0.0.1" }),
+          runtimeCacheDirectory: path.join(stateDirectory, "runtime"),
+          runtimeVersion,
+          onStatus: (status) => {
+            if (!current()) return;
+            // A question from an earlier state must not answer a later retry.
+            attempt.epoch += 1;
+            if (status.state === "failed" || status.state === "disconnected") {
+              prompts.delete(attempt.id);
+              attempt.retire();
+            }
+            onStatus({ ...status, hostId });
+          },
+          sshPath,
+          target,
+        });
+        attempt.connection = connection;
+        connections.set(hostId, connection);
+        if (interactive) prompts.set(attempt.id, attempt);
+        const endpoint = await connection.connect();
+        if (!current())
+          throw new SshHostError("Disconnected while connecting.");
+        return endpoint;
+      } catch (error) {
+        if (current()) retire(hostId);
+        attempt.connection?.disconnect();
+        throw error;
       } finally {
         signal?.removeEventListener("abort", cancel);
-        if (prompting === asking) prompting = null;
       }
     },
 
@@ -180,12 +229,14 @@ export function createSshHostManager({
     },
 
     disconnect(hostId) {
+      retire(hostId);
       connections.get(hostId)?.disconnect();
       connections.delete(hostId);
     },
 
     /** Ends every session (on quit). Daemons keep running. */
     async disconnectAll() {
+      for (const hostId of attempts.keys()) retire(hostId);
       for (const connection of connections.values()) connection.disconnect();
       connections.clear();
       const closing = askpass;

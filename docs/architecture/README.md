@@ -89,6 +89,10 @@ The generated HTML goes to a temporary directory; Markdown remains authoritative
 
 Module names and current ownership live in ../../GLOSSARY.md.
 
+- `tasks/review-20261109.md` tracks SSH-PROMPT, SAVED-ROUTES and
+  ATTACHMENT-LIFETIME: SSH prompt ownership, saved-connection edit lifetime,
+  and attachment preparation and release.
+
 - `tasks/review-20261018.md` tracks PRR-01, HCL-01, BTN-01 and GLP-01:
   pull-request resources, host catalog readiness, browser tab operations and
   Git history pagination.
