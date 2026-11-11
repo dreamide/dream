@@ -285,6 +285,7 @@ export const EmptyProjectWorkspace = () => {
               <SearchInput
                 aria-label={emptyT("searchRecentlyClosed")}
                 autoComplete="off"
+                autoFocus
                 className="w-full min-w-0 max-w-64"
                 clearLabel={panelsT("clearSearch")}
                 onValueChange={setRecentProjectQuery}
