@@ -624,6 +624,83 @@ test("catalog changes keep this window's workspace fields and its new-tab view",
   assert.deepEqual(removal.removedProjectIds, []);
 });
 
+/** A settled document with two projects of two chats each. */
+const twoProjectsOfTwoChats = () => {
+  const { doc: seeded } = seededDoc();
+  const opened = workspace.openProject(seeded, SETTINGS, "/workspace/api");
+  const first = opened.doc.projects[0] as ProjectConfig;
+  const second = opened.doc.projects[1] as ProjectConfig;
+  const doc = workspace.settle(
+    {
+      ...opened.doc,
+      chats: [
+        ...opened.doc.chats,
+        createChatConfig(first, { title: "Second" }),
+        createChatConfig(second, { title: "Other" }),
+      ],
+    },
+    SETTINGS,
+  );
+  assertInvariant(doc);
+  return doc;
+};
+
+test("a host's change to one chat leaves every other row, and the projects, as they were", () => {
+  const doc = twoProjectsOfTwoChats();
+  const target = doc.chats[1] as ChatConfig;
+
+  const removal = workspace.applyCatalogChanges(doc, SETTINGS, LOCAL, {
+    chats: [{ ...target, title: "Renamed elsewhere" }],
+  });
+
+  assertInvariant(removal.doc);
+  const renamed = removal.doc.chats.find((chat) => chat.id === target.id);
+  assert.equal(renamed?.title, "Renamed elsewhere");
+  for (const [index, chat] of removal.doc.chats.entries()) {
+    if (chat.id !== target.id) assert.equal(chat, doc.chats[index]);
+  }
+  assert.equal(removal.doc.projects, doc.projects);
+  assert.equal(removal.doc.closedProjects, doc.closedProjects);
+  assert.equal(removal.doc.messagesByChatId, doc.messagesByChatId);
+  assert.equal(removal.doc.draftChatIdByProject, doc.draftChatIdByProject);
+});
+
+test("a host's catalog arriving equal to what is held changes nothing", () => {
+  const doc = twoProjectsOfTwoChats();
+  const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+
+  const removal = workspace.applyCatalogChanges(doc, SETTINGS, LOCAL, {
+    chats: doc.chats.map(copy),
+    projects: doc.projects.map(copy),
+  });
+
+  assert.equal(removal.doc.chats, doc.chats);
+  assert.equal(removal.doc.projects, doc.projects);
+  assert.deepEqual(removal.removedChatIds, []);
+  assert.deepEqual(removal.removedProjectIds, []);
+});
+
+test("a held chat still leaves with its project, and an incoming project still yields to one at its path", () => {
+  const doc = twoProjectsOfTwoChats();
+  const [first, second] = doc.projects as [ProjectConfig, ProjectConfig];
+
+  const removal = workspace.applyCatalogChanges(doc, SETTINGS, LOCAL, {
+    projects: [{ ...createProjectConfig(second.path, SETTINGS), id: "dup" }],
+    removedProjectIds: [first.id],
+  });
+
+  assertInvariant(removal.doc);
+  assert.deepEqual(
+    removal.doc.projects.map((project) => project.id),
+    [second.id],
+  );
+  assert.equal(removal.doc.projects[0], second);
+  assert.equal(
+    removal.doc.chats.some((chat) => chat.projectId === first.id),
+    false,
+  );
+});
+
 test("another host's catalog never removes a local project", () => {
   const { chat, doc, project } = seededDoc();
 

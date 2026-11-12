@@ -11,7 +11,7 @@
 // "which chat is showing" question is answered in this file alone. The
 // primitives (`sanitizeProjectUiForChats`, the default chat) come from the
 // shared codec, so the main process settles persisted state the same way.
-import type { UIMessage } from "ai";
+import { isDeepEqualData, type UIMessage } from "ai";
 import {
   createDefaultChatConfig,
   createProjectConfig,
@@ -25,6 +25,7 @@ import type {
   ProjectWorktreeInfo,
 } from "@/types/ide";
 import {
+  chatsByProjectOf,
   decodeCatalogEntries,
   ensureActiveChatForProject,
   ensureActiveProject,
@@ -174,39 +175,86 @@ const removalBetween = (
   };
 };
 
+/** `record` without the entries `keep` rejects; itself when it keeps all. */
+const filterRecord = <T>(
+  record: Record<string, T>,
+  keep: (key: string, value: T) => boolean,
+): Record<string, T> => {
+  const entries = Object.entries(record);
+  const kept = entries.filter(([key, value]) => keep(key, value));
+  return kept.length === entries.length ? record : Object.fromEntries(kept);
+};
+
 /** Drops drafts and transcripts of projects and chats no longer present. */
 const pruneOrphans = (doc: WorkspaceDocument): WorkspaceDocument => {
   const projectIds = new Set(allProjectsOf(doc).map((project) => project.id));
   const chatIds = new Set(doc.chats.map((chat) => chat.id));
   return {
     ...doc,
-    draftChatIdByProject: Object.fromEntries(
-      Object.entries(doc.draftChatIdByProject).filter(
-        ([projectId, chatId]) =>
-          projectIds.has(projectId) && (chatId === null || chatIds.has(chatId)),
-      ),
+    draftChatIdByProject: filterRecord(
+      doc.draftChatIdByProject,
+      (projectId, chatId) =>
+        projectIds.has(projectId) && (chatId === null || chatIds.has(chatId)),
     ),
-    messagesByChatId: Object.fromEntries(
-      Object.entries(doc.messagesByChatId).filter(([chatId]) =>
-        chatIds.has(chatId),
-      ),
+    messagesByChatId: filterRecord(doc.messagesByChatId, (chatId) =>
+      chatIds.has(chatId),
     ),
   };
 };
 
+/** Each row, or the held row of its id when the two are equal. */
+const holding = <T extends { id: string }>(
+  rows: T[],
+  held: ReadonlyMap<string, T>,
+): T[] =>
+  rows.map((row) => {
+    const same = held.get(row.id);
+    return same && same !== row && isDeepEqualData(row, same) ? same : row;
+  });
+
+/** `previous` when `next` holds the same rows in the same order. */
+const sameRowsOr = <T>(next: T[], previous: T[]): T[] =>
+  next.length === previous.length &&
+  next.every((row, index) => row === previous[index])
+    ? previous
+    : next;
+
 /**
  * Repairs raw project and chat lists with the codec (invalid rows dropped,
  * one project per path on each host) and settles the document around them.
+ * Rows the document already holds are not decoded again, and a list whose
+ * rows all held is the document's own: applying a host's change to one chat
+ * leaves every other project and chat, and the lists, as they were.
  */
 const settleRaw = (
   doc: WorkspaceDocument,
   settings: AppSettings,
   raw: { chats: unknown[]; closedProjects: unknown[]; projects: unknown[] },
-): WorkspaceDocument =>
-  settle(
-    pruneOrphans({ ...doc, ...decodeCatalogEntries(raw, settings) }),
+): WorkspaceDocument => {
+  const kept = new Set<unknown>([...allProjectsOf(doc), ...doc.chats]);
+  const decoded = decodeCatalogEntries(raw, settings, undefined, kept);
+  // A row that arrived equal to the one held (a whole catalog reloaded) is
+  // the held one.
+  const heldProjects = new Map(
+    allProjectsOf(doc).map((project) => [project.id, project]),
+  );
+  const heldChats = new Map(doc.chats.map((chat) => [chat.id, chat]));
+  const next = settle(
+    pruneOrphans({
+      ...doc,
+      chats: holding(decoded.chats, heldChats),
+      closedProjects: holding(decoded.closedProjects, heldProjects),
+      projects: holding(decoded.projects, heldProjects),
+    }),
     settings,
   );
+  return {
+    ...next,
+    chats: sameRowsOr(next.chats, doc.chats),
+    closedProjects: sameRowsOr(next.closedProjects, doc.closedProjects),
+    projects: sameRowsOr(next.projects, doc.projects),
+  };
+};
 
 const isRecordWithId = (
   value: unknown,
@@ -259,10 +307,13 @@ export const settle = (
   let chats = doc.chats;
   let messagesByChatId = doc.messagesByChatId;
   let draftChatIdByProject = doc.draftChatIdByProject;
+  // Each project reads only its own chats, grouped once.
+  const chatsByProject = chatsByProjectOf(chats);
+  const chatsOf = (projectId: string) => chatsByProject.get(projectId) ?? [];
 
   const sanitized = (project: ProjectConfig, activeChatId: string | null) => {
     const ui = sanitizeProjectUiForChats(
-      chats,
+      chatsOf(project.id),
       project.id,
       project.ui,
       activeChatId,
@@ -273,13 +324,14 @@ export const settle = (
   let projectsChanged = false;
   const projects = doc.projects.map((project) => {
     let activeChatId = ensureActiveChatForProject(
-      chats,
+      chatsOf(project.id),
       project.id,
       project.ui.activeChatId,
     );
     if (!activeChatId) {
       const chat = createDefaultChatConfig(project, settings);
       chats = [...chats, chat];
+      chatsByProject.set(project.id, [...chatsOf(project.id), chat]);
       messagesByChatId = { ...messagesByChatId, [chat.id]: [] };
       draftChatIdByProject = { ...draftChatIdByProject, [project.id]: chat.id };
       activeChatId = chat.id;
@@ -293,7 +345,11 @@ export const settle = (
   const closedProjects = doc.closedProjects.map((project) => {
     const next = sanitized(
       project,
-      ensureActiveChatForProject(chats, project.id, project.ui.activeChatId),
+      ensureActiveChatForProject(
+        chatsOf(project.id),
+        project.id,
+        project.ui.activeChatId,
+      ),
     );
     closedChanged ||= next !== project;
     return next;

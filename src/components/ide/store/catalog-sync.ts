@@ -40,16 +40,34 @@ export interface CatalogChangeSet {
   removedChatIds: string[];
 }
 
-const projectKey = (project: ProjectConfig) =>
-  JSON.stringify(projectToCatalogRow(project));
+/**
+ * A row's key, worked out once per object: store rows are never changed in
+ * place, so an object that was keyed before has the same key now, and a
+ * save compares only the rows that are new objects since the last one.
+ */
+const keyedOnce = <T extends object>(key: (row: T) => string) => {
+  const keys = new WeakMap<T, string>();
+  return (row: T) => {
+    let value = keys.get(row);
+    if (value === undefined) {
+      value = key(row);
+      keys.set(row, value);
+    }
+    return value;
+  };
+};
 
-const chatKey = (chat: ChatConfig) => {
+const projectKey = keyedOnce((project: ProjectConfig) =>
+  JSON.stringify(projectToCatalogRow(project)),
+);
+
+const chatKey = keyedOnce((chat: ChatConfig) => {
   // The live message count changes with every saved message and is the
   // host's to compute; it does not make a chat worth re-sending.
   const { metadata, ...row } = chatToRow(chat);
   const { messageCount: _count, ...rest } = metadata as Record<string, unknown>;
   return JSON.stringify({ ...row, metadata: rest });
-};
+});
 
 const isEmpty = (changes: CatalogChangeSet) =>
   changes.projects.length === 0 &&

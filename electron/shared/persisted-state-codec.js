@@ -977,6 +977,24 @@ export const ensureActiveChatForProject = (chats, projectId, activeChatId) => {
 };
 
 /**
+ * Chats by the project they belong to, in their order: what the per-project
+ * rules below read, built once instead of filtering every chat per project.
+ * @template {{ projectId: string }} T
+ * @param {readonly T[]} chats
+ * @returns {Map<string, T[]>}
+ */
+export const chatsByProjectOf = (chats) => {
+  /** @type {Map<string, T[]>} */
+  const byProject = new Map();
+  for (const chat of chats) {
+    const list = byProject.get(chat.projectId);
+    if (list) list.push(chat);
+    else byProject.set(chat.projectId, [chat]);
+  }
+  return byProject;
+};
+
+/**
  * A project's UI must only name chats that exist and are not deleted: the
  * active chat falls back to the first live chat, open chats are trimmed to
  * live ones (and to the active chat alone outside multi-chat), and column
@@ -1101,7 +1119,13 @@ export const createDefaultChatConfig = (project, settings, overrides) => {
  * @param {AppSettings} settings
  * @returns {{ projects: ProjectConfig[], closedProjects: ProjectConfig[] }}
  */
-const decodeProjects = (rawOpen, rawClosed, settings) => {
+/**
+ * @param {unknown} rawOpen
+ * @param {unknown} rawClosed
+ * @param {AppSettings} settings
+ * @param {ReadonlySet<unknown>} [kept] rows already decoded, kept as they are
+ */
+const decodeProjects = (rawOpen, rawClosed, settings, kept) => {
   const seenIds = new Set();
   const seenPathKeys = new Set();
   /** @type {ProjectConfig[]} */
@@ -1114,7 +1138,9 @@ const decodeProjects = (rawOpen, rawClosed, settings) => {
     [rawClosed, closedProjects],
   ]) {
     for (const raw of Array.isArray(list) ? list : []) {
-      const project = normalizeProject(raw, settings);
+      const project = kept?.has(raw)
+        ? /** @type {ProjectConfig} */ (raw)
+        : normalizeProject(raw, settings);
       if (!project) {
         continue;
       }
@@ -1140,20 +1166,29 @@ const decodeProjects = (rawOpen, rawClosed, settings) => {
  * dropped when their project is not among the decoded ones. Enforces no
  * invariant: an open project may come back without a chat. The renderer's
  * workspace document settles the result; `decodePersistedState` repairs it.
+ *
+ * Rows in `kept` are ones the caller already holds decoded (the workspace
+ * document's own): they come back as the same objects, not decoded again,
+ * though they are still deduplicated and a chat still goes with its
+ * project. Decoding a decoded row would give an equal one, so the result
+ * is the same either way; only the cost and the identity differ.
  * @param {{ projects?: unknown, closedProjects?: unknown, chats?: unknown }} raw
  * @param {AppSettings} settings
  * @param {ChatPermissionMode} [legacyPermissionMode]
+ * @param {ReadonlySet<unknown>} [kept]
  * @returns {{ projects: ProjectConfig[], closedProjects: ProjectConfig[], chats: ChatConfig[] }}
  */
 export const decodeCatalogEntries = (
   raw,
   settings,
   legacyPermissionMode = "ask",
+  kept = undefined,
 ) => {
   const { projects, closedProjects } = decodeProjects(
     raw.projects,
     raw.closedProjects,
     settings,
+    kept,
   );
   const projectsById = new Map(
     [...projects, ...closedProjects].map((project) => [project.id, project]),
@@ -1163,7 +1198,11 @@ export const decodeCatalogEntries = (
   const chats = [];
   const seenChatIds = new Set();
   for (const rawChat of Array.isArray(raw.chats) ? raw.chats : []) {
-    const chat = normalizeChat(rawChat, projectsById, legacyPermissionMode);
+    const chat = kept?.has(rawChat)
+      ? projectsById.has(/** @type {ChatConfig} */ (rawChat).projectId)
+        ? /** @type {ChatConfig} */ (rawChat)
+        : null
+      : normalizeChat(rawChat, projectsById, legacyPermissionMode);
     if (!chat || seenChatIds.has(chat.id)) {
       continue;
     }
@@ -1322,10 +1361,15 @@ export const encodePersistedState = (state) => {
     }
   }
 
+  const chatsByProject = chatsByProjectOf(chats);
   /** @param {ProjectConfig} project */
   const sanitizeProject = (project) => ({
     ...project,
-    ui: sanitizeProjectUiForChats(chats, project.id, project.ui),
+    ui: sanitizeProjectUiForChats(
+      chatsByProject.get(project.id) ?? [],
+      project.id,
+      project.ui,
+    ),
   });
   const persistedProjects = projects.map(sanitizeProject);
   const persistedClosedProjects = closedProjects.map(sanitizeProject);

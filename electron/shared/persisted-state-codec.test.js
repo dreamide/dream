@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import {
   chatFromRow,
+  chatsByProjectOf,
   chatToRow,
   createChatConfig,
   createEmptyPersistedState,
   DEFAULT_SETTINGS,
+  decodeCatalogEntries,
   decodePersistedState,
   encodePersistedState,
   ensureActiveChatForProject,
@@ -298,6 +300,76 @@ test("decode drops chats of unknown projects and duplicate ids", () => {
     ["chat-one"],
   );
   assert.equal(decoded.chats[0].title, "First chat");
+});
+
+test("decoding catalog entries a second time gives equal entries", () => {
+  const once = decodeCatalogEntries(
+    {
+      chats: [
+        createRawChat({ messageCount: 2, model: "" }),
+        createRawChat({ id: "chat-two", agentMode: "plan" }),
+      ],
+      closedProjects: [createRawProject({ id: "closed", path: "/closed" })],
+      projects: [createRawProject({ hostId: "devbox", model: "" })],
+    },
+    DEFAULT_SETTINGS,
+  );
+
+  assert.deepEqual(decodeCatalogEntries(once, DEFAULT_SETTINGS), once);
+});
+
+test("catalog entries the caller holds decoded come back as themselves, still deduplicated", () => {
+  const held = decodeCatalogEntries(
+    {
+      chats: [createRawChat()],
+      projects: [createRawProject()],
+    },
+    DEFAULT_SETTINGS,
+  );
+  const [project] = held.projects;
+  const [chat] = held.chats;
+  const kept = new Set([project, chat]);
+
+  const again = decodeCatalogEntries(
+    {
+      chats: [chat, createRawChat({ id: "chat-new", title: "New" })],
+      projects: [
+        project,
+        createRawProject({ id: "same-path", path: project.path }),
+      ],
+    },
+    DEFAULT_SETTINGS,
+    undefined,
+    kept,
+  );
+  assert.equal(again.projects.length, 1);
+  assert.equal(again.projects[0], project);
+  assert.equal(again.chats[0], chat);
+  assert.equal(again.chats[1].title, "New");
+
+  // A held chat goes when its project does.
+  const orphaned = decodeCatalogEntries(
+    { chats: [chat], projects: [] },
+    DEFAULT_SETTINGS,
+    undefined,
+    kept,
+  );
+  assert.deepEqual(orphaned.chats, []);
+});
+
+test("chats are grouped by project in their order", () => {
+  const byProject = chatsByProjectOf([
+    { id: "a1", projectId: "a" },
+    { id: "b1", projectId: "b" },
+    { id: "a2", projectId: "a" },
+  ]);
+  assert.deepEqual(
+    [...byProject].map(([id, chats]) => [id, chats.map((chat) => chat.id)]),
+    [
+      ["a", ["a1", "a2"]],
+      ["b", ["b1"]],
+    ],
+  );
 });
 
 test("decode preserves branch lineage without requiring the parent chat", () => {

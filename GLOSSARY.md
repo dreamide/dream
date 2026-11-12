@@ -143,7 +143,11 @@ open. An operation that can take projects or chats out returns a
 left it. The zustand actions are thin wrappers around these operations; the
 main process settles persisted state with the same codec primitives, and
 raw rows from a host are validated by the codec's `decodeCatalogEntries`
-before the document settles them.
+before the document settles them. Rows the document already holds are not
+decoded again, a row arriving equal to the held one is the held one, and a
+list whose rows all held keeps its identity: a host's change to one chat
+replaces that chat alone, and a catalog reloaded unchanged changes nothing
+the store or the save scheduler would notice.
 
 ## Provider session
 
