@@ -498,7 +498,7 @@ export const getProjectGitWorktreeCompareDiff = async (
     branch: context.worktreeBranch,
     diff: diffResult.stdout,
     filePath: normalizedFilePath,
-    parsedDiff: parseSingleFileDiff(diffResult.stdout),
+    parsedDiff: await parseSingleFileDiff(diffResult.stdout),
     previousPath,
     status,
   };

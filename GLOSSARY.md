@@ -246,6 +246,17 @@ process while the workspace shares the state database's writer; otherwise
 **detached** (the Home host in its own process). It is not a setting in the
 app.
 
+## Desktop startup
+
+What a desktop window waits on at launch is `electron/renderer-server.js`'s
+`start()`: the home host and the renderer start together. In production the
+window loads at once, and the renderer's server holds `/api` requests and
+socket upgrades until the host listens (`whenHostListening`); in
+development the window waits for Vite and the host both, since Vite's proxy
+cannot hold a request. A host that cannot start, nor fall back to the
+desktop's process, still ends the launch. The catalog then loads as it
+always has: the window's first catalog read waits for the host.
+
 ## Host options
 
 Every option a host starts with (`electron/host/options.js`): a flag and an

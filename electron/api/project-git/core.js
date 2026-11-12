@@ -1,6 +1,5 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { parsePatchFiles } from "@pierre/diffs";
 import {
   gitChangesKey,
   narrowGitStatus,
@@ -950,11 +949,20 @@ const buildUntrackedFileDiff = async (projectPath, filePath) => {
   ].join("\n");
 };
 
-export const parseSingleFileDiff = (patch) => {
+// @pierre/diffs is 163 of the modules a host loads at start (about 250 ms)
+// and only diffs need it, so the first diff loads it.
+let patchParser = null;
+const loadPatchParser = () =>
+  (patchParser ??= import("@pierre/diffs").then(
+    (diffs) => diffs.parsePatchFiles,
+  ));
+
+export const parseSingleFileDiff = async (patch) => {
   if (typeof patch !== "string" || patch.trim().length === 0) {
     return null;
   }
 
+  const parsePatchFiles = await loadPatchParser();
   try {
     const parsedPatches = parsePatchFiles(patch);
     if (parsedPatches.length !== 1) {
@@ -990,7 +998,7 @@ export const getProjectGitDiff = async (
       branch: repoInfo.branch,
       diff,
       filePath: normalizedFilePath,
-      parsedDiff: parseSingleFileDiff(diff),
+      parsedDiff: await parseSingleFileDiff(diff),
       previousPath,
       status,
     };
@@ -1016,7 +1024,7 @@ export const getProjectGitDiff = async (
     branch: repoInfo.branch,
     diff: diffResult.stdout,
     filePath: normalizedFilePath,
-    parsedDiff: parseSingleFileDiff(diffResult.stdout),
+    parsedDiff: await parseSingleFileDiff(diffResult.stdout),
     previousPath,
     status,
   };

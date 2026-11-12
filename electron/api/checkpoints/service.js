@@ -766,7 +766,7 @@ export const getCheckpointFileDiff = ({
       binary: change?.binary ?? false,
       diff,
       filePath: normalizedFilePath,
-      parsedDiff: parseSingleFileDiff(diff),
+      parsedDiff: await parseSingleFileDiff(diff),
       previousPath: change?.previousPath ?? normalizedPreviousPath,
       status: change?.status ?? "modified",
     };

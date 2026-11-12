@@ -740,12 +740,22 @@ app
     }
 
     rendererServerManager = await createStartupRendererServerManager();
+    // The host starts beside the renderer; in production the window loads
+    // while it does (renderer-server.js says what the window waits on).
     await rendererServerManager.start();
-    // Remote access as the user left it (Settings > Connections). Never
-    // holds the window up: its setup can wait on Tailscale.
-    void host
-      .startRemoteAccess()
-      .catch((error) => console.warn("Remote access did not start:", error));
+    const hostListening = rendererServerManager.whenHostListening();
+    // Remote access as the user left it (Settings > Connections), once the
+    // host listens. Never holds the window up: its setup can wait on
+    // Tailscale.
+    hostListening.then(
+      () =>
+        host
+          .startRemoteAccess()
+          .catch((error) =>
+            console.warn("Remote access did not start:", error),
+          ),
+      () => {},
+    );
     if (devInspectionEnabled) {
       await publishDevSession(projectRoot, {
         kind: "electron",
@@ -793,6 +803,10 @@ app
         void createMainWindow();
       }
     });
+
+    // A host that could not start, nor fall back to this process, still
+    // ends the launch (below), now with the window already shown.
+    await hostListening;
   })
   .catch((error) => {
     console.error("Desktop startup failed:", error);

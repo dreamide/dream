@@ -378,6 +378,75 @@ files can still pass 20 s (react-spectrum's 3,697 files took 7.9 s); the
 turn then runs without a checkpoint and the capture finishes behind it.
 No live turn was timed in the app.
 
+## PERF11-07: One startup sequence
+
+Status: complete
+
+Problem and trigger (measured 2026-11-12; the installed app holds its
+database, so the packaged app was not launched):
+
+- `main.js` created the window only after `rendererServerManager.start()`,
+  which started the renderer (Vite in development, the static server in
+  production) only after the host listened. Neither needs the host to start.
+- The host's start, run in Node against copies of the dev and installed
+  databases: importing its modules 1.2 to 1.5 s, `listen` 0.33 to 0.42 s.
+  Eight saved development launches: the host listened 0.9 to 1.5 s after
+  start (one at 11.8 s), the renderer connected 2.5 to 5.4 s after.
+- 771 modules load unbundled at every host start; `@pierre/diffs` adds
+  about 250 ms of them (measured three times), for `parseSingleFileDiff`.
+- The catalog loads twice at launch (hydration, then the socket's first
+  `reset`): 45 to 105 ms of host time with 62 projects and 387 chats, and
+  about 1 ms to apply an unchanged catalog since PERF11-02.
+
+Scope:
+
+- `renderer-server.js` owns what the window waits on. `start()` starts the
+  host and the renderer together and resolves when the window can load:
+  in production when the static server listens, which holds `/api`
+  requests and socket upgrades until the host listens; in development when
+  both Vite and the host are up (Vite's proxy cannot hold a request).
+  `hostListening` says when the host listens, or why it did not.
+- `main.js` creates the window without waiting for the host, starts remote
+  access once it listens, and still ends the launch with its dialog when
+  the host cannot start (the in-process fallback is unchanged, inside
+  `host.listen`).
+- `parseSingleFileDiff` loads `@pierre/diffs` on its first diff.
+
+Deliberately excluded: the second catalog load (measured above at 45 to
+105 ms, after hydration and off the path to the window; removing it needs
+catalog responses to carry the event cursor and every applying path to
+adopt it, a correctness risk for little gain); bundling the host's modules;
+overlapping the workspace and catalog loads in the renderer; device-session
+loading (`auth.load`, part of the 0.33 to 0.42 s `listen`).
+
+Completion criteria:
+
+- In production the window is created while the host starts, and a request
+  it makes meanwhile is answered once the host listens; a host that cannot
+  start answers held requests with 502 and still ends the launch.
+- In development Vite and the host start together.
+- The host's start no longer imports `@pierre/diffs`.
+
+Validation:
+
+- `renderer-server.test.js` (production mode, a fake host the test
+  releases): the window's page is served while the host starts; an `/api`
+  POST and a socket upgrade made meanwhile wait, then are answered with the
+  body intact and echo; a host that fails answers a held request with 502
+  and `whenHostListening` rejects with its reason. Both fail against the
+  previous renderer server, whose `start()` waited for the host.
+- Host modules loaded at start 771 -> 531; importing the host graph
+  1,133-1,187 -> 864-975 ms (three runs each, Node 22.23.4).
+- The desktop's attachment (spawn the child host, wait for its record,
+  verify it, bind the edge) on a fresh data directory, eight runs each,
+  median 1,427 -> 1,226 ms. In production the window no longer waits for
+  any of it; it waits for the static server only.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test` (208 files, 1,441 tests) pass.
+
+Remaining/deferred: the packaged app was not launched (the installed app
+holds its database), so the production window's own load and first paint
+were not timed, nor the gain end to end; nor was development's overlap of
+Vite and the host run. The second catalog load is deferred as above.
+
 Recovery: docs/architecture/tasks/review-20261111-performance.md; PERF11-01
-to PERF11-06 complete, PERF11-07 next, one commit each, as the user asked.
-No new branches.
+to PERF11-07 complete, one commit each, as the user asked. No new branches.

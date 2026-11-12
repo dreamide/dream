@@ -33,6 +33,27 @@ function getNodeExecutable() {
   return "node";
 }
 
+/** Forwards an `/api/*` request to the API server. */
+function proxyApiRequest(request, response, apiServerPort) {
+  const proxyReq = http.request(
+    new URL(request.url, `http://127.0.0.1:${apiServerPort}`),
+    {
+      method: request.method,
+      headers: request.headers,
+    },
+    (proxyRes) => {
+      response.writeHead(proxyRes.statusCode, proxyRes.headers);
+      proxyRes.pipe(response, { end: true });
+    },
+  );
+  proxyReq.on("error", (error) => {
+    console.error("API proxy error:", error);
+    response.statusCode = 502;
+    response.end("API proxy error");
+  });
+  request.pipe(proxyReq, { end: true });
+}
+
 /**
  * Forwards a WebSocket upgrade for `/api/*` (the host socket) to the API
  * server: replays the handshake there, then pipes the two sockets together.
@@ -93,11 +114,30 @@ export function createRendererServerManager({
   let rendererUrl = developmentRendererUrl;
   let viteDevProcess = null;
   let productionHttpServer = null;
+  /** @type {Promise<unknown> | null} */
+  let hostListening = null;
 
+  /**
+   * The startup sequence, as far as the window is concerned: the host (on
+   * the API port) and the renderer start together, and this resolves when
+   * the window can load. Neither needs the other to start. In production
+   * the renderer's server holds `/api` until the host listens, so the
+   * window loads while the host starts; in development Vite's proxy cannot
+   * hold a request, so the window waits for both. `whenHostListening`
+   * says when the host listens, or why it did not.
+   */
   async function start() {
-    // Always start the API server (the local host) on the API port.
-    await startApi({ port: apiServerPort, apiToken: apiSessionToken });
+    if (hostListening) throw new Error("The renderer server already started.");
+    hostListening = Promise.resolve().then(() =>
+      startApi({ port: apiServerPort, apiToken: apiSessionToken }),
+    );
+    // Its failure is the caller's to report, through whenHostListening.
+    hostListening.catch(() => {});
+    const renderer = startRenderer();
+    await (isDevelopment ? Promise.all([renderer, hostListening]) : renderer);
+  }
 
+  async function startRenderer() {
     if (isDevelopment) {
       rendererUrl = developmentRendererUrl;
 
@@ -197,27 +237,14 @@ export function createRendererServerManager({
 
     productionHttpServer = http.createServer((request, response) => {
       if (request.url?.startsWith("/api")) {
-        const proxyUrl = new URL(
-          request.url,
-          `http://127.0.0.1:${apiServerPort}`,
-        );
-        const proxyReq = http.request(
-          proxyUrl,
-          {
-            method: request.method,
-            headers: request.headers,
-          },
-          (proxyRes) => {
-            response.writeHead(proxyRes.statusCode, proxyRes.headers);
-            proxyRes.pipe(response, { end: true });
+        // Held, unread, until the host listens.
+        hostListening.then(
+          () => proxyApiRequest(request, response, apiServerPort),
+          () => {
+            response.statusCode = 502;
+            response.end("The local host did not start.");
           },
         );
-        proxyReq.on("error", (error) => {
-          console.error("API proxy error:", error);
-          response.statusCode = 502;
-          response.end("API proxy error");
-        });
-        request.pipe(proxyReq, { end: true });
         return;
       }
 
@@ -229,7 +256,11 @@ export function createRendererServerManager({
 
     productionHttpServer.on("upgrade", (request, socket, head) => {
       if (request.url?.startsWith("/api")) {
-        proxyApiUpgrade(request, socket, head, apiServerPort);
+        socket.on("error", () => socket.destroy());
+        hostListening.then(
+          () => proxyApiUpgrade(request, socket, head, apiServerPort),
+          () => socket.destroy(),
+        );
         return;
       }
       socket.destroy();
@@ -264,5 +295,11 @@ export function createRendererServerManager({
     getUrl: () => rendererUrl,
     start,
     stop,
+    /** Resolves when the host listens; rejects with why it could not. */
+    whenHostListening: () => {
+      if (!hostListening)
+        throw new Error("The renderer server has not started.");
+      return hostListening;
+    },
   };
 }
