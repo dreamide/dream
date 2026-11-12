@@ -8,15 +8,19 @@ import {
 import type { ChatConfig, ProjectConfig } from "@/types/ide";
 import { clearGeneratedGitText } from "../git-generated-text";
 import { useIdeStore } from "../ide-store";
+import { CHAT_STREAM_UPDATE_THROTTLE_MS } from "./chat-constants";
 import {
   CHAT_SESSION_IDLE_EVICT_MS,
   getChatSession,
+  getChatSessionView,
   reattachChatStreams,
   retainChatSession,
   startChatRuntime,
   submitChatPrompt,
+  subscribeLiveTranscript,
   takeChatDraftRestore,
   useChatRuntimeStore,
+  watchChatSessionView,
 } from "./chat-runtime";
 
 const initialState = useIdeStore.getState();
@@ -161,6 +165,12 @@ test("a queued submission is sent and saved with no chat panel mounted", async (
     getChatSession(chat.id).chat.messages,
     state.messagesByChatId[chat.id],
   );
+  // ...and so does what a panel would show of it.
+  await waitFor(() => getChatSessionView(chat.id).status === "ready");
+  assert.equal(
+    getChatSessionView(chat.id).messages,
+    getChatSession(chat.id).chat.messages,
+  );
 });
 
 test("a queued submission that cannot be sent returns to the draft", async () => {
@@ -209,6 +219,78 @@ test("an idle session is dropped only after its last watcher leaves", () => {
   release();
   vi.advanceTimersByTime(CHAT_SESSION_IDLE_EVICT_MS + 1);
   assert.notEqual(getChatSession(chat.id), session);
+});
+
+test("a session publishes its live transcript once per update interval, to shown panels only", () => {
+  vi.useFakeTimers();
+  const { chat } = setUp();
+  const session = getChatSession(chat.id);
+  const release = retainChatSession(chat.id);
+  const message = (text: string) =>
+    [
+      { id: "m1", parts: [{ text, type: "text" as const }], role: "user" },
+    ] as typeof session.chat.messages;
+
+  let shown = 0;
+  const unwatch = watchChatSessionView(chat.id, () => {
+    shown += 1;
+  });
+  const before = getChatSessionView(chat.id);
+  for (const text of ["a", "ab", "abc", "abcd"]) {
+    session.chat.messages = message(text);
+    vi.advanceTimersByTime(5);
+  }
+  vi.advanceTimersByTime(CHAT_STREAM_UPDATE_THROTTLE_MS);
+  const after = getChatSessionView(chat.id);
+  assert.notEqual(after, before);
+  assert.equal(after.messages, session.chat.messages);
+  assert.ok(shown >= 1 && shown <= 2, `told ${shown} times for 4 updates`);
+
+  // Nothing new: the same view, and no one is told.
+  const told = shown;
+  vi.advanceTimersByTime(CHAT_STREAM_UPDATE_THROTTLE_MS * 4);
+  assert.equal(getChatSessionView(chat.id), after);
+  assert.equal(shown, told);
+
+  // A panel that stopped watching is not told; the view still moves on.
+  unwatch();
+  session.chat.messages = message("hidden");
+  vi.advanceTimersByTime(CHAT_STREAM_UPDATE_THROTTLE_MS * 2);
+  assert.equal(shown, told);
+  assert.equal(getChatSessionView(chat.id).messages, session.chat.messages);
+  release();
+});
+
+test("a hidden panel is never told of its session's changes; a shown one is", () => {
+  vi.useFakeTimers();
+  const { chat } = setUp();
+  const session = getChatSession(chat.id);
+  const release = retainChatSession(chat.id);
+  let hiddenTold = 0;
+  let shownTold = 0;
+  const stopHidden = subscribeLiveTranscript(
+    chat.id,
+    false,
+  )(() => {
+    hiddenTold += 1;
+  });
+  const stopShown = subscribeLiveTranscript(
+    chat.id,
+    true,
+  )(() => {
+    shownTold += 1;
+  });
+
+  session.chat.messages = [
+    { id: "m1", parts: [{ text: "hi", type: "text" }], role: "user" },
+  ] as typeof session.chat.messages;
+  vi.advanceTimersByTime(CHAT_STREAM_UPDATE_THROTTLE_MS * 2);
+
+  assert.equal(hiddenTold, 0);
+  assert.equal(shownTold, 1);
+  stopHidden();
+  stopShown();
+  release();
 });
 
 test("a session follows a transcript the store loads later", () => {

@@ -122,15 +122,62 @@ inferred from identity.
 
 ## PERF11-03: A live-transcript subscription that knows visibility
 
-Status: proposed
+Status: complete
 
-Problem and trigger: every mounted ChatPanel, hidden Chats and background
-Projects included, renders its turn at up to 20 Hz. The 50 ms throttle is
-applied twice, and session files are rescanned in full per update.
+Problem and trigger: every mounted ChatPanel subscribed to its session's
+`Chat` with `useChat`, including hidden columns (kept mounted to stay
+attached to a response) and every chat of a background Project (kept
+painted beneath the active one), so a running turn re-rendered all of them
+at up to 20 Hz. Each panel registered its own throttled callback beside the
+runtime's. Session files were rescanned across every loaded message on each
+update, then re-stabilised by `JSON.stringify` in their provider.
 
-Scope: the live-transcript view model owns cadence, visibility and its
-derived summaries for the chat runtime's observer and the panel.
+Scope:
+
+- Chat runtime: each session publishes one live transcript view (messages
+  from its single throttled callback, status and error at once) and tells
+  the panels watching it. `getChatSessionView`, `watchChatSessionView` and
+  `subscribeLiveTranscript` are its interface.
+- ChatPanel: `useLiveTranscript` (`useSyncExternalStore` over the published
+  view) replaces `useChat`; it watches only while `isProjectActive`, which
+  is false for hidden columns and background Projects, and reads the view
+  during the render that shows the panel, so no stale frame. Reading the
+  published view, not `chat.messages`, keeps React from re-rendering per
+  chunk. `stop` is the session `Chat`'s own.
+- Session files: worked out once per message object; given the previous
+  result, a message whose files are unchanged keeps its map. The provider's
+  JSON re-stabilising is gone.
+
+Deliberately excluded: the runtime observer's own per-update work (awaiting
+answer, activity attention, write refreshes, `findChatConfig`), scroll
+follow and answer/reasoning text deferral, ChatPanel memoisation and the
+keystroke re-render of the transcript, and inactive Project workspaces being
+painted (kept, per the comment in `ide-shell.tsx`).
+
+Completion criteria:
+
+- A hidden or background panel is not told of its session's updates; a
+  shown one is, at most once per interval.
+- A panel shown again renders the session's current published transcript.
+- Settled messages keep their session-file maps across updates.
+
+Validation:
+
+- `chat-runtime.test.ts`: one publication per interval for four updates, no
+  publication without a change, an unwatched panel not told; a hidden
+  subscription never told and a shown one told once; the view agrees with
+  the finished transcript after a submission.
+- `session-files.test.ts`: unchanged messages and an unchanged live message
+  keep their maps; a file saved by the live message changes only its map.
+- The running development app hot-reloaded the change. The log shows a
+  hooks-order warning from Fast Refresh replacing `useChat` in a mounted
+  component, and no errors after Vite's full reload. No turn was run there.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test` (205 files, 1,431 tests) pass.
+
+Remaining/deferred: render counts were not measured (no DOM test
+environment or render-count harness exists); the effect on hidden panels is
+by construction and the subscription test. A streaming turn with a hidden
+column and a background Project should be checked in the app.
 
 Recovery: docs/architecture/tasks/review-20261111-performance.md; PERF11-01
-and PERF11-02 complete, PERF11-03 next, one commit each, as the user asked.
-No new branches.
+to PERF11-03 complete, one commit each, as the user asked. No new branches.

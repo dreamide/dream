@@ -123,6 +123,18 @@ load earlier history. `transcriptPageByChatId` records the loaded boundary;
 branching explicitly loads the full transcript, host dispatch reads full
 history, and saving a partial page merges by message ID on the writer.
 
+## Live transcript
+
+What a chat panel shows of its Chat's runtime session while a turn streams
+(`getChatSessionView` in `src/components/ide/chat/chat-runtime.ts`): the
+session's messages, published at most once per stream update interval
+(50 ms), and its status and error at once. The session reads its `Chat`
+once per update, for its own bookkeeping and every panel; a panel watches it
+only while its Project is shown (`useLiveTranscript`), so a hidden column or
+a Project in the background is not rendered again by a running turn, and
+reads the session afresh the moment it is shown. Session files are worked
+out per message object, so a live turn re-reads only its own message.
+
 ## Workspace document
 
 One client's **workspace**: which projects (on which hosts) are open or

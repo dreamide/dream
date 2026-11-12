@@ -1,12 +1,20 @@
 import type { UIMessage } from "ai";
 import type { Dispatch, KeyboardEventHandler, SetStateAction } from "react";
-import { useCallback, useEffect, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import type { StickToBottomContext } from "use-stick-to-bottom";
 import { scrollElementToChatBottom } from "../chat";
 import {
   flushChatSession,
   getChatSession,
+  getChatSessionView,
   retainChatSession,
+  subscribeLiveTranscript,
 } from "./chat-runtime";
 
 const CHAT_AUTO_SCROLL_MIN_INTERVAL_MS = 100;
@@ -37,6 +45,28 @@ export const useChatSession = ({
   }, [chatId, isActive]);
 
   return session.chat;
+};
+
+/**
+ * The live transcript a panel renders: the session's messages (at most once
+ * per stream update interval) and its status, re-rendering the panel only
+ * while `visible`. A panel out of sight (a hidden column, a project in the
+ * background) is not rendered again by a running turn, and reads the
+ * session as it is now the moment it is shown.
+ */
+export const useLiveTranscript = ({
+  chatId,
+  visible,
+}: {
+  chatId: string;
+  visible: boolean;
+}) => {
+  const subscribe = useMemo(
+    () => subscribeLiveTranscript(chatId, visible),
+    [chatId, visible],
+  );
+  const read = useCallback(() => getChatSessionView(chatId), [chatId]);
+  return useSyncExternalStore(subscribe, read);
 };
 
 export const useChatAutoScroll = ({

@@ -1,4 +1,3 @@
-import { useChat } from "@ai-sdk/react";
 import type { LanguageModelUsage, UIMessage } from "ai";
 import { useTranslations } from "next-intl";
 import {
@@ -27,7 +26,6 @@ import { getModelContextWindow } from "@/lib/models";
 import type { ChatConfig, ProjectConfig } from "@/types/ide";
 import {
   CHAT_CONTENT_BOTTOM_PADDING_PX,
-  CHAT_STREAM_UPDATE_THROTTLE_MS,
   ChatMessage,
   type ChatMessageMetadata,
   type EditTarget,
@@ -43,6 +41,7 @@ import { ChatPanelHeader } from "./chat/chat-panel-header";
 import {
   useChatAutoScroll,
   useChatSession,
+  useLiveTranscript,
   usePromptHistoryNavigation,
 } from "./chat/chat-panel-hooks";
 import { ChatQueue } from "./chat/chat-queue";
@@ -59,8 +58,8 @@ import type { ContinueChatPopoverContext } from "./chat/continue-chat-popover";
 import { EditChatDialog } from "./chat/edit-chat-dialog";
 import { estimateStableMessages } from "./chat/message-token-estimate";
 import {
-  getSessionFilesByMessage,
   SessionFilesProvider,
+  useSessionFilesByMessage,
 } from "./chat/session-files";
 import { useStableMessages } from "./chat/stable-messages";
 import { getLatestChatTodoSummary } from "./chat/todo-list";
@@ -241,21 +240,15 @@ export const ChatPanel = ({
   }, [chat.id, draftRestore]);
 
   const sessionChat = useChatSession({ chatId: chat.id, isActive });
-  const {
-    messages: streamedMessages,
-    status,
-    stop,
-  } = useChat({
-    chat: sessionChat,
-    experimental_throttle: CHAT_STREAM_UPDATE_THROTTLE_MS,
+  const stop = sessionChat.stop;
+  const { messages: streamedMessages, status } = useLiveTranscript({
+    chatId: chat.id,
+    visible: isProjectActive,
   });
   // Unchanged messages and parts keep their identity across stream updates,
   // so only what the live turn changed is rendered or scanned again.
   const messages = useStableMessages(streamedMessages);
-  const sessionFilesByMessage = useMemo(
-    () => getSessionFilesByMessage(messages),
-    [messages],
-  );
+  const sessionFilesByMessage = useSessionFilesByMessage(messages);
 
   const addToolApprovalResponse = useCallback<ToolApprovalResponder>(
     (response) => respondToToolApproval(chat.id, response),

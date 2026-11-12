@@ -3,7 +3,10 @@
  *
  * A chat streams, persists its transcript, answers approvals and picks up
  * queued submissions whether or not a `ChatPanel` is showing it. Panels are
- * views: they subscribe to the session's `Chat` with `useChat({ chat })`.
+ * views of the session's **live transcript** (`getChatSessionView`,
+ * `watchChatSessionView`): its messages, at most once per
+ * CHAT_STREAM_UPDATE_THROTTLE_MS, and its status and error at once. The
+ * session reads its `Chat` once per update for itself and every panel.
  *
  * The store never imports this module (it would be a cycle). Store actions ask
  * for a submission by queueing it in `pendingChatSubmitByChatId`; the runtime
@@ -177,6 +180,13 @@ export interface ChatSession {
   readonly chatId: string;
 }
 
+/** What a panel shows of a session; a new object only when one changed. */
+export interface ChatSessionView {
+  readonly error: Error | undefined;
+  readonly messages: UIMessage[];
+  readonly status: Chat<UIMessage>["status"];
+}
+
 interface InternalChatSession extends ChatSession {
   evictTimer: ReturnType<typeof setTimeout> | null;
   retryTimer: ReturnType<typeof setTimeout> | null;
@@ -190,6 +200,10 @@ interface InternalChatSession extends ChatSession {
   /** Panels (or other watchers) currently showing this session. */
   retainCount: number;
   unsubscribeMessages: () => void;
+  /** The live transcript, as last published. */
+  view: ChatSessionView;
+  /** Shown panels, told when `view` changes. */
+  viewWatchers: Set<() => void>;
 }
 
 const sessions = new Map<string, InternalChatSession>();
@@ -490,6 +504,27 @@ const handleChatFinish = (
   });
 };
 
+/**
+ * Publishes the session's live transcript to its shown panels when it
+ * changed. Runs on every (throttled) messages update and every status or
+ * error change, whether or not a panel is shown.
+ */
+const publishSessionView = (session: InternalChatSession) => {
+  const { chat, view } = session;
+  if (
+    view.messages === chat.messages &&
+    view.status === chat.status &&
+    view.error === chat.error
+  )
+    return;
+  session.view = {
+    error: chat.error,
+    messages: chat.messages,
+    status: chat.status,
+  };
+  for (const watcher of [...session.viewWatchers]) watcher();
+};
+
 /** Reacts to every (throttled) change of a session's messages. */
 const observeSessionMessages = (session: InternalChatSession) => {
   const { chat, chatId } = session;
@@ -587,6 +622,36 @@ const scheduleEviction = (session: InternalChatSession) => {
   }, CHAT_SESSION_IDLE_EVICT_MS);
 };
 
+/**
+ * The session's live transcript as last published: what a shown panel
+ * renders. Reading it never sees a change the session has not published.
+ */
+export const getChatSessionView = (chatId: string): ChatSessionView =>
+  (getChatSession(chatId) as InternalChatSession).view;
+
+/**
+ * Calls `onChange` whenever the session's live transcript is published
+ * anew, until the returned function is called. A panel watches only while
+ * it is shown.
+ */
+export const watchChatSessionView = (chatId: string, onChange: () => void) => {
+  const session = getChatSession(chatId) as InternalChatSession;
+  session.viewWatchers.add(onChange);
+  return () => {
+    session.viewWatchers.delete(onChange);
+  };
+};
+
+const watchNothing = () => () => {};
+
+/**
+ * How a panel subscribes to its session's live transcript: while `visible`,
+ * told of every published change; otherwise never.
+ */
+export const subscribeLiveTranscript =
+  (chatId: string, visible: boolean) => (onChange: () => void) =>
+    visible ? watchChatSessionView(chatId, onChange) : watchNothing();
+
 /** The session for `chatId`, created on first use. */
 export const getChatSession = (chatId: string): ChatSession => {
   const existing = sessions.get(chatId);
@@ -616,13 +681,23 @@ export const getChatSession = (chatId: string): ChatSession => {
     releaseTranscript: useIdeStore.getState().retainChatTranscript(chatId),
     retainCount: 0,
     unsubscribeMessages: () => {},
+    view: { error: undefined, messages: initialMessages, status: "ready" },
+    viewWatchers: new Set(),
   };
   // The `Chat` copies the array it is given; compare flushes against its copy.
   session.lastFlushedMessages = session.chat.messages;
-  session.unsubscribeMessages = session.chat["~registerMessagesCallback"](
-    () => observeSessionMessages(session),
-    CHAT_STREAM_UPDATE_THROTTLE_MS,
-  );
+  publishSessionView(session);
+  const unsubscribes = [
+    session.chat["~registerMessagesCallback"](() => {
+      publishSessionView(session);
+      observeSessionMessages(session);
+    }, CHAT_STREAM_UPDATE_THROTTLE_MS),
+    session.chat["~registerStatusCallback"](() => publishSessionView(session)),
+    session.chat["~registerErrorCallback"](() => publishSessionView(session)),
+  ];
+  session.unsubscribeMessages = () => {
+    for (const unsubscribe of unsubscribes) unsubscribe();
+  };
   sessions.set(chatId, session);
   // A session nobody ends up watching (e.g. an abandoned render) is dropped.
   scheduleEviction(session);
