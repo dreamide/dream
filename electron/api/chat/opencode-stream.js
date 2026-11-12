@@ -11,6 +11,7 @@ import {
 } from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
 import { toOpenCodeMcpConfig } from "./mcp-servers.js";
+import { resolveOpenCodeDisabledTools } from "./opencode-tool-budget.js";
 import { shouldResumeProviderSession } from "./provider-session.js";
 
 const OPENCODE_SERVER_TIMEOUT_MS = 10000;
@@ -104,6 +105,14 @@ const describeOpenCodeRequestError = ({
 
   return `OpenCode could not complete a network request while running ${model}. Technical detail: ${detail}.${sessionDetail} No provider HTTP response was available; this usually means the connection was refused, reset, timed out, blocked by DNS/proxy/TLS, or the local OpenCode server exited. Retry the request; if it repeats, run \`opencode debug paths\` and inspect the latest OpenCode log.`;
 };
+
+// OpenCode turns a prompt's `tools` map into the session's permission rules,
+// replacing the previous set only when the map is non-empty. A resumed session
+// may still carry tools hidden by an earlier turn, so send a no-op deny for a
+// name no tool uses to clear them.
+const OPENCODE_TOOL_BUDGET_RESET = Object.freeze({
+  "dream-tool-budget-reset": false,
+});
 
 const getOpenCodePermissionConfig = (permissionMode) => {
   const action = permissionMode === "full-access" ? "allow" : "ask";
@@ -902,6 +911,14 @@ export const streamOpenCodeResponse = ({
             timeout: OPENCODE_SERVER_TIMEOUT_MS,
           });
 
+          // Starts now so MCP tool listing overlaps session setup.
+          const disabledToolsPromise = resolveOpenCodeDisabledTools({
+            client: opencode.client,
+            directory: projectPath,
+            preferredServers: Object.keys(toOpenCodeMcpConfig(mcpServers)),
+            signal: serverAbortController.signal,
+          });
+
           let resumed = false;
           if (
             shouldResumeProviderSession({
@@ -1004,9 +1021,18 @@ export const streamOpenCodeResponse = ({
             }
           });
 
+          const disabledTools = await disabledToolsPromise;
+          const promptTools =
+            Object.keys(disabledTools).length > 0
+              ? disabledTools
+              : resumed
+                ? OPENCODE_TOOL_BUDGET_RESET
+                : undefined;
+
           const promptResult = await opencode.client.session.prompt({
             body: {
               agent: "build",
+              ...(promptTools ? { tools: promptTools } : {}),
               model: {
                 modelID,
                 providerID,
