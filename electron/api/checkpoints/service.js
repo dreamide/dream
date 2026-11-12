@@ -60,6 +60,18 @@ const SHADOW_CONFIG = [
   ["gc.auto", "0"],
 ];
 
+// Written once the config above is set, so a host restart sets none of it
+// again: each `git config` is its own process (about 55 ms on Windows).
+const SHADOW_CONFIG_MARKER = "dream-config";
+const SHADOW_CONFIG_RECORD = `${JSON.stringify(SHADOW_CONFIG)}\n`;
+
+// How long a turn waits for its `before` snapshot before running without a
+// checkpoint. A first capture of a large project is the slow one.
+export const TURN_CHECKPOINT_WAIT_MS = 20_000;
+
+// Files larger than this are left to `git add` when packing a first capture.
+const PREPACK_MAX_FILE_BYTES = 32 * 1024 * 1024;
+
 const ensuredShadowRepositories = new Set();
 const projectLocks = new Map();
 let finalizeCount = 0;
@@ -211,16 +223,24 @@ export const ensureShadowRepository = async (projectPath) => {
     }
   }
 
-  for (const [key, value] of SHADOW_CONFIG) {
-    try {
-      await execFileAsync(
-        "git",
-        ["--git-dir", shadowDir, "config", "--local", key, value],
-        { windowsHide: true },
-      );
-    } catch (error) {
-      throw new Error(getGitErrorMessage(error));
+  const markerPath = path.join(shadowDir, SHADOW_CONFIG_MARKER);
+  const configured =
+    initialized &&
+    (await fs.readFile(markerPath, "utf8").catch(() => null)) ===
+      SHADOW_CONFIG_RECORD;
+  if (!configured) {
+    for (const [key, value] of SHADOW_CONFIG) {
+      try {
+        await execFileAsync(
+          "git",
+          ["--git-dir", shadowDir, "config", "--local", key, value],
+          { windowsHide: true },
+        );
+      } catch (error) {
+        throw new Error(getGitErrorMessage(error));
+      }
     }
+    await fs.writeFile(markerPath, SHADOW_CONFIG_RECORD, "utf8");
   }
 
   await fs.mkdir(path.join(shadowDir, "info"), { recursive: true });
@@ -234,9 +254,136 @@ export const ensureShadowRepository = async (projectPath) => {
   return shadowDir;
 };
 
+/**
+ * Streams objects into the shadow repository as one pack with
+ * `git fast-import`. `feed(write)` writes the import's commands; `write`
+ * waits while git catches up. False when git failed.
+ */
+const fastImportIntoShadow = (projectPath, feed) =>
+  new Promise((resolve) => {
+    const child = spawn(
+      "git",
+      [
+        "--git-dir",
+        getShadowRepoDirectory(projectPath),
+        // Below 100 objects fast-import would unpack them into loose files.
+        "-c",
+        "fastimport.unpackLimit=1",
+        "fast-import",
+        "--quiet",
+        "--force",
+      ],
+      {
+        cwd: projectPath,
+        stdio: ["pipe", "ignore", "pipe"],
+        windowsHide: true,
+      },
+    );
+    let failed = false;
+    child.on("error", () => {
+      failed = true;
+      resolve(false);
+    });
+    child.stderr.resume();
+    child.stdin.on("error", () => {
+      failed = true;
+    });
+    child.on("close", (code) => resolve(!failed && code === 0));
+    const write = (chunk) =>
+      failed || child.stdin.write(chunk)
+        ? Promise.resolve()
+        : new Promise((next) => {
+            child.stdin.once("drain", next);
+            child.stdin.once("close", next);
+          });
+    feed(write).then(
+      () => child.stdin.end(),
+      () => {
+        failed = true;
+        child.stdin.destroy();
+        child.kill();
+      },
+    );
+  });
+
+const quoteFastImportPath = (filePath) =>
+  `"${filePath.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n")}"`;
+
+/**
+ * Packs the work tree's files ahead of a first `git add -A`, which would
+ * otherwise write each one as its own file (a loose object): milliseconds
+ * per file on Windows, 26 s for a project of 2,157 files where reading them
+ * took 0.6 s. Contents go in as they are on disk, so `add` finds most of
+ * them already stored and writes only what git converts (line endings
+ * under `text=auto`, filters). It only adds objects: the snapshot is still
+ * whatever `add` decides.
+ */
+const prepackWorkTree = async (projectPath) => {
+  const listed = await runShadowGit(
+    projectPath,
+    ["ls-files", "--others", "--exclude-standard", "-z"],
+    { allowFailure: true },
+  );
+  if (!listed.ok) return;
+  // A nested repository is listed as its directory, and added as one entry.
+  const files = listed.stdout
+    .split("\0")
+    .filter((filePath) => filePath && !filePath.endsWith("/"));
+  if (files.length === 0) return;
+  await fastImportIntoShadow(projectPath, async (write) => {
+    for (const filePath of files) {
+      const absolutePath = path.join(projectPath, filePath);
+      let data;
+      try {
+        const stats = await fs.lstat(absolutePath);
+        if (!stats.isFile() || stats.size > PREPACK_MAX_FILE_BYTES) continue;
+        data = await fs.readFile(absolutePath);
+      } catch {
+        continue;
+      }
+      await write(`blob\ndata ${data.length}\n`);
+      await write(data);
+      await write("\n");
+    }
+  });
+};
+
+/**
+ * Packs the trees of a first capture's index ahead of `write-tree`, which
+ * would write each directory as a loose object (3.5 s for 380 directories).
+ * The commit fast-import needs to build them stays on a ref of its own.
+ */
+const prepackIndexTrees = async (projectPath) => {
+  const listed = await runShadowGit(projectPath, ["ls-files", "-s", "-z"], {
+    allowFailure: true,
+  });
+  if (!listed.ok) return;
+  const entries = listed.stdout.split("\0").filter(Boolean);
+  if (entries.length === 0) return;
+  await fastImportIntoShadow(projectPath, async (write) => {
+    await write(
+      `commit ${REF_NAMESPACE}-index/first-capture\ncommitter Dream <dream@localhost> 0 +0000\ndata 0\n`,
+    );
+    for (const entry of entries) {
+      const tab = entry.indexOf("\t");
+      const [mode, objectId] = entry.slice(0, tab).split(" ");
+      await write(
+        `M ${mode} ${objectId} ${quoteFastImportPath(entry.slice(tab + 1))}\n`,
+      );
+    }
+    await write("\n");
+  });
+};
+
 const snapshotWorkingTreeUnlocked = async (projectPath) => {
-  await ensureShadowRepository(projectPath);
+  const shadowDir = await ensureShadowRepository(projectPath);
+  const first = await fs
+    .access(path.join(shadowDir, "index"))
+    .then(() => false)
+    .catch(() => true);
+  if (first) await prepackWorkTree(projectPath);
   await runShadowGit(projectPath, ["add", "-A", "--ignore-errors"]);
+  if (first) await prepackIndexTrees(projectPath);
   const result = await runShadowGit(projectPath, ["write-tree"]);
   const tree = result.stdout.trim();
   if (!/^[0-9a-f]{40,64}$/.test(tree)) {
@@ -276,6 +423,67 @@ export const createCheckpoint = ({ chatId, projectPath }) =>
       beforeTree,
     );
     return { beforeTree, checkpointId };
+  });
+
+/**
+ * The checkpoint a turn starts with, or null: what a turn waits on before
+ * its provider runs, stated here. It waits for the `before` snapshot only,
+ * at most `waitMs` and never past `signal` (Stop); the snapshot's ref is
+ * written after, still under the project lock, so nothing else reads the
+ * checkpoint before it exists. A capture already running when the turn
+ * stops waiting runs on, so the next one finds the shadow index current,
+ * and pins nothing; one still queued behind another does not start. Git is
+ * not killed: a killed `add` leaves the shadow index locked on Windows.
+ * @param {{ chatId: string, projectPath: string, signal?: AbortSignal, waitMs?: number }} options
+ * @returns {Promise<string | null>}
+ */
+export const captureTurnCheckpoint = ({
+  chatId,
+  projectPath,
+  signal,
+  waitMs = TURN_CHECKPOINT_WAIT_MS,
+}) =>
+  new Promise((resolve) => {
+    let waiting = true;
+    const stopWaiting = (checkpointId, problem) => {
+      if (!waiting) return;
+      waiting = false;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      if (problem)
+        console.warn(
+          "[checkpoints] Skipping checkpoint for this turn:",
+          problem,
+        );
+      resolve(checkpointId);
+    };
+    const onAbort = () => stopWaiting(null);
+    const timer = setTimeout(
+      () =>
+        stopWaiting(
+          null,
+          new Error(`Checkpoint capture took longer than ${waitMs} ms.`),
+        ),
+      waitMs,
+    );
+    if (signal?.aborted) return onAbort();
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    withProjectCheckpointLock(projectPath, async () => {
+      if (!waiting) return;
+      const checkpointId = randomUUID();
+      const beforeTree = await snapshotWorkingTreeUnlocked(projectPath);
+      if (!waiting) return;
+      stopWaiting(checkpointId);
+      await writeRef(
+        projectPath,
+        `${getCheckpointRefPrefix(chatId, checkpointId)}/before`,
+        beforeTree,
+      );
+    }).catch((error) => {
+      if (waiting) stopWaiting(null, error);
+      else console.warn("[checkpoints] Failed to record a checkpoint:", error);
+    });
   });
 
 const finalizeCheckpointUnlocked = async ({

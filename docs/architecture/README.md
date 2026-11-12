@@ -89,11 +89,12 @@ The generated HTML goes to a temporary directory; Markdown remains authoritative
 
 Module names and current ownership live in ../../GLOSSARY.md.
 
-- `tasks/review-20261111-performance.md` tracks PERF11-01 to PERF11-05 from
+- `tasks/review-20261111-performance.md` tracks PERF11-01 to PERF11-07 from
   the November 11 performance review: one turn message for every provider,
   catalog rows applied and saved by identity, a live-transcript
   subscription that knows visibility, project resources read only for shown
-  projects, and a chat run that prepares its transcript once.
+  projects, a chat run that prepares its transcript once, checkpoint
+  capture with a stated cost, and the startup sequence.
 
 - `tasks/review-20261109.md` tracks SSH-PROMPT, SAVED-ROUTES and
   ATTACHMENT-LIFETIME: SSH prompt ownership, saved-connection edit lifetime,

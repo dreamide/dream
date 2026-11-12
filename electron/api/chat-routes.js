@@ -22,31 +22,14 @@ import {
   TurnInProgressError,
 } from "./chat/turn-registry.js";
 import { prepareTurnTranscript } from "./chat/turn-transcript.js";
-import { createCheckpoint, finalizeCheckpoint } from "./checkpoints/service.js";
+import {
+  captureTurnCheckpoint,
+  finalizeCheckpoint,
+} from "./checkpoints/service.js";
 import { getProvider } from "./providers/registry.js";
 import { handleJsonRoute, RouteError } from "./shared/json-route.js";
 
-const CHECKPOINT_CAPTURE_TIMEOUT_MS = 20_000;
-
 export const chatStopRequestSchema = z.object({ chatId: z.string().min(1) });
-
-const withTimeout = (promise, timeoutMs) =>
-  new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error("Checkpoint capture timed out.")),
-      timeoutMs,
-    );
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
 
 const getContinuationCheckpointId = (lastMessage) => {
   const metadata = lastMessage?.metadata;
@@ -60,6 +43,7 @@ const resolveTurnCheckpointId = async ({
   checkpointsEnabled,
   messages,
   projectPath,
+  signal,
 }) => {
   if (!checkpointsEnabled || !chatId) {
     return null;
@@ -70,16 +54,8 @@ const resolveTurnCheckpointId = async ({
     return getContinuationCheckpointId(lastMessage);
   }
 
-  try {
-    const checkpoint = await withTimeout(
-      createCheckpoint({ chatId, projectPath }),
-      CHECKPOINT_CAPTURE_TIMEOUT_MS,
-    );
-    return checkpoint.checkpointId;
-  } catch (error) {
-    console.warn("[checkpoints] Skipping checkpoint for this turn:", error);
-    return null;
-  }
+  // How long, and until what, the turn waits is the service's.
+  return captureTurnCheckpoint({ chatId, projectPath, signal });
 };
 
 const validateProjectPath = async (projectPath) => {
@@ -349,6 +325,7 @@ export async function executeChatRequest(
     checkpointsEnabled,
     messages,
     projectPath: resolvedProjectPath,
+    signal,
   });
   if (checkpointId) {
     responseMessageMetadata.checkpointId = checkpointId;

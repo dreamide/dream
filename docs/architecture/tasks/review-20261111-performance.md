@@ -1,7 +1,8 @@
 # Performance review, 2026-11-11
 
-Five candidates from the November 11 performance architecture review,
-implemented in order with one commit each. The review read code paths; the
+Seven candidates from the November 11 performance architecture review,
+implemented in order with one commit each (PERF11-06 and PERF11-07 after
+measuring them, 2026-11-12). The review read code paths; the
 measurements below are synthetic and local, not end-to-end latency.
 
 ## PERF11-01: Give the Agent turn one message-so-far
@@ -297,5 +298,86 @@ Validation:
 Remaining/deferred: a live run with a long transcript was not timed in the
 app.
 
+## PERF11-06: Checkpoint capture as one module with a stated cost
+
+Status: complete
+
+Problem and trigger (measured 2026-11-12, Windows, git 2.53, checkpoints on
+by default):
+
+- A project's first capture wrote every file as a loose object: 4.9 s
+  (dream, 941 files), 26 s (umami, 2,157), 54 s (react-spectrum, 3,697,
+  50 MB). Reading and hashing umami took 0.6 s; writing loose objects 16 s
+  on C: (6.4 s on E:), still 10 s with `core.fsync=none`, so the cost is per
+  file created. A fresh large project's first turn waited the full 20 s and
+  got no checkpoint while git kept running under the project lock.
+- `ensureShadowRepository` remembered setup in memory only, so the first
+  capture per project after every host start ran 9 sequential `git config`
+  processes: +550 to +830 ms (a git process costs about 55 ms here).
+- A turn waited for the `before` ref write too (3 git processes, 160 to
+  330 ms per turn), and the waiting rule (20 s, no reaction to Stop) lived
+  in `chat-routes.js`.
+
+Scope:
+
+- A shadow repository's first capture (no index yet) packs the work tree's
+  files with one `git fast-import` before `git add -A`, and the index's
+  trees with a second before `write-tree`. Both only add objects; `add` and
+  `write-tree` still decide the snapshot, so trees are git's own (files git
+  converts, such as CRLF under `text=auto`, are written by `add` as before).
+  `core.bigFileThreshold` was tried and rejected: any content conversion
+  sends blobs back to loose objects. fast-import runs with
+  `fastimport.unpackLimit=1`, as below 100 objects it unpacks them again.
+- Setup is recorded in the shadow repository, so a host restart runs no
+  `git config`.
+- `captureTurnCheckpoint` in the service states what a turn waits on: the
+  snapshot tree, at most 20 s (`TURN_CHECKPOINT_WAIT_MS`), and not past
+  Stop (the turn's signal). The `before` ref is written after, under the
+  project lock; a capture already running when the turn stops waiting warms
+  the shadow index and pins nothing, and one still queued does not start.
+  `chat-routes.js` lost its timeout and passes the turn's signal.
+  `createCheckpoint` (capture and pin, awaited) remains for its tests.
+
+Deliberately excluded: killing git on timeout or Stop (a killed `add`
+leaves `index.lock` on Windows and throws away the work that makes the next
+capture fast); routing shadow git through Repository context (its writes
+would make the host forget every project's cached git facts each turn);
+finalization at turn end (intentional, GLOSSARY "Agent turn completion");
+warming a shadow repository before a project's first turn.
+
+Completion criteria:
+
+- A first capture leaves no loose objects for the files and trees it
+  packed, and its tree equals plain `git add -A` + `write-tree`.
+- A host restart's first capture runs no `git config`.
+- A turn waits only for the tree; Stop and the budget end the wait at once,
+  and a capture nobody waits for writes no ref.
+
+Validation:
+
+- `service.test.js`: a first capture of 34 files (a CRLF file under
+  `text=auto`, a path with a space and an accent, an empty file) equals
+  plain `git add -A` + `write-tree` and leaves one loose object, the
+  converted file; a fresh module (a host restart) leaves a changed shadow
+  config alone, and sets it again without the record; a turn's capture
+  finalizes and lists, a stopped one and one past its budget return null
+  and pin no ref. The first two fail against the previous service.
+- The same harness as the measurements (`createCheckpoint` on real
+  checkouts, data directory in a scratch folder), before -> after: first
+  capture dream 4.9 -> 1.4 s, umami 26 -> 2.4 s, react-spectrum 54 ->
+  7.9 s; first capture after a restart 550 to 830 -> 4 to 6 ms of setup;
+  a warm turn's wait 160 to 330 -> 130 to 215 ms.
+- `pnpm lint`, `pnpm typecheck` pass; `pnpm test` (207 files, 1,439 tests)
+  passed twice in a row. Three earlier runs each failed one different
+  timing or port test outside checkpoints (`run-scheduler.test.js` paused
+  state, `catalog-two-clients.host.test.ts` "bad port",
+  `desktop-host.test.js`); each passes alone, with and without this change.
+
+Remaining/deferred: a first capture of a project with tens of thousands of
+files can still pass 20 s (react-spectrum's 3,697 files took 7.9 s); the
+turn then runs without a checkpoint and the capture finishes behind it.
+No live turn was timed in the app.
+
 Recovery: docs/architecture/tasks/review-20261111-performance.md; PERF11-01
-to PERF11-05 complete, one commit each, as the user asked. No new branches.
+to PERF11-06 complete, PERF11-07 next, one commit each, as the user asked.
+No new branches.

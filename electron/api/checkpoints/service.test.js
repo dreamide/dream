@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { Hono } from "hono";
 import { afterEach, beforeAll, test, vi } from "vitest";
 import { configureHostDataDirectory } from "../../host/host-paths.js";
@@ -13,6 +15,7 @@ const userDataDirectory = await fs.mkdtemp(
 configureHostDataDirectory(userDataDirectory);
 
 const {
+  captureTurnCheckpoint,
   createCheckpoint,
   deleteChatCheckpoints,
   deleteProjectCheckpoints,
@@ -372,4 +375,143 @@ test("deleting chat checkpoints removes only that chat's refs", async (context) 
 
   await deleteProjectCheckpoints(projectPath);
   await assert.rejects(fs.access(getShadowRepoDirectory(projectPath)));
+});
+
+const git = async (...args) =>
+  (await promisify(execFile)("git", args, { windowsHide: true })).stdout.trim();
+
+// Loose objects are the files under objects/<two hex digits>/.
+const countLooseObjects = async (gitDir) => {
+  const objects = path.join(gitDir, "objects");
+  let count = 0;
+  for (const entry of await fs.readdir(objects)) {
+    if (/^[0-9a-f]{2}$/.test(entry))
+      count += (await fs.readdir(path.join(objects, entry))).length;
+  }
+  return count;
+};
+
+const refsOf = (projectPath, chat) =>
+  git(
+    "--git-dir",
+    getShadowRepoDirectory(projectPath),
+    "for-each-ref",
+    "--format=%(refname)",
+    `refs/dream/${chat}`,
+  );
+
+test("a first capture is packed and gives the tree plain git add gives", async (context) => {
+  if (!gitAvailable) return context.skip();
+
+  const projectPath = await createProject();
+  for (let index = 0; index < 30; index++)
+    await writeProjectFile(
+      projectPath,
+      `src/part-${index % 3}/file-${index}.ts`,
+      `export const n = ${index};\n`,
+    );
+  await writeProjectFile(projectPath, "docs/with space é.md", "# Notes\n");
+  await writeProjectFile(projectPath, "empty.txt", "");
+  // Converted by git on the way in: its stored blob is not its bytes.
+  await writeProjectFile(projectPath, ".gitattributes", "*.txt text=auto\n");
+  await writeProjectFile(projectPath, "crlf.txt", "one\r\ntwo\r\n");
+
+  const { beforeTree } = await createCheckpoint({ chatId, projectPath });
+
+  const plain = await fs.mkdtemp(
+    path.join(os.tmpdir(), "dream-checkpoint-plain-"),
+  );
+  temporaryDirectories.push(plain);
+  await git("init", "-q", "--bare", plain);
+  const plainGit = [
+    "--git-dir",
+    plain,
+    "--work-tree",
+    projectPath,
+    "-c",
+    "core.autocrlf=false",
+  ];
+  await git(...plainGit, "add", "-A");
+  assert.equal(beforeTree, await git(...plainGit, "write-tree"));
+  // Plain git writes every blob and tree on its own; the first capture
+  // only the file git converted.
+  assert.ok((await countLooseObjects(plain)) > 30);
+  assert.equal(await countLooseObjects(getShadowRepoDirectory(projectPath)), 1);
+
+  // Later captures go through git add alone and see the same tree.
+  const again = await createCheckpoint({ chatId, projectPath });
+  assert.equal(again.beforeTree, beforeTree);
+});
+
+test("a restarted host does not configure a shadow repository again", async (context) => {
+  if (!gitAvailable) return context.skip();
+
+  const projectPath = await createProject();
+  await writeProjectFile(projectPath, "a.txt", "one\n");
+  await createCheckpoint({ chatId, projectPath });
+  const shadow = ["--git-dir", getShadowRepoDirectory(projectPath)];
+  await git(...shadow, "config", "--local", "core.quotepath", "true");
+
+  // A new host process: a fresh module, the same data directory.
+  const restart = async () => {
+    vi.resetModules();
+    const paths = await import("../../host/host-paths.js");
+    paths.configureHostDataDirectory(userDataDirectory);
+    const service = await import("./service.js");
+    await service.createCheckpoint({ chatId, projectPath });
+  };
+  await restart();
+  assert.equal(
+    await git(...shadow, "config", "--local", "core.quotepath"),
+    "true",
+  );
+
+  // Without its record of being set up, it is set up again.
+  await fs.rm(path.join(getShadowRepoDirectory(projectPath), "dream-config"));
+  await restart();
+  assert.equal(
+    await git(...shadow, "config", "--local", "core.quotepath"),
+    "false",
+  );
+});
+
+test("a turn waits for its snapshot, not past Stop or its budget, and an abandoned capture pins nothing", async (context) => {
+  if (!gitAvailable) return context.skip();
+
+  const projectPath = await createProject();
+  await writeProjectFile(projectPath, "a.txt", "one\n");
+
+  const checkpointId = await captureTurnCheckpoint({ chatId, projectPath });
+  assert.ok(checkpointId);
+  await writeProjectFile(projectPath, "a.txt", "two\n");
+  await finalizeCheckpoint({ chatId, checkpointId, projectPath });
+  const { files } = await listCheckpointChanges({
+    chatId,
+    checkpointId,
+    projectPath,
+  });
+  assert.deepEqual(
+    files.map((file) => [file.filePath, file.status]),
+    [["a.txt", "modified"]],
+  );
+
+  const stopped = new AbortController();
+  stopped.abort();
+  assert.equal(
+    await captureTurnCheckpoint({
+      chatId: "stopped",
+      projectPath,
+      signal: stopped.signal,
+    }),
+    null,
+  );
+  // Running already when its budget ends: it finishes, and is not kept.
+  assert.equal(
+    await captureTurnCheckpoint({ chatId: "late", projectPath, waitMs: 0 }),
+    null,
+  );
+  // Queued behind both, so it runs once they have settled.
+  await createCheckpoint({ chatId: "after", projectPath });
+  assert.equal(await refsOf(projectPath, "stopped"), "");
+  assert.equal(await refsOf(projectPath, "late"), "");
 });

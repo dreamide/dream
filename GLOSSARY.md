@@ -604,6 +604,15 @@ finished. A failed save fails the turn; a failed checkpoint is reported but
 does not fail it. Stopping waits for this settlement; a client ceasing to
 observe does not stop the host's work.
 
+A **change checkpoint** is a turn's `before` and `after` snapshots of its
+project's files, kept as trees in a per-project shadow repository under the
+host's data directory (`electron/api/checkpoints/service.js`). The service
+runs its own git: its writes are to the shadow repository, so they are not
+Repository context's. `captureTurnCheckpoint` is what a turn waits on before
+its provider starts: the `before` snapshot only, at most 20 s, never past
+Stop. A shadow repository's first capture packs the files and trees before
+git adds them, since git would write each as its own file.
+
 Behind the writer, every turn's output passes one **output stage**
 (`electron/api/chat/turn-output.js`): consecutive deltas of one part are
 joined, waiting at most 50 ms, so how often the client and the host's
