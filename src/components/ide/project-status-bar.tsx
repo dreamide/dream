@@ -24,6 +24,7 @@ import { BranchSwitcher } from "./branch-switcher";
 import { GitFooterActions } from "./git-panel/footer-actions";
 import { useIdeStore } from "./ide-store";
 import { ProjectHostLabel } from "./ssh/project-host-label";
+import { useOpenProjectFolder } from "./use-open-project-folder";
 import { slugifyWorktreeBranchName, WorktreeFields } from "./worktree-fields";
 
 const CreateWorktreeDialog = ({
@@ -142,6 +143,7 @@ export const ProjectBranchFooter = ({
     hostId: project.hostId,
   });
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
+  const openProjectFolder = useOpenProjectFolder();
 
   // A breadcrumb of where the chat works: the host, the project, then (for a
   // repository) its branch. The branch's git actions sit on the right.
@@ -160,13 +162,19 @@ export const ProjectBranchFooter = ({
               </BreadcrumbItem>
               <BreadcrumbSeparator className="shrink-0 [&>svg]:size-3" />
               <BreadcrumbItem className="min-w-0">
-                <div
-                  className="flex h-7 min-w-0 max-w-[220px] items-center gap-1.5 px-2"
+                <Button
+                  className="h-8 min-w-0 max-w-[220px] gap-1.5 px-2 text-muted-foreground text-xs hover:text-foreground"
+                  onClick={() =>
+                    void openProjectFolder(project.id, project.path)
+                  }
+                  size="sm"
                   title={project.path}
+                  type="button"
+                  variant="ghost"
                 >
                   <Folder className="size-3.5 shrink-0" />
                   <span className="truncate">{project.name}</span>
-                </div>
+                </Button>
               </BreadcrumbItem>
               {!showBranch ? null : (
                 <>

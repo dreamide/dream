@@ -47,7 +47,6 @@ import {
   getApiErrorMessage,
   getProjectFileRawUrl,
 } from "@/lib/api-client";
-import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
 import { isBufferDirty } from "./file-buffers";
 import {
@@ -66,6 +65,7 @@ import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 import { useShortcutMatcher } from "./shortcuts/shortcuts";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 import type { ProjectFilePosition } from "./store/ide-store-types";
+import { useOpenProjectFolder } from "./use-open-project-folder";
 import { WordWrapToggle } from "./word-wrap-toggle";
 
 const FILE_TREE_MIN_WIDTH_PX = 250;
@@ -641,25 +641,11 @@ const FileExplorerPanelImpl = ({
     [],
   );
 
-  const handleOpenProjectPath = useCallback(async () => {
-    if (!projectPath) {
-      return;
-    }
-
-    // A folder on an SSH host is not on this machine: main refuses it.
-    const state = useIdeStore.getState();
-    const hostId = [...state.projects, ...state.closedProjects].find(
-      (project) => project.id === projectId,
-    )?.hostId;
-    await getDesktopApi()?.openInEditor({
-      hostId,
-      editorId: "file-explorer",
-      projectPath,
-      sshTarget: hostId
-        ? state.settings.sshHosts.find((host) => host.id === hostId)?.target
-        : undefined,
-    });
-  }, [projectId, projectPath]);
+  const openProjectFolder = useOpenProjectFolder();
+  const handleOpenProjectPath = useCallback(
+    () => openProjectFolder(projectId, projectPath),
+    [openProjectFolder, projectId, projectPath],
+  );
 
   const handleWordWrapChange = useCallback(
     (enabled: boolean) => {
