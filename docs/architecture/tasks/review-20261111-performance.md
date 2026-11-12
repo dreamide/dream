@@ -1,6 +1,6 @@
 # Performance review, 2026-11-11
 
-Three candidates from the November 11 performance architecture review,
+Five candidates from the November 11 performance architecture review,
 implemented in order with one commit each. The review read code paths; the
 measurements below are synthetic and local, not end-to-end latency.
 
@@ -179,5 +179,56 @@ environment or render-count harness exists); the effect on hidden panels is
 by construction and the subscription test. A streaming turn with a hidden
 column and a background Project should be checked in the app.
 
+## PERF11-04: Project resources own which projects are read
+
+Status: complete
+
+Problem and trigger: `useProjectResource` read whenever its caller passed
+`active` (default true), so visibility was each caller's to remember. Four
+always-mounted readers did not pass it: `ProjectBranchFooter` (in every
+ChatPanel, hidden columns included), `BranchSwitcher`, the Changes tab's
+status read and its row diffs follow their own flags. A Project in the
+background therefore re-read its summary status on every git bump, which a
+catalog reload sends to every open Project of a host. Window return bumped
+only the front Project, to avoid that cost, so background Projects kept a
+stale branch after an external commit until something else bumped them.
+
+Scope:
+
+- `project-resources.ts`: `ProjectResourcesShown` (a context, default
+  shown) and `useProjectResourcesShown`; `useProjectResource` is active
+  only while its project is shown and its caller's `active` holds. The Git
+  history subscriber (`use-git-history.ts`) follows the same rule.
+- `ProjectWorkspace` provides it from its `active` (front and no Settings
+  over it).
+- Window return (`ide-shell.tsx`) bumps every open Project; only the front
+  one is read now, the rest once each when shown.
+
+Deliberately excluded: merging the producers' timers (the 750 ms agent-write
+debounce and the terminal's quiet detection serve different purposes), the
+forced full status read when a turn ends (`warmProjectCommitMessage`, at
+most one extra read per turn), and aborting a read a newer version
+superseded (its result is already discarded).
+
+Completion criteria:
+
+- No resource of a Project that is not shown is read on a bump; it is read
+  once when shown, however many bumps came first.
+- Readers outside any Project workspace behave as before.
+- Every reader in a workspace, present or future, follows the rule without
+  passing anything.
+
+Validation:
+
+- `project-resources.test.ts`: a project bumped three times while its
+  reader is inactive makes no read, then one when shown, and is fresh.
+  Existing cache tests cover active and inactive readers on a bump.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test` (205 files, 1,432 tests) pass.
+
+Remaining/deferred: there is no DOM test environment, so the context itself
+is covered by typecheck and inspection, not a render test. Host git
+processes per bump were not counted in the app.
+
 Recovery: docs/architecture/tasks/review-20261111-performance.md; PERF11-01
-to PERF11-03 complete, one commit each, as the user asked. No new branches.
+to PERF11-04 complete, PERF11-05 next, one commit each, as the user asked.
+No new branches.

@@ -347,15 +347,14 @@ export const IdeShell = () => {
   }, [settingsOpen]);
 
   // Commits and branch switches made outside the app (another terminal or
-  // editor) are noticed when the person comes back to this window: the
-  // project in front reads git again. Only that one: reading every open
-  // project's status on each return would cost a git call apiece.
+  // editor) are noticed when the person comes back to this window: every
+  // open project's git is out of date. Only the project in front is read
+  // now; the others when they are shown (ProjectResourcesShown).
   useEffect(
     () =>
       watchWindowReturn(() => {
-        const { activeProjectId, bumpProjectGitRefreshKey } =
-          useIdeStore.getState();
-        if (activeProjectId) bumpProjectGitRefreshKey(activeProjectId);
+        const { bumpProjectGitRefreshKey, projects } = useIdeStore.getState();
+        for (const project of projects) bumpProjectGitRefreshKey(project.id);
       }),
     [],
   );

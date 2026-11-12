@@ -132,6 +132,26 @@ test("a bump reads again only what is being shown", async () => {
   hidden.unsubscribe();
 });
 
+test("a project bumped while hidden is read once, when it is shown", async () => {
+  // As every reader in a background project's workspace subscribes.
+  const reader = projectResources.subscribe(
+    statusKey("summary"),
+    () => {},
+    false,
+  );
+  for (let bump = 0; bump < 3; bump += 1) {
+    useIdeStore.getState().bumpProjectGitRefreshKey(projectId);
+    await settle();
+  }
+  assert.equal(api.gitStatus.mock.calls.length, 0);
+
+  reader.setActive(true);
+  await settle();
+  assert.equal(api.gitStatus.mock.calls.length, 1);
+  assert.equal(projectResources.snapshot(statusKey("summary")).fresh, true);
+  reader.unsubscribe();
+});
+
 test("a files bump leaves git resources fresh, and the reverse", async () => {
   await readProjectResource(statusKey("full"));
   const files = projectResourceKey("projectFiles", PROJECT_PATH, {

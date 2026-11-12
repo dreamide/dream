@@ -9,7 +9,9 @@
  * decide when to fetch.
  */
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -280,14 +282,30 @@ export const subscribeProjectResource = (
 };
 
 /**
- * Follows one project resource. `active` says the reader is being shown:
- * only then is it fetched, and fetched again when the project's refresh
- * key moves. A hidden reader keeps the last data it had.
+ * Whether the readers beneath are on screen. A Project's workspace says so
+ * for everything in it (`ProjectResourcesShown`), so no reader in a project
+ * in the background, or under Settings, is read until its project is shown,
+ * whatever it asks. A refresh key moving for such a project costs nothing
+ * until then. Outside any workspace, readers are shown.
+ */
+const ResourcesShownContext = createContext(true);
+export const ProjectResourcesShown = ResourcesShownContext.Provider;
+
+/** Whether this reader's project is on screen (see ProjectResourcesShown). */
+export const useProjectResourcesShown = () => useContext(ResourcesShownContext);
+
+/**
+ * Follows one project resource. It is read, and read again when the
+ * project's refresh key moves, only while its project is shown and
+ * `active` (a tab, a menu, a sidebar of it being open). A hidden reader
+ * keeps the last data it had.
  */
 export const useProjectResource = <Kind extends ProjectResourceKind>(
   key: ResourceKey<Kind> | null,
-  { active = true }: { active?: boolean } = {},
+  { active: wanted = true }: { active?: boolean } = {},
 ) => {
+  const shown = useProjectResourcesShown();
+  const active = wanted && shown;
   const id = key ? JSON.stringify(key) : "";
   // biome-ignore lint/correctness/useExhaustiveDependencies: the key is compared by value.
   const stableKey = useMemo(() => key, [id]);

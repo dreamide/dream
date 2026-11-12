@@ -6,6 +6,7 @@ import {
   projectResourceKey,
   projectResources,
   subscribeProjectResource,
+  useProjectResourcesShown,
 } from "../project-resources";
 import { createGitHistory, GIT_LOG_PAGE_SIZE } from "./git-history";
 
@@ -41,8 +42,9 @@ export function useGitHistory(
     history.getSnapshot,
     history.getSnapshot,
   );
+  const shown = useProjectResourcesShown();
   useEffect(() => {
-    history.setActive(active);
-  }, [active, history]);
+    history.setActive(active && shown);
+  }, [active, history, shown]);
   return { ...snapshot, loadMore: history.loadMore };
 }

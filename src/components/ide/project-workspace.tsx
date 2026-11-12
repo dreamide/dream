@@ -1,6 +1,7 @@
 import { memo } from "react";
 import type { ProjectConfig } from "@/types/ide";
 import { areProjectsEqualExceptLastUsedAt } from "./ide-state";
+import { ProjectResourcesShown } from "./project-resources";
 import { CodeWorkspace } from "./workspaces/code-workspace";
 
 export interface ProjectWorkspaceProps {
@@ -14,7 +15,8 @@ export interface ProjectWorkspaceProps {
  * streaming chats, terminals, browser webviews, and the ResizeObserver-driven
  * layout survive, and chat panels keep processing queued task submissions.
  * `active` is false while another surface is on top, which keeps this
- * workspace's shortcuts and native webviews disabled.
+ * workspace's shortcuts and native webviews disabled, and its project
+ * resources unread until it is shown again (ProjectResourcesShown).
  */
 const ProjectWorkspaceComponent = ({
   active,
@@ -24,7 +26,9 @@ const ProjectWorkspaceComponent = ({
     className="relative h-full min-h-0 overflow-hidden bg-surface-50 dark:bg-surface-900"
     data-workspace-view="code"
   >
-    <CodeWorkspace active={active} project={project} />
+    <ProjectResourcesShown value={active}>
+      <CodeWorkspace active={active} project={project} />
+    </ProjectResourcesShown>
   </div>
 );
 

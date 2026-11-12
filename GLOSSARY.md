@@ -460,6 +460,12 @@ again at once. Reads at one version share, one resource can answer another
 (a summary status from a full one), and a kind can be read only a few at a
 time (`maxConcurrentLoads`: diffs). Panels read them with
 `useProjectResource`; no panel reads a refresh key to decide when to fetch.
+Each Project's workspace says whether it is shown (`ProjectResourcesShown`),
+and no reader in it is read while it is not, whatever the reader asks: a
+refresh key moving for a project in the background costs nothing until it
+is shown, when what it shows is read once. So a producer bumps every project
+a change may have reached (window return bumps them all) and leaves which
+are read to the resources.
 Pull-request writes make only their own project's pull-request resources stale,
 including every loaded page; drafts and selection survive the refresh. A host
 is part of every resource's identity, even when paths on two hosts match.
