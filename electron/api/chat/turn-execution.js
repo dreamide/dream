@@ -4,28 +4,26 @@ import { turnObservers } from "./agent-turn.js";
 import { transcriptFingerprint } from "./session-context.js";
 
 const HOST_ORIGIN = "host";
-const TURN_SAVE_INTERVAL_MS = 1000;
 
 /**
- * What the host keeps of a turn while it runs: the transcript after its
- * steps (at most once a second) and at the end, and (at the end) the
- * provider session the turn reported, so a turn nobody watched can still
- * be resumed later. The transcript is the client's own request (not what a
- * provider made of it) with the assistant message being written in place
- * of, or after, its last message.
+ * What the host keeps of a turn while it runs: the transcript as the turn
+ * writes it (at most once a second, whichever provider runs it) and at the
+ * end, and (at the end) the provider session the turn reported, so a turn
+ * nobody watched can still be resumed later. The transcript is the
+ * client's own request (not what a provider made of it) with the assistant
+ * message being written in place of, or after, its last message.
  *
  * The request's messages do not change while the turn runs, so they are
  * saved once, with the first report; every later report saves only the
- * assistant message, at its place after them. Step reports closer together
- * than `saveIntervalMs` are held (see TURN_SAVE_INTERVAL_MS); saves run one
- * after another, so a held step never lands after the end.
+ * assistant message, at its place after them. How often it is told, and
+ * that no report overlaps the one before, is turn-message.js's.
  */
 export const createTurnRecorder = ({
   catalog,
   chatId,
   projectPath,
   requestMessages,
-  saveIntervalMs = TURN_SAVE_INTERVAL_MS,
+  saveIntervalMs,
   onChunk,
   provider,
 }) => {
@@ -37,14 +35,9 @@ export const createTurnRecorder = ({
   const continued = requestMessages.at(-1)?.role === "assistant";
   const before = continued ? requestMessages.slice(0, -1) : requestMessages;
   let beforeSaved = false;
-  let lastSaveAt = Number.NEGATIVE_INFINITY;
   let saving = Promise.resolve();
-  /** The held step's message, saved when `heldTimer` fires. */
-  let held = null;
-  let heldTimer = null;
 
   const save = (message) => {
-    lastSaveAt = Date.now();
     const write = async () => {
       if (beforeSaved) {
         await catalog.saveTranscript(chatId, [message], {
@@ -63,21 +56,6 @@ export const createTurnRecorder = ({
     return saving;
   };
 
-  const releaseHeld = () => {
-    clearTimeout(heldTimer);
-    heldTimer = null;
-    held = null;
-  };
-
-  const saveHeld = () => {
-    const message = held;
-    releaseHeld();
-    if (!message) return;
-    save(message).catch((error) => {
-      console.warn("[turn] Saving the turn's messages failed.", error);
-    });
-  };
-
   return {
     // The chat this turn belongs to (agent-turn.js announces its approvals).
     chatId,
@@ -87,6 +65,7 @@ export const createTurnRecorder = ({
       saveError = error;
     },
     onEnd: () => resolveDone(saveError),
+    saveIntervalMs,
     async onMessage(message, { final }) {
       if (final)
         message = {
@@ -96,15 +75,6 @@ export const createTurnRecorder = ({
             completedAt: new Date().toISOString(),
           },
         };
-      if (!final) {
-        const wait = lastSaveAt + saveIntervalMs - Date.now();
-        if (wait > 0) {
-          held = message;
-          heldTimer ??= setTimeout(saveHeld, wait);
-          return;
-        }
-      }
-      releaseHeld();
       await save(message);
       if (!final) return;
 

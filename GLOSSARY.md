@@ -395,8 +395,12 @@ catalog as it runs, whether or not any client is watching: the request's message
 assistant message being written. A transcript save replaces the chat's
 transcript from an index on and writes only the rows that differ from what
 is stored (`saveChatMessages` in `electron/host/catalog-store.js`), so
-saving a transcript again costs what changed in it. While a turn runs its
-steps are saved at most once a second; its end at once. Search reads each
+saving a transcript again costs what changed in it. While a turn runs, the
+host follows its **turn message** (`electron/api/chat/turn-message.js`): the
+assistant message assembled by the AI SDK's own chat, as the client's is,
+whichever Provider wrote it, copied only when it is saved. It is saved at
+most once a second while it changes, never over a save still under way; its
+end at once. Search reads each
 message's prose from `chat_message_text`, written beside the message.
 
 The host reads its catalog through a **read pool** (`electron/state-read-pool.js`):

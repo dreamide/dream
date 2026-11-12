@@ -27,16 +27,13 @@
 // so the transcript classifies a tool once, here, whatever produced it.
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import {
-  createUIMessageStream,
-  createUIMessageStreamResponse,
-  readUIMessageStream,
-} from "ai";
+import { createUIMessageStream, createUIMessageStreamResponse } from "ai";
 import { withTemporaryChatAttachments } from "../../host/chat-attachments.js";
 import { formatApprovalId } from "../../shared/agent-turn-contract.js";
 import { getToolKindForName, isToolKind } from "../../shared/tool-call.js";
 import { waitForToolApproval } from "../tool-approvals.js";
 import { formatStreamError } from "./errors.js";
+import { followTurnMessage } from "./turn-message.js";
 import { createDeltaJoiner, createTurnStopBoundary } from "./turn-output.js";
 
 export const DEFAULT_MAX_TEXT_CHARS = 250_000;
@@ -482,69 +479,58 @@ export const createAgentTurn = ({
 
 /**
  * Who is told about a turn's messages while it runs, whether or not any
- * client is reading it: the host, which saves the transcript after steps
- * (as often as it chooses) and at the end. Set around a provider's `stream` call (chat-routes.js);
- * `streamAgentTurn` reads it, so no provider adapter has to know.
+ * client is reading it: the host, which saves the transcript as the turn
+ * runs and at the end. Set around a provider's `stream` call
+ * (turn-execution.js); `streamAgentTurn` reads it, so no provider adapter
+ * has to know.
  * It is told the assistant message being written (continuing the last one
- * when the turn does).
+ * when the turn does), at most once per `saveIntervalMs` while it changes
+ * and once at the end (turn-message.js), and sees each chunk first.
  * Its `chatId` names the chat (a turn waiting on an approval is announced
  * under it, api/tool-approvals.js).
- * @type {AsyncLocalStorage<{ chatId?: string, onMessage: (message: unknown, options: { final: boolean }) => Promise<unknown> | unknown }>}
+ * @type {AsyncLocalStorage<{
+ *   chatId?: string,
+ *   saveIntervalMs?: number,
+ *   onChunk?: (chunk: unknown) => Promise<unknown> | unknown,
+ *   onMessage: (message: unknown, options: { final: boolean }) => Promise<unknown> | unknown,
+ *   onFailure?: (error: unknown) => void,
+ *   onEnd?: () => void,
+ * }>}
  */
 export const turnObservers = new AsyncLocalStorage();
 
-/**
- * Follows a copy of the turn's UI-message stream: the assistant message so
- * far, after every finished step and once at the end (also after an error
- * or a stop). A turn that continues the last assistant message builds on it.
- */
+/** How often a turn's observer hears about its message by default. */
+export const TURN_MESSAGE_INTERVAL_MS = 1000;
+
+/** Follows a copy of the turn's UI-message stream for its observer. */
 const observeTurn = async (stream, originalMessages, observer) => {
-  const last = Array.isArray(originalMessages) ? originalMessages.at(-1) : null;
-  const continued = last?.role === "assistant";
-  let stepEnded = false;
-  // The observer reads the message at step ends only, so its copy of the
-  // stream joins deltas until the next boundary: the AI SDK snapshots the
-  // whole message (tool outputs included) for every chunk it reads.
-  const marked = stream
-    .pipeThrough(createDeltaJoiner({ maxDelayMs: null }))
-    .pipeThrough(
-      new TransformStream({
-        async transform(chunk, controller) {
-          await observer.onChunk?.(chunk);
-          if (chunk?.type === "finish-step") stepEnded = true;
-          controller.enqueue(chunk);
-        },
-      }),
-    );
-
-  let latest = continued ? last : null;
-  const report = async (final) => {
-    if (!latest) return;
-    try {
-      await observer.onMessage(latest, { final });
-    } catch (error) {
-      observer.onFailure?.(error);
-      console.warn("[turn] Saving the turn's messages failed.", error);
-    }
-  };
-
+  const seen = observer.onChunk
+    ? stream.pipeThrough(
+        new TransformStream({
+          async transform(chunk, controller) {
+            await observer.onChunk(chunk);
+            controller.enqueue(chunk);
+          },
+        }),
+      )
+    : stream;
   try {
-    for await (const message of readUIMessageStream({
-      message: continued ? structuredClone(last) : undefined,
-      onError: () => {},
-      stream: marked,
-    })) {
-      latest = message;
-      if (stepEnded) {
-        stepEnded = false;
-        await report(false);
-      }
-    }
+    await followTurnMessage(seen, {
+      intervalMs: observer.saveIntervalMs ?? TURN_MESSAGE_INTERVAL_MS,
+      originalMessages,
+      report: async (message, options) => {
+        try {
+          await observer.onMessage(message, options);
+        } catch (error) {
+          observer.onFailure?.(error);
+          console.warn("[turn] Saving the turn's messages failed.", error);
+        }
+      },
+    });
   } catch (error) {
     observer.onFailure?.(error);
     console.warn("[turn] Following the turn's messages failed.", error);
   } finally {
-    await report(true);
     observer.onEnd?.();
   }
 };

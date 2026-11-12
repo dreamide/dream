@@ -8,7 +8,7 @@ import path from "node:path";
 import { Hono } from "hono";
 import { afterEach, test, vi } from "vitest";
 
-const gate = vi.hoisted(() => ({ release: null, signal: null, steps: null }));
+const gate = vi.hoisted(() => ({ release: null, signal: null }));
 
 vi.mock("./providers/registry.js", async () => {
   const { streamAgentTurn } = await import("./chat/agent-turn.js");
@@ -21,30 +21,6 @@ vi.mock("./providers/registry.js", async () => {
           abortSignal,
           execute: async (turn) => {
             gate.signal = abortSignal;
-            if (gate.steps) {
-              // A provider whose turn runs in steps (as Claude's does).
-              const steps = gate.steps;
-              turn.merge(
-                new ReadableStream({
-                  start(controller) {
-                    steps.forEach((text, index) => {
-                      const id = `s${index}`;
-                      controller.enqueue({ type: "start-step" });
-                      controller.enqueue({ id, type: "text-start" });
-                      controller.enqueue({
-                        delta: text,
-                        id,
-                        type: "text-delta",
-                      });
-                      controller.enqueue({ id, type: "text-end" });
-                      controller.enqueue({ type: "finish-step" });
-                    });
-                    controller.close();
-                  },
-                }),
-              );
-              return;
-            }
             turn.text("Working", "t1");
             turn.endText("t1");
             await new Promise((resolve) => {
@@ -66,7 +42,6 @@ vi.mock("./providers/registry.js", async () => {
 });
 
 const { createTurnRegistry } = await import("./chat/turn-registry.js");
-const { createTurnRecorder } = await import("./chat/turn-execution.js");
 const { registerChatRoutes } = await import("./chat-routes.js");
 const { createHostCatalog } = await import("../host/catalog.js");
 const { configureHostDataDirectory } = await import("../host/host-paths.js");
@@ -100,7 +75,6 @@ afterEach(async () => {
   gate.release?.();
   gate.release = null;
   gate.signal = null;
-  gate.steps = null;
   // A write after the database closes would reopen it and keep it locked.
   if (turns) await waitFor(() => !turns.isRunning("c1"));
   await waitFor(writesSettled);
@@ -253,28 +227,30 @@ test("only the stop route ends a turn early", async () => {
   await waitFor(() => !turns.isRunning("c1"));
 });
 
-test("a turn saves the request once, then only the message it is writing", async () => {
+test("a running turn is saved as it goes, the request once, then only the message it is writing", async () => {
   const { catalog, events, saves, startTurn, turns } = await setup();
-  gate.steps = ["One.", " Two.", " Three."];
   const request = [
     { id: "u1", parts: [{ text: "Hi", type: "text" }], role: "user" },
     { id: "a1", parts: [{ text: "Hello", type: "text" }], role: "assistant" },
     { id: "u2", parts: [{ text: "Go", type: "text" }], role: "user" },
   ];
-
-  const response = await startTurn(request);
-  await response.text();
-  await waitFor(() => !turns.isRunning("c1"));
-  await waitFor(async () => {
-    const text = (await transcriptOf(catalog, "c1"))
+  const assistantText = async () =>
+    (await transcriptOf(catalog, "c1"))
       .at(-1)
       ?.parts.filter((part) => part.type === "text")
       .map((part) => part.text)
       .join("");
-    return text === "One. Two. Three.";
-  });
 
-  // More than one save, and only the first carries the request.
+  const response = await startTurn(request);
+  await response.body.cancel();
+  // The test provider marks no steps; what it wrote is saved while it waits.
+  await waitFor(async () => (await assistantText()) === "Working");
+  assert.equal(turns.isRunning("c1"), true);
+
+  gate.release();
+  await waitFor(() => !turns.isRunning("c1"));
+  await waitFor(async () => (await assistantText()) === "Working done.");
+
   assert.ok(saves.length > 1);
   const [first, ...rest] = saves;
   assert.equal(first.fromIndex ?? 0, 0);
@@ -287,6 +263,7 @@ test("a turn saves the request once, then only the message it is writing", async
     assert.equal(save.messages.length, 1);
     assert.equal(save.messages[0].role, "assistant");
   }
+  assert.ok(rest.at(-1).messages[0].metadata.completedAt);
 
   assert.deepEqual(
     (await transcriptOf(catalog, "c1"))
@@ -300,50 +277,4 @@ test("a turn saves the request once, then only the message it is writing", async
       .filter((event) => event.kind === "transcript")
       .every((event) => event.messageCount === 4),
   );
-});
-
-test("steps saved closer together than the interval are held; the end is saved at once", async () => {
-  const saves = [];
-  const recorder = createTurnRecorder({
-    catalog: {
-      getChat: async () => null,
-      saveTranscript: async (_chatId, messages, options) => {
-        saves.push({
-          fromIndex: options.fromIndex ?? 0,
-          ids: messages.map((m) => m.id),
-        });
-        return true;
-      },
-    },
-    chatId: "c1",
-    projectPath: "/p",
-    requestMessages: [{ id: "u1", parts: [], role: "user" }],
-    saveIntervalMs: 200,
-  });
-  const step = (id) => ({ id, parts: [], role: "assistant" });
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-  // The first step is saved at once, with the request.
-  await recorder.onMessage(step("s1"), { final: false });
-  // The next two come too soon: held, and only the later one is saved.
-  await recorder.onMessage(step("s2"), { final: false });
-  await recorder.onMessage(step("s3"), { final: false });
-  assert.equal(saves.length, 1);
-  await waitFor(() => saves.length === 2);
-  assert.deepEqual(saves, [
-    { fromIndex: 0, ids: ["u1", "s1"] },
-    { fromIndex: 1, ids: ["s3"] },
-  ]);
-
-  // Once the interval has passed a step is saved at once again. A held
-  // step is dropped when the end arrives first, and never lands after it.
-  await sleep(250);
-  await recorder.onMessage(step("s4"), { final: false });
-  await recorder.onMessage(step("s5"), { final: false });
-  await recorder.onMessage(step("end"), { final: true });
-  await sleep(250);
-  assert.deepEqual(saves.slice(2), [
-    { fromIndex: 1, ids: ["s4"] },
-    { fromIndex: 1, ids: ["end"] },
-  ]);
 });

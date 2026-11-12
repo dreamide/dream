@@ -106,6 +106,73 @@ test("child terminal frames cannot close the root; final text and native boundar
   assert.match(text, /nativeTurnId.*turn-root/);
 });
 
+test("a native turn is saved while it runs, before the provider says it is done", async () => {
+  const saves = [];
+  const turns = createTurnRegistry();
+  const requestMessages = [
+    { id: "u", role: "user", parts: [{ type: "text", text: "Do the work" }] },
+  ];
+  const running = turns.run({
+    chatId: "c",
+    run: (signal) =>
+      executeAgentTurn(
+        {
+          catalog: {
+            getChat: async () => null,
+            saveTranscript: async (_chatId, messages) => {
+              saves.push(messages.at(-1));
+              return true;
+            },
+          },
+          chatId: "c",
+          provider: "openai",
+          projectPath: "/work",
+          requestMessages,
+          saveIntervalMs: 20,
+        },
+        () => start(signal),
+      ),
+  });
+  await untilStarted();
+  notify({
+    method: "item/started",
+    params: { item: { type: "agentMessage", id: "answer" } },
+  });
+  notify({
+    method: "item/agentMessage/delta",
+    params: { itemId: "answer", delta: "Half way." },
+  });
+  const textOf = (message) =>
+    message?.parts
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("");
+  for (let i = 0; i < 100 && textOf(saves.at(-1)) !== "Half way."; i++)
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(textOf(saves.at(-1)), "Half way.");
+  assert.equal(saves.at(-1).metadata.completedAt, undefined);
+  assert.equal(turns.isRunning("c"), true);
+
+  notify({
+    method: "item/agentMessage/delta",
+    params: { itemId: "answer", delta: " Done." },
+  });
+  notify({
+    method: "item/completed",
+    params: { item: { type: "agentMessage", id: "answer" } },
+  });
+  notify({
+    method: "turn/completed",
+    params: {
+      threadId: "root",
+      turn: { id: "turn-root", status: "completed" },
+    },
+  });
+  await running;
+  assert.equal(textOf(saves.at(-1)), "Half way. Done.");
+  assert.ok(saves.at(-1).metadata.completedAt);
+});
+
 test("interrupt acknowledgement waits for the provider terminal notification", async () => {
   const controller = new AbortController();
   let ended = false;
