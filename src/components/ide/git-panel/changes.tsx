@@ -301,7 +301,7 @@ const GitChangesImpl = ({
           onClick={handleToggleExpandAll}
           title={expandAllTitle}
           type="button"
-          variant="outline"
+          variant="ghost"
         >
           {allExpanded ? (
             <ChevronsDownUp className="size-3.5" />
