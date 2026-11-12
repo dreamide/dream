@@ -229,6 +229,73 @@ Remaining/deferred: there is no DOM test environment, so the context itself
 is covered by typecheck and inspection, not a render test. Host git
 processes per bump were not counted in the app.
 
+## PERF11-05: The Chat run prepares its transcript once
+
+Status: complete
+
+Problem and trigger: "the request's messages are saved once" was
+implemented twice, by parties that did not know of each other. The run
+scheduler read the chat's transcript, appended the submission and saved
+the whole transcript; the turn recorder then started with `beforeSaved`
+false, so its first save (with PERF11-01, often the only one before the
+end) sent `[...before, message]` again. The whole request was also
+stringified and hashed twice: once to check the Provider session's prefix
+(`resolveSessionContext`), and again with the assistant message at the end.
+Changed-row writes kept the SQLite writes small; the cost was the clone to
+the save worker, the stringify and the compare, which grow with tool
+output.
+
+Scope:
+
+- `electron/api/chat/turn-transcript.js`: `prepareTurnTranscript(messages,
+  { saved })` gives a turn its request once: `before` (what the assistant
+  message is written after; a continued assistant message is replaced),
+  whether the request is already saved, `fingerprint(length)` and
+  `fingerprintWith(message)`. The fingerprints feed one sha256 a message at
+  a time and copy it where a prefix ends, so every prefix the turn needs is
+  read off one pass and the end of the turn adds only its own message. They
+  equal `transcriptFingerprint` (tested), so stored sessions still resume.
+- Run scheduler: saves only the submission, `fromIndex` at its place, and
+  passes `requestSaved: true` to `executeChatRequest`.
+- `executeChatRequest` prepares the transcript before the session check;
+  `resolveSessionContext` takes its `fingerprint`; `executeAgentTurn` and
+  the turn recorder take the prepared `transcript` (defaulting to an unsaved
+  one, so the `/api/chat` route and direct callers behave as before). A
+  recorder whose request is saved writes only the assistant row from its
+  first save.
+
+Deliberately excluded: the scheduler's `JSON.parse` of the whole transcript
+(the request needs it, and a provider reads it), the `/api/chat` route's
+own request (its client saves on its own schedule, so the turn still saves
+it once), and checkpoint capture (review candidate 6).
+
+Completion criteria:
+
+- A Chat run's transcript is sent to the save worker once per turn: its
+  submission as one row, then only the assistant row.
+- The request is fingerprinted in one pass per turn; the stored
+  fingerprint still matches the transcript it leaves, so the next run
+  resumes the Provider session.
+- Requests not from a Chat run save the request once, as before.
+
+Validation:
+
+- `turn-transcript.test.js`: every prefix fingerprint, in any order, equals
+  `transcriptFingerprint`; the fingerprint with the assistant message
+  follows the request or replaces a continued message; an empty request.
+- `chat-run-transcript.test.js`: two runs through the real scheduler,
+  `executeChatRequest` and save worker (provider faked): every save carries
+  one row, submissions at 0 and 2, the second run resumes the first's
+  Provider session, whose fingerprint equals the saved transcript's. It
+  fails against the previous scheduler and recorder (a save of 4 rows).
+- Synthetic, 201 messages (100 tool outputs of 20 KB, about 2.1 MB), the
+  host-side work per turn (structured clone to the worker and
+  fingerprints; SQLite compares excluded), Node 22.23.4, mean of 50 runs:
+  25.5 ms before, 6.1 ms after.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test` (207 files, 1,436 tests) pass.
+
+Remaining/deferred: a live run with a long transcript was not timed in the
+app.
+
 Recovery: docs/architecture/tasks/review-20261111-performance.md; PERF11-01
-to PERF11-04 complete, PERF11-05 next, one commit each, as the user asked.
-No new branches.
+to PERF11-05 complete, one commit each, as the user asked. No new branches.

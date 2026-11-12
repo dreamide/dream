@@ -1,7 +1,7 @@
 // Agent turn execution owns recording and settlement. Callers supply provider
 // execution; they never attach observers or arrange persistence around EOF.
 import { turnObservers } from "./agent-turn.js";
-import { transcriptFingerprint } from "./session-context.js";
+import { prepareTurnTranscript } from "./turn-transcript.js";
 
 const HOST_ORIGIN = "host";
 
@@ -14,7 +14,8 @@ const HOST_ORIGIN = "host";
  * message being written in place of, or after, its last message.
  *
  * The request's messages do not change while the turn runs, so they are
- * saved once, with the first report; every later report saves only the
+ * saved once, with the first report, unless the prepared `transcript`
+ * says they are saved already; every other report saves only the
  * assistant message, at its place after them. How often it is told, and
  * that no report overlaps the one before, is turn-message.js's.
  */
@@ -23,6 +24,7 @@ export const createTurnRecorder = ({
   chatId,
   projectPath,
   requestMessages,
+  transcript = prepareTurnTranscript(requestMessages),
   saveIntervalMs,
   onChunk,
   provider,
@@ -32,9 +34,8 @@ export const createTurnRecorder = ({
   const done = new Promise((resolve) => {
     resolveDone = resolve;
   });
-  const continued = requestMessages.at(-1)?.role === "assistant";
-  const before = continued ? requestMessages.slice(0, -1) : requestMessages;
-  let beforeSaved = false;
+  const { before } = transcript;
+  let beforeSaved = transcript.saved;
   let saving = Promise.resolve();
 
   const save = (message) => {
@@ -97,7 +98,7 @@ export const createTurnRecorder = ({
             remoteConversationProjectPath:
               metadata.remoteConversationProjectPath ?? projectPath,
             lastMessageId: message.id,
-            fingerprint: transcriptFingerprint([...before, message]),
+            fingerprint: transcript.fingerprintWith(message),
             orchestrationToolsVersion: metadata.orchestrationToolsVersion,
           },
         });
@@ -135,6 +136,7 @@ export const executeAgentTurn = async (
     chatId,
     projectPath,
     requestMessages,
+    transcript,
     provider,
     onChunk,
     finalize,
@@ -149,6 +151,7 @@ export const executeAgentTurn = async (
           chatId,
           projectPath,
           requestMessages,
+          transcript,
           provider,
           onChunk,
           saveIntervalMs,

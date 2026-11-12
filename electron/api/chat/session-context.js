@@ -11,7 +11,14 @@ export const transcriptFingerprint = (messages) =>
     .digest("hex");
 
 // Only resume if the prefix the provider saw still exists unchanged.
-export function resolveSessionContext({ saved, messages, projectPath }) {
+// `fingerprint(length)` is the fingerprint of the first `length` messages
+// (a prepared turn transcript's, turn-transcript.js, reads it off one pass).
+export function resolveSessionContext({
+  saved,
+  messages,
+  projectPath,
+  fingerprint = (length) => transcriptFingerprint(messages.slice(0, length)),
+}) {
   const index = saved
     ? messages.findIndex((message) => message.id === saved.lastMessageId)
     : -1;
@@ -19,7 +26,7 @@ export function resolveSessionContext({ saved, messages, projectPath }) {
     !saved ||
     saved.remoteConversationProjectPath !== projectPath ||
     index < 0 ||
-    transcriptFingerprint(messages.slice(0, index + 1)) !== saved.fingerprint
+    fingerprint(index + 1) !== saved.fingerprint
   )
     return null;
   const missed = messages.slice(index + 1, -1);

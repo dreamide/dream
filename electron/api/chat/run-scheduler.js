@@ -54,10 +54,14 @@ export function createRunScheduler({ catalog, turns, execute }) {
                 messages.push(run.request.message);
               else if (messages.at(-1)?.id !== run.request.message.id)
                 messages.push({ ...run.request.message, id: randomUUID() });
+              // Only the submission is new: the rows before it were just read.
+              const submitted = messages.length - 1;
               if (
-                !(await catalog.saveTranscript(chatId, messages, {
-                  origin: "host",
-                }))
+                !(await catalog.saveTranscript(
+                  chatId,
+                  messages.slice(submitted),
+                  { fromIndex: submitted, origin: "host" },
+                ))
               )
                 throw new Error("Unable to save submission.");
               return execute(
@@ -74,6 +78,8 @@ export function createRunScheduler({ catalog, turns, execute }) {
                 },
                 {
                   catalog,
+                  // Saved above: the turn writes only its own message.
+                  requestSaved: true,
                   signal,
                   orchestration: scope,
                   onChunk: async (chunk) => {

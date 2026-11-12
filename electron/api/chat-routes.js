@@ -21,6 +21,7 @@ import {
   createTurnRegistry,
   TurnInProgressError,
 } from "./chat/turn-registry.js";
+import { prepareTurnTranscript } from "./chat/turn-transcript.js";
 import { createCheckpoint, finalizeCheckpoint } from "./checkpoints/service.js";
 import { getProvider } from "./providers/registry.js";
 import { handleJsonRoute, RouteError } from "./shared/json-route.js";
@@ -204,9 +205,14 @@ export const registerChatRoutes = (
   });
 };
 
+/**
+ * Runs one chat request. `requestSaved`: the request's messages are already
+ * in the catalog as they are (a Chat run saved its submission), so the turn
+ * saves only the message it writes.
+ */
 export async function executeChatRequest(
   data,
-  { catalog, signal, onChunk, orchestration },
+  { catalog, signal, onChunk, orchestration, requestSaved = false },
 ) {
   const {
     chatId,
@@ -267,6 +273,8 @@ export async function executeChatRequest(
     ...(reasoningEffort ? { reasoningEffort } : {}),
     ...(reasoningLabel ? { reasoningLabel } : {}),
   };
+  // Read once for the session check and the turn's saves and fingerprint.
+  const transcript = prepareTurnTranscript(messages, { saved: requestSaved });
   let sessionContext = null;
   let handoff = null;
   if (catalog?.providerSession && resolvedChatId) {
@@ -279,6 +287,7 @@ export async function executeChatRequest(
             saved,
             messages,
             projectPath: resolvedProjectPath,
+            fingerprint: transcript.fingerprint,
           });
     sessionContext = resolved?.session ?? {
       remoteConversationId: null,
@@ -394,6 +403,7 @@ export async function executeChatRequest(
         chatId: resolvedChatId,
         projectPath: resolvedProjectPath,
         requestMessages: messages,
+        transcript,
         onChunk,
         provider: providerId,
         finalize: checkpointId
