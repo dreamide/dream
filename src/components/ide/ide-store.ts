@@ -11,6 +11,10 @@ import { createFileEditorSessions } from "./file-editor-session";
 import { findProjectForPath, getChatsForProject } from "./ide-state";
 import { createBrowserActions } from "./store/browser-actions";
 import { createCatalogActions } from "./store/catalog-actions";
+import {
+  catalogBaselines,
+  setCatalogConflictHandler,
+} from "./store/catalog-baselines";
 import { createChatActions } from "./store/chat-actions";
 import { followConnections } from "./store/connection-follow";
 import { createGitWriteActions } from "./store/git-write-actions";
@@ -21,16 +25,9 @@ import {
 import { createHostActions } from "./store/host-actions";
 import { hostCatalogLifecycle } from "./store/host-catalog-lifecycle";
 import {
-  getLoadedAwaitingApprovalChatIds,
-  getLoadedLocalHost,
-  getLoadedRunningChatIds,
   getLoadedWorkspace,
-  isHostLoaded,
-  isWorkspaceLoaded,
   loadPersistedIdeState,
-  pushPersistedCatalogs,
   savePersistedWorkspace,
-  setCatalogConflictHandler,
 } from "./store/ide-store-persistence";
 import type { IdeState } from "./store/ide-store-types";
 import { createPanelActions } from "./store/panel-actions";
@@ -195,7 +192,19 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   // ── Actions: hydration & persistence ────────────────────────────────
   hydrate: async () => {
-    const loaded = await loadPersistedIdeState();
+    const {
+      homeCatalog,
+      state: loaded,
+      workspaceLoaded,
+    } = await loadPersistedIdeState();
+    // The home host's baseline is its catalog as loaded, taken before the
+    // workspace is restored: a default chat restoring adds is new to the
+    // host, and must be sent to it.
+    if (homeCatalog) catalogBaselines.adopt(LOCAL_HOST_ID, loaded);
+    const chatSet = (chatIds: string[] | undefined) =>
+      Object.fromEntries(
+        (chatIds ?? []).map((chatId) => [chatId, true as const]),
+      );
     const restored = workspace.restore(
       {
         activeProjectId: loaded.activeProjectId,
@@ -215,17 +224,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       savedPrompts: loaded.savedPrompts,
       activeBrowserTabIdByProject: loaded.activeBrowserTabIdByProject,
       browserTabsByProject: loaded.browserTabsByProject,
-      hostRunningChatIds: Object.fromEntries(
-        getLoadedRunningChatIds().map((chatId) => [chatId, true as const]),
-      ),
-      hostAwaitingApprovalChatIds: Object.fromEntries(
-        getLoadedAwaitingApprovalChatIds().map((chatId) => [
-          chatId,
-          true as const,
-        ]),
+      hostRunningChatIds: chatSet(homeCatalog?.runningChatIds),
+      hostAwaitingApprovalChatIds: chatSet(
+        homeCatalog?.awaitingApprovalChatIds,
       ),
       stateHydrated: true,
-      persistenceBlocked: !isWorkspaceLoaded(),
+      persistenceBlocked: !workspaceLoaded,
     });
     transcriptCache.markHydrated(restored.messagesByChatId);
     // Saves the local host's identity as this client's `local` connection.
@@ -233,10 +237,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     // is never refused, only recorded.
     // A browser client whose home host was away at startup records it
     // when its catalog comes in (store/connection-follow.ts).
-    if (isHostLoaded(LOCAL_HOST_ID)) {
+    if (homeCatalog) {
       try {
         hostCatalogLifecycle(set, get).accept(LOCAL_HOST_ID, {
-          host: getLoadedLocalHost(),
+          host: homeCatalog.host,
         });
       } catch (error) {
         console.warn("Unable to record the local host's identity.", error);
@@ -302,6 +306,7 @@ const saveSlices = (dirty: ReadonlySet<SaveSlice>) => {
     projects,
     settings,
     stateHydrated,
+    persistenceBlocked,
   } = state;
   if (!stateHydrated) return;
 
@@ -321,9 +326,13 @@ const saveSlices = (dirty: ReadonlySet<SaveSlice>) => {
     settings,
   });
 
-  savePersistedWorkspace(encoded, { rows: catalogChanged });
-  if (catalogChanged) {
-    pushPersistedCatalogs(encoded, { chats, closedProjects, projects });
+  savePersistedWorkspace(encoded, {
+    hostIds: catalogBaselines.hostIds(),
+    rows: catalogChanged,
+  });
+  // A window that could not read the workspace sends its hosts nothing.
+  if (catalogChanged && !persistenceBlocked) {
+    catalogBaselines.push(encoded, { chats, closedProjects, projects });
   }
 };
 

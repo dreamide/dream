@@ -14,7 +14,8 @@ import {
   listHostChoices,
 } from "../../../../electron/shared/host-connections.js";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
-import { isHostLoaded, loadCatalog } from "./ide-store-persistence";
+import { catalogBaselines } from "./catalog-baselines";
+import { loadCatalog } from "./ide-store-persistence";
 import type { IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
 /**
@@ -154,7 +155,10 @@ function createLifecycle(set: IdeStoreSet, get: IdeStoreGet) {
       const promise = Promise.resolve()
         .then(async () => {
           controller.signal.throwIfAborted();
-          if (isHostLoaded(hostId)) await get().reloadCatalog(hostId);
+          // A host this client has a baseline for is reloaded against it;
+          // one it has none for is loaded afresh (catalog-baselines.ts).
+          if (catalogBaselines.hasBaseline(hostId))
+            await get().reloadCatalog(hostId);
           else await get().loadHostCatalog(hostId);
           controller.signal.throwIfAborted();
           readiness(hostId, true, null);

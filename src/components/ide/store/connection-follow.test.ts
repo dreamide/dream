@@ -10,8 +10,9 @@ import { loadCatalog } from "./ide-store-persistence";
 import type { IdeState } from "./ide-store-types";
 
 vi.mock("../chat/chat-runtime", () => ({ reattachChatStreams: vi.fn() }));
+// No host has a baseline here, so a refresh loads afresh; only the read is
+// replaced.
 vi.mock("./ide-store-persistence", () => ({
-  isHostLoaded: () => false,
   loadCatalog: vi.fn(),
 }));
 vi.mock("@/lib/connections/platform", () => ({

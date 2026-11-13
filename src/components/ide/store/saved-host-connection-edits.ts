@@ -11,8 +11,8 @@ import {
   MAX_HOST_ROUTES,
 } from "../../../../electron/shared/host-connections.js";
 import { terminalSessions } from "../terminal-session";
+import { catalogBaselines } from "./catalog-baselines";
 import { HostIdentityError } from "./host-catalog-lifecycle";
-import { forgetLoadedHost } from "./ide-store-persistence";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 import { applyWorkspaceRemoval } from "./project-runtime-state";
 import { settleSettings } from "./settings-actions";
@@ -220,7 +220,7 @@ export const createSavedHostConnectionEdits = (
           hostId,
         );
         // Out of this window only: the host's catalog is not told.
-        forgetLoadedHost(hostId);
+        catalogBaselines.forget(hostId);
         forgetHostSocketClient(hostId);
         connectionSupervisor.forget(hostId);
         set((state) => {

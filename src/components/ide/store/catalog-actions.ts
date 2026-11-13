@@ -7,14 +7,10 @@
  * which a host's own catalog does not say.
  */
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
-import type { ProjectConfig } from "@/types/ide";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
+import { catalogBaselines } from "./catalog-baselines";
 import { hostCatalogLifecycle } from "./host-catalog-lifecycle";
-import {
-  getCatalogSync,
-  getLoadedWorkspace,
-  markHostLoaded,
-} from "./ide-store-persistence";
+import { getLoadedWorkspace } from "./ide-store-persistence";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 import { commitWorkspaceRemoval } from "./project-runtime-state";
 import * as workspace from "./workspace-document";
@@ -61,7 +57,7 @@ export const createCatalogActions = (
     );
     const isIncoming = (item: { id: string }) => incomingIds.has(item.id);
     const after = get();
-    const sync = getCatalogSync(hostId);
+    const sync = catalogBaselines.sync(hostId);
     sync.remember({
       chats: after.chats.filter(isIncoming),
       closedProjects: after.closedProjects.filter(isIncoming),
@@ -206,22 +202,8 @@ export const createCatalogActions = (
           }),
         );
 
-        const after = get();
-        const onHost = (project: ProjectConfig) =>
-          getProjectHostId(project) === hostId;
-        const hostProjectIds = new Set(
-          [...after.projects, ...after.closedProjects]
-            .filter(onHost)
-            .map((project) => project.id),
-        );
-        getCatalogSync(hostId).reset({
-          chats: after.chats.filter((chat) =>
-            hostProjectIds.has(chat.projectId),
-          ),
-          closedProjects: after.closedProjects.filter(onHost),
-          projects: after.projects.filter(onHost),
-        });
-        markHostLoaded(hostId);
+        // The catalog as it landed in the store is this host's baseline.
+        catalogBaselines.adopt(hostId, get());
         setRunning(hostId, catalog);
       }),
 
@@ -230,7 +212,7 @@ export const createCatalogActions = (
       await hostCatalogLifecycle(set, get).read(hostId, (catalog) => {
         setRunning(hostId, catalog);
         const state = get();
-        const sync = getCatalogSync(hostId);
+        const sync = catalogBaselines.sync(hostId);
         const catalogProjectIds = new Set(
           catalog.projects.filter(isRecordWithId).map((project) => project.id),
         );

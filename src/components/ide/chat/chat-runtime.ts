@@ -52,7 +52,7 @@ import {
   scheduleProjectPanelRefresh,
 } from "../project-panel-refresh";
 import { isHostAway } from "../ssh/host-away";
-import { ensureHostChat } from "../store/ide-store-persistence";
+import { catalogBaselines } from "../store/catalog-baselines";
 import {
   addAskUserQuestionAnswerToMessages,
   preserveAskUserQuestionAnswers,
@@ -1089,7 +1089,7 @@ export const submitChatPrompt = (
   const sending = (submissions.get(chatId) ?? Promise.resolve())
     .catch(() => {})
     .then(async () => {
-      await ensureHostChat(submittedProject, config);
+      await catalogBaselines.ensureChat(submittedProject, config);
       const submission = {
         ...selectionMetadata,
         chatId,

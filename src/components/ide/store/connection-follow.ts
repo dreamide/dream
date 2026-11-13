@@ -7,11 +7,11 @@ import {
 } from "@/lib/connections/runtime";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import { reattachChatStreams } from "../chat/chat-runtime";
+import { catalogBaselines } from "./catalog-baselines";
 import {
   HostIdentityError,
   hostCatalogLifecycle,
 } from "./host-catalog-lifecycle";
-import { isHostLoaded } from "./ide-store-persistence";
 import type { IdeState, IdeStoreSet } from "./ide-store-types";
 
 export const followConnections = (
@@ -32,7 +32,7 @@ export const followConnections = (
               .map(([id]) => id),
           ]
         : [],
-    isLoaded: isHostLoaded,
+    isLoaded: catalogBaselines.hasBaseline,
     catalogs: {
       suspend: catalogs.suspend,
       resume: catalogs.resume,

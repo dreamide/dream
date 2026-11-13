@@ -24,11 +24,11 @@ import {
   findHostConnection,
   listHostChoices,
 } from "../../../../electron/shared/host-connections.js";
+import { catalogBaselines } from "./catalog-baselines";
 import {
   HostIdentityError,
   hostCatalogLifecycle,
 } from "./host-catalog-lifecycle";
-import { forgetLoadedHost } from "./ide-store-persistence";
 import type {
   HostRuntimeState,
   IdeState,
@@ -185,7 +185,7 @@ export const createHostActions = (
           });
           if (merged) {
             await desktopApi.disconnectHost(hostId);
-            forgetLoadedHost(hostId);
+            catalogBaselines.forget(hostId);
             forgetHostSocketClient(hostId);
             connectionSupervisor.forget(hostId);
             await merged.refresh();

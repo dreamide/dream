@@ -2,13 +2,8 @@ import type { UIMessage } from "ai";
 import { apiClient, type CatalogResponse } from "@/lib/api-client";
 import { getClientPlatform } from "@/lib/connections/platform";
 import { connectionSupervisor } from "@/lib/connections/runtime";
-import { LOCAL_HOST_ID, resolveRequestHost } from "@/lib/host-routing";
-import type {
-  ChatConfig,
-  PersistedIdeState,
-  PersistedWorkspace,
-  ProjectConfig,
-} from "@/types/ide";
+import { LOCAL_HOST_ID } from "@/lib/host-routing";
+import type { PersistedIdeState, PersistedWorkspace } from "@/types/ide";
 import {
   acceptHostDescriptor,
   normalizeHostConnections,
@@ -16,15 +11,9 @@ import {
 import {
   createEmptyPersistedState,
   decodePersistedState,
-  getProjectHostId,
   mergeWorkspaceAndCatalog,
   normalizeSshHosts,
 } from "../../../../electron/shared/persisted-state-codec.js";
-import {
-  type CatalogConflict,
-  type CatalogState,
-  createCatalogSync,
-} from "./catalog-sync";
 import {
   copyWorkspaceRecord,
   recordLoadedWorkspace,
@@ -39,7 +28,7 @@ import {
 // client's own: the main process's database on the desktop, IndexedDB in
 // a browser (connections/workspace-storage.ts). Projects, chats and
 // transcripts are each host's catalog, over that host's API
-// (catalog-sync.ts keeps them in step). The home host's catalog loads with
+// (catalog-baselines.ts keeps them in step). The home host's catalog loads with
 // the workspace; an SSH host's when it connects. Until then its projects
 // show as their workspace rows cached them (codec mergeWorkspaceAndCatalog,
 // snapshotHostIds). A browser client whose home host cannot be reached at
@@ -59,7 +48,6 @@ const STARTUP_LOAD_ATTEMPTS = 3;
  * overwrite the user's settings and projects with them.
  */
 let workspaceLoaded = false;
-export const isWorkspaceLoaded = () => workspaceLoaded;
 
 const withTimeout = async <T>(
   promise: Promise<T>,
@@ -82,20 +70,6 @@ const withTimeout = async <T>(
   }
 };
 
-/** The chats with a turn running on the local host at its catalog load. */
-let loadedRunningChatIds: string[] = [];
-export const getLoadedRunningChatIds = () => loadedRunningChatIds;
-let loadedAwaitingApprovalChatIds: string[] = [];
-export const getLoadedAwaitingApprovalChatIds = () =>
-  loadedAwaitingApprovalChatIds;
-
-/**
- * The local host's descriptor from its startup catalog load, accepted once
- * the store has hydrated (so a newly saved connection is saved).
- */
-let loadedLocalHost: CatalogResponse["host"];
-export const getLoadedLocalHost = () => loadedLocalHost;
-
 /** The workspace as loaded, for merging SSH hosts' catalogs later. */
 let loadedWorkspace: PersistedWorkspace = { workspaceProjects: [] };
 export const getLoadedWorkspace = () => loadedWorkspace;
@@ -105,47 +79,6 @@ export const getLoadedWorkspace = () => loadedWorkspace;
  * save (the load at first): what the next save is compared against.
  */
 let savedWorkspace: WorkspaceRecord | null = null;
-
-/** Hosts whose catalog this window has loaded (and so saves for). */
-const loadedHostIds = new Set<string>();
-export const isHostLoaded = (hostId: string) => loadedHostIds.has(hostId);
-export const markHostLoaded = (hostId: string) => {
-  loadedHostIds.add(hostId);
-};
-export const forgetLoadedHost = (hostId: string) => {
-  loadedHostIds.delete(hostId);
-  catalogSyncs.delete(hostId);
-};
-
-const catalogSyncs = new Map<string, ReturnType<typeof createCatalogSync>>();
-
-/** Who resolves projects a host refused (the store registers it). */
-let conflictHandler: (hostId: string, conflicts: CatalogConflict[]) => void =
-  () => {};
-export const setCatalogConflictHandler = (
-  handler: (hostId: string, conflicts: CatalogConflict[]) => void,
-) => {
-  conflictHandler = handler;
-};
-
-/** The store's link to `hostId`'s catalog. */
-export const getCatalogSync = (hostId: string = LOCAL_HOST_ID) => {
-  let sync = catalogSyncs.get(hostId);
-  if (!sync) {
-    const onHost = { hostId };
-    sync = createCatalogSync({
-      api: {
-        catalogChanges: (changes, options) =>
-          apiClient.catalogChanges(changes, { ...options, ...onHost }),
-        saveCatalogTranscript: (payload, options) =>
-          apiClient.saveCatalogTranscript(payload, { ...options, ...onHost }),
-      },
-      onConflicts: (conflicts) => conflictHandler(hostId, conflicts),
-    });
-    catalogSyncs.set(hostId, sync);
-  }
-  return sync;
-};
 
 /** `hostId`'s catalog, raw. */
 export const loadCatalog = (
@@ -159,6 +92,24 @@ export const loadCatalog = (
     `Timed out loading the catalog of host ${hostId}.`,
   );
 
+/** What a window starts from. */
+export interface StartupState {
+  /** The workspace merged with the home host's catalog, decoded. */
+  state: PersistedIdeState;
+  /**
+   * Whether the workspace was read. A window that could not read it holds
+   * defaults and saves nothing, which would overwrite the user's settings
+   * and projects with them.
+   */
+  workspaceLoaded: boolean;
+  /**
+   * The home host's catalog, when it loaded: `state` holds it, so it is the
+   * home host's baseline (catalog-baselines.ts), and it says which chats
+   * run or wait now. Null while only its snapshot shows.
+   */
+  homeCatalog: CatalogResponse | null;
+}
+
 /**
  * The workspace (from the main process) merged with the local host's
  * catalog, decoded once with the shared codec. The workspace loads first:
@@ -166,12 +117,12 @@ export const loadCatalog = (
  * the catalog read that follows sees them too. SSH hosts' projects join
  * when their hosts connect (connectHost).
  */
-export const loadPersistedIdeState = async (): Promise<PersistedIdeState> => {
+export const loadPersistedIdeState = async (): Promise<StartupState> => {
   for (let attempt = 1; attempt <= STARTUP_LOAD_ATTEMPTS; attempt += 1) {
     try {
-      const state = await loadOnce();
+      const loaded = await loadOnce();
       workspaceLoaded = true;
-      return state;
+      return { ...loaded, workspaceLoaded };
     } catch (error) {
       console.warn(
         `Unable to load persisted Dream state (attempt ${attempt} of ${STARTUP_LOAD_ATTEMPTS}).`,
@@ -179,9 +130,13 @@ export const loadPersistedIdeState = async (): Promise<PersistedIdeState> => {
       );
     }
   }
-  // Shown empty, and never saved (isWorkspaceLoaded): the user's data is
-  // still on disk for the next start.
-  return createEmptyPersistedState();
+  // Shown empty, and never saved: the user's data is still on disk for the
+  // next start.
+  return {
+    homeCatalog: null,
+    state: createEmptyPersistedState(),
+    workspaceLoaded: false,
+  };
 };
 
 /**
@@ -239,7 +194,10 @@ const loadHomeCatalog = async (
   return catalog;
 };
 
-const loadOnce = async (): Promise<PersistedIdeState> => {
+const loadOnce = async (): Promise<{
+  homeCatalog: CatalogResponse | null;
+  state: PersistedIdeState;
+}> => {
   const storage = getClientPlatform().workspace;
   {
     const workspace = await withTimeout(
@@ -251,9 +209,6 @@ const loadOnce = async (): Promise<PersistedIdeState> => {
     savedWorkspace = recordLoadedWorkspace(workspace);
     const loadedCatalog = await loadHomeCatalog(workspace);
     const catalog = loadedCatalog ?? snapshotCatalog(workspace);
-    loadedRunningChatIds = catalog.runningChatIds ?? [];
-    loadedAwaitingApprovalChatIds = catalog.awaitingApprovalChatIds ?? [];
-    loadedLocalHost = loadedCatalog?.host;
     // SSH hosts still in Settings show their projects from the snapshot.
     const snapshotHostIds = [
       ...normalizeHostConnections(workspace.hostConnections).map(
@@ -271,29 +226,7 @@ const loadOnce = async (): Promise<PersistedIdeState> => {
         workspace,
       }),
     );
-    // The local host's baseline is its own projects and their chats only:
-    // an SSH host's projects shown from the snapshot are not the local
-    // host's, and counting them as synced here would have its next reload
-    // remove them (and the next save delete them on their host).
-    const localProjectIds = new Set(
-      [...state.projects, ...state.closedProjects]
-        .filter((project) => getProjectHostId(project) === LOCAL_HOST_ID)
-        .map((project) => project.id),
-    );
-    // A catalog shown from the snapshot is not the host's: nothing of it
-    // is synced or saved there until the real one has loaded.
-    if (!loadedCatalog) return state;
-    getCatalogSync(LOCAL_HOST_ID).reset({
-      chats: state.chats.filter((chat) => localProjectIds.has(chat.projectId)),
-      closedProjects: state.closedProjects.filter((project) =>
-        localProjectIds.has(project.id),
-      ),
-      projects: state.projects.filter((project) =>
-        localProjectIds.has(project.id),
-      ),
-    });
-    markHostLoaded(LOCAL_HOST_ID);
-    return state;
+    return { homeCatalog: loadedCatalog, state };
   }
 };
 
@@ -313,48 +246,17 @@ export const loadPersistedChatMessages = async (
   }
 };
 
-/** `state` split by host: each project, and each chat by its project. */
-const partitionByHost = (
-  state: CatalogState,
-  hostOf: (projectId: string) => string,
-) => {
-  const parts = new Map<string, CatalogState>();
-  const part = (hostId: string) => {
-    let entry = parts.get(hostId);
-    if (!entry) {
-      entry = { chats: [], closedProjects: [], projects: [] };
-      parts.set(hostId, entry);
-    }
-    return entry;
-  };
-  for (const project of state.projects) {
-    part(getProjectHostId(project)).projects.push(project);
-  }
-  for (const project of state.closedProjects) {
-    part(getProjectHostId(project)).closedProjects.push(project);
-  }
-  for (const chat of state.chats) {
-    part(hostOf(chat.projectId)).chats.push(chat);
-  }
-  return parts;
-};
-
-const emptyCatalogState = (): CatalogState => ({
-  chats: [],
-  closedProjects: [],
-  projects: [],
-});
-
 /**
  * Saves what changed in the workspace part of `encoded` to the main
  * process: config keys, saved prompts and, with `rows`, a row per project
  * (`encoded` must then hold the chats: a project's UI is checked against
- * them). Rows describe every loaded host completely; a host not loaded yet
- * (not connected this session) only has its rows moved.
+ * them). Rows describe each of `hostIds` completely, the hosts with a
+ * catalog baseline; any other host (not connected this session) only has
+ * its rows moved.
  */
 export const savePersistedWorkspace = (
   encoded: PersistedIdeState,
-  { rows }: { rows: boolean },
+  { hostIds, rows }: { hostIds: ReadonlySet<string>; rows: boolean },
 ) => {
   if (!workspaceLoaded || !savedWorkspace) return;
   const record = savedWorkspace;
@@ -362,7 +264,7 @@ export const savePersistedWorkspace = (
   const changes = takeWorkspaceChanges(
     record,
     recordWorkspace(encoded, { rows }),
-    new Set(loadedHostIds),
+    new Set(hostIds),
   );
   if (!changes) return;
   void getClientPlatform()
@@ -373,54 +275,3 @@ export const savePersistedWorkspace = (
       restoreUnsent(record, changes, before);
     });
 };
-
-/**
- * Sends what changed in each loaded host's catalog to that host. `live` is
- * the store's unencoded state, which decides what was removed; `encoded`
- * what deserves saving. A host not loaded yet is left alone.
- */
-export const pushPersistedCatalogs = (
-  encoded: PersistedIdeState,
-  live: CatalogState,
-) => {
-  if (!workspaceLoaded) return;
-  const hostByProjectId = new Map<string, string>();
-  for (const project of [
-    ...live.projects,
-    ...live.closedProjects,
-  ] as ProjectConfig[]) {
-    hostByProjectId.set(project.id, getProjectHostId(project));
-  }
-  const hostOf = (projectId: string) =>
-    hostByProjectId.get(projectId) ?? LOCAL_HOST_ID;
-  const liveParts = partitionByHost(live, hostOf);
-  const encodedParts = partitionByHost(
-    {
-      chats: encoded.chats as ChatConfig[],
-      closedProjects: encoded.closedProjects,
-      projects: encoded.projects,
-    },
-    hostOf,
-  );
-  for (const hostId of loadedHostIds) {
-    void getCatalogSync(hostId).push(
-      liveParts.get(hostId) ?? emptyCatalogState(),
-      encodedParts.get(hostId) ?? emptyCatalogState(),
-    );
-  }
-};
-
-export const savePersistedChatMessages = async (
-  chatId: string,
-  messages: UIMessage[],
-  mergeOnly = false,
-) => {
-  await getCatalogSync(resolveRequestHost({ chatId })).saveTranscript(
-    chatId,
-    messages,
-    mergeOnly,
-  );
-};
-
-export const ensureHostChat = (project: ProjectConfig, chat: ChatConfig) =>
-  getCatalogSync(getProjectHostId(project)).ensureChat(project, chat);

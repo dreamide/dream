@@ -1,11 +1,9 @@
 import type { UIMessage } from "ai";
 import { apiClient, type TranscriptPage } from "@/lib/api-client";
 import { preserveAskUserQuestionAnswers } from "../chat/ask-user-question-answers";
+import { catalogBaselines } from "./catalog-baselines";
 import { areMessagesEqual } from "./helpers";
-import {
-  loadPersistedChatMessages,
-  savePersistedChatMessages,
-} from "./ide-store-persistence";
+import { loadPersistedChatMessages } from "./ide-store-persistence";
 import type { IdeState } from "./ide-store-types";
 
 // Soft limits: live consumers and unsaved messages always take precedence.
@@ -381,7 +379,7 @@ export const createTranscriptCache = (
         .then(async () => {
           if (!get().chats.some((chat) => chat.id === id)) return;
           get().persist();
-          await savePersistedChatMessages(id, snapshot, partial);
+          await catalogBaselines.saveTranscript(id, snapshot, partial);
           if (
             entry &&
             entries.get(id) === entry &&

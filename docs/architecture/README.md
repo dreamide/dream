@@ -112,6 +112,10 @@ Module names and current ownership live in ../../GLOSSARY.md.
   module starts every OpenCode server, and the OpenCode Provider adapter is
   replay-tested over a scripted one.
 
+- `tasks/catalog-baselines.md` tracks CBL-01 from the same review, narrowed:
+  each host's catalog baseline has one owner apart from the workspace, one
+  rule, and a name distinct from catalog readiness.
+
 - `tasks/review-20261109.md` tracks SSH-PROMPT, SAVED-ROUTES and
   ATTACHMENT-LIFETIME: SSH prompt ownership, saved-connection edit lifetime,
   and attachment preparation and release.

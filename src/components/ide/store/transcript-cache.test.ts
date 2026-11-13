@@ -7,16 +7,16 @@ import {
   createProjectConfig,
   DEFAULT_SETTINGS,
 } from "@/lib/ide-defaults";
-import {
-  loadPersistedChatMessages,
-  savePersistedChatMessages,
-} from "./ide-store-persistence";
+import { catalogBaselines } from "./catalog-baselines";
+import { loadPersistedChatMessages } from "./ide-store-persistence";
 import type { IdeState } from "./ide-store-types";
 import { createTranscriptCache } from "./transcript-cache";
 
 vi.mock("./ide-store-persistence", () => ({
   loadPersistedChatMessages: vi.fn(),
-  savePersistedChatMessages: vi.fn(),
+}));
+vi.mock("./catalog-baselines", () => ({
+  catalogBaselines: { saveTranscript: vi.fn() },
 }));
 vi.mock("@/lib/api-client", () => ({
   apiClient: { catalogTranscriptPage: vi.fn() },
@@ -103,7 +103,7 @@ test("refresh preserves the loaded window and partial saves request a transactio
   await get().applyCatalogTranscript(id);
   assert.deepEqual(get().messagesByChatId[id], messages.slice(20));
   await get().persistMessagesForChat(id);
-  assert.deepEqual(vi.mocked(savePersistedChatMessages).mock.calls[0], [
+  assert.deepEqual(vi.mocked(catalogBaselines.saveTranscript).mock.calls[0], [
     id,
     messages.slice(20),
     true,

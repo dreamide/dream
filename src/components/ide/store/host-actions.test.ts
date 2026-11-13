@@ -8,6 +8,7 @@ import {
   DEFAULT_SETTINGS,
 } from "@/lib/ide-defaults";
 import type { HostConnectionState } from "@/types/ide";
+import { catalogBaselines } from "./catalog-baselines";
 import { createHostActions } from "./host-actions";
 import type { IdeState } from "./ide-store-types";
 import {
@@ -26,17 +27,15 @@ const desktop = vi.hoisted(() => ({
 
 vi.mock("@/lib/electron", () => ({ getDesktopApi: () => desktop }));
 
-const loaded = vi.hoisted(() => new Set<string>());
-vi.mock("./ide-store-persistence", () => ({
-  forgetLoadedHost: (hostId: string) => loaded.delete(hostId),
-  isHostLoaded: (hostId: string) => loaded.has(hostId),
-}));
+// The hosts a test's catalog load gave a baseline, forgotten after it.
+const adopted = new Set<string>();
 
 afterEach(() => {
   desktop.connectHost.mockClear();
   desktop.disconnectHost.mockClear();
   desktop.getHostState.mockReset();
-  loaded.clear();
+  for (const hostId of adopted) catalogBaselines.forget(hostId);
+  adopted.clear();
 });
 
 const host = (id: string) => ({
@@ -47,7 +46,12 @@ const host = (id: string) => ({
 
 const createTestStore = () => {
   const loadHostCatalog = vi.fn(async (hostId: string) => {
-    loaded.add(hostId);
+    catalogBaselines.adopt(hostId, {
+      chats: [],
+      closedProjects: [],
+      projects: [],
+    });
+    adopted.add(hostId);
   });
   const reloadCatalog = vi.fn(async () => {});
   const store = createStore<IdeState>(

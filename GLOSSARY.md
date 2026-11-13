@@ -420,6 +420,16 @@ catalog loading or a catalog error. Concurrent refresh requests share the load;
 disconnecting makes old responses ineligible to update the workspace. Previously
 loaded catalog data remains available while the host is away.
 
+Not to be confused with a host's **catalog baseline**
+(`src/components/ide/store/catalog-baselines.ts`): what this client last knew
+that host's catalog held, its own projects and their chats. Every save is
+compared with it, and only the difference goes to that host. A host gets a
+baseline when its catalog first loads here; the home host's is the catalog as
+loaded at startup, before the workspace is restored. It keeps the baseline
+while away, so readiness can be lost while the baseline stays: a host with a
+baseline is reloaded against it, one without is loaded afresh. It loses the
+baseline only when this client forgets the host.
+
 ## Host socket
 
 The one live connection between a client and a host, carrying every kind
