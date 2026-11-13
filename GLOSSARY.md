@@ -835,6 +835,16 @@ Serializing a draft turns references into `@path` and picked skills into
 queued prompts (saved prompts, stash runs, feedback) all serialize through
 it.
 
+A chat's **live draft** is held outside React by
+`src/components/ide/chat/chat-drafts.ts`. It holds the text and its
+references together, since a mention's path lives only in its reference, and
+where prompt history navigation stands. It outlives the panel that shows it.
+A queued message that could not be sent is appended to it, whether or not a
+panel shows the chat. Sending empties it. The composer edits a draft through
+one value, `{ text, references }`, that its owner holds: the chat's draft for
+a chat panel, or the stash composer's own. The composer keeps only the token
+at the caret.
+
 ## Skill catalog
 
 The skills a provider can load for a project, fetched from the main process

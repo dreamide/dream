@@ -61,6 +61,7 @@ import {
   CHAT_STREAM_UPDATE_THROTTLE_MS,
   PROVIDER_LABELS,
 } from "./chat-constants";
+import { chatDrafts } from "./chat-drafts";
 import {
   getChatModelOptions,
   resolveChatModelSelection,
@@ -129,13 +130,10 @@ const modelT: Translate = (key) => translators?.models(key) ?? key;
 // ── Errors shown in a chat's banner ─────────────────────────────────────
 
 interface ChatRuntimeState {
-  /** Text a failed queued submission hands back to the chat's draft. */
-  draftRestoreByChatId: Record<string, string>;
   errorByChatId: Record<string, string>;
 }
 
 export const useChatRuntimeStore = create<ChatRuntimeState>(() => ({
-  draftRestoreByChatId: {},
   errorByChatId: {},
 }));
 
@@ -159,18 +157,6 @@ export const setChatError = (chatId: string, message: string | null) => {
 export const dismissChatError = (chatId: string) => {
   setChatError(chatId, null);
   sessions.get(chatId)?.chat.clearError();
-};
-
-/** Takes the text a failed queued submission left for the chat's draft. */
-export const takeChatDraftRestore = (chatId: string) => {
-  const text = useChatRuntimeStore.getState().draftRestoreByChatId[chatId];
-  if (text === undefined) {
-    return null;
-  }
-  useChatRuntimeStore.setState((state) => ({
-    draftRestoreByChatId: withoutKey(state.draftRestoreByChatId, chatId),
-  }));
-  return text;
 };
 
 // ── Sessions ────────────────────────────────────────────────────────────
@@ -1146,14 +1132,8 @@ const restoreDraft = (chatId: string, submission: PendingChatSubmit) => {
   if (!submission.preserveDraft) {
     return;
   }
-  useChatRuntimeStore.setState((state) => ({
-    draftRestoreByChatId: {
-      ...state.draftRestoreByChatId,
-      [chatId]: [state.draftRestoreByChatId[chatId], submission.text]
-        .filter(Boolean)
-        .join("\n\n"),
-    },
-  }));
+  // Back to the chat's draft, whether or not a panel shows it now.
+  chatDrafts.append(chatId, submission.text);
 };
 
 /**

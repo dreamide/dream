@@ -77,6 +77,7 @@ import {
   useProjectResource,
 } from "../project-resources";
 import { ChatComposerInsertContext } from "./chat-composer-insert-context";
+import { appendDraftText } from "./chat-drafts";
 import {
   type ChatModelSelection,
   type ChatPanelModelOption,
@@ -87,6 +88,7 @@ import {
   applyComposerEdit,
   buildProjectReferenceIndex,
   type ComposerCatalog,
+  type ComposerDraft,
   type ComposerEdit,
   type ComposerEditResult,
   type ComposerSegment,
@@ -274,14 +276,19 @@ export interface ChatComposerProps {
   onPermissionModeChange: (mode: ChatPermissionMode) => void;
   /** Keys the draft leaves alone (Enter to send, prompt history). */
   onPromptKeyDown?: KeyboardEventHandler<HTMLTextAreaElement>;
-  onPromptTextChange: (value: string) => void;
+  /**
+   * The draft changed: its text and the references picked into it, which
+   * belong together (chat-drafts.ts).
+   */
+  onDraftChange: (draft: ComposerDraft) => void;
   onReasoningEffortChange: (effort: ReasoningEffort) => void;
   onSparklesPaletteChange?: (palette: SparklesPaletteName) => void;
   onStop?: () => void;
   onSubmit: (prompt: PromptInputMessage) => void | Promise<void>;
   promptDomId: string;
   promptInputDomId: string;
-  promptText: string;
+  /** The draft being written: the caller's, so it outlives this composer. */
+  draft: ComposerDraft;
   permissionMode: ChatPermissionMode;
   projectPath: string;
   sparklesPalette: SparklesPaletteName;
@@ -290,10 +297,6 @@ export interface ChatComposerProps {
   /** Extra items for the + menu, after "Add photos & files". */
   actionMenuItems?: ReactNode;
 }
-
-type ComposerLocalState = Pick<ComposerState, "references" | "token">;
-
-const EMPTY_LOCAL_STATE: ComposerLocalState = { references: [], token: null };
 
 const noop = () => {};
 
@@ -315,14 +318,14 @@ export const ChatComposer = ({
   onModelSpeedChange,
   onPermissionModeChange,
   onPromptKeyDown,
-  onPromptTextChange,
+  onDraftChange,
   onReasoningEffortChange,
   onSparklesPaletteChange = noop,
   onStop = noop,
   onSubmit,
   promptDomId,
   promptInputDomId,
-  promptText,
+  draft: value,
   permissionMode,
   projectPath,
   sparklesPalette,
@@ -340,11 +343,10 @@ export const ChatComposer = ({
   const focusPromptOnActionMenuCloseRef = useRef(false);
   const insertPromptText = useCallback(
     (text: string) => {
-      const existing = promptText.trimEnd();
-      onPromptTextChange(existing ? [existing, text].join("\n\n") : text);
+      onDraftChange({ ...value, text: appendDraftText(value.text, text) });
       focusPromptOnActionMenuCloseRef.current = true;
     },
-    [onPromptTextChange, promptText],
+    [onDraftChange, value],
   );
   const resolveActionMenuFinalFocus = useCallback(() => {
     if (!focusPromptOnActionMenuCloseRef.current) {
@@ -360,12 +362,12 @@ export const ChatComposer = ({
   const todoPanelId = useId();
   const [isTodoPanelOpen, setIsTodoPanelOpen] = useState(false);
 
-  // The draft: the text is the caller's (it is the saved chat draft); the
-  // picked files and the token at the caret are held here.
-  const [local, setLocal] = useState<ComposerLocalState>(EMPTY_LOCAL_STATE);
+  // The draft is the caller's (text and picked references); only the token
+  // at the caret, which means nothing once the composer is gone, is here.
+  const [token, setToken] = useState<ComposerState["token"]>(null);
   const draft = useMemo<ComposerState>(
-    () => ({ ...local, text: promptText }),
-    [local, promptText],
+    () => ({ references: value.references, text: value.text, token }),
+    [token, value],
   );
 
   const { selectedProvider } = modelSelection;
@@ -397,12 +399,12 @@ export const ChatComposer = ({
   const resolvedSparklesPalette =
     sparklesPalette === "accent" ? accentSparklesPalette : sparklesPalette;
 
-  // Sent or cleared from outside: nothing is picked any more.
+  // Emptied from outside (sent, or replaced by history): no token is open.
   useEffect(() => {
-    if (promptText === "") {
-      setLocal(EMPTY_LOCAL_STATE);
+    if (value.text === "") {
+      setToken(null);
     }
-  }, [promptText]);
+  }, [value.text]);
 
   useEffect(() => {
     if (todoSummary.totalCount === 0) {
@@ -412,14 +414,10 @@ export const ChatComposer = ({
 
   const commit = useCallback(
     ({ caret, state }: ComposerEditResult) => {
-      if (state.text !== promptText) {
-        onPromptTextChange(state.text);
+      if (state.text !== value.text || state.references !== value.references) {
+        onDraftChange({ references: state.references, text: state.text });
       }
-      setLocal((current) =>
-        current.references === state.references && current.token === state.token
-          ? current
-          : { references: state.references, token: state.token },
-      );
+      setToken(state.token);
       if (caret !== undefined) {
         requestAnimationFrame(() => {
           textareaRef.current?.focus();
@@ -427,7 +425,7 @@ export const ChatComposer = ({
         });
       }
     },
-    [onPromptTextChange, promptText],
+    [onDraftChange, value],
   );
 
   const edit = useCallback(
@@ -493,9 +491,12 @@ export const ChatComposer = ({
         { skillsSupported },
       );
       await onSubmit({ ...prompt, ...sent });
-      edit({ type: "submitted" });
+      // Sent. The draft is the owner's to empty: an edit worked out from the
+      // draft as it was would hand the sent text back. Only the token at the
+      // caret, which is this composer's, closes here.
+      setToken(null);
     },
-    [draft.references, edit, onSubmit, skills, skillsSupported],
+    [draft.references, onSubmit, skills, skillsSupported],
   );
 
   const controls = getModelSelectionControls(modelSelection);
@@ -669,7 +670,7 @@ export const ChatComposer = ({
                       placeholder={chatT("askAnything")}
                       ref={textareaRef}
                       rows={1}
-                      value={promptText}
+                      value={value.text}
                     />
                   </div>
                   <div className="flex shrink-0 items-center gap-1 pr-2">
@@ -684,7 +685,7 @@ export const ChatComposer = ({
                       isProcessing={isProcessing}
                       isProviderInstalled={isProviderInstalled}
                       onStop={onStop}
-                      promptText={promptText}
+                      promptText={value.text}
                       selectedModel={modelSelection.selectedModel}
                       selectedReferenceCount={draft.references.length}
                       status={status}

@@ -120,6 +120,9 @@ Module names and current ownership live in ../../GLOSSARY.md.
   chat runs, waits on its user or accepts a message has one answer each,
   counting the host.
 
+- `tasks/chat-drafts.md` tracks DRF-01 from the same review: each chat's
+  live composer draft, text and references together, held outside React.
+
 - `tasks/review-20261109.md` tracks SSH-PROMPT, SAVED-ROUTES and
   ATTACHMENT-LIFETIME: SSH prompt ownership, saved-connection edit lifetime,
   and attachment preparation and release.

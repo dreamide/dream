@@ -1,5 +1,4 @@
 import type { UIMessage } from "ai";
-import type { Dispatch, KeyboardEventHandler, SetStateAction } from "react";
 import {
   useCallback,
   useEffect,
@@ -230,91 +229,5 @@ export const useChatAutoScroll = ({
   return {
     conversationContextRef,
     scrollConversationToBottom,
-  };
-};
-
-export const usePromptHistoryNavigation = ({
-  messages,
-  promptText,
-  setPromptText,
-}: {
-  messages: UIMessage[];
-  promptText: string;
-  setPromptText: Dispatch<SetStateAction<string>>;
-}) => {
-  const historyIndexRef = useRef(-1);
-  const savedDraftRef = useRef("");
-
-  const resetPromptHistory = useCallback(() => {
-    historyIndexRef.current = -1;
-    savedDraftRef.current = "";
-  }, []);
-
-  const handlePromptKeyDown = useCallback<
-    KeyboardEventHandler<HTMLTextAreaElement>
-  >(
-    (event) => {
-      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-      if (historyIndexRef.current === -1) {
-        if (event.key === "ArrowDown") return;
-        const textarea = event.currentTarget;
-        if (textarea.selectionStart !== 0 || textarea.selectionEnd !== 0)
-          return;
-      }
-
-      const history = messages
-        .filter((message) => message.role === "user")
-        .map((message) =>
-          message.parts
-            .filter(
-              (part): part is Extract<typeof part, { type: "text" }> =>
-                part.type === "text",
-            )
-            .map((part) => part.text.trim())
-            .join("\n\n"),
-        )
-        .filter((text) => text.length > 0);
-
-      if (event.key === "ArrowUp") {
-        if (history.length === 0) {
-          return;
-        }
-
-        event.preventDefault();
-
-        if (historyIndexRef.current === -1) {
-          savedDraftRef.current = promptText;
-          historyIndexRef.current = history.length - 1;
-        } else if (historyIndexRef.current > 0) {
-          historyIndexRef.current -= 1;
-        } else {
-          return;
-        }
-
-        setPromptText(history[historyIndexRef.current]);
-      }
-
-      if (event.key === "ArrowDown") {
-        if (historyIndexRef.current === -1) {
-          return;
-        }
-
-        event.preventDefault();
-
-        if (historyIndexRef.current < history.length - 1) {
-          historyIndexRef.current += 1;
-          setPromptText(history[historyIndexRef.current]);
-        } else {
-          historyIndexRef.current = -1;
-          setPromptText(savedDraftRef.current);
-        }
-      }
-    },
-    [promptText, messages, setPromptText],
-  );
-
-  return {
-    handlePromptKeyDown,
-    resetPromptHistory,
   };
 };

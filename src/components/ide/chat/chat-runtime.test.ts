@@ -9,6 +9,7 @@ import type { ChatConfig, ProjectConfig } from "@/types/ide";
 import { clearGeneratedGitText } from "../git-generated-text";
 import { useIdeStore } from "../ide-store";
 import { CHAT_STREAM_UPDATE_THROTTLE_MS } from "./chat-constants";
+import { chatDrafts } from "./chat-drafts";
 import {
   CHAT_SESSION_IDLE_EVICT_MS,
   getChatSession,
@@ -18,7 +19,6 @@ import {
   startChatRuntime,
   submitChatPrompt,
   subscribeLiveTranscript,
-  takeChatDraftRestore,
   useChatRuntimeStore,
   watchChatSessionView,
 } from "./chat-runtime";
@@ -129,7 +129,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   useIdeStore.setState(initialState, true);
   clearGeneratedGitText();
-  useChatRuntimeStore.setState({ draftRestoreByChatId: {}, errorByChatId: {} });
+  useChatRuntimeStore.setState({ errorByChatId: {} });
 });
 
 test("a queued submission is sent and saved with no chat panel mounted", async () => {
@@ -189,8 +189,9 @@ test("a queued submission that cannot be sent returns to the draft", async () =>
     useChatRuntimeStore.getState().errorByChatId[chat.id],
     /Anthropic CLI is not available/,
   );
-  assert.equal(takeChatDraftRestore(chat.id), "Make this button blue");
-  assert.equal(takeChatDraftRestore(chat.id), null);
+  // Back in the chat's draft, though no panel shows the chat.
+  assert.equal(chatDrafts.get(chat.id).text, "Make this button blue");
+  chatDrafts.clear(chat.id);
   assert.equal(
     requests.some((request) => request.url === "/api/chat/submit"),
     false,

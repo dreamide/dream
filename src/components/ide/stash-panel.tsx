@@ -20,6 +20,7 @@ import {
   getChatModelOptions,
   resolveChatModelSelection,
 } from "./chat/chat-model-selection";
+import type { ComposerDraft } from "./chat/composer-draft";
 import type { ChatTodoSummary } from "./chat/todo-list";
 import { chatAcceptsMessage } from "./chat-activity";
 import { getFirstActiveDiffChatId } from "./diff-feedback";
@@ -55,6 +56,8 @@ const useStashModelOptions = () => {
   );
 };
 
+const EMPTY_DRAFT: ComposerDraft = { references: [], text: "" };
+
 const StashItemComposer = ({
   allModelOptions,
   isActive,
@@ -79,6 +82,15 @@ const StashItemComposer = ({
   const browserT = useTranslations("browser");
   const toggleId = useId();
   const newChat = item.newChat !== false;
+  // The item keeps its text; the files picked into it while editing are
+  // this composer's, and mean something only beside that text.
+  const [pickedReferences, setPickedReferences] = useState<
+    ComposerDraft["references"]
+  >([]);
+  const itemDraft = useMemo<ComposerDraft>(
+    () => ({ references: pickedReferences, text: item.text }),
+    [item.text, pickedReferences],
+  );
   const canSubmit = useIdeStore((state) => {
     if (state.activeProjectId !== projectId) return false;
     if (newChat) return true;
@@ -101,6 +113,7 @@ const StashItemComposer = ({
         toast.error(message);
         throw new Error(message);
       }
+      setPickedReferences([]);
     },
     [onSubmit, onUpdate],
   );
@@ -149,9 +162,11 @@ const StashItemComposer = ({
       onPermissionModeChange={(permissionMode) =>
         onUpdate((current) => ({ ...current, permissionMode }))
       }
-      onPromptTextChange={(text) =>
-        onUpdate((current) => ({ ...current, text }))
-      }
+      onDraftChange={(next) => {
+        if (next.text !== item.text)
+          onUpdate((current) => ({ ...current, text: next.text }));
+        setPickedReferences(next.references);
+      }}
       onReasoningEffortChange={(reasoningEffort) =>
         onUpdate((current) => ({
           ...current,
@@ -164,7 +179,7 @@ const StashItemComposer = ({
       projectPath={projectPath}
       promptDomId={`stash-item-${item.id}`}
       promptInputDomId={`stash-item-input-${item.id}`}
-      promptText={item.text}
+      draft={itemDraft}
       sparklesPalette={DEFAULT_SPARKLES_PALETTE}
       status={READY_STATUS}
       todoSummary={EMPTY_TODO_SUMMARY}
@@ -186,7 +201,7 @@ const StashDraftComposer = ({
   const settings = useIdeStore((state) => state.settings);
   const providerModels = useIdeStore((state) => state.providerModels);
   const defaultSelection = getDefaultModelSelection(settings);
-  const [promptText, setPromptText] = useState("");
+  const [draft, setDraft] = useState<ComposerDraft>(EMPTY_DRAFT);
   const [permissionMode, setPermissionMode] = useState<ChatPermissionMode>(
     settings.defaultPermissionMode,
   );
@@ -230,7 +245,7 @@ const StashDraftComposer = ({
         references,
         text,
       });
-      setPromptText("");
+      setDraft(EMPTY_DRAFT);
     },
     [
       onSubmit,
@@ -262,7 +277,7 @@ const StashDraftComposer = ({
       }}
       onModelSpeedChange={setModelSpeed}
       onPermissionModeChange={setPermissionMode}
-      onPromptTextChange={setPromptText}
+      onDraftChange={setDraft}
       onReasoningEffortChange={(effort) =>
         setReasoningEffort(effort === "medium" ? null : effort)
       }
@@ -271,7 +286,7 @@ const StashDraftComposer = ({
       projectPath={project.path}
       promptDomId="stash-draft"
       promptInputDomId="stash-draft-input"
-      promptText={promptText}
+      draft={draft}
       sparklesPalette={DEFAULT_SPARKLES_PALETTE}
       status={READY_STATUS}
       todoSummary={EMPTY_TODO_SUMMARY}

@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import {
   type CSSProperties,
   type FormEvent,
+  type KeyboardEventHandler,
   type PointerEvent as ReactPointerEvent,
   useCallback,
   useEffect,
@@ -32,6 +33,7 @@ import {
   type ToolApprovalResponder,
 } from "./chat";
 import { ChatComposer } from "./chat/chat-composer";
+import { chatDrafts, promptHistoryOf, useChatDraft } from "./chat/chat-drafts";
 import { ChatErrorBanner } from "./chat/chat-error-banner";
 import {
   getChatModelOptions,
@@ -42,7 +44,6 @@ import {
   useChatAutoScroll,
   useChatSession,
   useLiveTranscript,
-  usePromptHistoryNavigation,
 } from "./chat/chat-panel-hooks";
 import { ChatQueue } from "./chat/chat-queue";
 import {
@@ -51,7 +52,6 @@ import {
   setChatError,
   stopChatTurn,
   submitChatPrompt,
-  takeChatDraftRestore,
   useChatRuntimeStore,
 } from "./chat/chat-runtime";
 import type { ContinueChatPopoverContext } from "./chat/continue-chat-popover";
@@ -176,9 +176,6 @@ export const ChatPanel = ({
   const localError = useChatRuntimeStore(
     (s) => s.errorByChatId[chat.id] ?? null,
   );
-  const draftRestore = useChatRuntimeStore(
-    (s) => s.draftRestoreByChatId[chat.id],
-  );
   const setLocalError = useCallback(
     (message: string | null) => setChatError(chat.id, message),
     [chat.id],
@@ -205,7 +202,9 @@ export const ChatPanel = ({
     modelSelection;
   const isProviderInstalled =
     providerModels[selectedProvider]?.installed ?? false;
-  const [promptText, setPromptText] = useState("");
+  // The chat's draft, kept beyond this panel (chat/chat-drafts.ts): a
+  // message that comes back after failing to send lands in it there.
+  const { draft, setDraft } = useChatDraft(chat.id);
   const [chatMenuOpen, setChatMenuOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -227,17 +226,6 @@ export const ChatPanel = ({
       });
     }
   }, [chat.id, chatT, loadMessagesForChat, messagesLoaded, setLocalError]);
-
-  // A queued message that could not be sent comes back to the draft.
-  useEffect(() => {
-    if (draftRestore === undefined) {
-      return;
-    }
-    const text = takeChatDraftRestore(chat.id);
-    if (text) {
-      setPromptText((current) => [current, text].filter(Boolean).join("\n\n"));
-    }
-  }, [chat.id, draftRestore]);
 
   const sessionChat = useChatSession({ chatId: chat.id, isActive });
   const stop = sessionChat.stop;
@@ -391,12 +379,22 @@ export const ChatPanel = ({
       snapshot.scrollTop +
       Math.max(0, snapshot.element.scrollHeight - snapshot.scrollHeight);
   }, [transcriptWindowSize]);
-  const { handlePromptKeyDown, resetPromptHistory } =
-    usePromptHistoryNavigation({
-      messages,
-      promptText,
-      setPromptText,
-    });
+  // Up and Down walk the prompts sent before (chat/chat-drafts.ts).
+  const handlePromptKeyDown = useCallback<
+    KeyboardEventHandler<HTMLTextAreaElement>
+  >(
+    (event) => {
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+      const textarea = event.currentTarget;
+      const taken = chatDrafts.stepHistory(chat.id, event.key, {
+        caretAtStart:
+          textarea.selectionStart === 0 && textarea.selectionEnd === 0,
+        history: promptHistoryOf(messages),
+      });
+      if (taken) event.preventDefault();
+    },
+    [chat.id, messages],
+  );
   const handleActivateChat = useCallback(() => {
     if (!isActive) {
       onActivateChat?.();
@@ -420,8 +418,7 @@ export const ChatPanel = ({
         );
       }
 
-      resetPromptHistory();
-      setPromptText("");
+      chatDrafts.clear(chat.id);
       scrollConversationToBottom();
     },
     [
@@ -429,7 +426,6 @@ export const ChatPanel = ({
       handleActivateChat,
       hostAway,
       readOnly,
-      resetPromptHistory,
       scrollConversationToBottom,
     ],
   );
@@ -646,7 +642,7 @@ export const ChatPanel = ({
               }));
             }}
             onPromptKeyDown={handlePromptKeyDown}
-            onPromptTextChange={setPromptText}
+            onDraftChange={setDraft}
             onReasoningEffortChange={(reasoningEffort) => {
               updateChat(chat.id, (current) => ({
                 ...current,
@@ -668,7 +664,7 @@ export const ChatPanel = ({
             onSubmit={handleSubmit}
             promptDomId={promptDomId}
             promptInputDomId={promptInputDomId}
-            promptText={promptText}
+            draft={draft}
             permissionMode={chat.permissionMode}
             projectPath={project.path}
             sparklesPalette={chat.sparklesPalette}
