@@ -148,7 +148,10 @@ export const GitPanel = ({
             ) : null}
           </div>
         </div>
-        <div className="relative min-h-0 flex-1" data-right-panel-body>
+        <div
+          className="relative min-h-0 flex-1 overflow-hidden"
+          data-right-panel-body
+        >
           {GIT_PANEL_TABS.map((value) =>
             visitedTabs.has(value) ? (
               <TabsContent

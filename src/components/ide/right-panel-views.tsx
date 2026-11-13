@@ -42,7 +42,9 @@ const RIGHT_PANEL_SURFACE_CLASSES =
 // becomes the card: its top border takes over the header's bottom line, and
 // it gets a right border and a rounded top-right corner. The ring paints the
 // header color into the corner outside the curve, hiding the header's line
-// there; elsewhere it falls on the header itself or is clipped.
+// there; elsewhere it falls on the header itself or is clipped. Each body
+// clips its own content (overflow), so nothing paints over the corner; the
+// browser's <webview> fills its box.
 const EXPANDED_BODY_CLASSES = [
   "[&_[data-right-panel-body]]:-mt-px",
   "[&_[data-right-panel-body]]:rounded-tr-lg",

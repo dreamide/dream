@@ -1063,7 +1063,7 @@ const BrowserPanelImpl = ({
         </DropdownMenu>
       </div>
 
-      <div className="min-h-0 flex-1" data-right-panel-body>
+      <div className="min-h-0 flex-1 overflow-hidden" data-right-panel-body>
         <div className="relative h-full">
           {shouldMountBrowserWebview && activeTab?.url ? (
             <BrowserWebview
