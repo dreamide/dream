@@ -6,6 +6,7 @@ import { PromptInputSubmit } from "@/components/ai-elements/prompt-input-control
 import { Popover, PopoverContent } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { chatAcceptsMessage } from "./chat-activity";
 import {
   formatDiffReferenceMessage,
   getFirstActiveDiffChatId,
@@ -67,7 +68,9 @@ export function InlineDiffFeedback({
     ? (createdChatId ?? "new")
     : getFirstActiveDiffChatId(project, allChats);
   const busy = useIdeStore((s) =>
-    destination ? !!s.streamingChatIds[destination] : false,
+    destination && destination !== "new"
+      ? !chatAcceptsMessage(s, destination)
+      : false,
   );
   useEffect(() => {
     if (!range) {

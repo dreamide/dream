@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
 import type { ProjectGitStatusResponse } from "@/types/ide";
+import { isProjectRunning as isAgentRunningIn } from "../chat-activity";
 import {
   type CommitAction,
   useCommitDraft,
@@ -38,11 +39,8 @@ const GitCommitBoxImpl = ({
   statusReady: boolean;
 }) => {
   const gitT = useTranslations("git");
-  const isProjectStreaming = useIdeStore((s) =>
-    s.chats.some(
-      (chat) => chat.projectId === projectId && s.streamingChatIds[chat.id],
-    ),
-  );
+  // An agent is changing the project's files, here or from another client.
+  const isProjectRunning = useIdeStore((s) => isAgentRunningIn(s, projectId));
   const settings = useIdeStore((s) => s.settings);
   const generation = useMemo(
     () => getDefaultGitGenerationModelSelection(settings),
@@ -54,7 +52,7 @@ const GitCommitBoxImpl = ({
   // background generation at turn completion shares this request.
   const { busy, draft, snapshot } = useCommitDraft({
     ...generation,
-    canGenerate: active && statusReady && !isProjectStreaming,
+    canGenerate: active && statusReady && !isProjectRunning,
     projectId,
     projectPath,
     status,

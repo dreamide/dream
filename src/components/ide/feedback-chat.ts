@@ -1,4 +1,5 @@
 import type { PendingChatSubmit } from "@/types/ide";
+import { chatAcceptsMessage } from "./chat-activity";
 import { getFirstActiveDiffChatId } from "./diff-feedback";
 import { useIdeStore } from "./ide-store";
 
@@ -38,7 +39,7 @@ export function resolveFeedbackChatId({
       c.id === chatId && c.projectId === project.id && c.deletedAt === null,
   );
   if (!chat) throw new Error("Choose an available chat.");
-  if (state.streamingChatIds[chatId])
+  if (!chatAcceptsMessage(state, chatId))
     throw new Error(
       "This chat is busy. Choose another chat or wait for it to finish.",
     );

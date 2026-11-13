@@ -62,6 +62,7 @@ const createTestStore = (handlers: FakeApiHandlers = {}) => {
         messagesByChatId: { [sourceChat.id]: messages },
         projects: [project],
         settings: DEFAULT_SETTINGS,
+        hostRunningChatIds: {},
         streamingChatIds: {},
         titleGeneratingChatIds: {},
       }) as unknown as IdeState,
@@ -112,6 +113,20 @@ test("branch failures and streaming leave chat state unchanged", () => {
   assert.equal(store.getState().chats, originalState.chats);
 
   store.setState({ streamingChatIds: { [sourceChat.id]: true } });
+  assert.throws(
+    () =>
+      store.getState().branchChatInWorkspace({
+        chatId: sourceChat.id,
+        messageId: "message-one",
+      }),
+    /while it is streaming/,
+  );
+  // A turn on the host, which no session here follows, changes the
+  // transcript just the same.
+  store.setState({
+    hostRunningChatIds: { [sourceChat.id]: true },
+    streamingChatIds: {},
+  });
   assert.throws(
     () =>
       store.getState().branchChatInWorkspace({
@@ -179,4 +194,39 @@ test("a failed worktree request leaves project and chat state unchanged", async 
     store.getState().messagesByChatId,
     originalState.messagesByChatId,
   );
+});
+
+test("auto-archive leaves a chat whose turn runs, here or on the host", () => {
+  const project = createProjectConfig("/workspace/old", DEFAULT_SETTINGS);
+  const longAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const old = (title: string) => ({
+    ...createChatConfig(project, { title }),
+    createdAt: longAgo,
+    updatedAt: longAgo,
+  });
+  const idle = old("Idle");
+  const streaming = old("Streaming here");
+  const onHost = old("Running on the host");
+  const deleted: string[] = [];
+  const store = createStore<IdeState>(
+    () =>
+      ({
+        awaitingAnswerChatIds: {},
+        chats: [idle, streaming, onHost],
+        deleteChat: (chatId: string) => deleted.push(chatId),
+        hostAwaitingApprovalChatIds: {},
+        hostRunningChatIds: { [onHost.id]: true },
+        pendingChatSubmitByChatId: {},
+        settings: { ...DEFAULT_SETTINGS, archiveChatsAfterDays: 7 },
+        streamingChatIds: { [streaming.id]: true },
+        titleGeneratingChatIds: {},
+      }) as unknown as IdeState,
+  );
+  const { archiveInactiveChats } = createChatActions(
+    store.setState,
+    store.getState,
+  );
+
+  assert.equal(archiveInactiveChats(), 1);
+  assert.deepEqual(deleted, [idle.id]);
 });

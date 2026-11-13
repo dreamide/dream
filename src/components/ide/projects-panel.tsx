@@ -1,6 +1,7 @@
 import { Archive, FolderTree, FolderX, Pin, PinOff } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SearchInput } from "@/components/ui/search-input";
@@ -13,6 +14,11 @@ import type {
   ProjectGitWorktreeInfo,
 } from "@/types/ide";
 import { formatLastActiveTime } from "./activity-time";
+import {
+  isChatRunning,
+  isChatWaitingOnUser,
+  selectChatActivity,
+} from "./chat-activity";
 import { RemoveWorktreeDialog } from "./git-actions/remove-worktree-dialog";
 import { normalizeProjectPathKey } from "./ide-state";
 import { useIdeStore } from "./ide-store";
@@ -77,11 +83,7 @@ export const ProjectSidebar = ({
     (s) => s.projects.find((item) => item.id === project.id)?.ui ?? project.ui,
   );
   const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
-  const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
-  const awaitingAnswerChatIds = useIdeStore((s) => s.awaitingAnswerChatIds);
-  const hostAwaitingApprovalChatIds = useIdeStore(
-    (s) => s.hostAwaitingApprovalChatIds,
-  );
+  const activity = useIdeStore(useShallow(selectChatActivity));
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
   const titleGeneratingChatIds = useIdeStore((s) => s.titleGeneratingChatIds);
   const deleteChat = useIdeStore((s) => s.deleteChat);
@@ -265,12 +267,10 @@ export const ProjectSidebar = ({
               filteredChats.map((chat) => {
                 const isActiveChat = chat.id === activeChatId;
                 const isOpenChat = projectUi.openChatIds.includes(chat.id);
-                const isStreaming = !!streamingChatIds[chat.id];
-                // Waiting on its user: answered in this window or on the
-                // host, whether or not this window follows the turn.
-                const isAwaiting =
-                  Boolean(awaitingAnswerChatIds[chat.id]) ||
-                  Boolean(hostAwaitingApprovalChatIds[chat.id]);
+                // Running or waiting, here or on the host, whether or not
+                // this window follows the turn (chat-activity.ts).
+                const isRunning = isChatRunning(activity, chat.id);
+                const isAwaiting = isChatWaitingOnUser(activity, chat.id);
                 const isTitleGenerating = !!titleGeneratingChatIds[chat.id];
                 const isCompleted =
                   Boolean(completedChatIds[chat.id]) &&
@@ -282,7 +282,7 @@ export const ProjectSidebar = ({
                     color="amber"
                     pulse
                   />
-                ) : isStreaming ? (
+                ) : isRunning ? (
                   <Spinner
                     aria-label={projectsT("chatStreaming")}
                     className="size-3 shrink-0"
@@ -300,7 +300,7 @@ export const ProjectSidebar = ({
                   <div
                     className={cn(
                       "group relative min-w-0 rounded-md border border-transparent",
-                      isActiveChat || isOpenChat || isStreaming
+                      isActiveChat || isOpenChat || isRunning
                         ? "bg-muted"
                         : "hover:bg-surface-50 dark:hover:bg-surface-900",
                     )}

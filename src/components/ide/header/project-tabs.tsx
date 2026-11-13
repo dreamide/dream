@@ -1,6 +1,7 @@
 import { FolderTree, Plus, Server } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
 import { StatusDot } from "@/components/ui/status-dot";
 import { apiClient } from "@/lib/api-client";
@@ -14,6 +15,11 @@ import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type { DetectedEditor, ProjectIconInfo } from "@/types/ide";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
+import {
+  chatIdsWaitingOnUser,
+  projectIdsWithRunningChats,
+  selectChatActivity,
+} from "../chat-activity";
 import { useIdeStore } from "../ide-store";
 import { useHostChoices } from "../ssh/use-host-choices";
 import {
@@ -185,31 +191,18 @@ export const ProjectTabs = () => {
     },
     [projects, sshHosts],
   );
-  const windowAwaitingChatIds = useIdeStore((s) => s.awaitingAnswerChatIds);
-  const hostAwaitingApprovalChatIds = useIdeStore(
-    (s) => s.hostAwaitingApprovalChatIds,
-  );
-  // Waiting on its user, as this window's sessions see it or as the host
-  // announces it for a chat no session follows.
-  const awaitingAnswerChatIds = useMemo(
-    () => ({ ...windowAwaitingChatIds, ...hostAwaitingApprovalChatIds }),
-    [windowAwaitingChatIds, hostAwaitingApprovalChatIds],
-  );
-  const streamingChatIds = useIdeStore((s) => s.streamingChatIds);
+  // Running and waiting, here or on the host, whether or not this window
+  // follows the turn (chat-activity.ts).
+  const activity = useIdeStore(useShallow(selectChatActivity));
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
   const accentColor = useUiStore((s) => s.accentColor);
   const accentSparklesPalette = useMemo(
     () => createAccentSparklesPalette(accentColor),
     [accentColor],
   );
-  const streamingProjectIds = useMemo(
-    () =>
-      new Set(
-        chats
-          .filter((chat) => streamingChatIds[chat.id])
-          .map((chat) => chat.projectId),
-      ),
-    [chats, streamingChatIds],
+  const runningProjectIds = useMemo(
+    () => projectIdsWithRunningChats(activity, chats),
+    [activity, chats],
   );
   const completedProjectIds = useMemo(
     () =>
@@ -226,22 +219,10 @@ export const ProjectTabs = () => {
     () =>
       getAwaitingAnswerProjectIds({
         chats,
-        awaitingAnswerChatIds,
-        // A chat the host says is waiting has a turn running there, even
-        // when no session in this window streams it.
-        streamingProjectIds: new Set([
-          ...streamingProjectIds,
-          ...chats
-            .filter((chat) => hostAwaitingApprovalChatIds[chat.id])
-            .map((chat) => chat.projectId),
-        ]),
+        awaitingAnswerChatIds: chatIdsWaitingOnUser(activity),
+        streamingProjectIds: runningProjectIds,
       }),
-    [
-      awaitingAnswerChatIds,
-      chats,
-      hostAwaitingApprovalChatIds,
-      streamingProjectIds,
-    ],
+    [activity, chats, runningProjectIds],
   );
   const projectIconScanSignature = projects
     .map((project) => `${project.id}\x00${project.path}`)
@@ -398,7 +379,7 @@ export const ProjectTabs = () => {
             activeChatPalette === "accent"
               ? accentSparklesPalette
               : activeChatPalette,
-          streaming: streamingProjectIds.has(project.id),
+          streaming: runningProjectIds.has(project.id),
           worktreeBranch: project.worktree?.branch ?? null,
         };
       }),
@@ -410,7 +391,7 @@ export const ProjectTabs = () => {
       completedProjectIds,
       projectsT,
       projects,
-      streamingProjectIds,
+      runningProjectIds,
       hosts,
       hostLabels,
     ],

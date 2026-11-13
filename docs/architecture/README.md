@@ -116,6 +116,10 @@ Module names and current ownership live in ../../GLOSSARY.md.
   each host's catalog baseline has one owner apart from the workspace, one
   rule, and a name distinct from catalog readiness.
 
+- `tasks/chat-activity.md` tracks ACT-01 from the same review: whether a
+  chat runs, waits on its user or accepts a message has one answer each,
+  counting the host.
+
 - `tasks/review-20261109.md` tracks SSH-PROMPT, SAVED-ROUTES and
   ATTACHMENT-LIFETIME: SSH prompt ownership, saved-connection edit lifetime,
   and attachment preparation and release.

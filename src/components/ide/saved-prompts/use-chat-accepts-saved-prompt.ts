@@ -1,8 +1,9 @@
+import { chatAcceptsMessage } from "../chat-activity";
 import { useIdeStore } from "../ide-store";
 
 /**
- * Whether a saved prompt can be sent to `chatId` right now: the chat exists and is not
- * already streaming or holding a queued prompt. Mirrors `queueChatSubmit`.
+ * Whether a saved prompt can be sent to `chatId` right now: the chat exists
+ * in the active project and accepts a message (chat-activity.ts).
  */
 export const useChatAcceptsSavedPrompt = (chatId: string | null): boolean =>
   useIdeStore((state) => {
@@ -14,7 +15,6 @@ export const useChatAcceptsSavedPrompt = (chatId: string | null): boolean =>
       chat !== undefined &&
       chat.deletedAt === null &&
       chat.projectId === state.activeProjectId &&
-      !state.streamingChatIds[chatId] &&
-      !state.pendingChatSubmitByChatId[chatId]
+      chatAcceptsMessage(state, chatId)
     );
   });

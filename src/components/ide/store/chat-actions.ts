@@ -4,6 +4,7 @@
 // checkpoint cleanup).
 import type { UIMessage } from "ai";
 import type { ChatConfig, ChatSortOrder } from "@/types/ide";
+import { isChatRunning } from "../chat-activity";
 import {
   createBranchedChatConfig,
   getMessagesThroughBranchPoint,
@@ -91,7 +92,7 @@ export const createChatActions = (
     if (!sourceChat || sourceChat.deletedAt !== null) {
       throw new Error("Unable to find the source chat.");
     }
-    if (state.streamingChatIds[chatId] || state.hostRunningChatIds?.[chatId]) {
+    if (isChatRunning(state, chatId)) {
       throw new Error("Unable to branch a chat while it is streaming.");
     }
 
@@ -140,7 +141,7 @@ export const createChatActions = (
     if (!sourceChat || sourceChat.deletedAt !== null) {
       throw new Error("Unable to find the source chat.");
     }
-    if (state.streamingChatIds[chatId] || state.hostRunningChatIds?.[chatId]) {
+    if (isChatRunning(state, chatId)) {
       throw new Error("Unable to branch a chat while it is streaming.");
     }
     if (
@@ -241,7 +242,7 @@ export const createChatActions = (
         if (
           chat.deletedAt !== null ||
           chat.pinned ||
-          state.streamingChatIds[chat.id] ||
+          isChatRunning(state, chat.id) ||
           state.titleGeneratingChatIds[chat.id]
         ) {
           return false;

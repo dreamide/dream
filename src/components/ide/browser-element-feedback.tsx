@@ -10,6 +10,7 @@ import {
   formatElementSource,
 } from "./browser-feedback";
 import type { InspectedElement } from "./browser-inspector-script";
+import { chatAcceptsMessage } from "./chat-activity";
 import { getFirstActiveDiffChatId } from "./diff-feedback";
 import { queueFeedbackSubmit, resolveFeedbackChatId } from "./feedback-chat";
 import { useIdeStore } from "./ide-store";
@@ -49,7 +50,9 @@ export function BrowserElementFeedback({
     ? (createdChatId ?? "new")
     : getFirstActiveDiffChatId(project, allChats);
   const busy = useIdeStore((s) =>
-    destination ? !!s.streamingChatIds[destination] : false,
+    destination && destination !== "new"
+      ? !chatAcceptsMessage(s, destination)
+      : false,
   );
   const canSend = !!comment.trim() && !!destination && !busy;
   const { element } = selection;

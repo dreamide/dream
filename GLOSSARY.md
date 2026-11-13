@@ -132,6 +132,24 @@ load earlier history. `transcriptPageByChatId` records the loaded boundary;
 branching explicitly loads the full transcript, host dispatch reads full
 history, and saving a partial page merges by message ID on the writer.
 
+## Chat activity
+
+What a Chat is doing, as this window's sessions and its host both see it
+(`src/components/ide/chat-activity.ts`). There are three questions, each with
+one answer:
+
+- **Running:** a turn runs, followed here or not. Another client's turn
+  counts.
+- **Waiting on its user:** a question or tool approval is open, here or on
+  the host.
+- **Accepts a message:** no session here streams the chat and no message is
+  queued for it. A turn on the host does not block a message, because the
+  host queues runs.
+
+Whether this window's own session is busy, and which transcripts it keeps, are
+about this window rather than the chat, so the chat runtime and the
+transcript cache answer them.
+
 ## Live transcript
 
 What a chat panel shows of its Chat's runtime session while a turn streams

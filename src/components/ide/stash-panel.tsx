@@ -21,6 +21,7 @@ import {
   resolveChatModelSelection,
 } from "./chat/chat-model-selection";
 import type { ChatTodoSummary } from "./chat/todo-list";
+import { chatAcceptsMessage } from "./chat-activity";
 import { getFirstActiveDiffChatId } from "./diff-feedback";
 import { AppShellPlaceholder } from "./ide-helpers";
 import { useIdeStore } from "./ide-store";
@@ -83,11 +84,7 @@ const StashItemComposer = ({
     if (newChat) return true;
     const project = state.projects.find((entry) => entry.id === projectId);
     const chatId = getFirstActiveDiffChatId(project, state.chats);
-    return (
-      !!chatId &&
-      !state.streamingChatIds[chatId] &&
-      !state.pendingChatSubmitByChatId[chatId]
-    );
+    return !!chatId && chatAcceptsMessage(state, chatId);
   });
   const selection = resolveChatModelSelection(item, allModelOptions);
 
