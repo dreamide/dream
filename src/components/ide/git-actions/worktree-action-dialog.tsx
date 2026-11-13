@@ -11,12 +11,11 @@ import {
   Home,
 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { useBranchDeletePreview } from "@/hooks/use-branch-delete-preview";
 import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
 import { cn } from "@/lib/utils";
@@ -24,11 +23,9 @@ import type {
   ProjectConfig,
   ProjectGitDiffResponse,
   ProjectGitStatusEntry,
-  ProjectGitWorktreeCleanupResponse,
-  ProjectGitWorktreeCompareResponse,
-  ProjectGitWorktreeMergeResponse,
   ProjectWorktreeInfo,
 } from "@/types/ide";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import {
   DIFF_RENDER_CHANGED_LINE_LIMIT,
   IdeDiffViewer,
@@ -39,21 +36,20 @@ import { MaterialFileIcon } from "../material-file-icon";
 import {
   BranchDeleteSummary,
   branchDeleteBlockedKey,
-  confirmedHeadFor,
 } from "./branch-delete-summary";
 import { CommitDialog } from "./commit-dialog";
 import { ActionError, DialogMetricRow, GitDialogHeader } from "./dialog-layout";
 import { InfoLine } from "./info-line";
 import { GitChangesDeltaSummary } from "./summary";
+import {
+  useWorktreeFinish,
+  type WorktreeMergeBlock,
+  type WorktreeMerged,
+} from "./worktree-finish";
 
 type WorktreeProject = ProjectConfig & { worktree: ProjectWorktreeInfo };
 /** Which worktree action the dialog performs. */
 export type WorktreeDialogAction = "merge" | "remove";
-/**
- * `merged` is the pause after a successful merge, where the worktree can be
- * kept or removed. `done` follows a removal attempt.
- */
-type Phase = "review" | "commit" | "working" | "merged" | "done";
 type DiffState = {
   diff: ProjectGitDiffResponse | null;
   error: string | null;
@@ -65,10 +61,13 @@ const MAX_DIRTY_FILES_SHOWN = 8;
 const CompareFileRow = ({
   baseRef,
   change,
+  hostId,
   projectPath,
 }: {
   baseRef: string | null;
   change: ProjectGitStatusEntry;
+  /** The worktree's host (absent: the local host). */
+  hostId?: string;
   projectPath: string;
 }) => {
   const worktreeT = useTranslations("worktrees");
@@ -89,13 +88,16 @@ const CompareFileRow = ({
     setDiffState({ diff: null, error: null, loading: true });
     void (async () => {
       try {
-        const diff = await apiClient.gitWorktreeCompareDiff({
-          baseRef,
-          filePath: change.path,
-          previousPath: change.previousPath,
-          projectPath,
-          status: change.status,
-        });
+        const diff = await apiClient.gitWorktreeCompareDiff(
+          {
+            baseRef,
+            filePath: change.path,
+            previousPath: change.previousPath,
+            projectPath,
+            status: change.status,
+          },
+          { hostId: getProjectHostId({ hostId }) },
+        );
         if (!cancelled) {
           setDiffState({ diff, error: null, loading: false });
         }
@@ -113,7 +115,7 @@ const CompareFileRow = ({
     return () => {
       cancelled = true;
     };
-  }, [baseRef, change, diffState, expanded, projectPath, worktreeT]);
+  }, [baseRef, change, diffState, expanded, hostId, projectPath, worktreeT]);
 
   const changedLineCount = change.addedLines + change.removedLines;
   const diffTooLarge =
@@ -191,11 +193,7 @@ const CompareFileRow = ({
   );
 };
 
-const MergeResultLine = ({
-  result,
-}: {
-  result: Extract<ProjectGitWorktreeMergeResponse, { status: "merged" }>;
-}) => {
+const MergeResultLine = ({ result }: { result: WorktreeMerged }) => {
   const worktreeT = useTranslations("worktrees");
   return (
     <div className="flex items-start gap-2">
@@ -223,9 +221,31 @@ const MergeResultLine = ({
   );
 };
 
+/** Why the branch cannot be merged now, in words. */
+const useMergeBlockText = (block: WorktreeMergeBlock | null) => {
+  const commonT = useTranslations("common");
+  const worktreeT = useTranslations("worktrees");
+  if (!block) return null;
+  switch (block.kind) {
+    case "nothingToMerge":
+      return worktreeT("nothingToMerge", { base: block.base });
+    case "unrelatedHistories":
+      return worktreeT("unrelatedHistories", { base: block.base });
+    case "mainOperationInProgress":
+      return worktreeT("mainOperationInProgress");
+    case "mainWorktreeDirty":
+      return worktreeT("mainWorktreeDirty", {
+        branch: block.branch ?? commonT("unknown"),
+        count: block.count,
+      });
+  }
+};
+
 /**
  * Merges a worktree's branch into its base branch in the main checkout, or
- * removes the worktree. Opened from the Git actions menu of a worktree project.
+ * removes the worktree. Opened from the Git actions menu of a worktree
+ * project. The flow is worktree-finish.ts's; this shows it, and forgets the
+ * worktree only as the dialog closes, after showing the outcome.
  */
 export const WorktreeActionDialog = ({
   action,
@@ -248,193 +268,59 @@ export const WorktreeActionDialog = ({
     () => getDefaultGitGenerationModelSelection(settings),
     [settings],
   );
-  const completeWorktreeProject = useIdeStore((s) => s.completeWorktreeProject);
-  const forgetWorktree = useIdeStore((s) => s.forgetWorktree);
-  const purgeWorktreeProject = useIdeStore((s) => s.purgeWorktreeProject);
 
-  const [phase, setPhase] = useState<Phase>("review");
-  const [compare, setCompare] =
-    useState<ProjectGitWorktreeCompareResponse | null>(null);
-  const [compareLoading, setCompareLoading] = useState(false);
-  const [compareError, setCompareError] = useState<string | null>(null);
-  const [discardUncommitted, setDiscardUncommitted] = useState(false);
-  const [alsoDeleteBranch, setAlsoDeleteBranch] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [conflictingFiles, setConflictingFiles] = useState<string[]>([]);
-  const [workingLabel, setWorkingLabel] = useState<string | null>(null);
-  const [mergeResult, setMergeResult] = useState<Extract<
-    ProjectGitWorktreeMergeResponse,
-    { status: "merged" }
-  > | null>(null);
-  const [cleanupResult, setCleanupResult] =
-    useState<ProjectGitWorktreeCleanupResponse | null>(null);
-  const [cleanupError, setCleanupError] = useState<string | null>(null);
-  const [retryingCleanup, setRetryingCleanup] = useState(false);
-  const cleanupOptionsRef = useRef<{
-    confirmedBranchHead: string | null;
-    deleteBranch: boolean;
-  }>({
-    confirmedBranchHead: null,
-    deleteBranch: false,
-  });
-  const branchPreview = useBranchDeletePreview({
-    branchName: project.worktree.branch,
-    enabled: open && action === "remove" && alsoDeleteBranch,
-    hostId: project.hostId,
-    projectPath: project.worktree.mainWorktreePath,
-    removingWorktreePath: project.path,
-  });
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    setPhase("review");
-    setDiscardUncommitted(false);
-    setAlsoDeleteBranch(false);
-    setError(null);
-    setConflictingFiles([]);
-    setMergeResult(null);
-    setCleanupResult(null);
-    setCleanupError(null);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open || phase !== "review") {
-      return;
-    }
-
-    const controller = new AbortController();
-    setCompareLoading(true);
-    setCompareError(null);
-
-    void (async () => {
-      try {
-        const payload = await apiClient.gitWorktreeCompare(
-          { baseRef: project.worktree.baseRef, projectPath: project.path },
-          { signal: controller.signal },
-        );
-        if (!controller.signal.aborted) {
-          setCompare(payload);
-        }
-      } catch (loadError) {
-        if (controller.signal.aborted) {
-          return;
-        }
-        setCompare(null);
-        setCompareError(
-          getApiErrorMessage(loadError, worktreeT("unableToCompare")),
-        );
-      } finally {
-        if (!controller.signal.aborted) {
-          setCompareLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      controller.abort();
-    };
-  }, [open, phase, project.path, project.worktree.baseRef, worktreeT]);
-
-  const dirtyCount = compare?.worktreeStatus.fileCount ?? 0;
-  const isDirty = dirtyCount > 0;
-  const mergeDisabledReason = !compare
-    ? null
-    : compare.aheadCount === 0
-      ? worktreeT("nothingToMerge", { base: compare.baseBranch })
-      : compare.mergeBase === null
-        ? worktreeT("unrelatedHistories", { base: compare.baseBranch })
-        : compare.mainInProgressOperation
-          ? worktreeT("mainOperationInProgress")
-          : !compare.mainClean
-            ? worktreeT("mainWorktreeDirty", {
-                branch: compare.mainBranch ?? commonT("unknown"),
-                count: compare.mainDirtyCount,
-              })
-            : null;
-  const mergeEnabled = Boolean(compare) && !mergeDisabledReason;
-
-  const runCleanup = useCallback(
-    async ({
-      confirmedBranchHead = null,
-      deleteBranch,
-    }: {
-      confirmedBranchHead?: string | null;
-      deleteBranch: boolean;
-    }) => {
-      cleanupOptionsRef.current = { confirmedBranchHead, deleteBranch };
-      setPhase("working");
-      setWorkingLabel(worktreeT("removingWorktree"));
-      setCleanupError(null);
-      try {
-        setCleanupResult(
-          await forgetWorktree({
-            confirmedBranchHead,
-            deleteBranch,
-            force: discardUncommitted,
-            hostId: project.hostId,
-            mainWorktreePath: project.worktree.mainWorktreePath,
-            worktreePath: project.path,
-          }),
-        );
-      } catch (cleanupFailure) {
-        setCleanupError(
-          getApiErrorMessage(cleanupFailure, worktreeT("unableToRemove")),
-        );
-      } finally {
-        setPhase("done");
-      }
+  const { finish, snapshot } = useWorktreeFinish(
+    {
+      baseRef: project.worktree.baseRef,
+      branch: project.worktree.branch,
+      hostId: project.hostId,
+      mainWorktreePath: project.worktree.mainWorktreePath,
+      path: project.path,
+      projectId: project.id,
     },
-    [
-      discardUncommitted,
-      forgetWorktree,
-      project.path,
-      project.worktree.mainWorktreePath,
-      worktreeT,
-      project.hostId,
-    ],
+    { open },
   );
+  const {
+    branchBlocked,
+    branchPreview,
+    canMerge,
+    canRemove,
+    compare,
+    compareError,
+    compareLoading,
+    deleteBranch: alsoDeleteBranch,
+    discardUncommitted,
+    merged: mergeResult,
+    mergeFailure,
+    phase,
+    removal,
+    uncommitted: dirtyChanges,
+    uncommittedCount: dirtyCount,
+    unmergedCommits,
+  } = snapshot;
+  const mergeDisabledReason = useMergeBlockText(snapshot.mergeBlock);
+  const isDirty = dirtyCount > 0;
+  const cleanupResult = removal?.ok ? removal.result : null;
+  const cleanupError =
+    removal && !removal.ok
+      ? getApiErrorMessage(removal.error, worktreeT("unableToRemove"))
+      : null;
+  const error = !mergeFailure
+    ? null
+    : mergeFailure.kind === "conflict"
+      ? worktreeT("mergeConflict", { base: mergeFailure.baseBranch })
+      : getApiErrorMessage(mergeFailure.error, worktreeT("unableToMerge"));
+  const conflictingFiles =
+    mergeFailure?.kind === "conflict" ? mergeFailure.files : [];
+  const compareErrorText = compareError
+    ? getApiErrorMessage(compareError, worktreeT("unableToCompare"))
+    : null;
 
-  const runMerge = useCallback(async () => {
-    setPhase("working");
-    setWorkingLabel(worktreeT("merging", { base: compare?.baseBranch ?? "" }));
-    setError(null);
-    setConflictingFiles([]);
-    try {
-      const result = await completeWorktreeProject(project.id, {
-        // Uncommitted changes are neither merged nor lost: the worktree
-        // stays, so they stay with it.
-        acknowledgeUncommitted: true,
-      });
-      if (result.status === "conflict") {
-        setError(worktreeT("mergeConflict", { base: result.baseBranch }));
-        setConflictingFiles(result.conflictingFiles);
-        setPhase("review");
-        return;
-      }
-
-      setMergeResult(result);
-      setPhase("merged");
-    } catch (mergeFailure) {
-      setError(getApiErrorMessage(mergeFailure, worktreeT("unableToMerge")));
-      setPhase("review");
-    }
-  }, [compare?.baseBranch, completeWorktreeProject, project.id, worktreeT]);
-
-  const finish = useCallback(() => {
+  // Closing after a removal is when the app forgets the worktree.
+  const close = useCallback(() => {
     onOpenChange(false);
-    if (cleanupResult) {
-      purgeWorktreeProject(project.path, { hostId: project.hostId });
-    }
-  }, [
-    cleanupResult,
-    onOpenChange,
-    project.path,
-    purgeWorktreeProject,
-    project.hostId,
-  ]);
+    finish.finish();
+  }, [finish, onOpenChange]);
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -445,34 +331,10 @@ export const WorktreeActionDialog = ({
       if (phase === "working") {
         return;
       }
-      if (phase === "merged" || phase === "done") {
-        finish();
-        return;
-      }
-      onOpenChange(false);
+      close();
     },
-    [finish, onOpenChange, phase],
+    [close, onOpenChange, phase],
   );
-
-  const handlePrimary = useCallback(() => {
-    if (action === "merge") {
-      void runMerge();
-      return;
-    }
-    void runCleanup({
-      confirmedBranchHead: confirmedHeadFor(branchPreview.preview),
-      deleteBranch: alsoDeleteBranch,
-    });
-  }, [action, alsoDeleteBranch, branchPreview.preview, runCleanup, runMerge]);
-
-  const handleRetryCleanup = useCallback(async () => {
-    setRetryingCleanup(true);
-    try {
-      await runCleanup(cleanupOptionsRef.current);
-    } finally {
-      setRetryingCleanup(false);
-    }
-  }, [runCleanup]);
 
   if (phase === "commit") {
     return (
@@ -480,15 +342,10 @@ export const WorktreeActionDialog = ({
         branch={project.worktree.branch}
         model={model}
         modelSpeed={modelSpeed}
-        onCompleted={() => {
-          // The comparison predates the commit: show the spinner until
-          // the review phase reloads it, not the files just committed.
-          setCompare(null);
-          setCompareLoading(true);
-        }}
+        onCompleted={() => finish.commitCompleted()}
         onOpenChange={(nextOpen) => {
           if (!nextOpen) {
-            setPhase("review");
+            finish.endCommit();
           }
         }}
         open
@@ -496,29 +353,22 @@ export const WorktreeActionDialog = ({
         projectPath={project.path}
         provider={provider}
         reasoningEffort={reasoningEffort}
-        status={compare?.worktreeStatus ?? null}
+        status={snapshot.status}
       />
     );
   }
 
   const isMerge = action === "merge";
-  const primaryDisabled =
-    compareLoading ||
-    (isMerge
-      ? !mergeEnabled
-      : (isDirty && !discardUncommitted) ||
-        (alsoDeleteBranch &&
-          (!branchPreview.preview ||
-            branchPreview.preview.blockedReason !== null)));
+  const primaryDisabled = isMerge ? !canMerge : !canRemove;
   const baseBranch = compare?.baseBranch ?? null;
   const mergeLabel = baseBranch
     ? worktreeT("mergeInto", { base: baseBranch })
     : worktreeT("merge");
-  const dirtyChanges = compare?.worktreeStatus.changes ?? [];
-  // Commits that only exist on the worktree branch. Unrelated histories have
-  // no meaningful count.
-  const unmergedCommits =
-    compare && compare.mergeBase !== null ? compare.aheadCount : 0;
+  // A merge under way, or a removal (on its own or after a merge).
+  const workingLabel =
+    isMerge && !mergeResult
+      ? worktreeT("merging", { base: baseBranch ?? "" })
+      : worktreeT("removingWorktree");
 
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
@@ -558,12 +408,12 @@ export const WorktreeActionDialog = ({
               </p>
             )}
             <div className="flex justify-end gap-2">
-              <Button onClick={finish} type="button" variant="ghost">
+              <Button onClick={close} type="button" variant="ghost">
                 {worktreeT("keepWorktree")}
               </Button>
               {isDirty ? null : (
                 <Button
-                  onClick={() => void runCleanup({ deleteBranch: true })}
+                  onClick={() => void finish.removeAfterMerge()}
                   type="button"
                   variant="destructive"
                 >
@@ -623,16 +473,14 @@ export const WorktreeActionDialog = ({
                     {commonT("close")}
                   </Button>
                   <Button
-                    disabled={retryingCleanup}
-                    onClick={() => void handleRetryCleanup()}
+                    onClick={() => void finish.retryRemoval()}
                     type="button"
                   >
-                    {retryingCleanup ? <Spinner className="size-4" /> : null}
                     {worktreeT("retryRemoval")}
                   </Button>
                 </>
               ) : (
-                <Button onClick={finish} type="button">
+                <Button onClick={close} type="button">
                   {worktreeT("done")}
                 </Button>
               )}
@@ -654,7 +502,7 @@ export const WorktreeActionDialog = ({
                       checked={alsoDeleteBranch}
                       id="worktree-action-delete-branch"
                       onCheckedChange={(checked) =>
-                        setAlsoDeleteBranch(checked === true)
+                        finish.setDeleteBranch(checked === true)
                       }
                     />
                     <span className="min-w-0 break-all">
@@ -669,13 +517,9 @@ export const WorktreeActionDialog = ({
                   {alsoDeleteBranch && branchPreview.error ? (
                     <ActionError error={branchPreview.error} />
                   ) : null}
-                  {alsoDeleteBranch && branchPreview.preview?.blockedReason ? (
+                  {branchBlocked ? (
                     <InfoLine tone="warning">
-                      {branchT(
-                        branchDeleteBlockedKey(
-                          branchPreview.preview.blockedReason,
-                        ),
-                      )}
+                      {branchT(branchDeleteBlockedKey(branchBlocked))}
                     </InfoLine>
                   ) : null}
                   {alsoDeleteBranch && branchPreview.preview ? (
@@ -698,7 +542,9 @@ export const WorktreeActionDialog = ({
                   <Spinner className="size-4" />
                 </div>
               ) : null}
-              {compareError ? <ActionError error={compareError} /> : null}
+              {compareErrorText ? (
+                <ActionError error={compareErrorText} />
+              ) : null}
 
               {isMerge && compare ? (
                 <>
@@ -825,6 +671,7 @@ export const WorktreeActionDialog = ({
                           <CompareFileRow
                             baseRef={project.worktree.baseRef}
                             change={change}
+                            hostId={project.hostId}
                             key={`${change.status}:${change.path}`}
                             projectPath={project.path}
                           />
@@ -876,7 +723,7 @@ export const WorktreeActionDialog = ({
                           checked={discardUncommitted}
                           id="worktree-action-discard"
                           onCheckedChange={(checked) =>
-                            setDiscardUncommitted(checked === true)
+                            finish.setDiscardUncommitted(checked === true)
                           }
                         />
                         <span>{worktreeT("discardUncommitted")}</span>
@@ -884,7 +731,7 @@ export const WorktreeActionDialog = ({
                     )}
                     <Button
                       className="h-7 px-2 text-xs"
-                      onClick={() => setPhase("commit")}
+                      onClick={() => finish.startCommit()}
                       size="sm"
                       type="button"
                       variant="outline"
@@ -935,7 +782,9 @@ export const WorktreeActionDialog = ({
               <Button
                 className="min-w-36"
                 disabled={primaryDisabled}
-                onClick={handlePrimary}
+                onClick={() =>
+                  void (isMerge ? finish.merge() : finish.remove())
+                }
                 type="button"
                 variant={isMerge ? "default" : "destructive"}
               >

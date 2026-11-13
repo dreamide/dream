@@ -61,6 +61,15 @@ checkout, its branch once merged, and what Dream kept for the directory
 included. A worktree git has already forgotten is answered as gone (404),
 never by matching the error text.
 
+**Finishing a worktree** (`src/components/ide/git-actions/worktree-finish.ts`)
+is merging its branch into its base, removing it, or both. A worktree
+project's Git actions dialog and the projects panel's remove dialog render
+the same flow. It decides when a worktree may be removed (its status read,
+uncommitted changes only when discarded, its branch only after an unblocked
+delete preview) and when it may merge. It purges a worktree only after git
+has removed it. The dialogs differ only in when they purge: on closing, or at
+once.
+
 ## Branch deletion
 
 Deleting a local branch (`electron/api/project-git/branches.js`). A branch is

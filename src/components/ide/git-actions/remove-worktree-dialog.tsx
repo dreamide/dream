@@ -1,5 +1,4 @@
 import { useTranslations } from "next-intl";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -11,17 +10,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { useBranchDeletePreview } from "@/hooks/use-branch-delete-preview";
-import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { getApiErrorMessage } from "@/lib/api-client";
 import type { ProjectConfig, ProjectGitWorktreeInfo } from "@/types/ide";
-import { useIdeStore } from "../ide-store";
 import {
   BranchDeleteSummary,
   branchDeleteBlockedKey,
-  confirmedHeadFor,
 } from "./branch-delete-summary";
 import { InfoLine } from "./info-line";
+import { useWorktreeFinish } from "./worktree-finish";
 
 const ErrorMessage = ({ children }: { children: string }) => (
   <p className="min-w-0 whitespace-pre-wrap break-words rounded-md border border-destructive-border bg-destructive-surface px-3 py-2 text-destructive text-sm">
@@ -31,7 +27,8 @@ const ErrorMessage = ({ children }: { children: string }) => (
 
 /**
  * Removes a worktree listed in the projects panel, which may not be open as a
- * project of its own, and optionally its branch.
+ * project of its own, and optionally its branch. The app forgets the
+ * worktree as soon as git has removed it (worktree-finish.ts).
  */
 export const RemoveWorktreeDialog = ({
   onClose,
@@ -46,78 +43,44 @@ export const RemoveWorktreeDialog = ({
   const branchT = useTranslations("branches");
   const commonT = useTranslations("common");
   const worktreeT = useTranslations("worktrees");
-  const forgetWorktree = useIdeStore((s) => s.forgetWorktree);
-  const purgeWorktreeProject = useIdeStore((s) => s.purgeWorktreeProject);
-  const bumpProjectGitRefreshKey = useIdeStore(
-    (s) => s.bumpProjectGitRefreshKey,
-  );
-  const { hostId } = project;
   const { branch } = worktree;
-
-  const { loading: statusLoading, status } = useProjectGitStatus(
-    worktree.path,
-    {
-      hostId,
-    },
-  );
-  const dirtyCount = status?.fileCount ?? 0;
-
-  const [alsoDeleteBranch, setAlsoDeleteBranch] = useState(false);
-  const [discardUncommitted, setDiscardUncommitted] = useState(false);
-  const [working, setWorking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // The worktree went but its branch did not: nothing is left to retry here.
-  const [worktreeRemoved, setWorktreeRemoved] = useState(false);
-
-  const branchPreview = useBranchDeletePreview({
-    branchName: branch ?? "",
-    enabled: alsoDeleteBranch && branch !== null,
-    hostId,
-    projectPath: project.path,
-    removingWorktreePath: worktree.path,
+  const { finish, snapshot } = useWorktreeFinish({
+    branch,
+    hostId: project.hostId,
+    mainWorktreePath: project.path,
+    path: worktree.path,
   });
-  const preview = branchPreview.preview;
-  const blockedReason = alsoDeleteBranch
-    ? (preview?.blockedReason ?? null)
-    : null;
-  const canRemove =
-    !statusLoading &&
-    (dirtyCount === 0 || discardUncommitted) &&
-    (!alsoDeleteBranch || (preview !== null && blockedReason === null));
+  const {
+    branchBlocked,
+    branchPreview,
+    canRemove,
+    deleteBranch,
+    discardUncommitted,
+    phase,
+    removal,
+    uncommittedCount,
+  } = snapshot;
+  const working = phase === "working";
+  // The worktree went but its branch did not: nothing is left to retry here.
+  const worktreeRemoved = removal?.ok === true;
+  const error = !removal
+    ? null
+    : removal.ok
+      ? removal.result.branchDeleteError
+        ? worktreeT("branchDeleteFailed", {
+            branch: branch ?? "",
+            error: removal.result.branchDeleteError,
+          })
+        : null
+      : getApiErrorMessage(removal.error, worktreeT("unableToRemove"));
 
   const handleRemove = async () => {
-    setWorking(true);
-    setError(null);
-    try {
-      const result = await forgetWorktree({
-        branch,
-        confirmedBranchHead: alsoDeleteBranch
-          ? confirmedHeadFor(preview)
-          : null,
-        deleteBranch: alsoDeleteBranch,
-        force: discardUncommitted,
-        hostId,
-        mainWorktreePath: project.path,
-        worktreePath: worktree.path,
-      });
-      purgeWorktreeProject(worktree.path, { hostId });
-      if (result.branchDeleteError) {
-        setWorktreeRemoved(true);
-        setError(
-          worktreeT("branchDeleteFailed", {
-            branch: branch ?? "",
-            error: result.branchDeleteError,
-          }),
-        );
-      } else {
-        onClose();
-      }
-    } catch (failure) {
-      setError(getApiErrorMessage(failure, worktreeT("unableToRemove")));
-    } finally {
-      bumpProjectGitRefreshKey(project.id);
-      setWorking(false);
-    }
+    if (!(await finish.remove())) return;
+    // Git removed it: the app forgets it now. The dialog stays open only to
+    // say the branch could not go with it.
+    finish.finish();
+    const outcome = finish.getSnapshot().removal;
+    if (outcome?.ok && !outcome.result.branchDeleteError) onClose();
   };
 
   return (
@@ -146,10 +109,10 @@ export const RemoveWorktreeDialog = ({
 
         {worktreeRemoved ? null : (
           <div className="min-w-0 space-y-3">
-            {dirtyCount > 0 ? (
+            {uncommittedCount > 0 ? (
               <div className="space-y-1.5">
                 <InfoLine tone="warning">
-                  {worktreeT("uncommittedChanges", { count: dirtyCount })}
+                  {worktreeT("uncommittedChanges", { count: uncommittedCount })}
                 </InfoLine>
                 <label
                   className="flex cursor-pointer items-center gap-2 text-xs"
@@ -159,7 +122,7 @@ export const RemoveWorktreeDialog = ({
                     checked={discardUncommitted}
                     id="remove-worktree-discard"
                     onCheckedChange={(checked) =>
-                      setDiscardUncommitted(checked === true)
+                      finish.setDiscardUncommitted(checked === true)
                     }
                   />
                   <span>{worktreeT("discardUncommitted")}</span>
@@ -179,29 +142,29 @@ export const RemoveWorktreeDialog = ({
                   htmlFor="remove-worktree-delete-branch"
                 >
                   <Checkbox
-                    checked={alsoDeleteBranch}
+                    checked={deleteBranch}
                     id="remove-worktree-delete-branch"
                     onCheckedChange={(checked) =>
-                      setAlsoDeleteBranch(checked === true)
+                      finish.setDeleteBranch(checked === true)
                     }
                   />
                   <span className="min-w-0 break-all">
                     {worktreeT("alsoDeleteBranch", { branch })}
                   </span>
                 </label>
-                {alsoDeleteBranch && branchPreview.loading ? (
+                {deleteBranch && branchPreview.loading ? (
                   <Spinner className="size-4 text-muted-foreground" />
                 ) : null}
-                {alsoDeleteBranch && branchPreview.error ? (
+                {deleteBranch && branchPreview.error ? (
                   <ErrorMessage>{branchPreview.error}</ErrorMessage>
                 ) : null}
-                {blockedReason ? (
+                {branchBlocked ? (
                   <InfoLine tone="warning">
-                    {branchT(branchDeleteBlockedKey(blockedReason))}
+                    {branchT(branchDeleteBlockedKey(branchBlocked))}
                   </InfoLine>
                 ) : null}
-                {alsoDeleteBranch && preview ? (
-                  <BranchDeleteSummary preview={preview} />
+                {deleteBranch && branchPreview.preview ? (
+                  <BranchDeleteSummary preview={branchPreview.preview} />
                 ) : null}
               </div>
             ) : null}
@@ -231,7 +194,7 @@ export const RemoveWorktreeDialog = ({
                   <Spinner className="size-4" />
                   {worktreeT("removing")}
                 </>
-              ) : alsoDeleteBranch ? (
+              ) : deleteBranch ? (
                 worktreeT("removeWorktreeAndBranch")
               ) : (
                 worktreeT("removeWorktree")

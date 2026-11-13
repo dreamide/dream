@@ -147,6 +147,8 @@ test("forgetWorktree sends the recorded branch and stops the worktree's terminal
   ]);
   // The app's own record is left for purgeWorktreeProject.
   assert.equal(hasProjectPath(store.getState(), WORKTREE_PATH), true);
+  // The main checkout's worktrees and branches changed.
+  assert.equal(store.getState().projectGitRefreshKeys[parent.id], 1);
 });
 
 test("purgeWorktreeProject drops the worktree, its chats, and activates the parent", async () => {
@@ -158,6 +160,7 @@ test("purgeWorktreeProject drops the worktree, its chats, and activates the pare
     mainWorktreePath: parent.path,
     worktreePath: worktree.path,
   });
+  assert.equal(store.getState().projectGitRefreshKeys[parent.id], 1);
   store.getState().purgeWorktreeProject(worktree.path);
 
   const state = store.getState();
@@ -173,8 +176,10 @@ test("purgeWorktreeProject drops the worktree, its chats, and activates the pare
   assert.equal(state.messagesByChatId[worktreeChat.id], undefined);
   assert.ok(state.messagesByChatId[parentChat.id]);
   // The parent is the default activation target, and its status is stale.
+  // Purging refreshes it too, for a worktree removed some other way (with
+  // its branch); a project read in the background is read once, when shown.
   assert.equal(state.activeProjectId, parent.id);
-  assert.equal(state.projectGitRefreshKeys[parent.id], 1);
+  assert.equal(state.projectGitRefreshKeys[parent.id], 2);
 });
 
 test("forgetWorktree answers as gone when git no longer knows the worktree", async () => {
@@ -228,6 +233,8 @@ test("forgetWorktree rethrows other failures without touching state", async () =
   assert.equal(state.chats, originalState.chats);
   assert.equal(state.closedProjects, originalState.closedProjects);
   assert.equal(state.activeProjectId, worktree.id);
+  // A removal can fail partway: the main checkout is read again anyway.
+  assert.equal(state.projectGitRefreshKeys[parent.id], 1);
 });
 
 test("purgeWorktreeProject falls back when the activation target is missing", () => {

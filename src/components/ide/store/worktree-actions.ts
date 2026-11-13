@@ -2,9 +2,10 @@
 // created from a parent project, attached when git already lists it,
 // completed by merging its branch back into its base, and forgotten in two
 // steps: `forgetWorktree` has the main process remove it, and
-// `purgeWorktreeProject` drops the app's own record of it (the dialog pauses
-// between the two to show the outcome; the projects panel runs them back to
-// back). The worktree record is built in one place, `createWorktreeRecord`.
+// `purgeWorktreeProject` drops the app's own record of it. Both dialogs that
+// finish a worktree run these through one flow
+// (git-actions/worktree-finish.ts), which purges only after a removal went
+// through. The worktree record is built in one place, `createWorktreeRecord`.
 
 import { ApiError, apiClient } from "@/lib/api-client";
 import type {
@@ -245,6 +246,15 @@ export const createWorktreeActions = (
     }
 
     const knownBranch = branch ?? project?.worktree?.branch ?? null;
+    // The main checkout's worktrees and branches change however the removal
+    // ends, a partial one included: its git state is stale.
+    const refreshMainCheckout = () => {
+      const mainId = resolveWorktreeParentId(onHost(get().projects, hostId), {
+        mainWorktreePath,
+        parentProjectId: project?.worktree?.parentProjectId ?? null,
+      });
+      if (mainId) get().bumpProjectGitRefreshKey(mainId);
+    };
     try {
       return await api.gitWorktreeCleanup(
         {
@@ -270,6 +280,8 @@ export const createWorktreeActions = (
         } satisfies ProjectGitWorktreeCleanupResponse;
       }
       throw error;
+    } finally {
+      refreshMainCheckout();
     }
   },
 

@@ -100,6 +100,10 @@ Module names and current ownership live in ../../GLOSSARY.md.
   architecture review: one Provider session module decides what each Agent
   turn starts from, records what the adapter reported, and keeps the session.
 
+- `tasks/worktree-finish.md` tracks FWT-01 from the same review: one flow
+  outside React for merging and removing a worktree, rendered by both
+  dialogs that finish one.
+
 - `tasks/review-20261109.md` tracks SSH-PROMPT, SAVED-ROUTES and
   ATTACHMENT-LIFETIME: SSH prompt ownership, saved-connection edit lifetime,
   and attachment preparation and release.
