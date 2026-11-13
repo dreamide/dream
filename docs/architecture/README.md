@@ -127,6 +127,10 @@ Module names and current ownership live in ../../GLOSSARY.md.
   following host turns has one module, and the chat stream reaches its host
   by the Host endpoint's rule.
 
+- `tasks/provider-reads.md` tracks PRD-01 from the same review: provider
+  model lists and usage limits each read by one sequence, with one snapshot
+  shape and request timeouts.
+
 - `tasks/review-20261109.md` tracks SSH-PROMPT, SAVED-ROUTES and
   ATTACHMENT-LIFETIME: SSH prompt ownership, saved-connection edit lifetime,
   and attachment preparation and release.

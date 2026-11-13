@@ -27,12 +27,19 @@ const GROK_CLI_CHAT_PROXY_DEFAULT_BASE_URL =
   "https://cli-chat-proxy.grok.com/v1";
 const GROK_TOKEN_AUTH_VALUE = "xai-grok-cli";
 const GROK_USAGE_REQUEST_TIMEOUT_MS = 15_000;
+/** How long a provider's usage (or token) request may take. */
+const USAGE_REQUEST_TIMEOUT_MS = 15_000;
 const PROVIDER_USAGE_SESSION_FILE_LIMIT = 80;
 const ANSI_ESCAPE_PATTERN = new RegExp(
   `${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`,
   "g",
 );
 
+/**
+ * The last good usage limits each provider answered, for when a live read
+ * fails (readUsageLimits). A turn that reports its rate limits updates them
+ * too (storeProviderUsageLimitSnapshot). Each is a full result.
+ */
 const providerUsageLimitSnapshots = new Map();
 const execFileAsync = promisify(execFile);
 
@@ -183,13 +190,62 @@ export const storeProviderUsageLimitSnapshot = (
     return;
   }
 
-  providerUsageLimitSnapshots.set(provider, {
-    fetchedAt: new Date().toISOString(),
-    limits,
+  providerUsageLimitSnapshots.set(
     provider,
-    source,
-    status: "ok",
-  });
+    makeUsageLimitsResult({ limits, provider, source, status: "ok" }),
+  );
+};
+
+/**
+ * One provider's usage limits, by the ladder every provider follows:
+ *
+ *   1. `readLive`, remembered when it answers. It returns what
+ *      `makeUsageLimitsResult` takes, less `provider`, and throws when it
+ *      has no answer (no limit windows is no answer).
+ *   2. Failing that, the last good answer, with the error.
+ *   3. Failing that, `fallback` (limits the CLI left on disk), with the
+ *      error.
+ *   4. Failing that, nothing, with the error (`failureMessage` words it).
+ *
+ * `label` names the provider in the messages a non-Error failure gets.
+ */
+export const readUsageLimits = async ({
+  fallback,
+  failureMessage,
+  label,
+  provider,
+  readLive,
+}) => {
+  try {
+    const result = makeUsageLimitsResult({ ...(await readLive()), provider });
+    providerUsageLimitSnapshots.set(provider, result);
+    return result;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : `${label} usage failed.`;
+    const remembered = providerUsageLimitSnapshots.get(provider);
+    if (remembered) {
+      return { ...remembered, error: message };
+    }
+    const local = await fallback?.();
+    if (local) {
+      return makeUsageLimitsResult({ ...local, error: message, provider });
+    }
+    return makeUsageLimitsResult({
+      error:
+        failureMessage?.(error) ??
+        (error instanceof Error
+          ? error.message
+          : `Unable to fetch ${label} usage limits.`),
+      provider,
+    });
+  }
+};
+
+/** The latest limits a CLI left in its session files, as `source`. */
+const readLocalUsageLimits = async (rootPaths, source) => {
+  const snapshot = await readLatestRateLimitsFromFiles(rootPaths);
+  return snapshot ? { limits: snapshot.limits, source } : null;
 };
 
 export const findRateLimitsObject = (value, depth = 0) => {
@@ -726,26 +782,18 @@ export const fetchOpenCodeGoUsageLimits = async () => {
     return null;
   }
 
-  try {
-    const payload = await fetchOpenCodeGoUsagePayload(apiKey);
-    const limits = normalizeOpenCodeGoUsageLimits(payload);
-    if (limits.length === 0) {
-      throw new Error("OpenCode Go returned no usage limit windows.");
-    }
-
-    const result = { error: null, limits, source: "opencode go" };
-    providerUsageLimitSnapshots.set("opencode-go", result);
-    return result;
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "OpenCode Go usage failed.";
-    const cached = providerUsageLimitSnapshots.get("opencode-go");
-    if (cached) {
-      return { ...cached, error: message };
-    }
-
-    return { error: message, limits: [], source: "opencode go" };
-  }
+  return readUsageLimits({
+    label: "OpenCode Go",
+    provider: "opencode-go",
+    readLive: async () => {
+      const payload = await fetchOpenCodeGoUsagePayload(apiKey);
+      const limits = normalizeOpenCodeGoUsageLimits(payload);
+      if (limits.length === 0) {
+        throw new Error("OpenCode Go returned no usage limit windows.");
+      }
+      return { limits, source: "opencode go" };
+    },
+  });
 };
 
 const mergeOpenCodeGoUsageLimits = (statsResult, goResult) => {
@@ -825,67 +873,45 @@ export const fetchOpenAiUsageLimits = async () => {
     });
   }
 
-  try {
-    const headers = {
-      Authorization: `Bearer ${tokens.accessToken}`,
-      "Content-Type": "application/json",
-    };
-    if (tokens.chatgptAccountId) {
-      headers["ChatGPT-Account-Id"] = tokens.chatgptAccountId;
-    }
-
-    const response = await fetch(OPENAI_CODEX_CHATGPT_USAGE_URL, {
-      headers,
-      method: "GET",
-    });
-    if (!response.ok) {
-      throw new Error(`Codex usage request failed (${response.status}).`);
-    }
-
-    const payload = await response.json();
-    const rateLimits = payload.rate_limit ?? payload.rate_limits;
-    const limits = normalizeProviderRateLimits(rateLimits);
-
-    if (limits.length === 0) {
-      throw new Error("Codex returned no usage limit windows.");
-    }
-
-    storeProviderUsageLimitSnapshot("openai", rateLimits, "codex");
-    return makeUsageLimitsResult({
-      limits,
-      provider: "openai",
-      source: "codex",
-    });
-  } catch (error) {
-    const cached = providerUsageLimitSnapshots.get("openai");
-    if (cached) {
-      return {
-        ...cached,
-        error: error instanceof Error ? error.message : "Codex usage failed.",
+  return readUsageLimits({
+    fallback: () =>
+      readLocalUsageLimits(
+        [
+          path.join(os.homedir(), ".codex", "sessions"),
+          path.join(os.homedir(), ".codex", "archived_sessions"),
+        ],
+        "codex session",
+      ),
+    label: "Codex",
+    provider: "openai",
+    readLive: async () => {
+      const headers = {
+        Authorization: `Bearer ${tokens.accessToken}`,
+        "Content-Type": "application/json",
       };
-    }
+      if (tokens.chatgptAccountId) {
+        headers["ChatGPT-Account-Id"] = tokens.chatgptAccountId;
+      }
 
-    const localSnapshot = await readLatestRateLimitsFromFiles([
-      path.join(os.homedir(), ".codex", "sessions"),
-      path.join(os.homedir(), ".codex", "archived_sessions"),
-    ]);
-    if (localSnapshot) {
-      return makeUsageLimitsResult({
-        error: error instanceof Error ? error.message : "Codex usage failed.",
-        limits: localSnapshot.limits,
-        provider: "openai",
-        source: "codex session",
+      const response = await fetch(OPENAI_CODEX_CHATGPT_USAGE_URL, {
+        headers,
+        method: "GET",
+        signal: AbortSignal.timeout(USAGE_REQUEST_TIMEOUT_MS),
       });
-    }
+      if (!response.ok) {
+        throw new Error(`Codex usage request failed (${response.status}).`);
+      }
 
-    return makeUsageLimitsResult({
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to fetch Codex usage limits.",
-      provider: "openai",
-    });
-  }
+      const payload = await response.json();
+      const limits = normalizeProviderRateLimits(
+        payload.rate_limit ?? payload.rate_limits,
+      );
+      if (limits.length === 0) {
+        throw new Error("Codex returned no usage limit windows.");
+      }
+      return { limits, source: "codex" };
+    },
+  });
 };
 
 const getClaudeCredentialsPaths = () => [
@@ -1023,6 +1049,7 @@ const refreshClaudeCredentials = async (credentials) => {
   const response = await fetch(CLAUDE_OAUTH_TOKEN_URL, {
     body,
     method: "POST",
+    signal: AbortSignal.timeout(USAGE_REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new Error(`Claude token refresh failed (${response.status}).`);
@@ -1056,6 +1083,7 @@ const fetchClaudeUsageWithToken = async (accessToken) => {
       "anthropic-beta": "oauth-2025-04-20",
     },
     method: "GET",
+    signal: AbortSignal.timeout(USAGE_REQUEST_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -1152,10 +1180,31 @@ export const normalizeClaudeUsageLimits = (payload) => {
   });
 };
 
+const readClaudeSessionUsageLimits = () =>
+  readLocalUsageLimits(
+    [path.join(os.homedir(), ".claude", "projects")],
+    "claude session",
+  );
+
 export const fetchAnthropicUsageLimits = async () => {
   const credentials = await readClaudeCredentials();
-  if (credentials) {
-    try {
+  if (!credentials) {
+    // Without a login only what Claude Code left on disk can be shown.
+    const local = await readClaudeSessionUsageLimits();
+    return makeUsageLimitsResult({
+      ...(local ?? {
+        error:
+          "Claude usage limit windows are unavailable. Claude Code can still be connected and working normally when it does not expose local rate-limit data.",
+      }),
+      provider: "anthropic",
+    });
+  }
+
+  return readUsageLimits({
+    fallback: readClaudeSessionUsageLimits,
+    label: "Claude",
+    provider: "anthropic",
+    readLive: async () => {
       let payload;
       try {
         payload = await fetchClaudeUsageWithToken(credentials.accessToken);
@@ -1175,62 +1224,8 @@ export const fetchAnthropicUsageLimits = async () => {
       if (limits.length === 0) {
         throw new Error("Claude returned no usage limit windows.");
       }
-
-      const result = makeUsageLimitsResult({
-        limits,
-        provider: "anthropic",
-        source: "claude",
-      });
-      providerUsageLimitSnapshots.set("anthropic", result);
-      return result;
-    } catch (error) {
-      const cached = providerUsageLimitSnapshots.get("anthropic");
-      if (cached) {
-        return {
-          ...cached,
-          error:
-            error instanceof Error ? error.message : "Claude usage failed.",
-        };
-      }
-
-      const localSnapshot = await readLatestRateLimitsFromFiles([
-        path.join(os.homedir(), ".claude", "projects"),
-      ]);
-      if (localSnapshot) {
-        return makeUsageLimitsResult({
-          error:
-            error instanceof Error ? error.message : "Claude usage failed.",
-          limits: localSnapshot.limits,
-          provider: "anthropic",
-          source: "claude session",
-        });
-      }
-
-      return makeUsageLimitsResult({
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to fetch Claude usage limits.",
-        provider: "anthropic",
-      });
-    }
-  }
-
-  const localSnapshot = await readLatestRateLimitsFromFiles([
-    path.join(os.homedir(), ".claude", "projects"),
-  ]);
-  if (localSnapshot) {
-    return makeUsageLimitsResult({
-      limits: localSnapshot.limits,
-      provider: "anthropic",
-      source: "claude session",
-    });
-  }
-
-  return makeUsageLimitsResult({
-    error:
-      "Claude usage limit windows are unavailable. Claude Code can still be connected and working normally when it does not expose local rate-limit data.",
-    provider: "anthropic",
+      return { limits, source: "claude" };
+    },
   });
 };
 
@@ -1514,46 +1509,29 @@ export const fetchGrokUsageLimits = async () => {
   const headers = createGrokUsageHeaders(credentials);
   const baseUrl = getGrokCliProxyBaseUrl();
 
-  try {
-    const [payload, settings] = await Promise.all([
-      fetchGrokJson(`${baseUrl}/billing?format=credits`, headers),
-      fetchGrokJson(`${baseUrl}/settings`, headers).catch(() => null),
-    ]);
-    const { limits, note, stats } = normalizeGrokUsageLimits(payload, settings);
-    if (limits.length === 0 && stats.length === 0) {
-      throw new Error("Grok returned no usage limit windows.");
-    }
-
-    const result = makeUsageLimitsResult({
-      limits,
-      note,
-      provider: "grok",
-      source: "grok",
-      stats,
-      status: "ok",
-    });
-    providerUsageLimitSnapshots.set("grok", result);
-    return result;
-  } catch (error) {
-    const cached = providerUsageLimitSnapshots.get("grok");
-    if (cached) {
-      return {
-        ...cached,
-        error: error instanceof Error ? error.message : "Grok usage failed.",
-      };
-    }
-
-    const status = error?.status;
-    return makeUsageLimitsResult({
-      error:
-        status === 401 || status === 403
-          ? "Run `grok login` to fetch Grok usage limits."
-          : error instanceof Error
-            ? error.message
-            : "Unable to fetch Grok usage limits.",
-      provider: "grok",
-    });
-  }
+  return readUsageLimits({
+    // A login that lapsed is said as such.
+    failureMessage: (error) =>
+      error?.status === 401 || error?.status === 403
+        ? "Run `grok login` to fetch Grok usage limits."
+        : undefined,
+    label: "Grok",
+    provider: "grok",
+    readLive: async () => {
+      const [payload, settings] = await Promise.all([
+        fetchGrokJson(`${baseUrl}/billing?format=credits`, headers),
+        fetchGrokJson(`${baseUrl}/settings`, headers).catch(() => null),
+      ]);
+      const { limits, note, stats } = normalizeGrokUsageLimits(
+        payload,
+        settings,
+      );
+      if (limits.length === 0 && stats.length === 0) {
+        throw new Error("Grok returned no usage limit windows.");
+      }
+      return { limits, note, source: "grok", stats, status: "ok" };
+    },
+  });
 };
 
 export const normalizeAntigravityUsageLimits = (payload) => {
@@ -1604,50 +1582,28 @@ export const fetchAntigravityUsageLimits = async () => {
     });
   }
 
-  try {
-    const result = await execAntigravityCliCommand(
-      ["-p", "/usage", "--output-format", "json"],
-      {
-        closeStdin: true,
-        timeout: 15_000,
-      },
-    );
-    const text = `${result.stdout}\n${result.stderr}`;
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("Invalid Antigravity usage response.");
-    }
-    const payload = JSON.parse(jsonMatch[0]);
-    const { limits, note, stats } = normalizeAntigravityUsageLimits(payload);
-    if (limits.length === 0) {
-      throw new Error("Antigravity returned no usage limit windows.");
-    }
-
-    const usageResult = makeUsageLimitsResult({
-      limits,
-      note,
-      provider: "antigravity",
-      source: "cli",
-      stats,
-      status: "ok",
-    });
-    providerUsageLimitSnapshots.set("antigravity", usageResult);
-    return usageResult;
-  } catch (error) {
-    const cached = providerUsageLimitSnapshots.get("antigravity");
-    if (cached) {
-      return {
-        ...cached,
-        error:
-          error instanceof Error ? error.message : "Antigravity usage failed.",
-      };
-    }
-    return makeUsageLimitsResult({
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to fetch Antigravity usage limits.",
-      provider: "antigravity",
-    });
-  }
+  return readUsageLimits({
+    label: "Antigravity",
+    provider: "antigravity",
+    readLive: async () => {
+      const result = await execAntigravityCliCommand(
+        ["-p", "/usage", "--output-format", "json"],
+        {
+          closeStdin: true,
+          timeout: 15_000,
+        },
+      );
+      const text = `${result.stdout}\n${result.stderr}`;
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("Invalid Antigravity usage response.");
+      }
+      const payload = JSON.parse(jsonMatch[0]);
+      const { limits, note, stats } = normalizeAntigravityUsageLimits(payload);
+      if (limits.length === 0) {
+        throw new Error("Antigravity returned no usage limit windows.");
+      }
+      return { limits, note, source: "cli", stats, status: "ok" };
+    },
+  });
 };

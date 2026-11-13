@@ -5,6 +5,8 @@ import {
   normalizeClaudeUsageLimits,
   normalizeGrokUsageLimits,
   normalizeOpenCodeGoUsageLimits,
+  readUsageLimits,
+  storeProviderUsageLimitSnapshot,
 } from "./usage-limits.js";
 
 test("normalizes Grok weekly credits config into a usage window", () => {
@@ -274,4 +276,91 @@ test("normalizes Antigravity usage limits from agy usage output", () => {
     note: "Antigravity Pro Tier",
     stats: [],
   });
+});
+
+// The read ladder every provider's usage limits follow. Each test uses its
+// own provider name: the last good answers are remembered per provider.
+const window = { label: "5h", usedPercent: 40 };
+
+test("a live answer is the result, and is remembered for when reads fail", async () => {
+  const ok = await readUsageLimits({
+    label: "Test",
+    provider: "ladder-live",
+    readLive: async () => ({ limits: [window], source: "test" }),
+  });
+  assert.equal(ok.status, "ok");
+  assert.equal(ok.error, null);
+  assert.equal(ok.provider, "ladder-live");
+
+  const failed = await readUsageLimits({
+    fallback: async () => ({ limits: [], source: "disk" }),
+    label: "Test",
+    provider: "ladder-live",
+    readLive: async () => {
+      throw new Error("Test usage request failed (503).");
+    },
+  });
+  assert.deepEqual(failed.limits, ok.limits);
+  assert.equal(failed.source, "test");
+  assert.equal(failed.fetchedAt, ok.fetchedAt, "as of the good answer");
+  assert.equal(failed.error, "Test usage request failed (503).");
+});
+
+test("with nothing remembered, a failed read falls back to the disk, then to nothing", async () => {
+  const fromDisk = await readUsageLimits({
+    fallback: async () => ({ limits: [window], source: "test session" }),
+    label: "Test",
+    provider: "ladder-disk",
+    readLive: async () => {
+      throw new Error("offline");
+    },
+  });
+  assert.equal(fromDisk.source, "test session");
+  assert.equal(fromDisk.error, "offline");
+  assert.equal(fromDisk.status, "ok");
+
+  const none = await readUsageLimits({
+    label: "Test",
+    provider: "ladder-none",
+    readLive: async () => {
+      throw "not an Error";
+    },
+  });
+  assert.equal(none.status, "unavailable");
+  assert.equal(none.error, "Unable to fetch Test usage limits.");
+});
+
+test("a provider can word its own failure, as Grok does for a lapsed login", async () => {
+  const lapsed = Object.assign(new Error("Grok request failed (401)."), {
+    status: 401,
+  });
+  const result = await readUsageLimits({
+    failureMessage: (error) =>
+      error.status === 401 ? "Run `grok login`." : undefined,
+    label: "Grok",
+    provider: "ladder-grok",
+    readLive: async () => {
+      throw lapsed;
+    },
+  });
+  assert.equal(result.error, "Run `grok login`.");
+});
+
+test("a turn's rate limits are remembered as a full result, as a live read is", async () => {
+  storeProviderUsageLimitSnapshot(
+    "ladder-turn",
+    { primary: { used_percent: 12, window_minutes: 300 } },
+    "codex",
+  );
+  const result = await readUsageLimits({
+    label: "Codex",
+    provider: "ladder-turn",
+    readLive: async () => {
+      throw new Error("offline");
+    },
+  });
+  assert.equal(result.source, "codex");
+  assert.equal(result.limits.length, 1);
+  for (const field of ["modelStats", "stats", "toolStats", "note"])
+    assert.ok(field in result, field);
 });

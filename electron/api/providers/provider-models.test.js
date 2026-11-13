@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseAntigravityModelsOutput } from "./provider-models.js";
+import {
+  parseAntigravityModelsOutput,
+  readProviderModels,
+} from "./provider-models.js";
 
 describe("parseAntigravityModelsOutput", () => {
   it("parses tab-delimited model list correctly", () => {
@@ -59,5 +62,77 @@ describe("parseAntigravityModelsOutput", () => {
     expect(models).toHaveLength(1);
     expect(models[0].id).toBe("gemini-3.8-flash");
     expect(models.some((m) => m.id.startsWith("Warning"))).toBe(false);
+  });
+});
+
+describe("readProviderModels", () => {
+  const read = (overrides) =>
+    readProviderModels({
+      emptyError: "Test returned no models.",
+      failedError: "Unable to fetch Test models.",
+      isInstalled: async () => true,
+      notInstalledError: "Test CLI is not installed.",
+      read: async () => [{ id: "m" }],
+      version: async () => "1.2.3",
+      ...overrides,
+    });
+
+  it("reports the models and the CLI's version", async () => {
+    expect(await read()).toEqual({
+      installed: true,
+      models: [{ id: "m" }],
+      source: "cli",
+      version: "1.2.3",
+    });
+  });
+
+  it("says the CLI is missing without asking its version", async () => {
+    let asked = false;
+    expect(
+      await read({
+        isInstalled: async () => false,
+        version: async () => {
+          asked = true;
+          return "1.2.3";
+        },
+      }),
+    ).toEqual({
+      error: "Test CLI is not installed.",
+      installed: false,
+      models: [],
+      source: "unavailable",
+      version: null,
+    });
+    expect(asked).toBe(false);
+  });
+
+  it("treats a failed precondition, no models and a failed read as errors, keeping the version", async () => {
+    const unavailable = (error) => ({
+      error,
+      installed: true,
+      models: [],
+      source: "unavailable",
+      version: "1.2.3",
+    });
+    expect(await read({ read: async () => ({ error: "Log in." }) })).toEqual(
+      unavailable("Log in."),
+    );
+    expect(await read({ read: async () => [] })).toEqual(
+      unavailable("Test returned no models."),
+    );
+    expect(
+      await read({
+        read: async () => {
+          throw new Error("spawn failed");
+        },
+      }),
+    ).toEqual(unavailable("spawn failed"));
+    expect(
+      await read({
+        read: async () => {
+          throw "not an Error";
+        },
+      }),
+    ).toEqual(unavailable("Unable to fetch Test models."));
   });
 });

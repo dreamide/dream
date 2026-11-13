@@ -749,6 +749,17 @@ the setting holding its picked models, how its model ids are spelt), which the
 renderer reads too. Adding a provider is one row and one record, plus its
 `AiProvider` member and its `…SelectedModels` setting.
 
+A record's two reads each follow one sequence, so a provider supplies only
+its own steps:
+
+- **Models** (`readProviderModels` in
+  `electron/api/providers/provider-models.js`): is its CLI installed, which
+  version, then the list. No models, or a failed read, is an error the model
+  picker shows.
+- **Usage limits** (`readUsageLimits` in `usage-limits.js`): a live read,
+  remembered when it answers; on failure the last good answer, then limits
+  the CLI left on disk, then nothing, each with the error.
+
 **Settling the model selection** (`settleModelSelection` in
 `electron/shared/model-selection.js`) keeps every open project and its
 chats on a model the settings offer, and the defaults on a picked model.

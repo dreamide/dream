@@ -198,270 +198,182 @@ const fetchOpenAiModelsWithCodexChatgpt = async (accessToken) => {
   return dedupeAndSort(modelIds);
 };
 
-export const fetchOpenAiModels = async ({ force = false } = {}) => {
-  const installed = await isCliCommandAvailable("codex");
-  if (!installed) {
+/**
+ * A provider's models, by the sequence every provider follows: is its CLI
+ * installed, which version, then `read`. `read` returns the models, or
+ * `{ error }` when a precondition fails (not logged in). No models, or a
+ * read that throws, is an error the model picker shows; the version is
+ * reported whenever the CLI is there.
+ */
+export const readProviderModels = async ({
+  emptyError,
+  failedError,
+  isInstalled,
+  notInstalledError,
+  read,
+  version,
+}) => {
+  if (!(await isInstalled())) {
     return {
-      error: "Codex CLI is not installed or not available on PATH.",
+      error: notInstalledError,
       installed: false,
       models: [],
       source: "unavailable",
       version: null,
     };
   }
-  const version = await getCliVersion("codex", { force });
-
-  const accessToken = await readCodexAccessToken();
-  if (!accessToken) {
-    return {
-      error: "Run `codex login` to fetch Codex models.",
-      installed: true,
-      models: [],
-      source: "unavailable",
-      version,
-    };
-  }
-
-  try {
-    const models = await fetchOpenAiModelsWithCodexChatgpt(accessToken);
-    if (models.length === 0) {
-      return {
-        error: "Codex returned no models.",
-        installed: true,
-        models: [],
-        source: "unavailable",
-        version,
-      };
-    }
-
-    return { installed: true, models, source: "cli", version };
-  } catch (error) {
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to fetch Codex models.",
-      installed: true,
-      models: [],
-      source: "unavailable",
-      version,
-    };
-  }
-};
-
-export const fetchCursorModels = async ({ force = false } = {}) => {
-  const installed = await isCursorCliAvailable({ force });
-  if (!installed) {
-    return {
-      error: getCursorCliUnavailableMessage(),
-      installed: false,
-      models: [],
-      source: "unavailable",
-      version: null,
-    };
-  }
-  const version = await getCursorCliVersion({ force });
-
-  // Chats run over ACP, which only accepts the model ids it lists itself, so
-  // the picker must offer those rather than the flat ids of `agent models`.
-  try {
-    const models = dedupeModelOptions(
-      (await fetchCursorAcpModels()).flatMap((entry) => {
-        const acpModelId =
-          typeof entry?.modelId === "string" ? entry.modelId.trim() : "";
-        if (!acpModelId) return [];
-        const id = toDreamCursorModelId(acpModelId);
-        const name = typeof entry.name === "string" ? entry.name.trim() : "";
-        return [
-          createModelOption(
-            "cursor",
-            id,
-            id === CURSOR_AUTO_MODEL ? "Cursor Auto" : name || acpModelId,
-          ),
-        ];
-      }),
-    );
-    if (models.length > 0) {
-      return {
-        installed: true,
-        models: sortCursorModelOptions(models),
-        source: "cli",
-        version,
-      };
-    }
-  } catch {
-    // Not logged in, or an older Cursor without ACP model listing. Auto
-    // still works, so offer it alone.
-  }
-
-  return {
+  const cliVersion = await version();
+  const unavailable = (error) => ({
+    error,
     installed: true,
-    models: sortCursorModelOptions(createCursorDefaultModels()),
-    source: "cli",
-    version,
-  };
-};
-
-export const fetchGrokModels = async ({ force = false } = {}) => {
-  const installed = await isCliCommandAvailable("grok");
-  if (!installed) {
-    return {
-      error: "Grok Build CLI is not installed or not available on PATH.",
-      installed: false,
-      models: [],
-      source: "unavailable",
-      version: null,
-    };
-  }
-
-  const version = await getCliVersion("grok", { force });
-  let connection;
+    models: [],
+    source: "unavailable",
+    version: cliVersion,
+  });
   try {
-    connection = await spawnGrokAcp();
-    const initializeResult = await initializeGrokAcp(connection);
-    const models = dedupeAndSort(
-      getGrokModelsFromInitializeResult(initializeResult).flatMap((entry) => {
-        const id =
-          typeof entry?.modelId === "string" ? entry.modelId.trim() : "";
-        if (!id) return [];
-
-        return [
-          createModelOption(
-            "grok",
-            id,
-            entry.name ?? id,
-            normalizeReasoningEfforts(entry?._meta?.reasoningEfforts),
-            [],
-            entry?._meta?.totalContextTokens,
-          ),
-        ];
-      }),
-    );
-
-    if (models.length === 0) {
-      return {
-        error: "Grok Build returned no models.",
-        installed: true,
-        models: [],
-        source: "unavailable",
-        version,
-      };
-    }
-
-    return { installed: true, models, source: "cli", version };
-  } catch (error) {
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to fetch Grok Build models.",
-      installed: true,
-      models: [],
-      source: "unavailable",
-      version,
-    };
-  } finally {
-    connection?.close();
-  }
-};
-
-export const fetchOpenCodeModels = async ({ force = false } = {}) => {
-  const installed = await isCliCommandAvailable("opencode");
-  if (!installed) {
-    return {
-      error: "OpenCode CLI is not installed or not available on PATH.",
-      installed: false,
-      models: [],
-      source: "unavailable",
-      version: null,
-    };
-  }
-  const version = await getCliVersion("opencode", { force });
-
-  try {
-    const args = ["models", ...(force ? ["--refresh"] : [])];
-    const [result, contextWindows] = await Promise.all([
-      execCliCommand("opencode", args, {
-        maxBuffer: 10 * 1024 * 1024,
-      }),
-      fetchOpenCodeContextWindowsFromModelsDev(),
-    ]);
-    const models = dedupeAndSort(
-      parseOpenCodeModelsOutput(
-        `${result.stdout}\n${result.stderr}`,
-        contextWindows,
-      ),
-    );
-    if (models.length === 0) {
-      return {
-        error:
-          "OpenCode returned no models. Run `opencode auth login` or configure opencode.json, then refresh.",
-        installed: true,
-        models: [],
-        source: "unavailable",
-        version,
-      };
-    }
-
-    return { installed: true, models, source: "cli", version };
-  } catch (error) {
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to fetch OpenCode models.",
-      installed: true,
-      models: [],
-      source: "unavailable",
-      version,
-    };
-  }
-};
-
-export const fetchAnthropicModels = async ({ force = false } = {}) => {
-  const installed = await isCliCommandAvailable("claude");
-  if (!installed) {
-    return {
-      error: "Claude Code CLI is not installed or not available on PATH.",
-      installed: false,
-      models: [],
-      source: "unavailable",
-      version: null,
-    };
-  }
-  const version = await getCliVersion("claude", { force });
-
-  try {
-    const models = await fetchClaudeCodeModelOptionsFromModelsDev();
-    if (models.length === 0) {
-      return {
-        error: "Claude Code returned no supported models.",
-        installed: true,
-        models: [],
-        source: "unavailable",
-        version,
-      };
-    }
-
+    const result = await read();
+    if (!Array.isArray(result)) return unavailable(result.error);
+    if (result.length === 0) return unavailable(emptyError);
     return {
       installed: true,
-      models,
+      models: result,
       source: "cli",
-      version,
+      version: cliVersion,
     };
   } catch (error) {
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to fetch Claude Code models.",
-      installed: true,
-      models: [],
-      source: "unavailable",
-      version,
-    };
+    return unavailable(error instanceof Error ? error.message : failedError);
   }
 };
+
+export const fetchOpenAiModels = ({ force = false } = {}) =>
+  readProviderModels({
+    emptyError: "Codex returned no models.",
+    failedError: "Unable to fetch Codex models.",
+    isInstalled: () => isCliCommandAvailable("codex"),
+    notInstalledError: "Codex CLI is not installed or not available on PATH.",
+    read: async () => {
+      const accessToken = await readCodexAccessToken();
+      if (!accessToken) {
+        return { error: "Run `codex login` to fetch Codex models." };
+      }
+      return fetchOpenAiModelsWithCodexChatgpt(accessToken);
+    },
+    version: () => getCliVersion("codex", { force }),
+  });
+
+export const fetchCursorModels = ({ force = false } = {}) =>
+  readProviderModels({
+    emptyError: "Cursor returned no models.",
+    failedError: "Unable to fetch Cursor models.",
+    isInstalled: () => isCursorCliAvailable({ force }),
+    notInstalledError: getCursorCliUnavailableMessage(),
+    // Chats run over ACP, which only accepts the model ids it lists itself,
+    // so the picker must offer those rather than the flat ids of
+    // `agent models`.
+    read: async () => {
+      try {
+        const models = dedupeModelOptions(
+          (await fetchCursorAcpModels()).flatMap((entry) => {
+            const acpModelId =
+              typeof entry?.modelId === "string" ? entry.modelId.trim() : "";
+            if (!acpModelId) return [];
+            const id = toDreamCursorModelId(acpModelId);
+            const name =
+              typeof entry.name === "string" ? entry.name.trim() : "";
+            return [
+              createModelOption(
+                "cursor",
+                id,
+                id === CURSOR_AUTO_MODEL ? "Cursor Auto" : name || acpModelId,
+              ),
+            ];
+          }),
+        );
+        if (models.length > 0) return sortCursorModelOptions(models);
+      } catch {
+        // Not logged in, or an older Cursor without ACP model listing.
+      }
+      // Auto still works, so offer it alone.
+      return sortCursorModelOptions(createCursorDefaultModels());
+    },
+    version: () => getCursorCliVersion({ force }),
+  });
+
+export const fetchGrokModels = ({ force = false } = {}) =>
+  readProviderModels({
+    emptyError: "Grok Build returned no models.",
+    failedError: "Unable to fetch Grok Build models.",
+    isInstalled: () => isCliCommandAvailable("grok"),
+    notInstalledError:
+      "Grok Build CLI is not installed or not available on PATH.",
+    read: async () => {
+      let connection;
+      try {
+        connection = await spawnGrokAcp();
+        const initializeResult = await initializeGrokAcp(connection);
+        return dedupeAndSort(
+          getGrokModelsFromInitializeResult(initializeResult).flatMap(
+            (entry) => {
+              const id =
+                typeof entry?.modelId === "string" ? entry.modelId.trim() : "";
+              if (!id) return [];
+
+              return [
+                createModelOption(
+                  "grok",
+                  id,
+                  entry.name ?? id,
+                  normalizeReasoningEfforts(entry?._meta?.reasoningEfforts),
+                  [],
+                  entry?._meta?.totalContextTokens,
+                ),
+              ];
+            },
+          ),
+        );
+      } finally {
+        connection?.close();
+      }
+    },
+    version: () => getCliVersion("grok", { force }),
+  });
+
+export const fetchOpenCodeModels = ({ force = false } = {}) =>
+  readProviderModels({
+    emptyError:
+      "OpenCode returned no models. Run `opencode auth login` or configure opencode.json, then refresh.",
+    failedError: "Unable to fetch OpenCode models.",
+    isInstalled: () => isCliCommandAvailable("opencode"),
+    notInstalledError:
+      "OpenCode CLI is not installed or not available on PATH.",
+    read: async () => {
+      const args = ["models", ...(force ? ["--refresh"] : [])];
+      const [result, contextWindows] = await Promise.all([
+        execCliCommand("opencode", args, {
+          maxBuffer: 10 * 1024 * 1024,
+        }),
+        fetchOpenCodeContextWindowsFromModelsDev(),
+      ]);
+      return dedupeAndSort(
+        parseOpenCodeModelsOutput(
+          `${result.stdout}\n${result.stderr}`,
+          contextWindows,
+        ),
+      );
+    },
+    version: () => getCliVersion("opencode", { force }),
+  });
+
+export const fetchAnthropicModels = ({ force = false } = {}) =>
+  readProviderModels({
+    emptyError: "Claude Code returned no supported models.",
+    failedError: "Unable to fetch Claude Code models.",
+    isInstalled: () => isCliCommandAvailable("claude"),
+    notInstalledError:
+      "Claude Code CLI is not installed or not available on PATH.",
+    read: () => fetchClaudeCodeModelOptionsFromModelsDev(),
+    version: () => getCliVersion("claude", { force }),
+  });
 
 export const parseAntigravityModelsOutput = (output) => {
   const clean = stripAnsi(output);
@@ -512,46 +424,18 @@ export const parseAntigravityModelsOutput = (output) => {
   return models;
 };
 
-export const fetchAntigravityModels = async ({ force = false } = {}) => {
-  const installed = await isAntigravityCliAvailable({ force });
-  if (!installed) {
-    return {
-      error: getAntigravityCliUnavailableMessage(),
-      installed: false,
-      models: [],
-      source: "unavailable",
-      version: null,
-    };
-  }
-  const version = await getAntigravityCliVersion({ force });
-
-  try {
-    const result = await execAntigravityCliCommand(["models"], {
-      closeStdin: true,
-      timeout: 15_000,
-    });
-    const models = dedupeAndSort(parseAntigravityModelsOutput(result.stdout));
-    if (models.length === 0) {
-      return {
-        error: "Antigravity returned no models.",
-        installed: true,
-        models: [],
-        source: "unavailable",
-        version,
-      };
-    }
-
-    return { installed: true, models, source: "cli", version };
-  } catch (error) {
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unable to fetch Antigravity models.",
-      installed: true,
-      models: [],
-      source: "unavailable",
-      version,
-    };
-  }
-};
+export const fetchAntigravityModels = ({ force = false } = {}) =>
+  readProviderModels({
+    emptyError: "Antigravity returned no models.",
+    failedError: "Unable to fetch Antigravity models.",
+    isInstalled: () => isAntigravityCliAvailable({ force }),
+    notInstalledError: getAntigravityCliUnavailableMessage(),
+    read: async () => {
+      const result = await execAntigravityCliCommand(["models"], {
+        closeStdin: true,
+        timeout: 15_000,
+      });
+      return dedupeAndSort(parseAntigravityModelsOutput(result.stdout));
+    },
+    version: () => getAntigravityCliVersion({ force }),
+  });
