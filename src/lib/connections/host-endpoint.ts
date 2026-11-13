@@ -85,26 +85,29 @@ export const reportHostResponse = (
 };
 
 /**
- * `fetch` for one host's `/api/` path, with its credential. Reports the
- * outcome to the connection supervisor; a network failure rejects as
- * `fetch` does, after being reported.
+ * A status a host may answer differently soon (a server error, a timeout,
+ * too many requests): worth asking again, not a refusal.
  */
-export const hostFetch = async (
+export const isTransientHostStatus = (status: number) =>
+  status >= 500 || status === 408 || status === 429;
+
+/**
+ * Sends one request to `hostId` the way every request to a host goes: it
+ * never follows a redirect (it carries the host's credential), and the
+ * connection supervisor hears what the host answered, or that it could not
+ * be reached. A request its caller aborted says nothing about the host.
+ * `input` is already the host's URL (`hostFetch`, or the chat transport's
+ * `hostRequestOptions`).
+ */
+export const fetchFromHost = async (
   hostId: string,
-  path: string,
+  input: RequestInfo | URL,
   init: RequestInit = {},
   fetchImpl: typeof fetch = (...args) => fetch(...args),
 ): Promise<Response> => {
-  assertApiPath(path);
-  const endpoint = resolveHostEndpoint(hostId);
   let response: Response;
   try {
-    response = await fetchImpl(endpoint.url(path), {
-      ...init,
-      credentials: endpoint.credentials,
-      headers: mergeHeaders(endpoint.headers, init.headers),
-      redirect: "error",
-    });
+    response = await fetchImpl(input, { ...init, redirect: "error" });
   } catch (error) {
     if (!isAbort(error)) {
       connectionSupervisor.report(
@@ -117,6 +120,31 @@ export const hostFetch = async (
   }
   reportHostResponse(hostId, response);
   return response;
+};
+
+/**
+ * `fetch` for one host's `/api/` path, with its credential. Reports the
+ * outcome to the connection supervisor; a network failure rejects as
+ * `fetch` does, after being reported.
+ */
+export const hostFetch = async (
+  hostId: string,
+  path: string,
+  init: RequestInit = {},
+  fetchImpl: typeof fetch = (...args) => fetch(...args),
+): Promise<Response> => {
+  assertApiPath(path);
+  const endpoint = resolveHostEndpoint(hostId);
+  return fetchFromHost(
+    hostId,
+    endpoint.url(path),
+    {
+      ...init,
+      credentials: endpoint.credentials,
+      headers: mergeHeaders(endpoint.headers, init.headers),
+    },
+    fetchImpl,
+  );
 };
 
 /**

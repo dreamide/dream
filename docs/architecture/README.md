@@ -123,6 +123,10 @@ Module names and current ownership live in ../../GLOSSARY.md.
 - `tasks/chat-drafts.md` tracks DRF-01 from the same review: each chat's
   live composer draft, text and references together, held outside React.
 
+- `tasks/turn-following.md` tracks FOL-01 from the same review, narrowed:
+  following host turns has one module, and the chat stream reaches its host
+  by the Host endpoint's rule.
+
 - `tasks/review-20261109.md` tracks SSH-PROMPT, SAVED-ROUTES and
   ATTACHMENT-LIFETIME: SSH prompt ownership, saved-connection edit lifetime,
   and attachment preparation and release.

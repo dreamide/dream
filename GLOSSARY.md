@@ -693,6 +693,15 @@ answered from `x-dream-turn-offset`); the renderer's **turn stream cache**
 so the AI SDK still replays the turn whole. Without a copy, or for another
 turn, the host sends it from the start.
 
+**Following** a turn (`src/components/ide/chat/turn-following.ts`) is this
+client reading a running host turn into a chat's session. It follows each
+chat once at a time; a request made during a follow runs after it. A stream
+lost while its turn still runs is followed again, waiting twice as long each
+time up to a ceiling; the wait starts over once bytes arrive. Following
+stops when the turn ends, the host is unreachable, or the session is
+replaced. The chat stream's requests go to the host by the Host endpoint's
+rule (`fetchFromHost`), like every other request to a host.
+
 ## Turn contract
 
 The two things in a turn's stream that are Dream's own rather than the AI

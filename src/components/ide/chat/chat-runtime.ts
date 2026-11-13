@@ -22,8 +22,9 @@ import {
   useChatQueueStore,
 } from "@/lib/chat-queue";
 import {
+  fetchFromHost,
   hostRequestOptions,
-  reportHostResponse,
+  isTransientHostStatus,
 } from "@/lib/connections/host-endpoint";
 import {
   connectionRecovery,
@@ -75,6 +76,7 @@ import type { ChatMessageMetadata } from "./message-footer";
 import { fetchProviderSkills, providerSupportsSkills } from "./provider-skills";
 import { projectMessagesForRequest } from "./request-context";
 import type { ToolApprovalResponder } from "./tool-call-groups";
+import { createTurnFollowing } from "./turn-following";
 import {
   createTurnStreamCache,
   TurnStreamMismatchError,
@@ -82,8 +84,6 @@ import {
 
 /** How long an unwatched, idle session is kept before it is dropped. */
 export const CHAT_SESSION_IDLE_EVICT_MS = 30_000;
-const MIN_STREAM_RETRY_MS = 250;
-const MAX_STREAM_RETRY_MS = 5_000;
 
 // ── Translations ────────────────────────────────────────────────────────
 // The runtime has no React context. `ChatRuntimeHost` hands it the current
@@ -175,9 +175,6 @@ export interface ChatSessionView {
 
 interface InternalChatSession extends ChatSession {
   evictTimer: ReturnType<typeof setTimeout> | null;
-  retryTimer: ReturnType<typeof setTimeout> | null;
-  retryDelay: number;
-  reconnectNeeded: boolean;
   lastFlushedMessages: UIMessage[];
   /** Metadata captured at submit, merged into the turn's final message. */
   pendingAssistantMetadata: ChatMessageMetadata | null;
@@ -236,36 +233,15 @@ const chatFetch: typeof fetch = async (input, init) => {
     resume && typeof input === "string"
       ? turnStreams.resumeUrl(input, resume)
       : input;
-  let response: Response;
-  try {
-    response = await fetch(target, {
-      ...init,
-      headers,
-      redirect: "error",
-    });
-    if (hostId) reportHostResponse(hostId, response);
-    if (
-      response.status >= 500 ||
-      response.status === 408 ||
-      response.status === 429
-    ) {
-      await response.body?.cancel();
-      throw new ChatStreamUnavailableError(
-        `Chat stream unavailable (${response.status}).`,
-      );
-    }
-  } catch (error) {
-    if (
-      hostId &&
-      !(error instanceof DOMException && error.name === "AbortError")
-    ) {
-      connectionSupervisor.report(
-        hostId,
-        "unreachable",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
-    throw error;
+  // Sent as every request to a host is (host-endpoint.ts).
+  const response = hostId
+    ? await fetchFromHost(hostId, target, { ...init, headers })
+    : await fetch(target, { ...init, headers, redirect: "error" });
+  if (isTransientHostStatus(response.status)) {
+    await response.body?.cancel();
+    throw new ChatStreamUnavailableError(
+      `Chat stream unavailable (${response.status}).`,
+    );
   }
   if (!streamChatId) return response;
   try {
@@ -348,10 +324,9 @@ const handleSessionError = (session: InternalChatSession, error: Error) => {
   if (
     error instanceof TypeError ||
     error instanceof ChatStreamUnavailableError ||
-    (error instanceof ApiError &&
-      (error.status >= 500 || error.status === 408 || error.status === 429))
+    (error instanceof ApiError && isTransientHostStatus(error.status))
   ) {
-    session.reconnectNeeded = true;
+    turnFollowing.lost(session.chatId);
     setChatError(session.chatId, error.message);
     connectionSupervisor.report(
       resolveRequestHost({ chatId: session.chatId }),
@@ -360,7 +335,7 @@ const handleSessionError = (session: InternalChatSession, error: Error) => {
     );
     return;
   }
-  session.reconnectNeeded = false;
+  turnFollowing.failed(session.chatId);
   handleChatError(session.chatId, error);
 };
 
@@ -400,8 +375,8 @@ const handleChatFinish = (
   },
 ) => {
   const { chat, chatId } = session;
-  if (isDisconnect || (isError && session.reconnectNeeded)) {
-    session.reconnectNeeded = true;
+  if (isDisconnect || (isError && turnFollowing.isLost(chatId))) {
+    turnFollowing.lost(chatId);
     flushSession(session);
     return;
   }
@@ -515,12 +490,9 @@ const publishSessionView = (session: InternalChatSession) => {
 const observeSessionMessages = (session: InternalChatSession) => {
   const { chat, chatId } = session;
   const messages = chat.messages;
-  if (chat.status === "streaming") {
-    session.retryDelay = MIN_STREAM_RETRY_MS;
-    if (session.reconnectNeeded) {
-      session.reconnectNeeded = false;
-      dismissChatError(chatId);
-    }
+  // Bytes arrived: a stream lost before is live again.
+  if (chat.status === "streaming" && turnFollowing.receiving(chatId)) {
+    dismissChatError(chatId);
   }
 
   useIdeStore
@@ -579,10 +551,7 @@ const disposeSession = (session: InternalChatSession) => {
     clearTimeout(session.evictTimer);
     session.evictTimer = null;
   }
-  if (session.retryTimer !== null) {
-    clearTimeout(session.retryTimer);
-    session.retryTimer = null;
-  }
+  turnFollowing.forget(session.chatId);
   session.unsubscribeMessages();
   flushSession(session);
   session.releaseTranscript();
@@ -658,9 +627,6 @@ export const getChatSession = (chatId: string): ChatSession => {
     }),
     chatId,
     evictTimer: null,
-    retryTimer: null,
-    retryDelay: MIN_STREAM_RETRY_MS,
-    reconnectNeeded: false,
     lastFlushedMessages: initialMessages,
     pendingAssistantMetadata: null,
     refreshedWriteEvents: new Set(),
@@ -689,41 +655,31 @@ export const getChatSession = (chatId: string): ChatSession => {
   scheduleEviction(session);
   // A turn already running on the host (started by another window, or by
   // this one before a reload) is followed from where it is.
-  resumeHostTurn(session);
+  turnFollowing.follow(session);
   return session;
 };
 
 /**
- * Follows the host's running turn in this session's chat, unless this
- * session is already the one streaming it.
+ * Following host turns into sessions (turn-following.ts): what a follow
+ * does is this runtime's.
  */
-const resuming = new Set<string>();
-const pendingResumes = new Set<string>();
-const resumeHostTurn = (session: InternalChatSession, newTurn = false) => {
-  const { chatId } = session;
-  if (newTurn && (isChatProcessing(session.chat) || resuming.has(chatId)))
-    pendingResumes.add(chatId);
-  if (
-    !useIdeStore.getState().hostRunningChatIds[chatId] ||
-    !connectionRecovery.canConnect(resolveRequestHost({ chatId })) ||
-    isChatProcessing(session.chat) ||
-    resuming.has(chatId)
-  )
-    return;
-  if (session.retryTimer !== null) {
-    clearTimeout(session.retryTimer);
-    session.retryTimer = null;
-  }
-  resuming.add(chatId);
-  pendingResumes.delete(chatId);
-  void (async () => {
+const turnFollowing = createTurnFollowing<InternalChatSession>({
+  canFollow: (chatId) =>
+    Boolean(useIdeStore.getState().hostRunningChatIds[chatId]) &&
+    connectionRecovery.canConnect(resolveRequestHost({ chatId })),
+  isCurrent: (session) => sessions.get(session.chatId) === session,
+  isStreaming: (session) => isChatProcessing(session.chat),
+  stopStream: (session) => void session.chat.stop(),
+  hostOf: (chatId) => resolveRequestHost({ chatId }),
+  follow: async (session) => {
+    const { chatId } = session;
     await useIdeStore.getState().applyCatalogTranscript(chatId);
     if (
       sessions.get(chatId) !== session ||
       !useIdeStore.getState().hostRunningChatIds[chatId] ||
       !connectionRecovery.canConnect(resolveRequestHost({ chatId }))
     )
-      return;
+      return false;
     const messages = useIdeStore.getState().messagesByChatId[chatId] ?? [];
     session.chat.messages = mergeChatMessageHistories(
       session.chat.messages,
@@ -731,43 +687,27 @@ const resumeHostTurn = (session: InternalChatSession, newTurn = false) => {
     );
     useIdeStore.getState().setChatStreaming(chatId, true);
     await session.chat.resumeStream();
-    if (session.chat.status === "ready") {
-      session.reconnectNeeded = false;
-      dismissChatError(chatId);
-      // A 204 or completed stream may have overtaken the socket's turn-end
-      // event. Refresh the authoritative running set as well as the text.
-      if (useIdeStore.getState().hostRunningChatIds[chatId])
-        await useIdeStore
-          .getState()
-          .refreshHostCatalog(resolveRequestHost({ chatId }));
-    }
-  })()
-    .catch((error: Error) => handleSessionError(session, error))
-    .finally(() => {
-      resuming.delete(chatId);
-      if (sessions.get(chatId) !== session) return;
-      useIdeStore.getState().setChatStreaming(chatId, false);
-      const projectId = findChatConfig(chatId)?.projectId;
-      if (projectId) flushProjectPanelRefresh(projectId);
-      void useIdeStore.getState().applyCatalogTranscript(chatId);
-      void refreshChatQueue(chatId);
-      scheduleEviction(session);
-      if (pendingResumes.delete(chatId)) {
-        resumeHostTurn(session);
-      } else if (
-        session.reconnectNeeded &&
-        useIdeStore.getState().hostRunningChatIds[chatId] &&
-        connectionRecovery.canConnect(resolveRequestHost({ chatId }))
-      ) {
-        const delay = session.retryDelay;
-        session.retryDelay = Math.min(delay * 2, MAX_STREAM_RETRY_MS);
-        session.retryTimer = setTimeout(() => {
-          session.retryTimer = null;
-          resumeHostTurn(session);
-        }, delay);
-      }
-    });
-};
+    if (session.chat.status !== "ready") return false;
+    dismissChatError(chatId);
+    // A 204 or completed stream may have overtaken the socket's turn-end
+    // event. Refresh the authoritative running set as well as the text.
+    if (useIdeStore.getState().hostRunningChatIds[chatId])
+      await useIdeStore
+        .getState()
+        .refreshHostCatalog(resolveRequestHost({ chatId }));
+    return true;
+  },
+  onError: (session, error) => handleSessionError(session, error),
+  onSettled: (session) => {
+    const { chatId } = session;
+    useIdeStore.getState().setChatStreaming(chatId, false);
+    const projectId = findChatConfig(chatId)?.projectId;
+    if (projectId) flushProjectPanelRefresh(projectId);
+    void useIdeStore.getState().applyCatalogTranscript(chatId);
+    void refreshChatQueue(chatId);
+    scheduleEviction(session);
+  },
+});
 
 /**
  * Follows every running turn again, on a fresh stream: after the client was
@@ -777,15 +717,7 @@ const resumeHostTurn = (session: InternalChatSession, newTurn = false) => {
  * running but not followed is resumed.
  */
 export const reattachChatStreams = (hostId: string) => {
-  for (const session of sessions.values()) {
-    if (resolveRequestHost({ chatId: session.chatId }) !== hostId) continue;
-    if (isChatProcessing(session.chat) || resuming.has(session.chatId)) {
-      pendingResumes.add(session.chatId);
-      void session.chat.stop();
-    } else {
-      resumeHostTurn(session);
-    }
-  }
+  turnFollowing.reattach(hostId, sessions.values());
 };
 
 /**
@@ -1104,7 +1036,7 @@ export const submitChatPrompt = (
       await refreshChatQueue(chatId);
       // Very short turns can finish before a stream subscription is established.
       await useIdeStore.getState().applyCatalogTranscript(chatId);
-      resumeHostTurn(session);
+      turnFollowing.follow(session);
       return true;
     })
     .catch((error: unknown) => {
@@ -1296,7 +1228,7 @@ export const startChatRuntime = () => {
           state.hostRunningChatIds[session.chatId] &&
           !previous.hostRunningChatIds[session.chatId]
         ) {
-          resumeHostTurn(session, true);
+          turnFollowing.follow(session, { newTurn: true });
         }
       }
       warmCommitMessagesOfSettledProjects(state, previous);
