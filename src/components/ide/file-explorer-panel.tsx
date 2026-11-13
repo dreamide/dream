@@ -951,7 +951,7 @@ const FileExplorerPanelImpl = ({
             />
           ) : null}
         </div>
-        <div className="min-h-0 flex-1 p-3">
+        <div className="min-h-0 flex-1 p-3" data-right-panel-body>
           <AppShellPlaceholder message={panelsT("addProjectForFiles")} />
         </div>
       </div>
@@ -987,7 +987,11 @@ const FileExplorerPanelImpl = ({
         </div>
       </div>
 
-      <div ref={splitContainerRef} className="flex min-h-0 flex-1">
+      <div
+        className="flex min-h-0 flex-1"
+        data-right-panel-body
+        ref={splitContainerRef}
+      >
         {/* File tree */}
         <div
           ref={treePaneRef}

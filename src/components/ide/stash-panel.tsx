@@ -324,7 +324,7 @@ const StashPanelImpl = ({
         ) : null}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto" data-right-panel-body>
         {stashItems.length === 0 ? (
           <div className="p-3">
             <AppShellPlaceholder message={stashT("empty")} />

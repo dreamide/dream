@@ -44,7 +44,7 @@ const WorkspaceRightPanelImpl = ({
   widthRef,
 }: WorkspaceRightPanelProps) => (
   <WorkspaceSlidingPanel
-    className={cn(panelExpanded && "left-0 right-0 z-50")}
+    className={cn(panelExpanded && "left-0 z-50")}
     contentClassName={panelExpanded ? "pb-0" : "pb-2"}
     contentMinWidth={BROWSER_PANEL_MIN_WIDTH_PX}
     handleVisible={panelExpanded ? false : handleVisible}

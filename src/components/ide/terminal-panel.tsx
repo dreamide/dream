@@ -678,7 +678,7 @@ export const ProjectTerminalTabsPanel = ({
           />
         ) : null}
       </div>
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1" data-right-panel-body>
         {sessionIds.map((sessionId, index) => {
           const isActive = sessionId === resolvedActiveSessionId;
 

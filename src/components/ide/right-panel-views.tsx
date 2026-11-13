@@ -37,6 +37,24 @@ const StashPanel = lazy(() =>
 const RIGHT_PANEL_SURFACE_CLASSES =
   "overflow-hidden rounded-lg border border-surface-300 dark:border-surface-700 bg-background text-foreground shadow-md";
 
+// Expanded, the surface loses its frame and the headers blend into the
+// workspace. The area under each view's header (marked data-right-panel-body)
+// becomes the card: its top border takes over the header's bottom line, and
+// it gets a right border and a rounded top-right corner. The ring paints the
+// header color into the corner outside the curve, hiding the header's line
+// there; elsewhere it falls on the header itself or is clipped.
+const EXPANDED_BODY_CLASSES = [
+  "[&_[data-right-panel-body]]:-mt-px",
+  "[&_[data-right-panel-body]]:rounded-tr-lg",
+  "[&_[data-right-panel-body]]:border-t",
+  "[&_[data-right-panel-body]]:border-r",
+  "[&_[data-right-panel-body]]:border-surface-200",
+  "dark:[&_[data-right-panel-body]]:border-surface-800",
+  "[&_[data-right-panel-body]]:ring-4",
+  "[&_[data-right-panel-body]]:ring-surface-50",
+  "dark:[&_[data-right-panel-body]]:ring-surface-900",
+].join(" ");
+
 const RightPanelLoadingFallback = () => (
   <div className="flex h-full items-center justify-center">
     <Spinner className="text-muted-foreground" />
@@ -109,7 +127,8 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
         className={cn(
           RIGHT_PANEL_SURFACE_CLASSES,
           "flex min-h-0 flex-1 flex-col",
-          props.panelExpanded && "rounded-none border-0 shadow-none",
+          props.panelExpanded &&
+            cn("rounded-none border-0 shadow-none", EXPANDED_BODY_CLASSES),
         )}
         data-base-color={baseColor === "neutral" ? undefined : baseColor}
       >

@@ -564,9 +564,13 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
   const boundedRightPanelMaxWidth = Number.isFinite(rightPanelMaxWidth)
     ? rightPanelMaxWidth
     : Number.MAX_SAFE_INTEGER;
+  // Expanded, the panel covers the chats and the left nav but stops at the
+  // right rail, so its buttons still switch views without collapsing it.
   const rightPanelExpandedWidth = Math.max(
     BROWSER_PANEL_MIN_WIDTH_PX,
-    workspaceWidth || renderedRightWidthRef.current,
+    workspaceWidth
+      ? workspaceWidth - WORKSPACE_SIDE_NAV_WIDTH_PX
+      : renderedRightWidthRef.current,
   );
 
   return (
