@@ -737,7 +737,10 @@ preload and the renderer.
 The translator from one provider's native events to agent-turn calls
 (`*-stream.js`). ACP providers share one translator with a smaller
 per-provider adapter behind it (`acp-stream.js` with `cursor-stream.js`
-and `grok-stream.js`).
+and `grok-stream.js`). OpenCode's runs over an **OpenCode server** for its
+turn (`electron/api/providers/opencode-server.js`). That module is the only
+place Dream starts one, for one-shot prompts and usage reads too, and the
+one rule for whether a saved OpenCode session may be resumed.
 
 ## CLI catalog
 

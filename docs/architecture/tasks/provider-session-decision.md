@@ -101,8 +101,10 @@ the affected suites had 28 files and 201 tests. What the tests cover:
 
 Gaps:
 
-- OpenCode's adapter still has no test harness (review candidate 4), so its
-  start report is checked only by reading the code.
+- OpenCode's adapter had no test harness (review candidate 4), so its start
+  report was checked only by reading the code. Closed by OCS-01
+  (`opencode-server.md`, 2026-11-13): `opencode-stream.test.js` checks the
+  report for a fresh, a resumed and a replaced session.
 - The Antigravity test checks the resumed launch, not the start report.
 
 Remaining/deferred:

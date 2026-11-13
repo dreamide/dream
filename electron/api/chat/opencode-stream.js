@@ -1,8 +1,12 @@
 // The OpenCode translator: OpenCode server events become calls on the agent
 // turn. OpenCode names its own text and tool parts, so those ids are passed
 // through and the turn ends each part when OpenCode does.
-import { createOpencode } from "@opencode-ai/sdk";
 import { parseOpenCodeModel } from "../providers/generate-text.js";
+import {
+  createOpenCodeSession,
+  openOpenCodeServer,
+  resumeOpenCodeSession,
+} from "../providers/opencode-server.js";
 import { streamAgentTurn } from "./agent-turn.js";
 import {
   buildCodexConversationPrompt,
@@ -14,7 +18,6 @@ import { toOpenCodeMcpConfig } from "./mcp-servers.js";
 import { resolveOpenCodeDisabledTools } from "./opencode-tool-budget.js";
 import { withSessionHandoff } from "./provider-session.js";
 
-const OPENCODE_SERVER_TIMEOUT_MS = 10000;
 const OPENCODE_WRITE_TOOL_NAMES = new Set([
   "apply-patch",
   "applypatch",
@@ -510,7 +513,8 @@ export const streamOpenCodeResponse = ({
         const messageRoleById = new Map();
         const pendingPartEventsByMessageId = new Map();
         let hasWrittenText = false;
-        let opencode = null;
+        /** The turn's OpenCode server (providers/opencode-server.js). */
+        let server = null;
         const serverAbortController = new AbortController();
 
         const finish = (callback) => {
@@ -518,7 +522,7 @@ export const streamOpenCodeResponse = ({
           finished = true;
           abortSignal?.removeEventListener("abort", handleAbort);
           serverAbortController.abort();
-          opencode?.server.close();
+          server?.close();
           callback();
         };
 
@@ -719,7 +723,7 @@ export const streamOpenCodeResponse = ({
             })
           ) {
             await replyToOpenCodePermission({
-              client: opencode.client,
+              client: server.client,
               directory: projectPath,
               permission,
               response: "once",
@@ -739,7 +743,7 @@ export const streamOpenCodeResponse = ({
           });
 
           await replyToOpenCodePermission({
-            client: opencode.client,
+            client: server.client,
             directory: projectPath,
             permission,
             response: approval.approved
@@ -901,17 +905,19 @@ export const streamOpenCodeResponse = ({
           );
 
           const { modelID, providerID } = parseOpenCodeModel(model);
-          opencode = await createOpencode({
+          server = await openOpenCodeServer({
             config: getOpenCodeServerConfig(permissionMode, mcpServers),
-            hostname: "127.0.0.1",
-            port: 0,
             signal: serverAbortController.signal,
-            timeout: OPENCODE_SERVER_TIMEOUT_MS,
           });
+          // The turn ended while the server started: nothing will close it.
+          if (finished) {
+            server.close();
+            return;
+          }
 
           // Starts now so MCP tool listing overlaps session setup.
           const disabledToolsPromise = resolveOpenCodeDisabledTools({
-            client: opencode.client,
+            client: server.client,
             directory: projectPath,
             preferredServers: Object.keys(toOpenCodeMcpConfig(mcpServers)),
             signal: serverAbortController.signal,
@@ -919,68 +925,32 @@ export const streamOpenCodeResponse = ({
 
           let resumed = false;
           let freshReason = null;
+          const signal = serverAbortController.signal;
           if (resumeSessionId) {
-            const existingSession = await opencode.client.session.get({
-              path: { id: resumeSessionId },
-              query: { directory: projectPath },
-              signal: serverAbortController.signal,
+            const resume = await resumeOpenCodeSession(server.client, {
+              directory: projectPath,
+              sessionId: resumeSessionId,
+              signal,
             });
-            freshReason = "OpenCode no longer has the saved session.";
-            if (existingSession.data?.id === resumeSessionId) {
-              freshReason =
-                "OpenCode's saved session ended unfinished or with an error.";
-              // OpenCode persists failed and interrupted messages. Reusing
-              // that session can repeat the failure on every Retry. Inspect
-              // its last message before sending anything; reconstruct an
-              // unhealthy session from Dream's saved conversation instead.
-              const previousMessages = await opencode.client.session.messages({
-                path: { id: resumeSessionId },
-                query: { directory: projectPath, limit: 1 },
-                signal: serverAbortController.signal,
-              });
-              const previous = Array.isArray(previousMessages.data)
-                ? previousMessages.data.at(-1)?.info
-                : null;
-              if (
-                previous?.role === "assistant" &&
-                !previous.error &&
-                typeof previous.time?.completed === "number" &&
-                previous.finish &&
-                previous.finish !== "tool-calls"
-              ) {
-                activeSessionId = existingSession.data.id;
-                resumed = true;
-              }
+            if (resume.resumed) {
+              activeSessionId = resumeSessionId;
+              resumed = true;
+            } else {
+              freshReason = resume.reason;
             }
           }
-
-          if (!activeSessionId) {
-            const sessionResult = await opencode.client.session.create({
-              body: {
-                agent: "build",
-                model: {
-                  id: modelID,
-                  providerID,
-                },
-              },
-              query: { directory: projectPath },
-              signal: serverAbortController.signal,
-            });
-            activeSessionId = sessionResult.data?.id;
-          }
-
-          if (!activeSessionId) {
-            throw new Error("OpenCode did not return a session id.");
-          }
-
-          turn.session(activeSessionId, {
-            resumed,
-            reason: resumeSessionId ? freshReason : null,
+          activeSessionId ??= await createOpenCodeSession(server.client, {
+            agent: "build",
+            directory: projectPath,
+            model: { modelID, providerID },
+            signal,
           });
+
+          turn.session(activeSessionId, { resumed, reason: freshReason });
           const prompt = resumed ? currentTurnPrompt : fullPrompt;
           submittedPrompt = prompt;
 
-          const events = await opencode.client.event.subscribe({
+          const events = await server.client.event.subscribe({
             query: { directory: projectPath },
             signal: serverAbortController.signal,
             sseMaxRetryAttempts: 0,
@@ -1023,7 +993,7 @@ export const streamOpenCodeResponse = ({
                 ? OPENCODE_TOOL_BUDGET_RESET
                 : undefined;
 
-          const promptResult = await opencode.client.session.prompt({
+          const promptResult = await server.client.session.prompt({
             body: {
               agent: "build",
               ...(promptTools ? { tools: promptTools } : {}),

@@ -4,7 +4,6 @@
 // registry. Every runner takes the same options; a CLI with no system
 // prompt slot gets `system` inlined ahead of the prompt.
 import { spawn } from "node:child_process";
-import { createOpencode } from "@opencode-ai/sdk";
 import { generateText } from "ai";
 import { claudeCode } from "ai-sdk-provider-claude-code";
 import { stopChildProcess } from "../../process-tree.js";
@@ -32,8 +31,13 @@ import {
   resolveCursorCliLaunch,
 } from "./cursor-cli.js";
 import { runGrokPrompt } from "./grok-acp.js";
+import {
+  createOpenCodeSession,
+  withOpenCodeServer,
+} from "./opencode-server.js";
 
-const OPENCODE_SERVER_TIMEOUT_MS = 15_000;
+// A one-shot prompt's server may take longer to start than a turn's.
+const OPENCODE_TEXT_SERVER_TIMEOUT_MS = 15_000;
 const OPENCODE_DEFAULT_REQUEST_TIMEOUT_MS = 120_000;
 
 const inlineSystemPrompt = (system, prompt) =>
@@ -247,55 +251,45 @@ export const runOpenCodePrompt = async ({
     throw new Error("No OpenCode model is available.");
   }
 
-  const { modelID, providerID } = parseOpenCodeModel(requestedModel);
+  const openCodeModel = parseOpenCodeModel(requestedModel);
   const requestAbortController = new AbortController();
+  const signal = requestAbortController.signal;
   const requestTimeout = setTimeout(() => {
     requestAbortController.abort();
   }, timeoutMs);
-  let opencode = null;
 
   try {
-    opencode = await createOpencode({
-      hostname: "127.0.0.1",
-      port: 0,
-      signal: requestAbortController.signal,
-      timeout: OPENCODE_SERVER_TIMEOUT_MS,
-    });
-
-    const sessionResult = await opencode.client.session.create(
-      {
-        body: { agent: "plan", model: { id: modelID, providerID } },
-        query: { directory: projectPath },
-      },
-      { signal: requestAbortController.signal },
-    );
-    const sessionId = sessionResult.data?.id;
-    if (!sessionId) {
-      throw new Error("OpenCode did not return a session id.");
-    }
-
-    const promptResult = await opencode.client.session.prompt(
-      {
-        body: {
+    return await withOpenCodeServer(
+      { signal, timeoutMs: OPENCODE_TEXT_SERVER_TIMEOUT_MS },
+      async (client) => {
+        const sessionId = await createOpenCodeSession(client, {
           agent: "plan",
-          model: { modelID, providerID },
-          parts: [{ text: inlineSystemPrompt(system, prompt), type: "text" }],
-        },
-        path: { id: sessionId },
-        query: { directory: projectPath },
+          directory: projectPath,
+          model: openCodeModel,
+          signal,
+        });
+        const promptResult = await client.session.prompt({
+          body: {
+            agent: "plan",
+            model: openCodeModel,
+            parts: [{ text: inlineSystemPrompt(system, prompt), type: "text" }],
+          },
+          path: { id: sessionId },
+          query: { directory: projectPath },
+          signal,
+        });
+        return (promptResult.data?.parts ?? [])
+          .map(getOpenCodePartText)
+          .join(" ");
       },
-      { signal: requestAbortController.signal },
     );
-
-    return (promptResult.data?.parts ?? []).map(getOpenCodePartText).join(" ");
   } catch (error) {
-    if (requestAbortController.signal.aborted) {
+    if (signal.aborted) {
       throw new Error("OpenCode request timed out.");
     }
     throw error;
   } finally {
     clearTimeout(requestTimeout);
-    opencode?.server.close();
   }
 };
 

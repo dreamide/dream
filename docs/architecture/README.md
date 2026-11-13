@@ -108,6 +108,10 @@ Module names and current ownership live in ../../GLOSSARY.md.
   to a state database is a named row in one table, beside the catalog's
   reads, run in a transaction of its own.
 
+- `tasks/opencode-server.md` tracks OCS-01 from the same review: one
+  module starts every OpenCode server, and the OpenCode Provider adapter is
+  replay-tested over a scripted one.
+
 - `tasks/review-20261109.md` tracks SSH-PROMPT, SAVED-ROUTES and
   ATTACHMENT-LIFETIME: SSH prompt ownership, saved-connection edit lifetime,
   and attachment preparation and release.
