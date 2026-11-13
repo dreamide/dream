@@ -1,50 +1,35 @@
-// Coalescing queue in front of the persisted-state save worker.
+// The queue in front of the persisted-state save worker: the one writer of
+// a state database.
 //
-// Workspace change sets, transcripts, host catalog changes and single config
-// values (theme, install id) share one worker: it holds the only connection
-// that writes the database, so their order is deterministic and no thread
-// that serves the UI waits on a write lock. Adjacent transcript saves of one
-// chat are merged into one; everything else is a delta and runs as sent.
+// Every write (state-writes.js) goes through it by name, and the worker
+// (persisted-state-worker.js) holds the only connection that writes the
+// database, so writes run in the order they were queued and no thread that
+// serves the UI waits on a write lock. A write the table says may merge
+// (adjacent transcript saves of one chat) is merged with the same write
+// queued just before it; everything else is a delta and runs as sent.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
+import { findStateWrite } from "./state-writes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WORKER_PATH = path.join(__dirname, "persisted-state-worker.js");
 const FLUSH_TIMEOUT_MS = 5000;
 
-const saveStartIndex = (payload) =>
-  Number.isInteger(payload?.fromIndex) && payload.fromIndex > 0
-    ? payload.fromIndex
-    : 0;
-
 /**
- * One transcript save standing for `queued` followed by `next`, or null when
- * they cannot be one (different chats, or `next` starts past where `queued`
- * ends). A save replaces its chat's transcript from `fromIndex` on, so the
- * later one wins from its own start and the queued one keeps what it said
- * before that.
+ * What writes a state database, for everything that writes one: the host's
+ * catalog (host/catalog.js), its device sessions (host/auth/host-auth.js)
+ * and the desktop's workspace. A save queue is one; a desktop sharing its
+ * database with its in-process host hands the host its own.
+ * @typedef {object} StateWriter
+ * @property {(name: string, payload: unknown) => Promise<any>} write
+ *   Runs the write `name` (state-writes.js), after every write queued
+ *   before it.
+ * @property {() => Promise<unknown>} ready Settles once the database exists
+ *   and is migrated: what a reader on another thread waits for.
+ * @property {() => Promise<unknown>} settled Settles once every write
+ *   queued before it has.
  */
-export const mergeChatMessageSaves = (queued, next) => {
-  if (queued?.mergeOnly || next?.mergeOnly) return null;
-  if (
-    queued?.chatId !== next?.chatId ||
-    !Array.isArray(queued?.messages) ||
-    !Array.isArray(next?.messages)
-  ) {
-    return null;
-  }
-  const queuedStart = saveStartIndex(queued);
-  const nextStart = saveStartIndex(next);
-  if (nextStart <= queuedStart) return next;
-  const kept = nextStart - queuedStart;
-  if (kept > queued.messages.length) return null;
-  return {
-    ...next,
-    fromIndex: queuedStart,
-    messages: [...queued.messages.slice(0, kept), ...next.messages],
-  };
-};
 
 export function createStateSaveQueue({ databasePath }) {
   /** @type {Worker | null} */
@@ -54,7 +39,7 @@ export function createStateSaveQueue({ databasePath }) {
   let closed = false;
   /** @type {Map<number, { resolve: (value: unknown) => void, reject: (error: Error) => void }>} */
   const inFlight = new Map();
-  /** @type {Array<{ type: string, payload: any, resolvers: Array<{ resolve: (value: unknown) => void, reject: (error: Error) => void }> }>} */
+  /** @type {Array<{ type: string, name?: string, payload: any, resolvers: Array<{ resolve: (value: unknown) => void, reject: (error: Error) => void }> }>} */
   let pending = [];
 
   const failAll = (error) => {
@@ -139,8 +124,9 @@ export function createStateSaveQueue({ databasePath }) {
     try {
       ensureWorker().postMessage({
         id,
-        type: operation.type,
+        name: operation.name,
         payload: operation.payload,
+        type: operation.type,
       });
     } catch (error) {
       inFlight.delete(id);
@@ -152,32 +138,7 @@ export function createStateSaveQueue({ databasePath }) {
     }
   };
 
-  const saveChatMessages = (payload) => {
-    if (closed) {
-      return Promise.reject(new Error("State save queue is closed."));
-    }
-
-    return new Promise((resolve, reject) => {
-      const latest = pending.at(-1);
-      const merged =
-        latest?.type === "save-chat-messages"
-          ? mergeChatMessageSaves(latest.payload, payload)
-          : null;
-      if (merged) {
-        latest.payload = merged;
-        latest.resolvers.push({ resolve, reject });
-      } else {
-        pending.push({
-          type: "save-chat-messages",
-          payload,
-          resolvers: [{ resolve, reject }],
-        });
-      }
-      drain();
-    });
-  };
-
-  /** Queues one operation that is never coalesced with another. */
+  /** Queues one message for the worker, never merged with another. */
   const enqueue = (type, payload) => {
     if (closed) {
       return Promise.reject(new Error("State save queue is closed."));
@@ -189,21 +150,43 @@ export function createStateSaveQueue({ databasePath }) {
     });
   };
 
-  // A catalog change set is a delta, so it is never coalesced: each one is
-  // applied, in order with every other write.
-  const applyCatalogChanges = (payload) => enqueue("catalog-changes", payload);
+  /**
+   * Queues the write `name` (state-writes.js), merged with the same write
+   * queued just before it where the write says it may be.
+   */
+  const write = (name, payload) => {
+    if (closed) {
+      return Promise.reject(new Error("State save queue is closed."));
+    }
+    const stateWrite = findStateWrite(name);
+    if (!stateWrite) {
+      return Promise.reject(new Error(`Unknown state write: ${String(name)}`));
+    }
 
-  // What changed in the workspace since the renderer's last save: small,
-  // and a delta, so never coalesced.
-  const saveWorkspaceChanges = (payload) =>
-    enqueue("save-workspace-changes", payload);
+    return new Promise((resolve, reject) => {
+      const latest = pending.at(-1);
+      const merged =
+        stateWrite.coalesce && latest?.type === "write" && latest.name === name
+          ? stateWrite.coalesce(latest.payload, payload)
+          : null;
+      if (merged) {
+        latest.payload = merged;
+        latest.resolvers.push({ resolve, reject });
+      } else {
+        pending.push({
+          name,
+          payload,
+          resolvers: [{ resolve, reject }],
+          type: "write",
+        });
+      }
+      drain();
+    });
+  };
 
   // The workspace as stored, read by the worker after every write queued
   // before it (a reloaded window sees what the old one saved).
   const loadWorkspace = () => enqueue("load-workspace", null);
-
-  // One config value ({ key, value }), written in order with the rest.
-  const saveConfigValue = (payload) => enqueue("save-config", payload);
 
   // Settles once the worker has opened (created and migrated) the database:
   // what readers on other threads wait for before opening it themselves.
@@ -246,21 +229,14 @@ export function createStateSaveQueue({ databasePath }) {
   };
 
   return {
+    write,
+    ready,
     /**
      * Settles once every write queued before it has: what a read that must
      * see them (a catalog load after a window's last saves) waits for.
      */
     settled: () => enqueue("open", null),
-    mutateRunQueue: (payload) => enqueue("run-queue", payload),
-    saveProviderSession: (payload) => enqueue("save-provider-session", payload),
-    /** A device session write (host/auth/session-store.js). */
-    writeDeviceSession: (payload) => enqueue("device-session", payload),
-    saveChatMessages,
-    applyCatalogChanges,
-    saveWorkspaceChanges,
     loadWorkspace,
-    ready,
-    saveConfigValue,
     flushAndClose,
   };
 }

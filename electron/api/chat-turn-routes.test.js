@@ -47,6 +47,7 @@ const { registerChatRoutes } = await import("./chat-routes.js");
 const { createHostCatalog } = await import("../host/catalog.js");
 const { configureHostDataDirectory } = await import("../host/host-paths.js");
 const persisted = await import("../persisted-state.js");
+const { createInThreadStateWriter } = await import("../state-writes.js");
 
 let directory = null;
 let turns = null;
@@ -93,22 +94,15 @@ const setup = async () => {
   configureHostDataDirectory(directory);
   const events = [];
   const saves = [];
+  const writer = createInThreadStateWriter();
   const catalog = createHostCatalog({
     events: { publish: (event) => events.push(event) },
+    // The same writes as the save queue, in this thread, each one tracked.
     getWriter: () => ({
-      saveProviderSession: async (payload) => {
-        const { saveProviderSession } = await import(
-          "../host/provider-session-store.js"
-        );
-        return trackWrite(() =>
-          saveProviderSession(persisted.getPersistedStateDatabase(), payload),
-        );
-      },
-      applyCatalogChanges: (changes) =>
-        trackWrite(() => persisted.applyPersistedCatalogChanges(changes)),
-      saveChatMessages: (payload) => {
-        saves.push(payload);
-        return trackWrite(() => persisted.savePersistedChatMessages(payload));
+      ...writer,
+      write: (name, payload) => {
+        if (name === "transcript") saves.push(payload);
+        return trackWrite(() => writer.write(name, payload));
       },
     }),
   });

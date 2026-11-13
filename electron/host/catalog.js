@@ -51,12 +51,7 @@ const catalogChat = (chat) => {
 /**
  * @param {{
  *   events: { publish: (event: object) => void },
- *   getWriter: () => {
- *     applyCatalogChanges: (changes: object) => Promise<any>,
- *     mutateRunQueue: (operation: { type: string, chatId?: string }) => Promise<any>,
- *     saveChatMessages: (payload: { chatId: string, fromIndex?: number, messages: unknown[] }) => Promise<unknown>,
- *     saveProviderSession: (payload: object) => Promise<unknown>,
- *   },
+ *   getWriter: () => import("../state-save-queue.js").StateWriter,
  *   getReader?: () => { read: (type: string, payload?: object) => Promise<any> },
  *   getRunningChatIds?: () => string[],
  *   getAwaitingApprovalChatIds?: () => string[],
@@ -85,9 +80,10 @@ export function createHostCatalog({
     transcriptPage: (request) => read("transcript-page", request),
     providerSession: (chatId, provider) =>
       read("provider-session", { chatId, provider }),
-    saveProviderSession: (payload) => getWriter().saveProviderSession(payload),
+    saveProviderSession: (payload) =>
+      getWriter().write("provider-session", payload),
     async mutateRunQueue(operation) {
-      const result = await getWriter().mutateRunQueue(operation);
+      const result = await getWriter().write("run-queue", operation);
       if (operation.chatId && result)
         events.publish({
           kind: "queue",
@@ -112,7 +108,7 @@ export function createHostCatalog({
      * after the writes queued before it (a reloaded window's last changes).
      */
     list: async () => {
-      await getWriter().settled?.();
+      await getWriter().settled();
       return {
         ...(await read("catalog")),
         runningChatIds: getRunningChatIds(),
@@ -138,7 +134,7 @@ export function createHostCatalog({
      * @param {{ origin?: string | null }} [options]
      */
     async applyChanges(changes, { origin = null } = {}) {
-      const result = await getWriter().applyCatalogChanges(changes);
+      const result = await getWriter().write("catalog-changes", changes);
       const projectIds = new Set(result.projectIds);
       const chatIds = new Set(result.chatIds);
       const projects = (Array.isArray(changes.projects) ? changes.projects : [])
@@ -200,7 +196,7 @@ export function createHostCatalog({
       { fromIndex = 0, mergeOnly = false, origin = null } = {},
     ) {
       const saved =
-        (await getWriter().saveChatMessages({
+        (await getWriter().write("transcript", {
           chatId,
           fromIndex,
           mergeOnly,

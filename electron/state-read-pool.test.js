@@ -31,7 +31,7 @@ test("readers open the database the writer made, and see each settled write", as
     // Before anything is written: the writer creates the file first.
     assert.deepEqual(await pool.read("catalog"), { chats: [], projects: [] });
 
-    await writer.applyCatalogChanges({
+    await writer.write("catalog-changes", {
       chats: [{ id: "c1", projectId: "p1", title: "Retry" }],
       projects: [{ id: "p1", path: "/work/p1" }],
     });
@@ -42,7 +42,7 @@ test("readers open the database the writer made, and see each settled write", as
         role: "user",
       },
     ];
-    await writer.saveChatMessages({ chatId: "c1", messages });
+    await writer.write("transcript", { chatId: "c1", messages });
 
     const [catalog, chat, transcript, search, projectPath] = await Promise.all([
       pool.read("catalog"),

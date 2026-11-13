@@ -338,7 +338,12 @@ The desktop's own SQLite file (`<name>.workspace.db`,
 `electron/workspace-database.js`): its config and settings, saved prompts
 and workspace rows. It sits beside the host's state database, which holds
 the catalog. Each file has one writer: the desktop's save queue for the
-workspace, the host's for the catalog. One host runs per state database,
+workspace, the host's for the catalog. Every write to either file is a named
+**state write** (`electron/state-writes.js`), the write side of the
+catalog's named reads. The save queue takes it by name, in order with the
+rest, and its worker runs it in a transaction of its own. A desktop that
+shares its database with its in-process host lends the host that same
+queue. One host runs per state database,
 held by its **state lock** (`electron/host/state-lock.js`): an exclusive
 SQLite transaction on `<state db>.host-owner` that the operating system
 releases however the host ends, described by `<state db>.host-lock` (who

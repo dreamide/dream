@@ -3,10 +3,8 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "vitest";
-import {
-  applyPersistedCatalogChanges,
-  closePersistedStateDatabase,
-} from "../persisted-state.js";
+import { closePersistedStateDatabase } from "../persisted-state.js";
+import { createInThreadStateWriter } from "../state-writes.js";
 import { createHostCatalog } from "./catalog.js";
 import {
   saveChatAttachments,
@@ -159,10 +157,7 @@ test("removing a chat or its project removes its files; soft delete keeps them",
   let swept = Promise.resolve();
   const catalog = createHostCatalog({
     events: { publish: () => {} },
-    getWriter: () => ({
-      applyCatalogChanges: async (changes) =>
-        applyPersistedCatalogChanges(changes),
-    }),
+    getWriter: () => createInThreadStateWriter(),
     onChatsRemoved: () => {
       swept = sweepChatAttachments(catalog);
     },

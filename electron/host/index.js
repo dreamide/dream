@@ -60,12 +60,11 @@ import { acquireStateLock } from "./state-lock.js";
  *   `trackActivity`: count in-flight requests so `isBusy` sees them (a
  *   daemon's idle shutdown needs it; the local host does not).
  *   `version`: the app version this host was built from, for host-info.
- *   `getStateWriter`: the save queue catalog writes go through. The local
- *   host shares Electron main's (one writer per database file); without it
- *   the host starts its own. A shared one needs every host write the save
- *   queue has: applyCatalogChanges, mutateRunQueue, ready,
- *   saveChatMessages, saveProviderSession and writeDeviceSession. Catalog reads go through the host's own read
- *   pool, which opens the file once the writer is `ready`.
+ *   `getStateWriter`: the writer the host's writes go through (a
+ *   `StateWriter`, state-save-queue.js). The local host shares Electron
+ *   main's save queue while they share a database (one writer per file);
+ *   without it the host starts its own. Catalog reads go through the host's
+ *   own read pool, which opens the file once the writer is `ready`.
  *   `resolveRemoteHost`: other hosts this one forwards requests to (the
  *   local host, for SSH-host projects); none on a daemon.
  *   `clientDirectory`: the browser client paired devices load (the

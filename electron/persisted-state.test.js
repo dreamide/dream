@@ -10,14 +10,11 @@ import {
   takeWorkspaceChanges,
 } from "../src/components/ide/store/workspace-save.ts";
 import {
-  applyPersistedCatalogChanges,
   closePersistedStateDatabase,
   getPersistedStateDatabase,
   loadPersistedCatalog,
   loadPersistedChatMessages,
   loadPersistedState,
-  savePersistedChatMessages,
-  savePersistedWorkspaceChanges,
 } from "./persisted-state.js";
 import {
   createChatConfig,
@@ -26,6 +23,7 @@ import {
   decodePersistedState,
   mergeWorkspaceAndCatalog,
 } from "./shared/persisted-state-codec.js";
+import { writeState } from "./state-writes.js";
 
 /**
  * Saves `state` as the workspace the way the app does: the renderer's
@@ -39,7 +37,7 @@ const savePersistedWorkspace = (state, options) => {
     recordWorkspace(state, { rows: true }),
     new Set(state.describedHostIds ?? ["local"]),
   );
-  return changes ? savePersistedWorkspaceChanges(changes, options) : true;
+  return changes ? writeState("workspace-changes", changes, options) : true;
 };
 
 // One database, two owners: the workspace (saved as a change set) and the local
@@ -47,7 +45,8 @@ const savePersistedWorkspace = (state, options) => {
 // load it back merged, the way the renderer does.
 const saveWholeState = (state, options) => {
   savePersistedWorkspace(state, options);
-  applyPersistedCatalogChanges(
+  writeState(
+    "catalog-changes",
     {
       chats: state.chats ?? [],
       projects: [...(state.projects ?? []), ...(state.closedProjects ?? [])],
@@ -57,7 +56,7 @@ const saveWholeState = (state, options) => {
   for (const [chatId, messages] of Object.entries(
     state.messagesByChatId ?? {},
   )) {
-    savePersistedChatMessages({ chatId, messages }, options);
+    writeState("transcript", { chatId, messages }, options);
   }
   return true;
 };

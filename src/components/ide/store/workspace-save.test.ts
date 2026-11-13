@@ -16,9 +16,9 @@ import type {
 import {
   closePersistedStateDatabase,
   loadPersistedState,
-  savePersistedWorkspaceChanges,
 } from "../../../../electron/persisted-state.js";
 import { encodePersistedState } from "../../../../electron/shared/persisted-state-codec.js";
+import { writeState } from "../../../../electron/state-writes.js";
 import {
   copyWorkspaceRecord,
   recordLoadedWorkspace,
@@ -41,7 +41,7 @@ const open = async () => {
   const databasePath = path.join(directory, "state.db");
   return {
     apply: (changes: unknown) =>
-      savePersistedWorkspaceChanges(changes, { databasePath }),
+      writeState("workspace-changes", changes, { databasePath }),
     load: () => loadPersistedState({ databasePath }) as PersistedWorkspace,
     // A whole workspace into whatever is stored, as one change set.
     saveWhole: (state: PersistedIdeState) => {
@@ -52,7 +52,7 @@ const open = async () => {
         recordWorkspace(state, { rows: true }),
         LOCAL,
       );
-      if (changes) savePersistedWorkspaceChanges(changes, { databasePath });
+      if (changes) writeState("workspace-changes", changes, { databasePath });
     },
   };
 };

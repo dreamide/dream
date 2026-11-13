@@ -10,7 +10,11 @@ const setup = () => {
   let time = Date.parse("2026-10-30T12:00:00Z");
   const auth = createHostAuth({
     getReader: () => ({ read: async () => [] }),
-    getWriter: () => ({ writeDeviceSession: async () => {} }),
+    getWriter: () => ({
+      ready: async () => true,
+      settled: async () => true,
+      write: async () => true,
+    }),
     now: () => time,
   });
   return {

@@ -117,16 +117,16 @@ test("ordered durable submissions deduplicate and each sees the previous saved a
 test("process loss interrupts claimed work and holds remaining work until explicit resume", async () => {
   const { catalog, writer } = await setup();
   const { requestId, chatId, ...payload } = request("uncertain");
-  await writer.mutateRunQueue({
+  await writer.write("run-queue", {
     type: "enqueue",
     chatId,
     id: requestId,
     request: payload,
   });
-  await writer.mutateRunQueue({ type: "claim", chatId });
+  await writer.write("run-queue", { type: "claim", chatId });
   const second = request("next");
   const { requestId: nextId, chatId: nextChat, ...nextPayload } = second;
-  await writer.mutateRunQueue({
+  await writer.write("run-queue", {
     type: "enqueue",
     chatId: nextChat,
     id: nextId,

@@ -104,6 +104,10 @@ Module names and current ownership live in ../../GLOSSARY.md.
   outside React for merging and removing a worktree, rendered by both
   dialogs that finish one.
 
+- `tasks/state-writes.md` tracks SWR-01 from the same review: every write
+  to a state database is a named row in one table, beside the catalog's
+  reads, run in a transaction of its own.
+
 - `tasks/review-20261109.md` tracks SSH-PROMPT, SAVED-ROUTES and
   ATTACHMENT-LIFETIME: SSH prompt ownership, saved-connection edit lifetime,
   and attachment preparation and release.

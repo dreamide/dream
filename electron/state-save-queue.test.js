@@ -7,10 +7,8 @@ import {
   closePersistedStateDatabase,
   loadPersistedCatalog,
 } from "./persisted-state.js";
-import {
-  createStateSaveQueue,
-  mergeChatMessageSaves,
-} from "./state-save-queue.js";
+import { createStateSaveQueue } from "./state-save-queue.js";
+import { mergeTranscriptSaves } from "./state-writes.js";
 
 const createProject = (id, lastUsedAt) => ({
   browserUrl: "",
@@ -74,19 +72,19 @@ test("state save queue lands catalog changes before the transcript, and coalesce
 
   try {
     // A workspace change set, as the renderer sends one.
-    const metadataSave = queue.saveWorkspaceChanges({
+    const metadataSave = queue.write("workspace-changes", {
       config: { activeProjectId: project.id },
     });
     // The chat reaches the catalog first; its transcript after.
-    const catalogChanges = queue.applyCatalogChanges({
+    const catalogChanges = queue.write("catalog-changes", {
       chats: [chat],
       projects: [project],
     });
-    const firstMessages = queue.saveChatMessages({
+    const firstMessages = queue.write("transcript", {
       chatId: chat.id,
       messages: [{ id: "message-one", parts: [], role: "user" }],
     });
-    const latestMessages = queue.saveChatMessages({
+    const latestMessages = queue.write("transcript", {
       chatId: chat.id,
       messages: [
         { id: "message-one", parts: [], role: "user" },
@@ -120,7 +118,7 @@ test("queued transcript saves of one chat become one save", () => {
 
   // A later save of the tail keeps the queued messages before it.
   assert.deepEqual(
-    mergeChatMessageSaves(whole, {
+    mergeTranscriptSaves(whole, {
       chatId: "c1",
       fromIndex: 1,
       messages: [late],
@@ -129,7 +127,7 @@ test("queued transcript saves of one chat become one save", () => {
   );
   // Two saves of the same tail: the later one.
   assert.deepEqual(
-    mergeChatMessageSaves(
+    mergeTranscriptSaves(
       { chatId: "c1", fromIndex: 1, messages: [early] },
       { chatId: "c1", fromIndex: 1, messages: [late] },
     ),
@@ -137,7 +135,7 @@ test("queued transcript saves of one chat become one save", () => {
   );
   // A later whole transcript replaces a queued tail.
   assert.deepEqual(
-    mergeChatMessageSaves(
+    mergeTranscriptSaves(
       { chatId: "c1", fromIndex: 1, messages: [early] },
       whole,
     ),
@@ -145,7 +143,7 @@ test("queued transcript saves of one chat become one save", () => {
   );
   // Not one save: a gap between them, or another chat.
   assert.equal(
-    mergeChatMessageSaves(whole, {
+    mergeTranscriptSaves(whole, {
       chatId: "c1",
       fromIndex: 3,
       messages: [late],
@@ -153,7 +151,7 @@ test("queued transcript saves of one chat become one save", () => {
     null,
   );
   assert.equal(
-    mergeChatMessageSaves(whole, { chatId: "c2", messages: [user] }),
+    mergeTranscriptSaves(whole, { chatId: "c2", messages: [user] }),
     null,
   );
 });
@@ -164,7 +162,7 @@ test("a workspace load waits for the changes queued before it, off the main thre
   const queue = createStateSaveQueue({ databasePath });
 
   try {
-    const saved = queue.saveWorkspaceChanges({
+    const saved = queue.write("workspace-changes", {
       config: { chatSort: "titleAsc" },
       upsertRows: [
         {

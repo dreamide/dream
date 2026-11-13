@@ -6,13 +6,12 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, test } from "vitest";
 import {
-  applyPersistedCatalogChanges,
   closePersistedStateDatabase,
   loadPersistedCatalog,
   loadPersistedChatMessages,
-  savePersistedChatMessages,
   searchPersistedChatMessages,
 } from "../persisted-state.js";
+import { writeState } from "../state-writes.js";
 import { loadChatMessagesJson, saveChatMessages } from "./catalog-store.js";
 
 let directory = null;
@@ -26,12 +25,14 @@ const open = async () => {
   directory = await mkdtemp(path.join(tmpdir(), "dream-catalog-test-"));
   const databasePath = path.join(directory, "state.db");
   return {
-    apply: (changes) => applyPersistedCatalogChanges(changes, { databasePath }),
+    apply: (changes) =>
+      writeState("catalog-changes", changes, { databasePath }),
     catalog: () => loadPersistedCatalog({ databasePath }),
     messages: (chatId) => loadPersistedChatMessages(chatId, { databasePath }),
     databasePath,
     saveMessages: (chatId, messages, fromIndex) =>
-      savePersistedChatMessages(
+      writeState(
+        "transcript",
         { chatId, fromIndex, messages },
         { databasePath },
       ),

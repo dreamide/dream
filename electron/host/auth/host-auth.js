@@ -116,7 +116,7 @@ const publicSession = (session) => ({
 
 /**
  * @param {{
- *   getWriter: () => { writeDeviceSession: (operation: object) => Promise<unknown> },
+ *   getWriter: () => import("../../state-save-queue.js").StateWriter,
  *   getReader: () => { read: (type: string, payload?: object) => Promise<any> },
  *   now?: () => number,
  *   randomBytes?: (size: number) => Buffer,
@@ -144,7 +144,7 @@ export function createHostAuth({
 
   const iso = (time) => new Date(time).toISOString();
   const token = (bytes) => randomBytes(bytes).toString("base64url");
-  const write = (operation) => getWriter().writeDeviceSession(operation);
+  const write = (operation) => getWriter().write("device-session", operation);
 
   const prune = () => {
     const time = now();

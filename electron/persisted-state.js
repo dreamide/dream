@@ -365,51 +365,50 @@ const isWorkspaceRow = (row) =>
  * Saves what changed in the client's workspace, as the renderer worked it
  * out (store/workspace-save.ts): only the config keys, saved prompts and
  * `workspace_projects` rows that differ from its last save. Rows of a host
- * the renderer does not describe come as `moveRows`.
+ * the renderer does not describe come as `moveRows`. It is the
+ * `workspace-changes` write (state-writes.js), which runs it in a
+ * transaction.
  */
-function saveWorkspaceChangesToRelationalDatabase(database, changes) {
+export function saveWorkspaceChanges(database, changes) {
   if (!isRecord(changes)) {
     return false;
   }
 
   const now = new Date().toISOString();
+  const config = isRecord(changes.config) ? changes.config : {};
+  for (const [key, value] of Object.entries(config)) {
+    writeConfig(database, key, value, now);
+  }
 
-  return runInTransaction(database, () => {
-    const config = isRecord(changes.config) ? changes.config : {};
-    for (const [key, value] of Object.entries(config)) {
-      writeConfig(database, key, value, now);
-    }
+  if (Array.isArray(changes.savedPrompts)) {
+    saveSavedPromptsToRelationalDatabase(database, changes.savedPrompts, now);
+  }
 
-    if (Array.isArray(changes.savedPrompts)) {
-      saveSavedPromptsToRelationalDatabase(database, changes.savedPrompts, now);
-    }
+  const { move, upsert } = workspaceRowWriters(database, now);
+  for (const row of Array.isArray(changes.upsertRows)
+    ? changes.upsertRows
+    : []) {
+    if (isWorkspaceRow(row)) upsert(row);
+  }
+  for (const row of Array.isArray(changes.moveRows) ? changes.moveRows : []) {
+    if (isWorkspaceRow(row)) move(row);
+  }
 
-    const { move, upsert } = workspaceRowWriters(database, now);
-    for (const row of Array.isArray(changes.upsertRows)
-      ? changes.upsertRows
-      : []) {
-      if (isWorkspaceRow(row)) upsert(row);
+  const remove = database.prepare(
+    "DELETE FROM workspace_projects WHERE host_id = ? AND project_id = ?",
+  );
+  for (const row of Array.isArray(changes.removeRows)
+    ? changes.removeRows
+    : []) {
+    if (
+      isRecord(row) &&
+      typeof row.hostId === "string" &&
+      typeof row.projectId === "string"
+    ) {
+      remove.run(row.hostId, row.projectId);
     }
-    for (const row of Array.isArray(changes.moveRows) ? changes.moveRows : []) {
-      if (isWorkspaceRow(row)) move(row);
-    }
-
-    const remove = database.prepare(
-      "DELETE FROM workspace_projects WHERE host_id = ? AND project_id = ?",
-    );
-    for (const row of Array.isArray(changes.removeRows)
-      ? changes.removeRows
-      : []) {
-      if (
-        isRecord(row) &&
-        typeof row.hostId === "string" &&
-        typeof row.projectId === "string"
-      ) {
-        remove.run(row.hostId, row.projectId);
-      }
-    }
-    return true;
-  });
+  }
+  return true;
 }
 
 /**
@@ -589,13 +588,15 @@ function importLegacyState(database, legacyState) {
   });
   // The workspace goes in as one change set over an empty workspace, the
   // same writer and row rule every later save uses.
-  saveWorkspaceChangesToRelationalDatabase(database, {
-    config: stateToConfig(encoded),
-    ...(Array.isArray(legacyState.savedPrompts)
-      ? { savedPrompts: encoded.savedPrompts }
-      : {}),
-    upsertRows: workspaceRowsOf(encoded),
-  });
+  runInTransaction(database, () =>
+    saveWorkspaceChanges(database, {
+      config: stateToConfig(encoded),
+      ...(Array.isArray(legacyState.savedPrompts)
+        ? { savedPrompts: encoded.savedPrompts }
+        : {}),
+      upsertRows: workspaceRowsOf(encoded),
+    }),
+  );
 }
 
 function getStateDatabase(databasePath = resolveStateDatabasePath()) {
@@ -668,75 +669,19 @@ export function openPersistedStateReader(databasePath) {
 
 /**
  * Writes one config value, as is (JSON), outside any other change: the
- * theme preference, the install id.
+ * theme preference, the install id. The `config` write (state-writes.js).
  */
-export function savePersistedConfigValue(
-  { key, value } = {},
-  { databasePath } = {},
-) {
+export function writeConfigValue(database, { key, value } = {}) {
   if (typeof key !== "string" || !key.trim()) {
     return false;
   }
-
-  writeConfig(
-    getStateDatabase(databasePath),
-    key,
-    value,
-    new Date().toISOString(),
-  );
+  writeConfig(database, key, value, new Date().toISOString());
   return true;
-}
-
-/** Saves what changed in the workspace; see the function it calls. */
-export function savePersistedWorkspaceChanges(changes, { databasePath } = {}) {
-  const database = getStateDatabase(databasePath);
-  return saveWorkspaceChangesToRelationalDatabase(database, changes);
-}
-
-export function savePersistedChatMessages(
-  { chatId, fromIndex, messages, mergeOnly = false } = {},
-  { databasePath } = {},
-) {
-  const database = getStateDatabase(databasePath);
-  return runInTransaction(database, () => {
-    if (mergeOnly) {
-      const updates = new Map(messages.map((message) => [message.id, message]));
-      const history = loadChatMessages(database, chatId);
-      const ids = new Set(history.map((message) => message.id));
-      if (messages.some((message) => !ids.has(message.id)))
-        throw new Error(
-          "History changed before saving. Reload the conversation.",
-        );
-      messages = history.map((message) => updates.get(message.id) ?? message);
-      fromIndex = 0;
-    }
-    return saveChatMessages(
-      database,
-      chatId,
-      messages,
-      new Date().toISOString(),
-      {
-        fromIndex,
-      },
-    );
-  });
 }
 
 /** The host catalog: every project and chat, raw. */
 export function loadPersistedCatalog({ databasePath } = {}) {
   return loadCatalog(getStateDatabase(databasePath));
-}
-
-/** Applies one catalog change set; see host/catalog-store.js. */
-export function applyPersistedCatalogChanges(changes, { databasePath } = {}) {
-  const database = getStateDatabase(databasePath);
-  return runInTransaction(database, () =>
-    applyCatalogChanges(
-      database,
-      isRecord(changes) ? changes : {},
-      new Date().toISOString(),
-    ),
-  );
 }
 
 /** The client's workspace (see loadWorkspaceFromRelationalDatabase). */

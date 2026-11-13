@@ -82,9 +82,9 @@ test("a Chat run saves its submission once, then only the assistant row, and res
     events: { publish() {} },
     getWriter: () => ({
       ...writer,
-      saveChatMessages: (payload) => {
-        saves.push(payload);
-        return writer.saveChatMessages(payload);
+      write: (name, payload) => {
+        if (name === "transcript") saves.push(payload);
+        return writer.write(name, payload);
       },
     }),
     getReader: () => reader,

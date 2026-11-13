@@ -205,26 +205,9 @@ const createInProcessHost = () =>
     dataDirectory: APP_USER_DATA_PATH,
     diagnosticsEnabled: !app.isPackaged,
     kind: "desktop",
-    // Only while the workspace could not move out: then the host's catalog
-    // writes share the workspace's queue, one writer for the one file.
-    ...(workspaceSeparate
-      ? {}
-      : {
-          getStateWriter: () => ({
-            applyCatalogChanges: (changes) =>
-              getStateSaveQueue().applyCatalogChanges(changes),
-            mutateRunQueue: (operation) =>
-              getStateSaveQueue().mutateRunQueue(operation),
-            ready: () => getStateSaveQueue().ready(),
-            saveChatMessages: (payload) =>
-              getStateSaveQueue().saveChatMessages(payload),
-            saveProviderSession: (payload) =>
-              getStateSaveQueue().saveProviderSession(payload),
-            settled: () => getStateSaveQueue().settled(),
-            writeDeviceSession: (operation) =>
-              getStateSaveQueue().writeDeviceSession(operation),
-          }),
-        }),
+    // Only while the workspace could not move out: then the host's writes
+    // share the workspace's queue, one writer for the one file.
+    ...(workspaceSeparate ? {} : { getStateWriter: () => getStateSaveQueue() }),
     version: dreamVersion,
     // Requests for SSH-host projects go through the local API to the host's
     // forwarded port (api/host-proxy-routes.js).
@@ -269,7 +252,7 @@ const themes = createThemeStore({
     loadPersistedThemePreference({ databasePath: WORKSPACE_DATABASE_PATH }),
   save: (preferences) => {
     getStateSaveQueue()
-      .saveConfigValue(themePreferenceConfigValue(preferences))
+      .write("config", themePreferenceConfigValue(preferences))
       .catch((error) => {
         console.error("Failed to save theme preference:", error);
       });
@@ -706,7 +689,7 @@ const desktop = createDesktopHandlers({
   state: {
     loadWorkspace: () => getStateSaveQueue().loadWorkspace(),
     saveWorkspaceChanges: (changes) =>
-      getStateSaveQueue().saveWorkspaceChanges(changes),
+      getStateSaveQueue().write("workspace-changes", changes),
   },
   systemPrefersDark: () => nativeTheme.shouldUseDarkColors,
   themes,
@@ -775,7 +758,7 @@ app
       installId = persisted.installId;
       if (persisted.created) {
         getStateSaveQueue()
-          .saveConfigValue(installIdConfigValue(installId))
+          .write("config", installIdConfigValue(installId))
           .catch((error) => {
             console.error("Failed to save install ID:", error);
           });

@@ -1,26 +1,19 @@
 // Worker thread that owns all persisted-state WRITES.
 //
-// Workspace change sets, transcript saves, host catalog changes and single
-// config values use synchronous SQLite transactions. Running them here keeps
+// Every write (state-writes.js) runs here, on the one connection that writes
+// the database, as a synchronous SQLite transaction. Running them here keeps
 // the Electron main thread free even when a completed transcript contains
 // large tool payloads.
 //
 // The parent passes the resolved database path in workerData so persisted-state.js
 // never needs the (unavailable) "electron" module.
 import { parentPort, workerData } from "node:worker_threads";
-import { writeDeviceSession } from "./host/auth/session-store.js";
-import { saveProviderSession } from "./host/provider-session-store.js";
-import { mutateRunQueue } from "./host/run-store.js";
-
 import {
-  applyPersistedCatalogChanges,
   closePersistedStateDatabase,
   getPersistedStateDatabase,
   loadPersistedState,
-  savePersistedChatMessages,
-  savePersistedConfigValue,
-  savePersistedWorkspaceChanges,
 } from "./persisted-state.js";
+import { runStateWrite } from "./state-writes.js";
 
 if (!parentPort) {
   throw new Error("persisted-state-worker must be run as a worker thread.");
@@ -31,29 +24,19 @@ const databasePath =
 const options = { databasePath };
 
 /**
- * Every operation the save queue (state-save-queue.js) sends, by message
- * type. A new write is one row here and one method on the queue.
+ * What the save queue (state-save-queue.js) sends besides writes. A new
+ * write is a row in state-writes.js, not a message here.
  */
-const operations = {
-  "run-queue": (payload) =>
-    mutateRunQueue(getPersistedStateDatabase(options), payload),
-  "device-session": (payload) =>
-    writeDeviceSession(getPersistedStateDatabase(options), payload),
-  "save-provider-session": (payload) =>
-    saveProviderSession(getPersistedStateDatabase(options), payload),
+const controls = {
+  /** Runs a write by its name (state-writes.js). */
+  write: ({ name, payload }) =>
+    runStateWrite(getPersistedStateDatabase(options), name, payload),
   // Opens (creating and migrating) the database, so readers on other
   // threads can open it after.
   open: () => {
     getPersistedStateDatabase(options);
     return true;
   },
-  "save-config": (payload) => savePersistedConfigValue(payload, options),
-  "save-chat-messages": (payload) =>
-    savePersistedChatMessages(payload, options),
-  "save-workspace-changes": (payload) =>
-    savePersistedWorkspaceChanges(payload, options),
-  "catalog-changes": (payload) =>
-    applyPersistedCatalogChanges(payload, options),
   // A read, run here so the main thread never waits on SQLite, and in turn
   // with the writes queued before it.
   "load-workspace": () => loadPersistedState(options),
@@ -69,8 +52,8 @@ parentPort.on("message", (message) => {
   }
 
   const { id, type } = message;
-  const operation = Object.hasOwn(operations, type) ? operations[type] : null;
-  if (!operation) {
+  const control = Object.hasOwn(controls, type) ? controls[type] : null;
+  if (!control) {
     parentPort.postMessage({
       id,
       ok: false,
@@ -83,7 +66,7 @@ parentPort.on("message", (message) => {
     parentPort.postMessage({
       id,
       ok: true,
-      result: operation(message.payload),
+      result: control(message),
     });
   } catch (error) {
     parentPort.postMessage({

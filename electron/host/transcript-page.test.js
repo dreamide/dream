@@ -4,12 +4,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, test } from "vitest";
 import {
-  applyPersistedCatalogChanges,
   closePersistedStateDatabase,
   getPersistedStateDatabase,
   loadPersistedChatMessages,
-  savePersistedChatMessages,
 } from "../persisted-state.js";
+import { writeState } from "../state-writes.js";
 import { readTranscriptPage } from "./transcript-page.js";
 
 let directory;
@@ -25,7 +24,8 @@ const message = (n, text = `Message ${n}`) => ({
 async function setup(messages) {
   directory = await mkdtemp(path.join(tmpdir(), "dream-pages-"));
   const options = { databasePath: path.join(directory, "state.db") };
-  applyPersistedCatalogChanges(
+  writeState(
+    "catalog-changes",
     {
       projects: [{ id: "p", path: "/work", name: "p" }],
       chats: [
@@ -35,7 +35,7 @@ async function setup(messages) {
     },
     options,
   );
-  savePersistedChatMessages({ chatId: "c", messages }, options);
+  writeState("transcript", { chatId: "c", messages }, options);
   return { db: getPersistedStateDatabase(options), options };
 }
 
@@ -54,7 +54,8 @@ test("recent pages bound transfer and retain stable cursors through append and r
   console.info(
     `Transcript transfer fixture: ${fullBytes} bytes full, ${pageBytes} bytes recent page.`,
   );
-  savePersistedChatMessages(
+  writeState(
+    "transcript",
     { chatId: "c", fromIndex: 2000, messages: [message(2000)] },
     options,
   );
@@ -65,7 +66,8 @@ test("recent pages bound transfer and retain stable cursors through append and r
     () => readTranscriptPage(db, { chatId: "other", before: page.before }),
     /History changed/,
   );
-  savePersistedChatMessages(
+  writeState(
+    "transcript",
     { chatId: "c", messages: [message("replacement")] },
     options,
   );
@@ -98,11 +100,13 @@ test("saving a loaded page preserves an unseen prefix and concurrently appended 
   const changed = page.messages.map((entry) =>
     entry.id === "m-99" ? message(99, "Answered") : entry,
   );
-  savePersistedChatMessages(
+  writeState(
+    "transcript",
     { chatId: "c", fromIndex: 100, messages: [message(100)] },
     options,
   );
-  savePersistedChatMessages(
+  writeState(
+    "transcript",
     { chatId: "c", messages: changed, mergeOnly: true },
     options,
   );
@@ -112,7 +116,8 @@ test("saving a loaded page preserves an unseen prefix and concurrently appended 
   assert.deepEqual(saved[100], message(100));
   assert.throws(
     () =>
-      savePersistedChatMessages(
+      writeState(
+        "transcript",
         { chatId: "c", messages: [message("missing")], mergeOnly: true },
         options,
       ),

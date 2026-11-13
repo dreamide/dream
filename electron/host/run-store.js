@@ -37,22 +37,14 @@ export const readRunQueue = (db, chatId) => ({
     .all(chatId, chatId),
 });
 
+/**
+ * One Chat run queue operation. The `run-queue` write (state-writes.js),
+ * which runs it in a transaction.
+ */
 export function mutateRunQueue(
   db,
   { type, chatId, id, request, status, error },
 ) {
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    const result = mutate(db, { type, chatId, id, request, status, error });
-    db.exec("COMMIT");
-    return result;
-  } catch (failure) {
-    db.exec("ROLLBACK");
-    throw failure;
-  }
-}
-
-function mutate(db, { type, chatId, id, request, status, error }) {
   const now = new Date().toISOString();
   if (type === "recover") {
     db.prepare(
@@ -73,7 +65,7 @@ function mutate(db, { type, chatId, id, request, status, error }) {
   }
   if (type === "delegate")
     return enqueueDelegatedTask(db, { chatId, id, request }, (operation) =>
-      mutate(db, operation),
+      mutateRunQueue(db, operation),
     );
   if (type === "enqueue") {
     const existing = row(

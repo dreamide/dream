@@ -7,11 +7,8 @@ import { Hono } from "hono";
 import { afterEach, test } from "vitest";
 import { createHostCatalog } from "../host/catalog.js";
 import { configureHostDataDirectory } from "../host/host-paths.js";
-import {
-  applyPersistedCatalogChanges,
-  closePersistedStateDatabase,
-  savePersistedChatMessages,
-} from "../persisted-state.js";
+import { closePersistedStateDatabase } from "../persisted-state.js";
+import { createInThreadStateWriter } from "../state-writes.js";
 import { CLIENT_ID_HEADER, registerCatalogRoutes } from "./catalog-routes.js";
 
 let directory = null;
@@ -28,11 +25,7 @@ const setup = async () => {
   const catalog = createHostCatalog({
     events: { publish: (event) => events.push(event) },
     // In place of the save queue: the same writes, in this thread.
-    getWriter: () => ({
-      applyCatalogChanges: async (changes) =>
-        applyPersistedCatalogChanges(changes),
-      saveChatMessages: async (payload) => savePersistedChatMessages(payload),
-    }),
+    getWriter: () => createInThreadStateWriter(),
   });
   const app = new Hono();
   registerCatalogRoutes(app, catalog);
