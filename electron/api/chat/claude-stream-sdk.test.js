@@ -5,6 +5,7 @@ import path from "node:path";
 import { claudeCode, getSessionInfo } from "ai-sdk-provider-claude-code";
 import { beforeEach, test, vi } from "vitest";
 import { configureHostDataDirectory } from "../../host/host-paths.js";
+import { turnObservers } from "./agent-turn.js";
 import { streamClaudeResponse } from "./claude-stream.js";
 import { executeAgentTurn } from "./turn-execution.js";
 import { createTurnRegistry } from "./turn-registry.js";
@@ -191,9 +192,7 @@ test("resumes with only the latest turn and preserves image file inputs", async 
   const chunks = await readChunks(
     await streamClaudeResponse({
       ...request,
-      remoteConversationId: "session-1",
-      remoteConversationModel: "haiku",
-      remoteConversationProjectPath: request.projectPath,
+      resumeSessionId: "session-1",
       messages: [
         ...request.messages,
         {
@@ -222,6 +221,71 @@ test("resumes with only the latest turn and preserves image file inputs", async 
   const image = users[0].content.find((part) => part.type === "file");
   assert.equal(image.mediaType, "image/png");
   assert.ok(image.data);
+});
+
+/** Runs a turn under a host observer that hears how it started. */
+const observingStart = async (run) => {
+  const starts = [];
+  const observer = {
+    onMessage: () => {},
+    onSessionStart: (start) => {
+      starts.push(start);
+      return {};
+    },
+  };
+  const chunks = await readChunks(await turnObservers.run(observer, run));
+  return { chunks, starts };
+};
+
+const followUp = [
+  ...request.messages,
+  {
+    id: "assistant-1",
+    role: "assistant",
+    parts: [{ type: "text", text: "Hi" }],
+  },
+  { id: "user-2", role: "user", parts: [{ type: "text", text: "Next" }] },
+];
+
+test("a resumed turn reports so and carries the handoff with its references", async () => {
+  getSessionInfo.mockResolvedValue({ sessionId: "session-1" });
+  const { starts } = await observingStart(() =>
+    streamClaudeResponse({
+      ...request,
+      messages: followUp,
+      resumeSessionId: "session-1",
+      sessionHandoff: "Missed while away.",
+    }),
+  );
+  assert.deepEqual(starts, [{ resumed: true }]);
+  assert.deepEqual(calls[0].prompt[0], {
+    role: "system",
+    content: "Use the referenced project.\n\nMissed while away.",
+  });
+});
+
+test("a session Claude Code no longer has starts fresh with the full history, says why, and drops the handoff", async () => {
+  getSessionInfo.mockResolvedValue(null);
+  const { starts } = await observingStart(() =>
+    streamClaudeResponse({
+      ...request,
+      messages: followUp,
+      resumeSessionId: "session-1",
+      sessionHandoff: "Missed while away.",
+    }),
+  );
+  assert.deepEqual(starts, [
+    { resumed: false, reason: "Claude Code no longer has the saved session." },
+  ]);
+  assert.equal(claudeCode.mock.calls[0][1].resume, undefined);
+  assert.equal(
+    calls[0].prompt.filter((message) => message.role === "user").length,
+    2,
+  );
+  assert.deepEqual(calls[0].prompt[0], {
+    role: "system",
+    content: "Use the referenced project.",
+  });
 });
 
 test("stopping the turn aborts the Claude query and ends the stream cleanly", async () => {
@@ -334,9 +398,7 @@ test("a resumed follow-up can still reach an earlier attachment", async () => {
       await streamClaudeResponse({
         ...request,
         chatId: "chat-1",
-        remoteConversationId: "session-1",
-        remoteConversationModel: "haiku",
-        remoteConversationProjectPath: request.projectPath,
+        resumeSessionId: "session-1",
         messages: [
           xlsxMessage,
           { id: "assistant-1", role: "assistant", parts: [] },

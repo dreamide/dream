@@ -21,6 +21,12 @@ test("every provider has a complete record", () => {
       assert.equal(typeof provider[key], "function", `${provider.id}.${key}`);
     }
     assert.equal(typeof provider.label, "string");
+    // A provider forks natively exactly when its capability row says so.
+    assert.equal(
+      typeof provider.fork === "function",
+      provider.nativeFork,
+      `${provider.id}.fork`,
+    );
   }
   assert.deepEqual(
     listProviders().map((provider) => provider.id),

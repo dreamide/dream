@@ -421,6 +421,41 @@ test("session identity is stamped once and carried by later metadata", () => {
   });
 });
 
+test("how the turn started is reported once, and the host's answer rides on every later metadata", () => {
+  const starts = [];
+  const { chunks, turn } = collect({
+    onSessionStart: (start) => {
+      starts.push(start);
+      return { contextTransfer: { strategy: "reconstructed" } };
+    },
+  });
+  // Ids alone (a Codex sub-thread, a repeated report) say nothing about it.
+  turn.session("sess-1");
+  turn.session("sess-1", { resumed: false, reason: "The session is gone." });
+  turn.session("sess-2", { resumed: true });
+  turn.usage({ inputTokens: 1, outputTokens: 1 });
+
+  assert.deepEqual(starts, [
+    { resumed: false, reason: "The session is gone." },
+  ]);
+  assert.equal(chunks.length, 4);
+  assert.equal(chunks[0].messageMetadata.contextTransfer, undefined);
+  for (const chunk of chunks.slice(1))
+    assert.deepEqual(chunk.messageMetadata.contextTransfer, {
+      strategy: "reconstructed",
+    });
+  assert.equal(chunks[3].messageMetadata.remoteConversationId, "sess-2");
+});
+
+test("a start reported without a session id, or with no observer, still counts once", () => {
+  const { chunks, turn } = collect();
+  turn.session(null, { emit: false, resumed: false });
+  turn.session("sess-1", { resumed: true });
+  assert.equal(chunks.length, 1);
+  assert.equal(chunks[0].messageMetadata.contextTransfer, undefined);
+  assert.equal(chunks[0].messageMetadata.remoteConversationId, "sess-1");
+});
+
 test("usage formatting passes an AI SDK usage object through and drops junk", () => {
   const sdkUsage = { inputTokens: { total: 1 }, outputTokens: { total: 2 } };
   assert.equal(formatTurnUsage(sdkUsage), sdkUsage);

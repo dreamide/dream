@@ -13,20 +13,22 @@ vi.mock("./providers/registry.js", async () => {
   const { streamAgentTurn } = await import("./chat/agent-turn.js");
   return {
     getProvider: () => ({
+      id: "openai",
+      modelSwitchInSession: true,
       browserMcpScope: null,
       checkReady: async () => null,
       stream: ({
         abortSignal,
         messages,
         projectPath,
-        remoteConversationId,
+        resumeSessionId,
         responseMessageMetadata,
       }) => {
-        seen.sessions.push(remoteConversationId ?? null);
+        seen.sessions.push(resumeSessionId);
         return streamAgentTurn({
           abortSignal,
           execute: async (turn) => {
-            turn.session("session-1");
+            turn.session("session-1", { resumed: Boolean(resumeSessionId) });
             turn.text(`answer ${messages.length}`, "t");
             turn.endText("t");
           },
@@ -46,7 +48,7 @@ const { createHostCatalog } = await import("../host/catalog.js");
 const { createStateReadPool } = await import("../state-read-pool.js");
 const { createStateSaveQueue } = await import("../state-save-queue.js");
 const { createRunScheduler } = await import("./chat/run-scheduler.js");
-const { transcriptFingerprint } = await import("./chat/session-context.js");
+const { transcriptFingerprint } = await import("./chat/turn-transcript.js");
 const { createTurnRegistry } = await import("./chat/turn-registry.js");
 const { executeChatRequest } = await import("./chat-routes.js");
 
@@ -138,8 +140,10 @@ test("a Chat run saves its submission once, then only the assistant row, and res
     assert.ok(save.fromIndex === 1 || save.fromIndex === 3);
 
   // The first run's session matched the transcript it left, so the second
-  // resumed it.
+  // resumed it, and its message records so; the first turn records nothing.
   assert.deepEqual(seen.sessions, [null, "session-1"]);
+  assert.equal(saved[1].metadata.contextTransfer, undefined);
+  assert.deepEqual(saved[3].metadata.contextTransfer, { strategy: "resumed" });
   const session = await catalog.providerSession("c", "openai");
   assert.equal(session.lastMessageId, saved[3].id);
   assert.equal(session.fingerprint, transcriptFingerprint(saved));

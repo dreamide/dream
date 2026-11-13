@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { transcriptFingerprint } from "./session-context.js";
-import { prepareTurnTranscript } from "./turn-transcript.js";
+import {
+  prepareTurnTranscript,
+  transcriptFingerprint,
+} from "./turn-transcript.js";
 
 const message = (id, role, text, extra = {}) => ({
   id,

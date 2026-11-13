@@ -14,6 +14,7 @@ vi.mock("./providers/registry.js", async () => {
   const { streamAgentTurn } = await import("./chat/agent-turn.js");
   return {
     getProvider: () => ({
+      id: "openai",
       browserMcpScope: null,
       checkReady: async () => null,
       stream: ({ abortSignal, messages, responseMessageMetadata }) =>

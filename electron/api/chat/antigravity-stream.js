@@ -12,7 +12,7 @@ import {
   buildCodexConversationPrompt,
   getLatestUserMessage,
 } from "./codex-prompt.js";
-import { shouldResumeProviderSession } from "./provider-session.js";
+import { withSessionHandoff } from "./provider-session.js";
 import { applySkillSlashPrefix } from "./skill-dispatch.js";
 
 const MAX_STDERR_CHARS = 64_000;
@@ -114,31 +114,20 @@ export const streamAntigravityResponse = async (options) => {
     projectPath,
     projectReferencesPrompt,
     reasoningEffort,
-    remoteConversationId,
-    remoteConversationModel,
-    remoteConversationModelSpeed,
-    remoteConversationProjectPath,
-    resumeSessionId,
+    resumeSessionId = null,
+    sessionHandoff = null,
     responseMessageMetadata,
     skillSlashCommand,
   } = options;
 
-  const resume = shouldResumeProviderSession({
-    model,
-    modelSpeed,
-    projectPath,
-    provider: "antigravity",
-    remoteConversationId,
-    remoteConversationModel,
-    remoteConversationModelSpeed,
-    remoteConversationProjectPath,
-  });
-
-  const targetSessionId =
-    resumeSessionId ?? (resume ? remoteConversationId : null);
+  // Antigravity resumes by conversation ID, with no probe beforehand.
+  const targetSessionId = resumeSessionId;
 
   const prompt = targetSessionId
-    ? getAntigravityUserPrompt(messages, projectReferencesPrompt)
+    ? getAntigravityUserPrompt(
+        messages,
+        withSessionHandoff(projectReferencesPrompt, sessionHandoff),
+      )
     : messages.length > 1
       ? buildCodexConversationPrompt({
           currentTurnAttachments: null,
@@ -206,9 +195,10 @@ export const streamAntigravityResponse = async (options) => {
     provider: "antigravity",
     responseMessageMetadata,
     execute: async (turn) => {
-      if (targetSessionId) {
-        turn.session(targetSessionId, { emit: false });
-      }
+      turn.session(targetSessionId, {
+        emit: false,
+        resumed: Boolean(targetSessionId),
+      });
 
       let child;
       try {

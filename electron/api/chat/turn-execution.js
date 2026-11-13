@@ -8,8 +8,9 @@ const HOST_ORIGIN = "host";
 /**
  * What the host keeps of a turn while it runs: the transcript as the turn
  * writes it (at most once a second, whichever provider runs it) and at the
- * end, and (at the end) the provider session the turn reported, so a turn
- * nobody watched can still be resumed later. The transcript is the
+ * end. The turn's Provider session (provider-session.js) hears how the turn
+ * started and keeps, at the end, the session it reported, so a turn nobody
+ * watched can still be resumed later. The transcript is the
  * client's own request (not what a provider made of it) with the assistant
  * message being written in place of, or after, its last message.
  *
@@ -22,12 +23,11 @@ const HOST_ORIGIN = "host";
 export const createTurnRecorder = ({
   catalog,
   chatId,
-  projectPath,
   requestMessages,
   transcript = prepareTurnTranscript(requestMessages),
   saveIntervalMs,
   onChunk,
-  provider,
+  providerSession,
 }) => {
   let resolveDone;
   let saveError;
@@ -66,6 +66,7 @@ export const createTurnRecorder = ({
       saveError = error;
     },
     onEnd: () => resolveDone(saveError),
+    onSessionStart: (start) => providerSession?.started(start) ?? {},
     saveIntervalMs,
     async onMessage(message, { final }) {
       if (final)
@@ -77,50 +78,7 @@ export const createTurnRecorder = ({
           },
         };
       await save(message);
-      if (!final) return;
-
-      const metadata = message?.metadata;
-      const sessionId =
-        typeof metadata?.remoteConversationId === "string"
-          ? metadata.remoteConversationId.trim()
-          : "";
-      const chat = sessionId ? await catalog.getChat(chatId) : null;
-      if (chat && provider && catalog.saveProviderSession) {
-        await catalog.saveProviderSession({
-          chatId,
-          provider,
-          session: {
-            remoteConversationId: sessionId,
-            remoteConversationModel:
-              metadata.remoteConversationModel ?? chat.model,
-            remoteConversationModelSpeed:
-              metadata.remoteConversationModelSpeed ?? chat.modelSpeed,
-            remoteConversationProjectPath:
-              metadata.remoteConversationProjectPath ?? projectPath,
-            lastMessageId: message.id,
-            fingerprint: transcript.fingerprintWith(message),
-            orchestrationToolsVersion: metadata.orchestrationToolsVersion,
-          },
-        });
-      }
-      if (!chat || chat.remoteConversationId === sessionId) return;
-      await catalog.applyChanges(
-        {
-          chats: [
-            {
-              ...chat,
-              remoteConversationId: sessionId,
-              remoteConversationModel:
-                metadata.remoteConversationModel ?? chat.model,
-              remoteConversationModelSpeed:
-                metadata.remoteConversationModelSpeed ?? chat.modelSpeed,
-              remoteConversationProjectPath:
-                metadata.remoteConversationProjectPath ?? projectPath,
-            },
-          ],
-        },
-        { origin: HOST_ORIGIN },
-      );
+      if (final) await providerSession?.record(message);
     },
   };
 };
@@ -134,10 +92,9 @@ export const executeAgentTurn = async (
   {
     catalog,
     chatId,
-    projectPath,
     requestMessages,
     transcript,
-    provider,
+    providerSession,
     onChunk,
     finalize,
     saveIntervalMs,
@@ -149,10 +106,9 @@ export const executeAgentTurn = async (
       ? createTurnRecorder({
           catalog,
           chatId,
-          projectPath,
           requestMessages,
           transcript,
-          provider,
+          providerSession,
           onChunk,
           saveIntervalMs,
         })

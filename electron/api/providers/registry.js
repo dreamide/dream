@@ -5,6 +5,8 @@
 //   stream(options)     run a chat turn (a Response streaming the turn)
 //   generateText(opts)  one-shot prompt -> text, for titles and git text
 //   titleModel(fallback) the model to title a chat with; null = local title
+//   fork(options)       a native fork of a branch source's session, on the
+//                       providers whose capabilities say `nativeFork`
 //   fetchModels / fetchUsageLimits
 //   capabilities        shared with the renderer (provider-capabilities.js)
 //
@@ -21,6 +23,7 @@ import { streamClaudeResponse } from "../chat/claude-stream.js";
 import { streamCodexAppServerResponse } from "../chat/codex-app-server.js";
 import { streamCursorResponse } from "../chat/cursor-stream.js";
 import { streamGrokResponse } from "../chat/grok-stream.js";
+import { forkClaudeSession, forkCodexThread } from "../chat/native-fork.js";
 import { streamOpenCodeResponse } from "../chat/opencode-stream.js";
 import { isCliCommandAvailable } from "../shared/cli.js";
 import { createTimedCache } from "../shared/cli-catalog.js";
@@ -113,6 +116,7 @@ const providers = {
     id: "openai",
     checkReady: checkCodexReady,
     stream: (options) => streamCodexAppServerResponse(options),
+    fork: (options) => forkCodexThread(options),
     generateText: (options) => runCodexPrompt(options),
     titleModel: requireTitleModel("OpenAI"),
     fetchModels: (options) => fetchOpenAiModels(options),
@@ -127,6 +131,7 @@ const providers = {
       "Claude Code CLI is not installed or not available on PATH.",
     ),
     stream: (options) => streamClaudeResponse(options),
+    fork: (options) => forkClaudeSession(options),
     generateText: (options) => runClaudePrompt(options),
     titleModel: (fallbackModel) => fallbackModel?.trim() || "haiku",
     fetchModels: (options) => fetchAnthropicModels(options),

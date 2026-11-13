@@ -27,7 +27,9 @@
  * @property {string} [nativeMessageId] Inclusive Claude branch boundary.
  * @property {string} [nativeTurnId] Inclusive Codex branch boundary.
  * @property {number} [orchestrationToolsVersion] Dynamic tools registered on the native session.
- * @property {{ strategy: "delta" | "native-fork" | "reconstructed", afterMessageId?: string, sourceMessageId?: string, reason?: string }} [contextTransfer]
+ * @property {{ strategy: "resumed" | "delta" | "native-fork" | "reconstructed", afterMessageId?: string, sourceMessageId?: string, reason?: string }} [contextTransfer]
+ *   How the turn started on its provider's side, as the adapter reported it
+ *   (electron/api/chat/provider-session.js). Absent on a chat's first turn.
  * @property {ProjectReference[]} [projectReferences]
  * @property {string} [reasoningEffort]
  * @property {string} [reasoningLabel]
@@ -38,6 +40,14 @@
  * @property {string} [startedAt]
  * @property {LanguageModelUsage} [usage]
  */
+
+/**
+ * The version of Dream's orchestration tools a native session was started
+ * with, stamped as `orchestrationToolsVersion` by a provider whose tools are
+ * fixed when its session starts. A session with another version cannot carry
+ * a turn that needs them.
+ */
+export const ORCHESTRATION_TOOLS_VERSION = 1;
 
 const APPROVAL_ID_SEPARATOR = ":";
 

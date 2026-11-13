@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import { z } from "zod";
 import { appendBrowserMcpServer } from "./chat/browser-tools.js";
-import { forkNativeSession } from "./chat/native-fork.js";
+import { startProviderSession } from "./chat/provider-session.js";
 import {
   chatQueueControlSchema,
   chatQueueRequestSchema,
@@ -10,7 +10,6 @@ import {
   chatTitleRequestBodySchema,
   formatProjectReferencesForPrompt,
 } from "./chat/schema.js";
-import { resolveSessionContext } from "./chat/session-context.js";
 import {
   applySkillDispatchToMessages,
   resolveSkillDispatch,
@@ -205,10 +204,6 @@ export async function executeChatRequest(
     provider: providerId,
     reasoningEffort,
     reasoningLabel,
-    remoteConversationId,
-    remoteConversationModel,
-    remoteConversationModelSpeed,
-    remoteConversationProjectPath,
     threadId,
     mcpServers: configuredMcpServers,
   } = data;
@@ -251,75 +246,22 @@ export async function executeChatRequest(
   };
   // Read once for the session check and the turn's saves and fingerprint.
   const transcript = prepareTurnTranscript(messages, { saved: requestSaved });
-  let sessionContext = null;
-  let handoff = null;
-  if (catalog?.providerSession && resolvedChatId) {
-    const saved = await catalog.providerSession(resolvedChatId, providerId);
-    const needsTools = providerId === "openai" && orchestration?.tools;
-    const resolved =
-      needsTools && saved?.orchestrationToolsVersion !== 1
-        ? null
-        : resolveSessionContext({
-            saved,
-            messages,
-            projectPath: resolvedProjectPath,
-            fingerprint: transcript.fingerprint,
-          });
-    sessionContext = resolved?.session ?? {
-      remoteConversationId: null,
-      remoteConversationModel: null,
-      remoteConversationModelSpeed: null,
-      remoteConversationProjectPath: null,
-    };
-    handoff = resolved?.handoff ?? null;
-    const chat = !saved ? await catalog.getChat(resolvedChatId) : null;
-    const source =
-      chat?.branchedFrom &&
-      messages.find((message) => message.id === chat.branchedFrom.messageId);
-    if (
-      !saved &&
-      source?.role === "assistant" &&
-      provider.nativeFork &&
-      (!needsTools || source.metadata?.orchestrationToolsVersion === 1)
-    ) {
-      try {
-        if (signal?.aborted) throw new Error("Turn stopped.");
-        const forkId = await forkNativeSession({
-          provider: providerId,
-          source: source.metadata,
-          projectPath: resolvedProjectPath,
-          model,
-          modelSpeed,
-          permissionMode,
-          mcpServers,
-        });
-        if (forkId) {
-          sessionContext = {
-            remoteConversationId: forkId,
-            remoteConversationModel: model,
-            remoteConversationModelSpeed: modelSpeed,
-            remoteConversationProjectPath: resolvedProjectPath,
-          };
-          responseMessageMetadata.contextTransfer = {
-            strategy: "native-fork",
-            sourceMessageId: source.id,
-          };
-        }
-      } catch (error) {
-        responseMessageMetadata.contextTransfer = {
-          strategy: "reconstructed",
-          reason: error instanceof Error ? error.message : String(error),
-        };
-      }
-    }
-    if (handoff)
-      responseMessageMetadata.contextTransfer = {
-        strategy: handoff.strategy,
-        afterMessageId: handoff.afterMessageId,
-      };
-    else if (!sessionContext.remoteConversationId && messages.length > 1)
-      responseMessageMetadata.contextTransfer ??= { strategy: "reconstructed" };
-  }
+  // What the turn starts from on the provider's side. The request's own
+  // `remoteConversation*` fields are ignored: the host keeps the session.
+  const providerSession = await startProviderSession({
+    catalog,
+    chatId: resolvedChatId,
+    provider,
+    messages,
+    transcript,
+    projectPath: resolvedProjectPath,
+    model,
+    modelSpeed,
+    permissionMode,
+    mcpServers,
+    orchestrationTools: Boolean(orchestration?.tools),
+    signal,
+  });
   const checkpointId = await resolveTurnCheckpointId({
     chatId: resolvedChatId,
     checkpointsEnabled,
@@ -362,15 +304,10 @@ export async function executeChatRequest(
         projectId,
         projectPath: resolvedProjectPath,
         projectReferencesPrompt:
-          [formatProjectReferencesForPrompt(projectReferences), handoff?.text]
-            .filter(Boolean)
-            .join("\n\n") || null,
+          formatProjectReferencesForPrompt(projectReferences) || null,
         reasoningEffort,
-        remoteConversationId,
-        remoteConversationModel,
-        remoteConversationModelSpeed,
-        remoteConversationProjectPath,
-        ...sessionContext,
+        resumeSessionId: providerSession.resumeSessionId,
+        sessionHandoff: providerSession.handoff,
         responseMessageMetadata,
         skillSlashCommand: skillDispatch?.slashCommand,
       });
@@ -378,11 +315,10 @@ export async function executeChatRequest(
       {
         catalog,
         chatId: resolvedChatId,
-        projectPath: resolvedProjectPath,
         requestMessages: messages,
         transcript,
+        providerSession,
         onChunk,
-        provider: providerId,
         finalize: checkpointId
           ? () =>
               finalizeCheckpoint({

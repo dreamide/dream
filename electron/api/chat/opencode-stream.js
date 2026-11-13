@@ -12,7 +12,7 @@ import {
 import { formatStreamError } from "./errors.js";
 import { toOpenCodeMcpConfig } from "./mcp-servers.js";
 import { resolveOpenCodeDisabledTools } from "./opencode-tool-budget.js";
-import { shouldResumeProviderSession } from "./provider-session.js";
+import { withSessionHandoff } from "./provider-session.js";
 
 const OPENCODE_SERVER_TIMEOUT_MS = 10000;
 const OPENCODE_WRITE_TOOL_NAMES = new Set([
@@ -483,10 +483,8 @@ export const streamOpenCodeResponse = ({
   modelSpeed,
   projectReferencesPrompt,
   projectPath,
-  remoteConversationId,
-  remoteConversationModel,
-  remoteConversationModelSpeed,
-  remoteConversationProjectPath,
+  resumeSessionId = null,
+  sessionHandoff = null,
   responseMessageMetadata,
   systemPrompt,
 }) =>
@@ -899,7 +897,7 @@ export const streamOpenCodeResponse = ({
           const currentTurnPrompt = getLatestUserPrompt(
             messages,
             preparedAttachments?.promptText ?? null,
-            projectReferencesPrompt,
+            withSessionHandoff(projectReferencesPrompt, sessionHandoff),
           );
 
           const { modelID, providerID } = parseOpenCodeModel(model);
@@ -920,30 +918,23 @@ export const streamOpenCodeResponse = ({
           });
 
           let resumed = false;
-          if (
-            shouldResumeProviderSession({
-              provider: "opencode",
-              model,
-              modelSpeed,
-              projectPath,
-              remoteConversationId,
-              remoteConversationModel,
-              remoteConversationModelSpeed,
-              remoteConversationProjectPath,
-            })
-          ) {
+          let freshReason = null;
+          if (resumeSessionId) {
             const existingSession = await opencode.client.session.get({
-              path: { id: remoteConversationId },
+              path: { id: resumeSessionId },
               query: { directory: projectPath },
               signal: serverAbortController.signal,
             });
-            if (existingSession.data?.id === remoteConversationId) {
+            freshReason = "OpenCode no longer has the saved session.";
+            if (existingSession.data?.id === resumeSessionId) {
+              freshReason =
+                "OpenCode's saved session ended unfinished or with an error.";
               // OpenCode persists failed and interrupted messages. Reusing
               // that session can repeat the failure on every Retry. Inspect
               // its last message before sending anything; reconstruct an
               // unhealthy session from Dream's saved conversation instead.
               const previousMessages = await opencode.client.session.messages({
-                path: { id: remoteConversationId },
+                path: { id: resumeSessionId },
                 query: { directory: projectPath, limit: 1 },
                 signal: serverAbortController.signal,
               });
@@ -982,7 +973,10 @@ export const streamOpenCodeResponse = ({
             throw new Error("OpenCode did not return a session id.");
           }
 
-          turn.session(activeSessionId);
+          turn.session(activeSessionId, {
+            resumed,
+            reason: resumeSessionId ? freshReason : null,
+          });
           const prompt = resumed ? currentTurnPrompt : fullPrompt;
           submittedPrompt = prompt;
 

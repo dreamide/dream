@@ -296,9 +296,7 @@ describe("streamAntigravityResponse", () => {
       ],
       model: "gemini-3.8-flash-low",
       projectPath: "D:/project",
-      remoteConversationId: "conv-existing-456",
-      remoteConversationModel: "gemini-3.8-flash-low",
-      remoteConversationProjectPath: "D:/project",
+      resumeSessionId: "conv-existing-456",
     });
 
     await new Promise((resolve) => setTimeout(resolve, 10));

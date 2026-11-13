@@ -96,6 +96,10 @@ Module names and current ownership live in ../../GLOSSARY.md.
   projects, a chat run that prepares its transcript once, checkpoint
   capture with a stated cost, and the startup sequence.
 
+- `tasks/provider-session-decision.md` tracks PSD-01 from the November 12
+  architecture review: one Provider session module decides what each Agent
+  turn starts from, records what the adapter reported, and keeps the session.
+
 - `tasks/review-20261109.md` tracks SSH-PROMPT, SAVED-ROUTES and
   ATTACHMENT-LIFETIME: SSH prompt ownership, saved-connection edit lifetime,
   and attachment preparation and release.

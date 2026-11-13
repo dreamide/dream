@@ -14,7 +14,8 @@
 //   turn.approval(...)                                   ask the user
 //   turn.todos(payload) / turn.todosFromTool(item)       plan updates
 //   turn.compaction(id, state)                           context compaction
-//   turn.session(id) / turn.usage(usage, contextWindow)  message metadata
+//   turn.session(id, { resumed? }) / turn.usage(...)    message metadata
+//                                   (`resumed`: how the turn started, once)
 //   turn.merge(stream)                                   an AI SDK stream
 //
 // Everything is idempotent where a provider is likely to repeat itself: a
@@ -179,8 +180,12 @@ export const createAgentTurn = ({
   abortSignal,
   maxTextChars = DEFAULT_MAX_TEXT_CHARS,
   chatId = null,
+  onSessionStart,
 }) => {
   let sessionId = null;
+  // What the host records about how the turn started (provider-session.js),
+  // once the adapter reports it.
+  let sessionStart = null;
   let streamedChars = 0;
   let textLimited = false;
   const activeParts = new Map();
@@ -291,6 +296,7 @@ export const createAgentTurn = ({
   const buildMetadata = (extra = {}) => ({
     provider,
     ...responseMessageMetadata,
+    ...sessionStart,
     ...(sessionId
       ? {
           remoteConversationId: sessionId,
@@ -449,14 +455,26 @@ export const createAgentTurn = ({
       return true;
     },
 
-    /** Records the provider's session id; writes it unless told not to. */
-    session: (id, { emit = true } = {}) => {
+    /**
+     * Records the provider's session id; writes it unless told not to.
+     * The first call that says whether the adapter `resumed` the session it
+     * was given (with the `reason` when it could not) reports how the turn
+     * started; the host's observer answers what the message records about
+     * it. Every adapter reports this once, when it knows.
+     */
+    session: (id, { emit = true, resumed, reason } = {}) => {
       const nextId = typeof id === "string" && id.trim() ? id.trim() : null;
-      if (!nextId || nextId === sessionId) {
-        return;
+      let changed = false;
+      if (typeof resumed === "boolean" && !sessionStart) {
+        sessionStart =
+          onSessionStart?.({ resumed, ...(reason ? { reason } : {}) }) ?? {};
+        changed = Object.keys(sessionStart).length > 0;
       }
-      sessionId = nextId;
-      if (emit) {
+      if (nextId && nextId !== sessionId) {
+        sessionId = nextId;
+        changed = true;
+      }
+      if (changed && emit) {
         metadata();
       }
     },
@@ -487,9 +505,11 @@ export const createAgentTurn = ({
  * when the turn does), at most once per `saveIntervalMs` while it changes
  * and once at the end (turn-message.js), and sees each chunk first.
  * Its `chatId` names the chat (a turn waiting on an approval is announced
- * under it, api/tool-approvals.js).
+ * under it, api/tool-approvals.js); its `onSessionStart` hears how the turn
+ * started (`turn.session`) and answers the metadata that records it.
  * @type {AsyncLocalStorage<{
  *   chatId?: string,
+ *   onSessionStart?: (start: { resumed: boolean, reason?: string }) => Record<string, unknown>,
  *   saveIntervalMs?: number,
  *   onChunk?: (chunk: unknown) => Promise<unknown> | unknown,
  *   onMessage: (message: unknown, options: { final: boolean }) => Promise<unknown> | unknown,
@@ -560,6 +580,7 @@ export const streamAgentTurn = ({
       const turn = createAgentTurn({
         writer,
         chatId: observer?.chatId ?? null,
+        onSessionStart: observer?.onSessionStart,
         ...turnOptions,
       });
       // Establish the response identity before metadata can create a temporary

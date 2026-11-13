@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { forkSession } from "ai-sdk-provider-claude-code";
 import { beforeEach, test, vi } from "vitest";
 import { getCodexAppServerClient } from "./codex-app-server-client.js";
-import { forkNativeSession } from "./native-fork.js";
+import { forkClaudeSession, forkCodexThread } from "./native-fork.js";
 
 vi.mock("ai-sdk-provider-claude-code", () => ({ forkSession: vi.fn() }));
 vi.mock("./codex-app-server-client.js", () => ({
@@ -18,9 +18,8 @@ const options = {
 
 test("Claude forks at the recorded native assistant UUID", async () => {
   forkSession.mockResolvedValue({ sessionId: "child" });
-  const result = await forkNativeSession({
+  const result = await forkClaudeSession({
     ...options,
-    provider: "anthropic",
     source: {
       provider: "anthropic",
       remoteConversationProjectPath: "/work",
@@ -29,15 +28,22 @@ test("Claude forks at the recorded native assistant UUID", async () => {
     },
   });
   assert.equal(result, "child");
+  assert.equal(
+    await forkClaudeSession({
+      ...options,
+      source: { remoteConversationId: "parent", nativeMessageId: null },
+    }),
+    null,
+    "no recorded boundary, no fork",
+  );
   assert.deepEqual(forkSession.mock.calls[0], [
     "parent",
     { dir: "/work", upToMessageId: "boundary" },
   ]);
   forkSession.mockResolvedValue({ sessionId: "parent" });
   await assert.rejects(
-    forkNativeSession({
+    forkClaudeSession({
       ...options,
-      provider: "anthropic",
       source: {
         provider: "anthropic",
         remoteConversationProjectPath: "/work",
@@ -60,16 +66,12 @@ test("Codex forks through an exact completed native turn without touching its pa
     remoteConversationId: "parent",
     nativeTurnId: "boundary",
   };
-  assert.equal(
-    await forkNativeSession({ ...options, provider: "openai", source }),
-    "child",
-  );
+  assert.equal(await forkCodexThread({ ...options, source }), "child");
   assert.equal(sendRequest.mock.calls[0][0], "thread/fork");
   assert.equal(sendRequest.mock.calls[0][1].lastTurnId, "boundary");
   assert.equal(
-    await forkNativeSession({
+    await forkCodexThread({
       ...options,
-      provider: "openai",
       source: { ...source, nativeTurnId: null },
     }),
     null,
@@ -79,7 +81,7 @@ test("Codex forks through an exact completed native turn without touching its pa
     thread: { id: "child", turns: [{ id: "later-turn" }] },
   });
   await assert.rejects(
-    forkNativeSession({ ...options, provider: "openai", source }),
+    forkCodexThread({ ...options, source }),
     /fork boundary/,
   );
 });

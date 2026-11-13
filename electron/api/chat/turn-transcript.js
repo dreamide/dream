@@ -1,7 +1,7 @@
 // A turn's request transcript, prepared once for everything that reads it
 // while the turn runs: where the assistant message goes, whether the
 // request is already in the catalog, and the fingerprints a Provider
-// session is resumed by (session-context.js).
+// session is resumed by (provider-session.js).
 //
 // A fingerprint is the sha256 of the messages' `{ id, role, parts }` as one
 // JSON array. JSON of an array is its elements' JSON joined by commas inside
@@ -10,7 +10,16 @@
 // it, and the end of the turn adds only its own message.
 
 import { createHash } from "node:crypto";
-import { transcriptFingerprint } from "./session-context.js";
+
+/** The fingerprint of `messages` as a whole, without a prepared pass. */
+export const transcriptFingerprint = (messages) =>
+  createHash("sha256")
+    .update(
+      JSON.stringify(
+        messages.map(({ id, role, parts }) => ({ id, role, parts })),
+      ),
+    )
+    .digest("hex");
 
 const fingerprintPart = ({ id, role, parts }) =>
   JSON.stringify({ id, role, parts });

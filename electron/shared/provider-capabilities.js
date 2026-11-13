@@ -37,6 +37,8 @@
  * @property {boolean} usageLimits The provider reports usage limits.
  * @property {boolean} modelSwitchInSession The adapter sets the model on each resumed turn.
  * @property {boolean} nativeFork The adapter can fork from an exact recorded native boundary.
+ * @property {boolean} toolsFixedAtSessionStart Tools registered when a native
+ *   session starts cannot change when it resumes (Codex's dynamic tools).
  * @property {"shared" | "project" | null} browserMcpScope How Dream's browser
  *   tools are exposed over MCP: one shared endpoint (a single long-lived
  *   agent process), a per-project endpoint, or not over MCP at all (Claude
@@ -59,6 +61,7 @@ export const PROVIDER_CAPABILITIES = {
     label: "Codex",
     modelSwitchInSession: true,
     nativeFork: true,
+    toolsFixedAtSessionStart: true,
     selectedModelsSetting: "openAiSelectedModels",
     modelAliases: null,
     mcp: true,
@@ -70,6 +73,7 @@ export const PROVIDER_CAPABILITIES = {
     label: "Claude Code",
     modelSwitchInSession: true,
     nativeFork: true,
+    toolsFixedAtSessionStart: false,
     selectedModelsSetting: "anthropicSelectedModels",
     modelAliases: "claude-code",
     mcp: true,
@@ -86,6 +90,7 @@ export const PROVIDER_CAPABILITIES = {
     label: "OpenCode",
     modelSwitchInSession: true,
     nativeFork: false,
+    toolsFixedAtSessionStart: false,
     selectedModelsSetting: "openCodeSelectedModels",
     modelAliases: null,
     mcp: true,
@@ -101,6 +106,7 @@ export const PROVIDER_CAPABILITIES = {
     label: "Cursor Agent",
     modelSwitchInSession: false,
     nativeFork: false,
+    toolsFixedAtSessionStart: false,
     selectedModelsSetting: "cursorSelectedModels",
     modelAliases: null,
     mcp: false,
@@ -112,6 +118,7 @@ export const PROVIDER_CAPABILITIES = {
     label: "Grok Build",
     modelSwitchInSession: false,
     nativeFork: false,
+    toolsFixedAtSessionStart: false,
     selectedModelsSetting: "grokSelectedModels",
     modelAliases: null,
     mcp: true,
@@ -123,6 +130,7 @@ export const PROVIDER_CAPABILITIES = {
     label: "Antigravity",
     modelSwitchInSession: true,
     nativeFork: false,
+    toolsFixedAtSessionStart: false,
     selectedModelsSetting: "antigravitySelectedModels",
     modelAliases: null,
     mcp: false,

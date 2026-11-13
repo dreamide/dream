@@ -9,7 +9,7 @@ import {
   getLatestUserPrompt,
 } from "./codex-prompt.js";
 import { toAcpMcpServers } from "./mcp-servers.js";
-import { shouldResumeProviderSession } from "./provider-session.js";
+import { withSessionHandoff } from "./provider-session.js";
 import { applySkillSlashPrefix } from "./skill-dispatch.js";
 
 const isRecord = (value) =>
@@ -137,10 +137,8 @@ export const streamAcpResponse = ({
   projectReferencesPrompt,
   projectPath,
   reasoningEffort,
-  remoteConversationId,
-  remoteConversationModel,
-  remoteConversationModelSpeed,
-  remoteConversationProjectPath,
+  resumeSessionId = null,
+  sessionHandoff = null,
   responseMessageMetadata,
   skillSlashCommand,
 }) => {
@@ -337,17 +335,14 @@ export const streamAcpResponse = ({
         await adapter.authenticate(connection, initializeResult);
         if (stopIfAborted()) return;
 
-        const shouldLoad = shouldResumeProviderSession({
-          modelSpeed,
-          remoteConversationModelSpeed,
-          model,
-          projectPath,
-          remoteConversationId,
-          remoteConversationModel,
-          remoteConversationProjectPath,
-        });
-        if (shouldLoad && initializeResult?.agentCapabilities?.loadSession) {
-          sessionId = remoteConversationId;
+        let freshReason = null;
+        if (
+          resumeSessionId &&
+          !initializeResult?.agentCapabilities?.loadSession
+        ) {
+          freshReason = `${label} cannot load a saved session.`;
+        } else if (resumeSessionId) {
+          sessionId = resumeSessionId;
           loadingSession = true;
           try {
             sessionState = await connection.request(
@@ -357,8 +352,11 @@ export const streamAcpResponse = ({
             );
             if (stopIfAborted()) return;
             loadedSession = true;
-          } catch {
+          } catch (error) {
             sessionId = null;
+            freshReason = `${label} could not load the saved session: ${
+              error instanceof Error ? error.message : String(error)
+            }`;
           } finally {
             loadingSession = false;
           }
@@ -385,14 +383,17 @@ export const streamAcpResponse = ({
         });
         if (stopIfAborted()) return;
 
-        turn.session(sessionId);
+        turn.session(sessionId, {
+          resumed: loadedSession,
+          reason: freshReason,
+        });
 
         const currentTurnAttachments = preparedAttachments?.promptText ?? null;
         const prompt = loadedSession
           ? getLatestUserPrompt(
               messages,
               currentTurnAttachments,
-              projectReferencesPrompt,
+              withSessionHandoff(projectReferencesPrompt, sessionHandoff),
             )
           : buildCodexConversationPrompt({
               currentTurnAttachments,

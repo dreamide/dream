@@ -2,6 +2,7 @@
 // become calls on the agent turn. Codex names its own items, so text and
 // reasoning parts use item ids and end when their item completes.
 import { z } from "zod";
+import { ORCHESTRATION_TOOLS_VERSION } from "../../shared/agent-turn-contract.js";
 import {
   getProjectGitDiff,
   gitRepositories,
@@ -22,7 +23,7 @@ import {
   buildCodexAppServerConversationPrompt,
   getLatestUserPrompt,
 } from "./codex-prompt.js";
-import { shouldResumeProviderSession } from "./provider-session.js";
+import { withSessionHandoff } from "./provider-session.js";
 
 const isRecord = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -453,10 +454,8 @@ export const streamCodexAppServerResponse = ({
   projectReferencesPrompt,
   projectPath,
   reasoningEffort,
-  remoteConversationId,
-  remoteConversationModel,
-  remoteConversationModelSpeed,
-  remoteConversationProjectPath,
+  resumeSessionId = null,
+  sessionHandoff = null,
   responseMessageMetadata,
   systemPrompt,
 }) => {
@@ -1089,35 +1088,26 @@ export const streamCodexAppServerResponse = ({
             const currentTurnPrompt = getLatestUserPrompt(
               messages,
               preparedAttachments?.promptText ?? null,
-              projectReferencesPrompt,
+              withSessionHandoff(projectReferencesPrompt, sessionHandoff),
             );
             const sandbox = getCodexAppSandboxMode(permissionMode);
             const approvalPolicy = getCodexAppApprovalPolicy(permissionMode);
             const serviceTier = modelSpeed === "fast" ? "fast" : null;
 
-            const shouldResume = shouldResumeProviderSession({
-              provider: "openai",
-              model,
-              modelSpeed,
-              projectPath,
-              remoteConversationId,
-              remoteConversationModel,
-              remoteConversationModelSpeed,
-              remoteConversationProjectPath,
-            });
             let resumed = false;
+            let freshReason = null;
             let threadResponse = null;
 
-            if (shouldResume) {
-              if (client.hasThread(remoteConversationId)) {
-                threadResponse = { thread: { id: remoteConversationId } };
+            if (resumeSessionId) {
+              if (client.hasThread(resumeSessionId)) {
+                threadResponse = { thread: { id: resumeSessionId } };
                 resumed = true;
               } else {
                 let restoredPersistedThread = false;
                 let forkedPersistedThread = false;
                 try {
                   await client.sendRequest("thread/unarchive", {
-                    threadId: remoteConversationId,
+                    threadId: resumeSessionId,
                   });
                   restoredPersistedThread = true;
                 } catch {
@@ -1135,21 +1125,24 @@ export const streamCodexAppServerResponse = ({
                     modelProvider: "openai",
                     sandbox,
                     serviceTier,
-                    threadId: remoteConversationId,
+                    threadId: resumeSessionId,
                     threadSource: "dream",
                   });
                   resumed = true;
                   forkedPersistedThread = true;
                 } catch (error) {
+                  const detail =
+                    error instanceof Error ? error.message : String(error);
                   console.warn(
                     "[codex app-server] Dream thread could not be restored; starting a new thread.",
-                    error instanceof Error ? error.message : error,
+                    detail,
                   );
+                  freshReason = `Codex could not restore the saved thread: ${detail}`;
                 } finally {
                   if (restoredPersistedThread || forkedPersistedThread) {
                     try {
                       await client.sendRequest("thread/archive", {
-                        threadId: remoteConversationId,
+                        threadId: resumeSessionId,
                       });
                     } catch {
                       // Keep migration best-effort; the new thread is ephemeral.
@@ -1202,9 +1195,11 @@ export const streamCodexAppServerResponse = ({
               },
               onMessage: handleMessage,
             });
-            turn.session(threadId);
+            turn.session(threadId, { resumed, reason: freshReason });
             if (orchestrationTools)
-              turn.metadata({ orchestrationToolsVersion: 1 });
+              turn.metadata({
+                orchestrationToolsVersion: ORCHESTRATION_TOOLS_VERSION,
+              });
             if (finished) {
               return;
             }

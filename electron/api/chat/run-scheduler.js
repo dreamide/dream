@@ -69,12 +69,6 @@ export function createRunScheduler({ catalog, turns, execute }) {
                   ...run.request,
                   chatId,
                   messages,
-                  remoteConversationId: chat.remoteConversationId,
-                  remoteConversationModel: chat.remoteConversationModel,
-                  remoteConversationModelSpeed:
-                    chat.remoteConversationModelSpeed,
-                  remoteConversationProjectPath:
-                    chat.remoteConversationProjectPath,
                 },
                 {
                   catalog,

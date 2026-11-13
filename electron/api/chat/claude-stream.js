@@ -34,7 +34,7 @@ import {
 import { getLatestUserMessage } from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
 import { toClaudeMcpServers } from "./mcp-servers.js";
-import { shouldResumeProviderSession } from "./provider-session.js";
+import { withSessionHandoff } from "./provider-session.js";
 import {
   DEFAULT_TOOL_STEP_LIMIT,
   REASONING_TOOL_STEP_LIMIT,
@@ -497,10 +497,8 @@ export const streamClaudeResponse = async ({
   projectReferencesPrompt,
   projectPath,
   reasoningEffort,
-  remoteConversationId,
-  remoteConversationModel,
-  remoteConversationModelSpeed,
-  remoteConversationProjectPath,
+  resumeSessionId = null,
+  sessionHandoff = null,
   responseMessageMetadata,
 }) => {
   const usesReasoningModel =
@@ -518,33 +516,31 @@ export const streamClaudeResponse = async ({
   const browserMcpServer = createBrowserMcpServer({ projectId });
   const { directory: attachmentDirectory, filePaths: attachmentPaths } =
     await saveChatAttachments({ chatId, messages });
-  let resumeSessionId = null;
-  if (
-    shouldResumeProviderSession({
-      provider: "anthropic",
-      model,
-      modelSpeed,
-      projectPath,
-      remoteConversationId,
-      remoteConversationModel,
-      remoteConversationModelSpeed,
-      remoteConversationProjectPath,
-    })
-  ) {
+  // The session the host said to resume, if Claude Code still has it.
+  let resumedSessionId = null;
+  let freshReason = null;
+  if (resumeSessionId) {
     try {
-      const sessionInfo = await getSessionInfo(remoteConversationId, {
+      const sessionInfo = await getSessionInfo(resumeSessionId, {
         dir: projectPath,
       });
-      if (sessionInfo?.sessionId === remoteConversationId) {
-        resumeSessionId = remoteConversationId;
+      if (sessionInfo?.sessionId === resumeSessionId) {
+        resumedSessionId = resumeSessionId;
+      } else {
+        freshReason = "Claude Code no longer has the saved session.";
       }
     } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
       console.warn(
         "[claude] Stored session could not be inspected; starting a new session.",
-        error instanceof Error ? error.message : error,
+        detail,
       );
+      freshReason = `Claude Code could not inspect the saved session: ${detail}`;
     }
   }
+  const instructions = resumedSessionId
+    ? withSessionHandoff(projectReferencesPrompt, sessionHandoff)
+    : projectReferencesPrompt;
   const providerFactory = (modelId, turn) => {
     let compactionId = null;
     return claudeCode(normalizeClaudeCodeModel(modelId), {
@@ -576,7 +572,7 @@ export const streamClaudeResponse = async ({
       // long commands (which the Agent/Task input hook cannot prevent).
       env: { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1" },
       persistSession: true,
-      ...(resumeSessionId ? { resume: resumeSessionId } : {}),
+      ...(resumedSessionId ? { resume: resumedSessionId } : {}),
       hooks: {
         PostCompact: [
           {
@@ -647,7 +643,7 @@ export const streamClaudeResponse = async ({
 
   let modelMessages;
   try {
-    const messagesForModel = resumeSessionId
+    const messagesForModel = resumedSessionId
       ? [getLatestUserMessage(messages)].filter(Boolean)
       : messages;
     modelMessages = await convertToModelMessages(
@@ -675,7 +671,11 @@ export const streamClaudeResponse = async ({
     provider: "anthropic",
     responseMessageMetadata,
     execute: (turn) => {
-      turn.session(resumeSessionId, { emit: false });
+      turn.session(resumedSessionId, {
+        emit: false,
+        resumed: Boolean(resumedSessionId),
+        reason: freshReason,
+      });
       const failed = new AbortController();
       const textResult = streamText({
         // The turn's own signal (turn-registry.js): Stop aborts the Claude
@@ -690,9 +690,7 @@ export const streamClaudeResponse = async ({
             ? REASONING_TOOL_STEP_LIMIT
             : DEFAULT_TOOL_STEP_LIMIT,
         ),
-        ...(projectReferencesPrompt
-          ? { instructions: projectReferencesPrompt }
-          : {}),
+        ...(instructions ? { instructions } : {}),
       });
 
       turn.merge(

@@ -177,6 +177,17 @@ across model changes. A **native fork** creates an independent provider
 session at the source assistant message's recorded native boundary;
 unverified or unsupported boundaries reconstruct from canonical history.
 
+Each Agent turn's Provider session (`electron/api/chat/provider-session.js`)
+decides what the turn starts from. It tells the adapter which native session
+to resume and what the provider missed (the **handoff**), then keeps the
+session the turn reported. A turn starts in one of four ways: **resumed**;
+with a **delta** handoff; from a **native fork**; or **reconstructed** from
+the full history. Its message records which as its **context transfer**,
+taken from the adapter's report. So when the provider no longer has the
+session, the message records the reconstruction that actually happened. The
+chat row's copy of the session is a mirror for "Continue in terminal";
+nothing reads it to decide a resume.
+
 ## Host
 
 The machine whose filesystem, agent CLIs and terminals a project uses. The
@@ -679,10 +690,11 @@ One of the agent CLIs Dream can run a chat through: `openai` (Codex),
 (Google Antigravity). `AiProvider`.
 Each has a record in the **provider registry**
 (`electron/api/providers/registry.js`: readiness, stream, one-shot text,
-title model, model and usage fetchers) built on its row in the shared
-**provider capabilities** (`electron/shared/provider-capabilities.js`:
-MCP, skill dispatch style, usage limits, browser-MCP scope, the setting
-holding its picked models, how its model ids are spelt), which the
+title model, model and usage fetchers, native fork) built on its row in the
+shared **provider capabilities** (`electron/shared/provider-capabilities.js`:
+MCP, skill dispatch style, usage limits, browser-MCP scope, whether a
+session keeps across models and whether its tools are fixed when it starts,
+the setting holding its picked models, how its model ids are spelt), which the
 renderer reads too. Adding a provider is one row and one record, plus its
 `AiProvider` member and its `…SelectedModels` setting.
 

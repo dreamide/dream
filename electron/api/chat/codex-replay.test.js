@@ -5,14 +5,18 @@ import path from "node:path";
 import { beforeEach, test, vi } from "vitest";
 import { z } from "zod";
 import { createHostCatalog } from "../../host/catalog.js";
+import { getProviderCapabilities } from "../../shared/provider-capabilities.js";
 import { createStateReadPool } from "../../state-read-pool.js";
 import { createStateSaveQueue } from "../../state-save-queue.js";
 import { resolveToolApproval } from "../tool-approvals.js";
+import { turnObservers } from "./agent-turn.js";
 import { streamCodexAppServerResponse } from "./codex-app-server.js";
 import { getCodexAppServerClient } from "./codex-app-server-client.js";
+import { startProviderSession } from "./provider-session.js";
 import { createRunScheduler } from "./run-scheduler.js";
 import { executeAgentTurn } from "./turn-execution.js";
 import { createTurnRegistry } from "./turn-registry.js";
+import { prepareTurnTranscript } from "./turn-transcript.js";
 
 // Only the native JSON-RPC transport is replaced. Adapter and stream writer run unchanged.
 vi.mock("./codex-app-server-client.js", () => ({
@@ -106,6 +110,78 @@ test("child terminal frames cannot close the root; final text and native boundar
   assert.match(text, /nativeTurnId.*turn-root/);
 });
 
+test("Codex reports whether it resumed the thread it was given, and why not", async () => {
+  const follow = [
+    { id: "u1", role: "user", parts: [{ type: "text", text: "First" }] },
+    { id: "a1", role: "assistant", parts: [{ type: "text", text: "Done" }] },
+    { id: "u2", role: "user", parts: [{ type: "text", text: "Next" }] },
+  ];
+  const run = async ({ live }) => {
+    const client = await getCodexAppServerClient();
+    client.hasThread = () => live;
+    const sendRequest = client.sendRequest;
+    client.sendRequest = async (method, params) => {
+      if (method === "thread/unarchive" || method === "thread/fork") {
+        outbound.push({ method, params });
+        throw new Error("no such thread");
+      }
+      return sendRequest(method, params);
+    };
+    outbound = [];
+    const starts = [];
+    const observer = {
+      onMessage: () => {},
+      onSessionStart: (start) => {
+        starts.push(start);
+        return {};
+      },
+    };
+    const response = turnObservers.run(observer, () =>
+      streamCodexAppServerResponse({
+        abortSignal: new AbortController().signal,
+        permissionMode: "ask",
+        model: "test",
+        projectPath: "/work",
+        messages: follow,
+        resumeSessionId: "saved",
+        sessionHandoff: "Missed while away.",
+      }),
+    );
+    await untilStarted();
+    notify({
+      method: "turn/completed",
+      params: {
+        threadId: live ? "saved" : "root",
+        turn: { id: "turn-root", status: "completed" },
+      },
+    });
+    await response.text();
+    const input = outbound.find((frame) => frame.method === "turn/start").params
+      .input[0].text;
+    return { input, starts };
+  };
+
+  const resumed = await run({ live: true });
+  assert.deepEqual(resumed.starts, [{ resumed: true }]);
+  assert.equal(
+    outbound.some((frame) => frame.method === "thread/start"),
+    false,
+  );
+  assert.match(resumed.input, /Missed while away\./);
+  assert.doesNotMatch(resumed.input, /First/);
+
+  const fresh = await run({ live: false });
+  assert.equal(fresh.starts.length, 1);
+  assert.equal(fresh.starts[0].resumed, false);
+  assert.match(
+    fresh.starts[0].reason,
+    /Codex could not restore the saved thread/,
+  );
+  assert.ok(outbound.some((frame) => frame.method === "thread/start"));
+  assert.doesNotMatch(fresh.input, /Missed while away\./);
+  assert.match(fresh.input, /First/);
+});
+
 test("a native turn is saved while it runs, before the provider says it is done", async () => {
   const saves = [];
   const turns = createTurnRegistry();
@@ -125,8 +201,6 @@ test("a native turn is saved while it runs, before the provider says it is done"
             },
           },
           chatId: "c",
-          provider: "openai",
-          projectPath: "/work",
           requestMessages,
           saveIntervalMs: 20,
         },
@@ -294,16 +368,32 @@ test("native replay reaches the durable queue, transcript writer and provider se
     catalog,
     turns: createTurnRegistry(),
     execute: async (data, { signal, onChunk }) => {
+      const transcript = prepareTurnTranscript(data.messages);
+      const providerSession = await startProviderSession({
+        catalog,
+        chatId: data.chatId,
+        provider: { id: "openai", ...getProviderCapabilities("openai") },
+        messages: data.messages,
+        transcript,
+        projectPath: "/work",
+        model: data.model,
+      });
       return executeAgentTurn(
         {
           catalog,
           chatId: data.chatId,
-          provider: "openai",
-          projectPath: "/work",
+          providerSession,
           requestMessages: data.messages,
+          transcript,
           onChunk,
         },
-        () => streamCodexAppServerResponse({ ...data, abortSignal: signal }),
+        () =>
+          streamCodexAppServerResponse({
+            ...data,
+            abortSignal: signal,
+            resumeSessionId: providerSession.resumeSessionId,
+            sessionHandoff: providerSession.handoff,
+          }),
       );
     },
   });

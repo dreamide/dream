@@ -5,12 +5,27 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { resolveToolApproval } from "../tool-approvals.js";
 import { streamAcpResponse } from "./acp-stream.js";
+import { turnObservers } from "./agent-turn.js";
 
 const readChunks = async (response) =>
   (await response.text())
     .split("\n")
     .filter((line) => line.startsWith("data: ") && line !== "data: [DONE]")
     .map((line) => JSON.parse(line.slice(6)));
+
+/** Runs a turn under a host observer that hears how it started. */
+const observingStart = async (run) => {
+  const starts = [];
+  const observer = {
+    onMessage: () => {},
+    onSessionStart: (start) => {
+      starts.push(start);
+      return {};
+    },
+  };
+  const chunks = await readChunks(await turnObservers.run(observer, run));
+  return { chunks, starts };
+};
 
 /**
  * A fake ACP agent. `script(session)` runs after session/prompt is called
@@ -281,23 +296,25 @@ test("a failed tool call reports its error and a spawn failure reaches the clien
   );
 });
 
+const followUp = [
+  ...request.messages,
+  { id: "a1", parts: [{ text: "hi", type: "text" }], role: "assistant" },
+  { id: "u2", parts: [{ text: "next", type: "text" }], role: "user" },
+];
+
 test("a resumable session is loaded and only the latest turn is sent", async () => {
   const { adapter, requests } = createFakeAdapter({ loadSession: true });
-  await readChunks(
-    await streamAcpResponse({
+  const { starts } = await observingStart(() =>
+    streamAcpResponse({
       ...request,
       adapter,
-      messages: [
-        ...request.messages,
-        { id: "a1", parts: [{ text: "hi", type: "text" }], role: "assistant" },
-        { id: "u2", parts: [{ text: "next", type: "text" }], role: "user" },
-      ],
-      remoteConversationId: "old-session",
-      remoteConversationModel: "grok-4",
-      remoteConversationProjectPath: request.projectPath,
+      messages: followUp,
+      resumeSessionId: "old-session",
+      sessionHandoff: "Missed while away.",
       skillSlashCommand: "deploy",
     }),
   );
+  assert.deepEqual(starts, [{ resumed: true }]);
   const load = requests.find((r) => r[1] === "session/load");
   assert.equal(load[2].sessionId, "old-session");
   assert.equal(
@@ -311,4 +328,28 @@ test("a resumable session is loaded and only the latest turn is sent", async () 
     !prompt.includes("Conversation transcript"),
     "no full transcript on resume",
   );
+  assert.ok(prompt.includes("Missed while away."), "the handoff is sent");
+});
+
+test("an agent that cannot load the session starts fresh, says why, and drops the handoff", async () => {
+  const { adapter, requests } = createFakeAdapter({ loadSession: false });
+  const { starts } = await observingStart(() =>
+    streamAcpResponse({
+      ...request,
+      adapter,
+      messages: followUp,
+      resumeSessionId: "old-session",
+      sessionHandoff: "Missed while away.",
+    }),
+  );
+  assert.deepEqual(starts, [
+    { resumed: false, reason: "Grok Build cannot load a saved session." },
+  ]);
+  assert.equal(
+    requests.some((r) => r[1] === "session/load"),
+    false,
+  );
+  const prompt = requests.find((r) => r[1] === "session/prompt")[2].prompt[0]
+    .text;
+  assert.equal(prompt.includes("Missed while away."), false);
 });
