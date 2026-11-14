@@ -261,7 +261,7 @@ const BranchSwitcherImpl = ({
                             also select the row, which checks the branch out. */}
                         {/* biome-ignore lint/a11y/noStaticElementInteractions: only stops events reaching the row */}
                         <span
-                          className="opacity-0 focus-within:opacity-100 group-hover/command-item:opacity-100 group-data-selected/command-item:opacity-100"
+                          className="opacity-0 focus-within:opacity-100 group-hover/command-item:opacity-100"
                           onClick={(event) => event.stopPropagation()}
                           onKeyDown={(event) => event.stopPropagation()}
                           title={
