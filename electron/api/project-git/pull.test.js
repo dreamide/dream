@@ -90,3 +90,66 @@ test("a pull with nothing new reports no changes", async () => {
   assert.deepEqual(result.commits, []);
   assert.deepEqual(result.files, []);
 });
+
+test("a pull onto a diverged branch merges the remote commits", async () => {
+  const { other, repo } = createClones();
+  commitFile(other, "notes.txt", "a\nb\n", "Add notes");
+  git(other, "push", "-q", "origin", "main");
+  commitFile(repo, "local.txt", "local\n", "Local work");
+
+  const result = await pullProjectGitChanges(repo);
+
+  assert.equal(result.status, "pulled");
+  assert.equal(result.merged, true);
+  assert.equal(result.commitCount, 1);
+  assert.deepEqual(
+    result.commits.map((commit) => commit.subject),
+    ["Add notes"],
+  );
+  assert.deepEqual(
+    result.files.map((file) => file.path),
+    ["notes.txt"],
+  );
+  // A merge commit whose parents are the local work and the remote branch.
+  assert.equal(
+    git(repo, "rev-parse", "HEAD^2"),
+    git(repo, "rev-parse", "origin/main"),
+  );
+  assert.equal(git(repo, "log", "-1", "--format=%s", "HEAD^1"), "Local work");
+});
+
+test("a conflicting pull is aborted and reports the conflicting files", async () => {
+  const { other, repo } = createClones();
+  commitFile(other, "app.txt", "one\nremote\n", "Remote change");
+  git(other, "push", "-q", "origin", "main");
+  commitFile(repo, "app.txt", "one\nlocal\n", "Local change");
+  const headBefore = git(repo, "rev-parse", "HEAD");
+
+  const result = await pullProjectGitChanges(repo);
+
+  assert.equal(result.status, "conflict");
+  assert.equal(result.commitCount, 0);
+  assert.deepEqual(result.conflictingFiles, ["app.txt"]);
+  assert.equal(git(repo, "rev-parse", "HEAD"), headBefore);
+  assert.equal(git(repo, "status", "--porcelain"), "");
+});
+
+test("a pull refuses to touch a merge already in progress", async () => {
+  const { other, repo } = createClones();
+  commitFile(other, "app.txt", "one\nremote\n", "Remote change");
+  git(other, "push", "-q", "origin", "main");
+  commitFile(repo, "app.txt", "one\nlocal\n", "Local change");
+  git(repo, "fetch", "-q", "origin");
+  try {
+    git(repo, "merge", "--no-edit", "origin/main");
+  } catch {
+    // The conflict is the point: the user is now mid-merge.
+  }
+
+  await assert.rejects(
+    pullProjectGitChanges(repo),
+    /merge is already in progress/,
+  );
+  // The user's merge is still there to finish.
+  assert.ok(git(repo, "rev-parse", "--verify", "MERGE_HEAD"));
+});

@@ -27,7 +27,7 @@ import { apiClient, getApiErrorMessage } from "@/lib/api-client";
 import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
 import type {
   ProjectConfig,
-  ProjectGitPullResponse,
+  ProjectGitPulledResponse,
   ProjectWorktreeInfo,
 } from "@/types/ide";
 import { getPullRequestBranchError } from "../git-actions/branch-utils";
@@ -49,6 +49,8 @@ type WorktreeProject = ProjectConfig & { worktree: ProjectWorktreeInfo };
 
 // Long enough to reach the toast's View changes action.
 const PULL_TOAST_DURATION_MS = 8000;
+/** Conflicting files a pull toast names before summing up the rest. */
+const PULL_CONFLICT_FILES_SHOWN = 5;
 
 /** A commit count on the right of a git menu item, e.g. "↑ 2". */
 const MenuCommitCount = ({
@@ -115,7 +117,7 @@ const GitFooterActionsImpl = ({
   const [pushOpen, setPushOpen] = useState(false);
   const [pullOpen, setPullOpen] = useState(false);
   // Kept after close, so the closing dialog keeps its contents.
-  const [pullResult, setPullResult] = useState<ProjectGitPullResponse | null>(
+  const [pullResult, setPullResult] = useState<ProjectGitPulledResponse | null>(
     null,
   );
   const [worktreeDialogOpen, setWorktreeDialogOpen] = useState(false);
@@ -159,12 +161,40 @@ const GitFooterActionsImpl = ({
     const outcome = await store.pullProject(projectId);
     if (outcome.ok) {
       const result = outcome.result;
+      if (result.status === "conflict") {
+        const files = result.conflictingFiles;
+        toast.error(
+          gitT("pullConflict", { target: result.upstreamBranch }),
+          files.length > 0
+            ? {
+                description: (
+                  <div className="space-y-0.5">
+                    {files.slice(0, PULL_CONFLICT_FILES_SHOWN).map((file) => (
+                      <div className="truncate font-mono text-xs" key={file}>
+                        {file}
+                      </div>
+                    ))}
+                    {files.length > PULL_CONFLICT_FILES_SHOWN ? (
+                      <div className="text-xs">
+                        {gitT("moreFiles", {
+                          count: files.length - PULL_CONFLICT_FILES_SHOWN,
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                ),
+                duration: PULL_TOAST_DURATION_MS,
+              }
+            : undefined,
+        );
+        return;
+      }
       const { commitCount, upstreamBranch } = result;
       if (commitCount === 0) {
         toast.success(gitT("alreadyUpToDate", { target: upstreamBranch }));
         return;
       }
-      const title = gitT("pulledFrom", {
+      const title = gitT(result.merged ? "mergedFrom" : "pulledFrom", {
         count: commitCount,
         target: upstreamBranch,
       });

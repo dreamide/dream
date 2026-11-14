@@ -844,17 +844,34 @@ export interface ProjectGitPushPreviewResponse {
   upstreamBranch: string | null;
 }
 
-export interface ProjectGitPullResponse {
-  commitCount: number;
-  upstreamBranch: string;
-  /**
-   * The commits the pull brought in, newest first and capped like the push
-   * preview, and the files they changed. Absent from older hosts.
-   */
-  commits?: ProjectGitPushPreviewCommit[];
-  files?: ProjectGitStatusEntry[];
-  truncated?: boolean;
-}
+export type ProjectGitPullResponse =
+  | {
+      /** Absent from older hosts, which only fast-forward. */
+      status?: "pulled";
+      commitCount: number;
+      upstreamBranch: string;
+      /** A merge commit joined local and remote work that had diverged. */
+      merged?: boolean;
+      /**
+       * The commits the pull brought in, newest first and capped like the push
+       * preview, and the files they changed. Absent from older hosts.
+       */
+      commits?: ProjectGitPushPreviewCommit[];
+      files?: ProjectGitStatusEntry[];
+      truncated?: boolean;
+    }
+  | {
+      /** The merge conflicted and was aborted; nothing changed. */
+      status: "conflict";
+      commitCount: 0;
+      upstreamBranch: string;
+      conflictingFiles: string[];
+    };
+
+export type ProjectGitPulledResponse = Extract<
+  ProjectGitPullResponse,
+  { status?: "pulled" }
+>;
 
 export interface ProjectGitPushResponse {
   branch: string;

@@ -1,7 +1,7 @@
 import { ArrowDown, File, GitCommitHorizontal, GitFork } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
-import type { ProjectGitPullResponse } from "@/types/ide";
+import type { ProjectGitPulledResponse } from "@/types/ide";
 import { MaterialFileIcon } from "../material-file-icon";
 import { GitCommitList } from "./commit-list";
 import { DialogMetricRow, GitDialogHeader } from "./dialog-layout";
@@ -19,7 +19,7 @@ export const PullDialog = ({
   onOpenChange: (open: boolean) => void;
   open: boolean;
   /** The pull to show, kept after close so the closing dialog keeps it. */
-  result: ProjectGitPullResponse | null;
+  result: ProjectGitPulledResponse | null;
 }) => {
   const commonT = useTranslations("common");
   const gitT = useTranslations("git");
