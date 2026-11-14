@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import { afterEach, test, vi } from "vitest";
 
 const { registerProjectGitRoutes } = await import("./project-git-routes.js");
+const { gitRepositories } = await import("./project-git/core.js");
 
 const execFileAsync = promisify(execFile);
 const hasGit = await execFileAsync("git", ["--version"]).then(
@@ -31,12 +32,16 @@ afterEach(async () => {
   );
 });
 
+// Git run here is outside the host, like a user's terminal, so the host is
+// told to forget: otherwise a read within its join window would be shared
+// with one from before this command (fast enough to happen on Linux).
 const git = async (cwd, args) => {
   const result = await execFileAsync(
     "git",
     ["-c", "commit.gpgsign=false", ...args],
     { cwd, encoding: "utf8", windowsHide: true },
   );
+  gitRepositories.forget();
   return result.stdout.trim();
 };
 
