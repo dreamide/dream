@@ -380,6 +380,9 @@ const handleChatFinish = (
     flushSession(session);
     return;
   }
+  // A stream that stalled after its turn ended was dropped: the turn is
+  // done, and the follow settles on the saved transcript (onSettled).
+  if (isAbort && turnFollowing.isEnded(chatId)) return;
   const attention = getActivityAttention([message]);
   if (!isAbort && !isError && !isDisconnect && attention !== null) {
     useActivityStore.getState().attention(chatId, attention);
@@ -700,6 +703,9 @@ const turnFollowing = createTurnFollowing<InternalChatSession>({
   onError: (session, error) => handleSessionError(session, error),
   onSettled: (session) => {
     const { chatId } = session;
+    // Dropped after its turn ended: finished, not interrupted.
+    if (turnFollowing.isEnded(chatId))
+      useActivityStore.getState().finish(chatId, "finished");
     useIdeStore.getState().setChatStreaming(chatId, false);
     const projectId = findChatConfig(chatId)?.projectId;
     if (projectId) flushProjectPanelRefresh(projectId);
@@ -1229,6 +1235,11 @@ export const startChatRuntime = () => {
           !previous.hostRunningChatIds[session.chatId]
         ) {
           turnFollowing.follow(session, { newTurn: true });
+        } else if (
+          !state.hostRunningChatIds[session.chatId] &&
+          previous.hostRunningChatIds[session.chatId]
+        ) {
+          turnFollowing.ended(session.chatId);
         }
       }
       warmCommitMessagesOfSettledProjects(state, previous);

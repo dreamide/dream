@@ -6,6 +6,7 @@ import {
   DEFAULT_SETTINGS,
 } from "@/lib/ide-defaults";
 import type { ChatConfig, ProjectConfig } from "@/types/ide";
+import { useActivityStore } from "../activity-store";
 import { clearGeneratedGitText } from "../git-generated-text";
 import { useIdeStore } from "../ide-store";
 import { CHAT_STREAM_UPDATE_THROTTLE_MS } from "./chat-constants";
@@ -22,6 +23,7 @@ import {
   useChatRuntimeStore,
   watchChatSessionView,
 } from "./chat-runtime";
+import { ENDED_STREAM_GRACE_MS } from "./turn-following";
 
 const initialState = useIdeStore.getState();
 
@@ -382,6 +384,75 @@ test("a dropped response body reconnects to the host turn without a refresh or r
     requests.some((request) => request.url === "/api/chat/submit"),
     false,
   );
+});
+
+test("a stream that stalls after its turn ends settles on the saved transcript", async () => {
+  vi.useFakeTimers();
+  const { chat } = setUp();
+  const transport = globalThis.fetch;
+  let streamRequests = 0;
+  const encoder = new TextEncoder();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (String(url) !== `/api/chat/${chat.id}/stream`)
+        return transport(url, init);
+      streamRequests++;
+      // The stream delivers the turn's start, then nothing more: it never
+      // closes, though the turn goes on to finish on the host.
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(
+              encoder.encode(
+                [
+                  { type: "start", messageId: "assistant-1" },
+                  { type: "text-start", id: "text-1" },
+                  { type: "text-delta", id: "text-1", delta: "Working" },
+                ]
+                  .map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`)
+                  .join(""),
+              ),
+            );
+          },
+        }),
+        { headers: { "content-type": "text/event-stream" } },
+      );
+    }),
+  );
+  useIdeStore.setState({ hostRunningChatIds: { [chat.id]: true } });
+  const session = getChatSession(chat.id);
+  await vi.waitFor(() => assert.equal(session.chat.status, "streaming"));
+
+  // The host saves the finished turn and says it ended.
+  hostMessages = [
+    {
+      id: "assistant-1",
+      role: "assistant",
+      parts: [{ type: "text", text: "Done." }],
+    },
+  ];
+  useIdeStore.setState({ hostRunningChatIds: {} });
+  await vi.advanceTimersByTimeAsync(ENDED_STREAM_GRACE_MS - 100);
+  assert.equal(session.chat.status, "streaming", "a grace period first");
+
+  await vi.advanceTimersByTimeAsync(100);
+  await vi.waitFor(() =>
+    assert.deepEqual(
+      session.chat.messages
+        .at(-1)
+        ?.parts.map((part) => (part.type === "text" ? part.text : part.type)),
+      ["Done."],
+    ),
+  );
+  assert.equal(session.chat.status, "ready");
+  assert.equal(useIdeStore.getState().streamingChatIds[chat.id], undefined);
+  assert.equal(
+    useActivityStore.getState().entries[chat.id]?.status,
+    "finished",
+  );
+  await vi.advanceTimersByTimeAsync(10_000);
+  assert.equal(streamRequests, 1, "an ended turn is not followed again");
 });
 
 test.each([

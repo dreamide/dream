@@ -699,7 +699,9 @@ chat once at a time; a request made during a follow runs after it. A stream
 lost while its turn still runs is followed again, waiting twice as long each
 time up to a ceiling; the wait starts over once bytes arrive. Following
 stops when the turn ends, the host is unreachable, or the session is
-replaced. The chat stream's requests go to the host by the Host endpoint's
+replaced. A stream still open a few seconds after the host says its turn
+ended has stalled: it is dropped, and the chat settles on the saved
+transcript as finished. The chat stream's requests go to the host by the Host endpoint's
 rule (`fetchFromHost`), like every other request to a host.
 
 ## Turn contract

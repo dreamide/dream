@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import {
   createTurnFollowing,
+  ENDED_STREAM_GRACE_MS,
   MAX_FOLLOW_RETRY_MS,
   MIN_FOLLOW_RETRY_MS,
 } from "./turn-following";
@@ -182,6 +183,65 @@ test("following stops when the turn ends, the session is replaced, or it is forg
   assert.equal(scheduled.length, 1);
   following.forget("c");
   assert.equal(scheduled.length, 0, "forgetting cancels the retry");
+});
+
+test("a stream still open after its turn ended is dropped, and settles as ended", async () => {
+  const { end, following, running, scheduled, session, settled, stopped } =
+    setup();
+  running.add("c");
+  const chat = session("c");
+  following.follow(chat);
+
+  // The host says the turn ended; the stream it was read on never closes.
+  running.delete("c");
+  following.ended("c");
+  assert.equal(scheduled.length, 1);
+  assert.equal(scheduled[0].ms, ENDED_STREAM_GRACE_MS);
+  assert.deepEqual(stopped, [], "the stream gets a grace period first");
+
+  scheduled.shift()?.callback();
+  assert.deepEqual(stopped, ["c"], "then the stalled stream is dropped");
+  assert.equal(following.isEnded("c"), true);
+
+  // Dropping it ends the follow, which settles (loading the transcript).
+  await end(true);
+  assert.deepEqual(settled, ["c"]);
+  assert.equal(scheduled.length, 0, "and it is not followed again");
+});
+
+test("a stream that closes after its turn ended is left alone", async () => {
+  const { end, following, running, scheduled, session, stopped } = setup();
+  running.add("c");
+  const chat = session("c");
+  following.follow(chat);
+  running.delete("c");
+  following.ended("c");
+  await end(true);
+  assert.equal(scheduled.length, 0, "closing cancels the wait");
+  assert.deepEqual(stopped, []);
+  assert.equal(following.isEnded("c"), false);
+
+  // Nothing is followed: an ended turn with no follow has nothing to drop.
+  following.ended("c");
+  assert.equal(scheduled.length, 0);
+});
+
+test("a follow that starts after an ended one is not ended", async () => {
+  const { end, following, running, scheduled, session, stopped } = setup();
+  running.add("c");
+  const chat = session("c");
+  following.follow(chat);
+  running.delete("c");
+  following.ended("c");
+  scheduled.shift()?.callback();
+  await end(true);
+  assert.equal(following.isEnded("c"), true);
+
+  running.add("c");
+  following.follow(chat);
+  assert.equal(following.isEnded("c"), false);
+  following.forget("c");
+  assert.deepEqual(stopped, ["c"]);
 });
 
 test("reattaching drops streams being read and follows the rest, on that host only", async () => {

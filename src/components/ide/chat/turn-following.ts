@@ -10,13 +10,20 @@
  * body, a transient host answer) is followed again, with a delay that
  * doubles up to a ceiling and resets once bytes arrive. Following stops
  * when the turn ends, when the host cannot be reached, or when the session
- * is replaced or dropped.
+ * is replaced or dropped. A stream still open a while after the host says
+ * its turn ended has stalled: it is dropped, and the session settles on
+ * the saved transcript instead.
  *
  * What following does (load the transcript, resume the stream, refresh)
  * belongs to the chat runtime (chat-runtime.ts), which supplies it.
  */
 export const MIN_FOLLOW_RETRY_MS = 250;
 export const MAX_FOLLOW_RETRY_MS = 5_000;
+/**
+ * How long a followed stream may stay open after the host says its turn
+ * ended: the end event can overtake the stream's last bytes.
+ */
+export const ENDED_STREAM_GRACE_MS = 5_000;
 
 export interface TurnFollowingDependencies<Session extends { chatId: string }> {
   /** A turn runs on the chat's host and this client may connect to it. */
@@ -49,6 +56,10 @@ interface Following {
   /** The wait before following a lost stream again. */
   delay: number;
   retry: unknown;
+  /** The wait for the current follow's stream to close after its turn ended. */
+  ending: unknown;
+  /** The current follow was dropped because its turn had ended. */
+  ended: boolean;
 }
 
 export const createTurnFollowing = <Session extends { chatId: string }>(
@@ -59,15 +70,21 @@ export const createTurnFollowing = <Session extends { chatId: string }>(
       clearTimeout(timer as ReturnType<typeof setTimeout>),
     set: (callback: () => void, ms: number) => setTimeout(callback, ms),
   };
-  /** Chats followed right now. */
-  const active = new Set<string>();
+  /** Chats followed right now, each with its follow's session. */
+  const active = new Map<string, Session>();
   /** Chats to follow again once their current follow (or stream) ends. */
   const pending = new Set<string>();
   const states = new Map<string, Following>();
   const stateOf = (chatId: string) => {
     let state = states.get(chatId);
     if (!state) {
-      state = { delay: MIN_FOLLOW_RETRY_MS, lost: false, retry: null };
+      state = {
+        delay: MIN_FOLLOW_RETRY_MS,
+        ended: false,
+        ending: null,
+        lost: false,
+        retry: null,
+      };
       states.set(chatId, state);
     }
     return state;
@@ -76,6 +93,12 @@ export const createTurnFollowing = <Session extends { chatId: string }>(
     if (state.retry !== null) {
       timers.clear(state.retry);
       state.retry = null;
+    }
+  };
+  const cancelEnding = (state: Following) => {
+    if (state.ending !== null) {
+      timers.clear(state.ending);
+      state.ending = null;
     }
   };
 
@@ -93,7 +116,8 @@ export const createTurnFollowing = <Session extends { chatId: string }>(
       return;
     const state = stateOf(chatId);
     cancelRetry(state);
-    active.add(chatId);
+    state.ended = false;
+    active.set(chatId, session);
     pending.delete(chatId);
     void deps
       .follow(session)
@@ -103,6 +127,7 @@ export const createTurnFollowing = <Session extends { chatId: string }>(
       .catch((error: Error) => deps.onError(session, error))
       .finally(() => {
         active.delete(chatId);
+        cancelEnding(state);
         if (!deps.isCurrent(session)) return;
         deps.onSettled(session);
         if (pending.delete(chatId)) {
@@ -138,6 +163,31 @@ export const createTurnFollowing = <Session extends { chatId: string }>(
       }
     },
 
+    /**
+     * The host says the chat's turn ended. The stream being followed
+     * should close with it; one still open after a grace period has
+     * stalled, and is dropped so the session settles on the saved
+     * transcript (onSettled). A follow that starts later is not affected.
+     */
+    ended(chatId: string) {
+      const session = active.get(chatId);
+      if (!session) return;
+      const state = stateOf(chatId);
+      cancelEnding(state);
+      state.ending = timers.set(() => {
+        state.ending = null;
+        if (active.get(chatId) !== session) return;
+        state.ended = true;
+        deps.stopStream(session);
+      }, ENDED_STREAM_GRACE_MS);
+    },
+
+    /**
+     * Whether the chat's current or last follow was dropped because its
+     * turn had ended: its stream's end is not an interruption.
+     */
+    isEnded: (chatId: string) => states.get(chatId)?.ended ?? false,
+
     /** The chat's stream was lost while its turn may run on. */
     lost(chatId: string) {
       stateOf(chatId).lost = true;
@@ -168,7 +218,10 @@ export const createTurnFollowing = <Session extends { chatId: string }>(
     /** The chat's session is gone: nothing more is followed for it. */
     forget(chatId: string) {
       const state = states.get(chatId);
-      if (state) cancelRetry(state);
+      if (state) {
+        cancelRetry(state);
+        cancelEnding(state);
+      }
       states.delete(chatId);
       pending.delete(chatId);
     },
