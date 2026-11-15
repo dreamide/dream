@@ -85,12 +85,3 @@ export const REASONING_EFFORT_OPTIONS: Array<{
 export const MODEL_SPEED_OPTIONS: Array<{
   value: ModelSpeed;
 }> = [{ value: "standard" }, { value: "fast" }];
-
-export const getProviderLabel = (provider: AiProvider): string => {
-  if (provider === "openai") return "OpenAI";
-  if (provider === "opencode") return "OpenCode";
-  if (provider === "cursor") return "Cursor";
-  if (provider === "grok") return "Grok Build";
-  if (provider === "antigravity") return "Antigravity";
-  return "Anthropic";
-};

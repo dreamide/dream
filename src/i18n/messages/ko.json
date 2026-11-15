@@ -475,16 +475,6 @@
     "standard": "표준",
     "xhigh": "매우 높음"
   },
-  "provider": {
-    "anthropic": "Anthropic",
-    "codexCli": "Codex CLI",
-    "cursor": "Cursor",
-    "cursorAgentCli": "Cursor Agent CLI",
-    "openai": "OpenAI",
-    "opencode": "OpenCode",
-    "opencodeCli": "OpenCode CLI",
-    "claudeCodeCli": "Claude Code CLI"
-  },
   "editorSearch": {
     "find": "찾기",
     "previousMatch": "이전 일치 항목",

@@ -2,7 +2,6 @@ import { FolderGit2, FolderOpen, Package, Plus, RotateCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -19,6 +18,7 @@ import type { AiProvider, ProviderSkill } from "@/types/ide";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { fetchProviderSkills } from "../chat/provider-skills";
 import { useIdeStore } from "../ide-store";
+import { PROVIDER_PRESENTATION, ProviderIcon } from "../provider-presentation";
 import { useOpenLocalPath } from "../ssh/use-open-local-path";
 import { CreateSkillDialog } from "./create-skill-dialog";
 import {
@@ -44,7 +44,6 @@ const NO_PROJECT_VALUE = "__none__";
  */
 export const SkillsSettingsSection = () => {
   const t = useTranslations("skills");
-  const providerT = useTranslations("provider");
   const projects = useIdeStore((state) => state.projects);
   const activeProjectId = useIdeStore((state) => state.activeProjectId);
   const [provider, setProvider] = useState<AiProvider>("anthropic");
@@ -169,19 +168,6 @@ export const SkillsSettingsSection = () => {
     }
   };
 
-  const providerLabel = (value: AiProvider) => {
-    switch (value) {
-      case "anthropic":
-        return providerT("claudeCodeCli");
-      case "openai":
-        return providerT("codexCli");
-      case "opencode":
-        return providerT("opencodeCli");
-      default:
-        return providerT("cursorAgentCli");
-    }
-  };
-
   const canToggle = SKILL_TOGGLE_PROVIDERS.includes(provider);
 
   const handleToggle = async (skill: ProviderSkill, enabled: boolean) => {
@@ -264,7 +250,7 @@ export const SkillsSettingsSection = () => {
               <TabsTrigger key={item} value={item}>
                 <span className="flex items-center gap-1.5">
                   <ProviderIcon className="size-3.5" provider={item} />
-                  {providerLabel(item)}
+                  {PROVIDER_PRESENTATION[item].runtimeLabel}
                 </span>
               </TabsTrigger>
             ))}

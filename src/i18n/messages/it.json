@@ -475,16 +475,6 @@
     "standard": "Standard",
     "xhigh": "Molto alto"
   },
-  "provider": {
-    "anthropic": "Anthropic",
-    "codexCli": "Codex CLI",
-    "cursor": "Cursor",
-    "cursorAgentCli": "Cursor Agent CLI",
-    "openai": "OpenAI",
-    "opencode": "OpenCode",
-    "opencodeCli": "OpenCode CLI",
-    "claudeCodeCli": "Claude Code CLI"
-  },
   "editorSearch": {
     "find": "Cerca",
     "previousMatch": "Corrispondenza precedente",

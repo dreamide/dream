@@ -1,20 +1,11 @@
 import type { ModelOption } from "@/lib/models";
-import type { AiProvider } from "@/types/ide";
-import type { ProviderModelState } from "../ide-types";
+import { ALL_PROVIDERS, type ProviderModelState } from "../ide-types";
 import type { IdeState } from "./ide-store-types";
 import { DEFAULT_PROVIDER_MODELS } from "./provider-model-state";
 
 type ProviderModels = IdeState["providerModels"];
 
 const STORAGE_KEY = "dream-provider-models-v1";
-const PROVIDERS = [
-  "anthropic",
-  "antigravity",
-  "cursor",
-  "grok",
-  "openai",
-  "opencode",
-] as const satisfies readonly AiProvider[];
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
@@ -96,7 +87,7 @@ export const readCachedProviderModels = (): ProviderModels => {
 
     const raw = saved as Record<string, unknown>;
     const next: ProviderModels = { ...DEFAULT_PROVIDER_MODELS };
-    for (const provider of PROVIDERS) {
+    for (const provider of ALL_PROVIDERS) {
       next[provider] = readProviderState(
         raw[provider],
         DEFAULT_PROVIDER_MODELS[provider],
@@ -118,7 +109,7 @@ export const writeCachedProviderModels = (
     }
 
     const snapshot = Object.fromEntries(
-      PROVIDERS.map((provider) => {
+      ALL_PROVIDERS.map((provider) => {
         const { installed, models, source, version } = providerModels[provider];
         return [provider, { installed, models, source, version }];
       }),

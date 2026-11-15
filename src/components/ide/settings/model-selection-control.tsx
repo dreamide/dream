@@ -18,11 +18,8 @@ import {
   type ModelOption,
 } from "@/lib/models";
 import type { AiProvider, ModelSpeed, ReasoningEffort } from "@/types/ide";
-import {
-  getProviderLabel,
-  MODEL_SPEED_OPTIONS,
-  REASONING_EFFORT_OPTIONS,
-} from "../ide-types";
+import { MODEL_SPEED_OPTIONS, REASONING_EFFORT_OPTIONS } from "../ide-types";
+import { PROVIDER_PRESENTATION } from "../provider-presentation";
 
 export interface ModelSelectionGroup {
   models: ModelOption[];
@@ -138,7 +135,9 @@ export const ModelSelectionControl = ({
           {groups.map((group) => (
             <SelectGroup key={group.provider}>
               {groups.length > 1 ? (
-                <SelectLabel>{getProviderLabel(group.provider)}</SelectLabel>
+                <SelectLabel>
+                  {PROVIDER_PRESENTATION[group.provider].label}
+                </SelectLabel>
               ) : null}
               {group.models.map((model) => (
                 <SelectItem key={model.id} value={model.id}>

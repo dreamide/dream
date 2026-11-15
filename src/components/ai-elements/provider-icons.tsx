@@ -3,7 +3,6 @@ import type { ComponentProps } from "react";
 import antigravityLogoMarkup from "@/assets/antigravity.svg?raw";
 import grokLogoMarkup from "@/assets/grok.svg?raw";
 import { cn } from "@/lib/utils";
-import type { AiProvider } from "@/types/ide";
 
 type IconProps = ComponentProps<"svg">;
 
@@ -110,15 +109,3 @@ export const AntigravityIcon = ({
     <g dangerouslySetInnerHTML={{ __html: antigravityLogoContent }} />
   </svg>
 );
-
-export const ProviderIcon = ({
-  provider,
-  ...props
-}: IconProps & { provider: AiProvider }) => {
-  if (provider === "anthropic") return <AnthropicIcon {...props} />;
-  if (provider === "opencode") return <OpenCodeIcon {...props} />;
-  if (provider === "cursor") return <CursorIcon {...props} />;
-  if (provider === "grok") return <GrokIcon {...props} />;
-  if (provider === "antigravity") return <AntigravityIcon {...props} />;
-  return <OpenAiIcon {...props} />;
-};

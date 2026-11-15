@@ -37,10 +37,7 @@ export type EditTarget = {
   name: string;
 };
 
-export {
-  CHAT_STREAM_UPDATE_THROTTLE_MS,
-  PROVIDER_LABELS,
-} from "./chat-constants";
+export { CHAT_STREAM_UPDATE_THROTTLE_MS } from "./chat-constants";
 
 export const CHAT_CONTENT_BOTTOM_PADDING_PX = 88;
 

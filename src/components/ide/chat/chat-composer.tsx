@@ -44,7 +44,6 @@ import {
   PromptInputTools,
   usePromptInputAttachments,
 } from "@/components/ai-elements/prompt-input";
-import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import { PermissionSelector } from "@/components/ide/chat/permission-selector";
 import {
   Select,
@@ -76,6 +75,7 @@ import {
   readProjectResource,
   useProjectResource,
 } from "../project-resources";
+import { ProviderIcon } from "../provider-presentation";
 import { ChatComposerInsertContext } from "./chat-composer-insert-context";
 import { appendDraftText } from "./chat-drafts";
 import {

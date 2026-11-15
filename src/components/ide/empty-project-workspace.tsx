@@ -13,7 +13,6 @@ import {
 import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import dreamSvg from "@/assets/dream.svg";
-import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,8 +39,9 @@ import type { ProjectConfig } from "@/types/ide";
 import { getProjectHostId } from "../../../electron/shared/persisted-state-codec.js";
 import { ProjectTabIcon } from "./header/project-tab-icon";
 import { useIdeStore } from "./ide-store";
-import { ALL_PROVIDERS, getProviderLabel } from "./ide-types";
+import { ALL_PROVIDERS } from "./ide-types";
 import { showOpenProjectDialog } from "./open-project/open-project-dialog-state";
+import { PROVIDER_PRESENTATION, ProviderIcon } from "./provider-presentation";
 import { useHostChoices } from "./ssh/use-host-choices";
 
 const RECENT_PROJECT_LIMIT = 50;
@@ -252,7 +252,7 @@ export const EmptyProjectWorkspace = () => {
                   <ProviderIcon provider={provider} className="size-4" />
                 </span>
                 <span className="block min-w-0 flex-1 truncate font-medium text-foreground text-sm">
-                  {getProviderLabel(provider)}
+                  {PROVIDER_PRESENTATION[provider].label}
                 </span>
                 <ArrowRight className="size-4 shrink-0" />
               </button>

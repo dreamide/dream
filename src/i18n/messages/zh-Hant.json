@@ -475,16 +475,6 @@
     "standard": "標準",
     "xhigh": "極高"
   },
-  "provider": {
-    "anthropic": "Anthropic",
-    "codexCli": "Codex CLI",
-    "cursor": "Cursor",
-    "cursorAgentCli": "Cursor Agent CLI",
-    "openai": "OpenAI",
-    "opencode": "OpenCode",
-    "opencodeCli": "OpenCode CLI",
-    "claudeCodeCli": "Claude Code CLI"
-  },
   "editorSearch": {
     "find": "尋找",
     "previousMatch": "上一個相符項目",

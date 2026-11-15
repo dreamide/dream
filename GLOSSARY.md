@@ -795,8 +795,12 @@ shared **provider capabilities** (`electron/shared/provider-capabilities.js`:
 MCP, skill dispatch style, usage limits, browser-MCP scope, whether a
 session keeps across models and whether its tools are fixed when it starts,
 the setting holding its picked models, how its model ids are spelt), which the
-renderer reads too. Adding a provider is one row and one record, plus its
-`AiProvider` member and its `…SelectedModels` setting.
+renderer reads too. How the renderer shows it is its **provider
+presentation** row (`src/components/ide/provider-presentation.tsx`: its
+name, its CLI's name, its icon, its settings card's mark, whether that card
+groups its models), from which every label, icon and settings card is
+drawn. Adding a provider is one row and one record, plus its `AiProvider`
+member, its `…SelectedModels` setting and its presentation row.
 
 A record's two reads each follow one sequence, so a provider supplies only
 its own steps:

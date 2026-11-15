@@ -475,16 +475,6 @@
     "standard": "Tiêu chuẩn",
     "xhigh": "Rất cao"
   },
-  "provider": {
-    "anthropic": "Anthropic",
-    "codexCli": "Codex CLI",
-    "cursor": "Cursor",
-    "cursorAgentCli": "Cursor Agent CLI",
-    "openai": "OpenAI",
-    "opencode": "OpenCode",
-    "opencodeCli": "OpenCode CLI",
-    "claudeCodeCli": "Claude Code CLI"
-  },
   "editorSearch": {
     "find": "Tìm",
     "previousMatch": "Kết quả khớp trước",

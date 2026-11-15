@@ -54,16 +54,14 @@ import {
   flushProjectPanelRefresh,
   scheduleProjectPanelRefresh,
 } from "../project-panel-refresh";
+import { PROVIDER_PRESENTATION } from "../provider-presentation";
 import { isHostAway } from "../ssh/host-away";
 import { catalogBaselines } from "../store/catalog-baselines";
 import {
   addAskUserQuestionAnswerToMessages,
   preserveAskUserQuestionAnswers,
 } from "./ask-user-question-answers";
-import {
-  CHAT_STREAM_UPDATE_THROTTLE_MS,
-  PROVIDER_LABELS,
-} from "./chat-constants";
+import { CHAT_STREAM_UPDATE_THROTTLE_MS } from "./chat-constants";
 import { chatDrafts } from "./chat-drafts";
 import {
   getChatModelOptions,
@@ -939,7 +937,7 @@ export const submitChatPrompt = (
     setChatError(
       chatId,
       chatT("providerCliUnavailable", {
-        provider: PROVIDER_LABELS[activeProvider],
+        provider: PROVIDER_PRESENTATION[activeProvider].label,
       }),
     );
     return false;

@@ -1,7 +1,6 @@
 import { GaugeIcon } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
-import { ProviderIcon } from "@/components/ai-elements/provider-icons";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -15,7 +14,7 @@ import {
   type UsageLimitWindow,
 } from "@/lib/api-client";
 import type { ChatConfig } from "@/types/ide";
-import { PROVIDER_LABELS } from "./chat-message";
+import { PROVIDER_PRESENTATION, ProviderIcon } from "../provider-presentation";
 
 const USAGE_LIMIT_PERCENT_MAX = 100;
 
@@ -213,7 +212,7 @@ export const UsageLimitsPopover = ({
             provider={provider}
             role="presentation"
           />
-          <span>{PROVIDER_LABELS[provider]}</span>
+          <span>{PROVIDER_PRESENTATION[provider].label}</span>
         </div>
         <div className="space-y-4">
           {usageLimits.loading && !usageLimits.data ? (

@@ -8,7 +8,6 @@ import {
   Moon,
   Package,
   RotateCcw,
-  RotateCw,
   Server,
   Settings,
   Sun,
@@ -23,14 +22,6 @@ import {
   useRef,
   useState,
 } from "react";
-import anthropicLogo from "@/assets/anthropic.svg";
-import openAiLogo from "@/assets/openai.svg";
-import openCodeLogo from "@/assets/opencode.svg";
-import {
-  AntigravityIcon,
-  CursorIcon,
-  GrokIcon,
-} from "@/components/ai-elements/provider-icons";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -49,20 +40,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { APP_LOCALES, type AppLocale, LOCALE_LABELS } from "@/i18n/config";
 import { forgetHomeConnection } from "@/lib/connections/forget";
 import { getClientPlatform } from "@/lib/connections/platform";
-import {
-  getModelOptionsForProvider,
-  getModelsForProvider,
-  isProviderEnabled,
-} from "@/lib/ide-defaults";
-import {
-  DEFAULT_OPENCODE_MODEL_GROUP,
-  getOpenCodeModelName,
-  groupOpenCodeModels,
-} from "@/lib/opencode-model-groups";
+import { getModelOptionsForProvider } from "@/lib/ide-defaults";
 import { terminalClient } from "@/lib/terminal-client";
 import { ACCENT_COLORS, BASE_COLORS, useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
@@ -84,13 +66,12 @@ import {
   McpIcon,
   McpServersSection,
   ModelSelectionControl,
-  ProviderModelRow,
-  ProviderStatusCard,
   SettingsControlRow,
   SettingsGroup,
   SettingsSwitchRow,
 } from "./settings";
 import { KeyboardShortcutsSection } from "./settings/keyboard-shortcuts-section";
+import { ProviderSettingsCard } from "./settings/provider-settings-card";
 import { SettingsVersionButton } from "./settings/settings-version-button";
 import { SharingAccessSection } from "./settings/sharing-access-section";
 import { SkillsSettingsSection } from "./skills/skills-settings-section";
@@ -160,7 +141,6 @@ export const SettingsWorkspace = () => {
   const chatT = useTranslations("chat");
   const commonT = useTranslations("common");
   const localeT = useTranslations("locale");
-  const providerT = useTranslations("provider");
   const settingsT = useTranslations("settings");
   const remoteT = useTranslations("remote");
   // A browser client: SSH hosts are the desktop's; signing out is its own.
@@ -186,11 +166,6 @@ export const SettingsWorkspace = () => {
   const setSettings = useIdeStore((s) => s.setSettings);
   const setSettingsOpen = useIdeStore((s) => s.setSettingsOpen);
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
-  const toggleProviderModel = useIdeStore((s) => s.toggleProviderModel);
-  const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
-  const cliLatestVersions = useIdeStore((s) => s.cliLatestVersions);
-  const cliUpgrades = useIdeStore((s) => s.cliUpgrades);
-  const upgradeCli = useIdeStore((s) => s.upgradeCli);
   const archiveInactiveChats = useIdeStore((s) => s.archiveInactiveChats);
   const permanentlyDeleteChats = useIdeStore((s) => s.permanentlyDeleteChats);
   const restoreChats = useIdeStore((s) => s.restoreChats);
@@ -283,105 +258,28 @@ export const SettingsWorkspace = () => {
     terminalShellOptions[0] ??
     null;
 
-  const openAiModels = useMemo(
-    () => getModelsForProvider("openai", settings),
-    [settings],
-  );
-  const anthropicModels = useMemo(
-    () => getModelsForProvider("anthropic", settings),
-    [settings],
-  );
-  const openCodeModels = useMemo(
-    () => getModelsForProvider("opencode", settings),
-    [settings],
-  );
-  const cursorModels = useMemo(
-    () => getModelsForProvider("cursor", settings),
-    [settings],
-  );
-  const grokModels = useMemo(
-    () => getModelsForProvider("grok", settings),
-    [settings],
-  );
-  const antigravityModels = useMemo(
-    () => getModelsForProvider("antigravity", settings),
-    [settings],
-  );
-  const availableOpenAiModels = providerModels.openai.models;
-  const availableAnthropicModels = providerModels.anthropic.models;
-  const availableOpenCodeModels = providerModels.opencode.models;
-  const openCodeModelGroups = useMemo(
-    () => groupOpenCodeModels(availableOpenCodeModels),
-    [availableOpenCodeModels],
-  );
-  const [openCodeModelGroup, setOpenCodeModelGroup] = useState<string>(
-    DEFAULT_OPENCODE_MODEL_GROUP,
-  );
-  // Fall back to the first tab when the chosen provider is not offered.
-  const activeOpenCodeModelGroup = openCodeModelGroups.some(
-    (group) => group.id === openCodeModelGroup,
-  )
-    ? openCodeModelGroup
-    : (openCodeModelGroups[0]?.id ?? DEFAULT_OPENCODE_MODEL_GROUP);
-  const availableCursorModels = providerModels.cursor.models;
-  const availableGrokModels = providerModels.grok.models;
-  const availableAntigravityModels = providerModels.antigravity.models;
+  // The model tab chosen on each card that groups its models, kept while
+  // other sections are shown.
+  const [providerModelGroups, setProviderModelGroups] = useState<
+    Partial<Record<AiProvider, string>>
+  >({});
 
-  const openAiModelOptions = useMemo(
-    () => getModelOptionsForProvider("openai", settings, availableOpenAiModels),
-    [availableOpenAiModels, settings],
-  );
-  const anthropicModelOptions = useMemo(
-    () =>
-      getModelOptionsForProvider(
-        "anthropic",
-        settings,
-        availableAnthropicModels,
-      ),
-    [availableAnthropicModels, settings],
-  );
-  const openCodeModelOptions = useMemo(
-    () =>
-      getModelOptionsForProvider("opencode", settings, availableOpenCodeModels),
-    [availableOpenCodeModels, settings],
-  );
-  const cursorModelOptions = useMemo(
-    () => getModelOptionsForProvider("cursor", settings, availableCursorModels),
-    [availableCursorModels, settings],
-  );
-  const grokModelOptions = useMemo(
-    () => getModelOptionsForProvider("grok", settings, availableGrokModels),
-    [availableGrokModels, settings],
-  );
-  const antigravityModelOptions = useMemo(
-    () =>
-      getModelOptionsForProvider(
-        "antigravity",
-        settings,
-        availableAntigravityModels,
-      ),
-    [availableAntigravityModels, settings],
-  );
   const groupedDefaultModelOptions = useMemo(
     () =>
-      [
-        { models: openAiModelOptions, provider: "openai" as const },
-        { models: anthropicModelOptions, provider: "anthropic" as const },
-        { models: openCodeModelOptions, provider: "opencode" as const },
-        { models: cursorModelOptions, provider: "cursor" as const },
-        { models: grokModelOptions, provider: "grok" as const },
-        { models: antigravityModelOptions, provider: "antigravity" as const },
-      ].filter((group) => group.models.length > 0),
-    [
-      anthropicModelOptions,
-      antigravityModelOptions,
-      cursorModelOptions,
-      grokModelOptions,
-      openAiModelOptions,
-      openCodeModelOptions,
-    ],
+      ALL_PROVIDERS.map((provider) => ({
+        models: getModelOptionsForProvider(
+          provider,
+          settings,
+          providerModels[provider].models,
+        ),
+        provider,
+      })).filter((group) => group.models.length > 0),
+    [providerModels, settings],
   );
 
+  // Settling keeps the defaults on a picked model, but as they were spelt
+  // ("Opus"), while the options carry normalized ids ("opus"); so a default
+  // can still match no option here.
   const selectedDefaultModel = useMemo(() => {
     const enabledModelIds = groupedDefaultModelOptions.flatMap((group) =>
       group.models.map((model) => model.id),
@@ -488,42 +386,6 @@ export const SettingsWorkspace = () => {
   const handleArchiveInactiveChats = () => {
     archiveInactiveChats();
   };
-  const handleRefreshOpenAiProvider = () => {
-    void refreshProviderModels({ force: true, provider: "openai" });
-  };
-  const handleRefreshAnthropicProvider = () => {
-    void refreshProviderModels({ force: true, provider: "anthropic" });
-  };
-
-  const handleRefreshOpenCodeProvider = () => {
-    void refreshProviderModels({ force: true, provider: "opencode" });
-  };
-
-  const handleRefreshCursorProvider = () => {
-    void refreshProviderModels({ force: true, provider: "cursor" });
-  };
-
-  const handleRefreshGrokProvider = () => {
-    void refreshProviderModels({ force: true, provider: "grok" });
-  };
-
-  const handleRefreshAntigravityProvider = () => {
-    void refreshProviderModels({ force: true, provider: "antigravity" });
-  };
-  const setProviderEnabled = (provider: AiProvider, enabled: boolean) =>
-    setSettings((previous) => {
-      const disabledProviders = (previous.disabledProviders ?? []).filter(
-        (item) => item !== provider,
-      );
-      return {
-        ...previous,
-        disabledProviders: enabled
-          ? disabledProviders
-          : [...disabledProviders, provider],
-      };
-    });
-  const getProviderError = (error: string | null) =>
-    error ? uiT("unableToFetchModels") : null;
 
   return (
     <section
@@ -1107,416 +969,19 @@ export const SettingsWorkspace = () => {
                   ) : null}
 
                   <div className="grid gap-3">
-                    <ProviderStatusCard
-                      action={
-                        <Button
-                          aria-label={settingsT("refreshProvider", {
-                            provider: providerT("openai"),
-                          })}
-                          disabled={providerModels.openai.loading}
-                          onClick={handleRefreshOpenAiProvider}
-                          size="icon-xs"
-                          title={settingsT("refreshProvider", {
-                            provider: providerT("openai"),
-                          })}
-                          type="button"
-                          variant="ghost"
-                        >
-                          <RotateCw className="size-3.5" />
-                        </Button>
-                      }
-                      enabled={isProviderEnabled("openai", settings)}
-                      error={getProviderError(providerModels.openai.error)}
-                      installed={providerModels.openai.installed}
-                      label="OpenAI"
-                      logoSrc={openAiLogo}
-                      loading={providerModels.openai.loading}
-                      onEnabledChange={(enabled) =>
-                        setProviderEnabled("openai", enabled)
-                      }
-                      runtimeLabel={providerT("codexCli")}
-                      latestVersion={cliLatestVersions.openai}
-                      onUpgrade={() => upgradeCli("openai")}
-                      upgrading={cliUpgrades.openai === true}
-                      version={providerModels.openai.version}
-                    >
-                      <div className="space-y-1 rounded-md p-1">
-                        {availableOpenAiModels.length === 0 ? (
-                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            {settingsT("noCliModels")}
-                          </p>
-                        ) : (
-                          availableOpenAiModels.map((model) => {
-                            const isSelected = openAiModels.includes(model.id);
-
-                            return (
-                              <ProviderModelRow
-                                key={model.id}
-                                label={model.label}
-                                onSelectedChange={(selected) =>
-                                  toggleProviderModel(
-                                    "openai",
-                                    model.id,
-                                    selected,
-                                  )
-                                }
-                                selected={isSelected}
-                              />
-                            );
-                          })
-                        )}
-                      </div>
-                    </ProviderStatusCard>
-                    <ProviderStatusCard
-                      action={
-                        <Button
-                          aria-label={settingsT("refreshProvider", {
-                            provider: providerT("anthropic"),
-                          })}
-                          disabled={providerModels.anthropic.loading}
-                          onClick={handleRefreshAnthropicProvider}
-                          size="icon-xs"
-                          title={settingsT("refreshProvider", {
-                            provider: providerT("anthropic"),
-                          })}
-                          type="button"
-                          variant="ghost"
-                        >
-                          <RotateCw className="size-3.5" />
-                        </Button>
-                      }
-                      enabled={isProviderEnabled("anthropic", settings)}
-                      error={getProviderError(providerModels.anthropic.error)}
-                      installed={providerModels.anthropic.installed}
-                      label="Anthropic"
-                      logoSrc={anthropicLogo}
-                      loading={providerModels.anthropic.loading}
-                      onEnabledChange={(enabled) =>
-                        setProviderEnabled("anthropic", enabled)
-                      }
-                      runtimeLabel={providerT("claudeCodeCli")}
-                      latestVersion={cliLatestVersions.anthropic}
-                      onUpgrade={() => upgradeCli("anthropic")}
-                      upgrading={cliUpgrades.anthropic === true}
-                      version={providerModels.anthropic.version}
-                    >
-                      <div className="space-y-1 rounded-md p-1">
-                        {availableAnthropicModels.length === 0 ? (
-                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            {settingsT("noCliModels")}
-                          </p>
-                        ) : (
-                          availableAnthropicModels.map((model) => {
-                            const isSelected = anthropicModels.includes(
-                              model.id,
-                            );
-
-                            return (
-                              <ProviderModelRow
-                                key={model.id}
-                                label={model.label}
-                                onSelectedChange={(selected) =>
-                                  toggleProviderModel(
-                                    "anthropic",
-                                    model.id,
-                                    selected,
-                                  )
-                                }
-                                selected={isSelected}
-                              />
-                            );
-                          })
-                        )}
-                      </div>
-                    </ProviderStatusCard>
-                    <ProviderStatusCard
-                      action={
-                        <Button
-                          aria-label={settingsT("refreshProvider", {
-                            provider: providerT("opencode"),
-                          })}
-                          disabled={providerModels.opencode.loading}
-                          onClick={handleRefreshOpenCodeProvider}
-                          size="icon-xs"
-                          title={settingsT("refreshProvider", {
-                            provider: providerT("opencode"),
-                          })}
-                          type="button"
-                          variant="ghost"
-                        >
-                          <RotateCw className="size-3.5" />
-                        </Button>
-                      }
-                      enabled={isProviderEnabled("opencode", settings)}
-                      error={getProviderError(providerModels.opencode.error)}
-                      installed={providerModels.opencode.installed}
-                      label="OpenCode"
-                      logoSrc={openCodeLogo}
-                      loading={providerModels.opencode.loading}
-                      onEnabledChange={(enabled) =>
-                        setProviderEnabled("opencode", enabled)
-                      }
-                      runtimeLabel={providerT("opencodeCli")}
-                      latestVersion={cliLatestVersions.opencode}
-                      onUpgrade={() => upgradeCli("opencode")}
-                      upgrading={cliUpgrades.opencode === true}
-                      version={providerModels.opencode.version}
-                    >
-                      <div className="space-y-1 rounded-md p-1">
-                        {openCodeModelGroups.length === 0 ? (
-                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            {settingsT("noOpenCodeModels")}
-                          </p>
-                        ) : (
-                          <Tabs
-                            onValueChange={(value) =>
-                              setOpenCodeModelGroup(String(value))
-                            }
-                            value={activeOpenCodeModelGroup}
-                          >
-                            {/* Stays in view while the model list scrolls. */}
-                            <div className="sticky top-0 z-20 -mx-1 -mt-1 overflow-x-auto bg-white px-1 pt-1 pb-1 dark:bg-surface-950">
-                              <TabsList>
-                                {openCodeModelGroups.map((group) => (
-                                  <TabsTrigger key={group.id} value={group.id}>
-                                    {group.label}
-                                  </TabsTrigger>
-                                ))}
-                              </TabsList>
-                            </div>
-                            {openCodeModelGroups.map((group) => (
-                              <TabsContent
-                                className="space-y-1"
-                                key={group.id}
-                                value={group.id}
-                              >
-                                {group.models.map((model) => {
-                                  const isSelected = openCodeModels.includes(
-                                    model.id,
-                                  );
-
-                                  return (
-                                    <ProviderModelRow
-                                      key={model.id}
-                                      label={getOpenCodeModelName(model)}
-                                      onSelectedChange={(selected) =>
-                                        toggleProviderModel(
-                                          "opencode",
-                                          model.id,
-                                          selected,
-                                        )
-                                      }
-                                      selected={isSelected}
-                                    />
-                                  );
-                                })}
-                              </TabsContent>
-                            ))}
-                          </Tabs>
-                        )}
-                      </div>
-                    </ProviderStatusCard>
-                    <ProviderStatusCard
-                      action={
-                        <Button
-                          aria-label={settingsT("refreshProvider", {
-                            provider: providerT("cursor"),
-                          })}
-                          disabled={providerModels.cursor.loading}
-                          onClick={handleRefreshCursorProvider}
-                          size="icon-xs"
-                          title={settingsT("refreshProvider", {
-                            provider: providerT("cursor"),
-                          })}
-                          type="button"
-                          variant="ghost"
-                        >
-                          <RotateCw className="size-3.5" />
-                        </Button>
-                      }
-                      enabled={isProviderEnabled("cursor", settings)}
-                      error={getProviderError(providerModels.cursor.error)}
-                      icon={
-                        <CursorIcon
-                          aria-hidden="true"
-                          className="size-4 text-foreground"
-                          role="presentation"
-                        />
-                      }
-                      installed={providerModels.cursor.installed}
-                      label="Cursor"
-                      loading={providerModels.cursor.loading}
-                      onEnabledChange={(enabled) =>
-                        setProviderEnabled("cursor", enabled)
-                      }
-                      runtimeLabel={providerT("cursorAgentCli")}
-                      latestVersion={cliLatestVersions.cursor}
-                      onUpgrade={() => upgradeCli("cursor")}
-                      upgrading={cliUpgrades.cursor === true}
-                      version={providerModels.cursor.version}
-                    >
-                      <div className="space-y-1 rounded-md p-1">
-                        {availableCursorModels.length === 0 ? (
-                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            {settingsT("noCliModels")}
-                          </p>
-                        ) : (
-                          availableCursorModels.map((model) => {
-                            const isSelected = cursorModels.includes(model.id);
-
-                            return (
-                              <ProviderModelRow
-                                key={model.id}
-                                label={model.label}
-                                onSelectedChange={(selected) =>
-                                  toggleProviderModel(
-                                    "cursor",
-                                    model.id,
-                                    selected,
-                                  )
-                                }
-                                selected={isSelected}
-                              />
-                            );
-                          })
-                        )}
-                      </div>
-                    </ProviderStatusCard>
-                    <ProviderStatusCard
-                      action={
-                        <Button
-                          aria-label={settingsT("refreshProvider", {
-                            provider: "Grok Build",
-                          })}
-                          disabled={providerModels.grok.loading}
-                          onClick={handleRefreshGrokProvider}
-                          size="icon-xs"
-                          title={settingsT("refreshProvider", {
-                            provider: "Grok Build",
-                          })}
-                          type="button"
-                          variant="ghost"
-                        >
-                          <RotateCw className="size-3.5" />
-                        </Button>
-                      }
-                      enabled={isProviderEnabled("grok", settings)}
-                      error={getProviderError(providerModels.grok.error)}
-                      icon={
-                        <GrokIcon
-                          aria-hidden="true"
-                          className="size-4 text-foreground"
-                          role="presentation"
-                        />
-                      }
-                      installed={providerModels.grok.installed}
-                      label="Grok Build"
-                      loading={providerModels.grok.loading}
-                      onEnabledChange={(enabled) =>
-                        setProviderEnabled("grok", enabled)
-                      }
-                      runtimeLabel="Grok Build CLI"
-                      latestVersion={cliLatestVersions.grok}
-                      onUpgrade={() => upgradeCli("grok")}
-                      upgrading={cliUpgrades.grok === true}
-                      version={providerModels.grok.version}
-                    >
-                      <div className="space-y-1 rounded-md p-1">
-                        {availableGrokModels.length === 0 ? (
-                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            {settingsT("noCliModels")}
-                          </p>
-                        ) : (
-                          availableGrokModels.map((model) => {
-                            const isSelected = grokModels.includes(model.id);
-
-                            return (
-                              <ProviderModelRow
-                                key={model.id}
-                                label={model.label}
-                                onSelectedChange={(selected) =>
-                                  toggleProviderModel(
-                                    "grok",
-                                    model.id,
-                                    selected,
-                                  )
-                                }
-                                selected={isSelected}
-                              />
-                            );
-                          })
-                        )}
-                      </div>
-                    </ProviderStatusCard>
-
-                    <ProviderStatusCard
-                      action={
-                        <Button
-                          aria-label={settingsT("refreshProvider", {
-                            provider: "Antigravity",
-                          })}
-                          disabled={providerModels.antigravity.loading}
-                          onClick={handleRefreshAntigravityProvider}
-                          size="icon-xs"
-                          title={settingsT("refreshProvider", {
-                            provider: "Antigravity",
-                          })}
-                          type="button"
-                          variant="ghost"
-                        >
-                          <RotateCw className="size-3.5" />
-                        </Button>
-                      }
-                      enabled={isProviderEnabled("antigravity", settings)}
-                      error={getProviderError(providerModels.antigravity.error)}
-                      icon={
-                        <AntigravityIcon
-                          aria-hidden="true"
-                          className="size-4"
-                          role="presentation"
-                        />
-                      }
-                      installed={providerModels.antigravity.installed}
-                      label="Antigravity"
-                      loading={providerModels.antigravity.loading}
-                      onEnabledChange={(enabled) =>
-                        setProviderEnabled("antigravity", enabled)
-                      }
-                      runtimeLabel="Antigravity CLI"
-                      latestVersion={cliLatestVersions.antigravity}
-                      onUpgrade={() => upgradeCli("antigravity")}
-                      upgrading={cliUpgrades.antigravity === true}
-                      version={providerModels.antigravity.version}
-                    >
-                      <div className="space-y-1 rounded-md p-1">
-                        {availableAntigravityModels.length === 0 ? (
-                          <p className="px-2 py-1.5 text-muted-foreground text-sm">
-                            {settingsT("noCliModels")}
-                          </p>
-                        ) : (
-                          availableAntigravityModels.map((model) => {
-                            const isSelected = antigravityModels.includes(
-                              model.id,
-                            );
-
-                            return (
-                              <ProviderModelRow
-                                key={model.id}
-                                label={model.label}
-                                onSelectedChange={(selected) =>
-                                  toggleProviderModel(
-                                    "antigravity",
-                                    model.id,
-                                    selected,
-                                  )
-                                }
-                                selected={isSelected}
-                              />
-                            );
-                          })
-                        )}
-                      </div>
-                    </ProviderStatusCard>
+                    {ALL_PROVIDERS.map((provider) => (
+                      <ProviderSettingsCard
+                        key={provider}
+                        modelGroup={providerModelGroups[provider]}
+                        onModelGroupChange={(group) =>
+                          setProviderModelGroups((previous) => ({
+                            ...previous,
+                            [provider]: group,
+                          }))
+                        }
+                        provider={provider}
+                      />
+                    ))}
                   </div>
                 </div>
               ) : null}
