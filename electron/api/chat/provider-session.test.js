@@ -4,10 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test, vi } from "vitest";
 import { getProviderCapabilities } from "../../shared/provider-capabilities.js";
-import {
-  startProviderSession,
-  withSessionHandoff,
-} from "./provider-session.js";
+import { startProviderSession } from "./provider-session.js";
 import {
   prepareTurnTranscript,
   transcriptFingerprint,
@@ -437,11 +434,4 @@ describe("keeping the session a turn reported", () => {
     assert.deepEqual(session.started({ resumed: false }), {});
     await session.record(answer);
   });
-});
-
-test("a resumed prompt carries the handoff after the project references", () => {
-  assert.equal(withSessionHandoff("refs", "missed"), "refs\n\nmissed");
-  assert.equal(withSessionHandoff(null, "missed"), "missed");
-  assert.equal(withSessionHandoff("refs", null), "refs");
-  assert.equal(withSessionHandoff(null, null), null);
 });

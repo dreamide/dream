@@ -8,12 +8,20 @@ import {
   resolveAntigravityEffort,
 } from "../providers/antigravity-cli.js";
 import { streamAgentTurn } from "./agent-turn.js";
-import {
-  buildCodexConversationPrompt,
-  getLatestUserMessage,
-} from "./codex-prompt.js";
-import { withSessionHandoff } from "./provider-session.js";
-import { applySkillSlashPrefix } from "./skill-dispatch.js";
+import { buildTurnPrompt } from "./turn-prompt.js";
+
+// The CLI takes the user's own words, so the latest message goes unlabelled
+// and a first turn is sent as that message. The prompt is text only (`-p` or
+// one stream-json user event), so attachments reach it as their shared
+// descriptions; no attachment files are written for it.
+const ANTIGRAVITY_PROMPT_FORM = {
+  label: "Antigravity",
+  plain: true,
+  runtimeDescription:
+    "You are Google Antigravity running inside the Dream desktop IDE with native project tools.",
+  systemPrompt:
+    "Complete the user's request using the active project when relevant.",
+};
 
 export const resolveAntigravityContextWindow = (model) => {
   if (typeof model === "string") {
@@ -69,39 +77,6 @@ const normalizeAntigravityUsage = (usage) => {
   };
 };
 
-export const getAntigravityUserPrompt = (
-  messages,
-  projectReferencesPrompt = null,
-) => {
-  const latestUserMessage = getLatestUserMessage(messages);
-  if (!latestUserMessage) {
-    return projectReferencesPrompt ?? "";
-  }
-
-  const parts = Array.isArray(latestUserMessage.parts)
-    ? latestUserMessage.parts
-    : [];
-  const textParts = [];
-  for (const part of parts) {
-    if (!part || typeof part !== "object") continue;
-    if (part.type === "text" && typeof part.text === "string") {
-      const trimmed = part.text.trim();
-      if (trimmed) textParts.push(trimmed);
-    } else if (part.type === "file") {
-      const filename =
-        typeof part.filename === "string" && part.filename.trim()
-          ? part.filename.trim()
-          : typeof part.name === "string" && part.name.trim()
-            ? part.name.trim()
-            : "file";
-      textParts.push(`[File ${filename}]`);
-    }
-  }
-
-  const userText = textParts.join("\n\n");
-  return [userText, projectReferencesPrompt].filter(Boolean).join("\n\n");
-};
-
 export const streamAntigravityResponse = async (options) => {
   const {
     abortSignal,
@@ -121,27 +96,15 @@ export const streamAntigravityResponse = async (options) => {
   // Antigravity resumes by conversation ID, with no probe beforehand.
   const targetSessionId = resumeSessionId;
 
-  const prompt = targetSessionId
-    ? getAntigravityUserPrompt(
-        messages,
-        withSessionHandoff(projectReferencesPrompt, sessionHandoff),
-      )
-    : messages.length > 1
-      ? buildCodexConversationPrompt({
-          currentTurnAttachments: null,
-          currentTurnProjectReferences: projectReferencesPrompt,
-          messages,
-          projectPath,
-          runtimeDescription:
-            "You are Google Antigravity running inside the Dream desktop IDE with native project tools.",
-          systemPrompt:
-            "Complete the user's request using the active project when relevant.",
-        })
-      : getAntigravityUserPrompt(messages, projectReferencesPrompt);
-
-  const finalPrompt = skillSlashCommand
-    ? applySkillSlashPrefix(prompt, skillSlashCommand)
-    : prompt;
+  const finalPrompt = buildTurnPrompt({
+    form: ANTIGRAVITY_PROMPT_FORM,
+    messages,
+    projectPath,
+    projectReferencesPrompt,
+    resumed: Boolean(targetSessionId),
+    sessionHandoff,
+    skillSlashCommand,
+  });
 
   const cliArgs = ["--output-format", "stream-json"];
 

@@ -4,13 +4,8 @@
 // on the agent turn.
 import path from "node:path";
 import { streamAgentTurn } from "./agent-turn.js";
-import {
-  buildCodexConversationPrompt,
-  getLatestUserPrompt,
-} from "./codex-prompt.js";
 import { toAcpMcpServers } from "./mcp-servers.js";
-import { withSessionHandoff } from "./provider-session.js";
-import { applySkillSlashPrefix } from "./skill-dispatch.js";
+import { buildTurnPrompt } from "./turn-prompt.js";
 
 const isRecord = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -388,33 +383,27 @@ export const streamAcpResponse = ({
           reason: freshReason,
         });
 
-        const currentTurnAttachments = preparedAttachments?.promptText ?? null;
-        const prompt = loadedSession
-          ? getLatestUserPrompt(
-              messages,
-              currentTurnAttachments,
-              withSessionHandoff(projectReferencesPrompt, sessionHandoff),
-            )
-          : buildCodexConversationPrompt({
-              currentTurnAttachments,
-              currentTurnProjectReferences: projectReferencesPrompt,
-              messages,
-              projectPath,
-              runtimeDescription: `You are ${label} running inside the Dream desktop IDE with native project tools.`,
-              systemPrompt:
-                "Complete the user's request using the active project when relevant.",
-            });
-
         // A `$skill` mention becomes the agent's own `/name` slash command,
         // which it only recognizes at the start of the prompt.
-        const dispatchedPrompt = applySkillSlashPrefix(
-          prompt,
+        const prompt = buildTurnPrompt({
+          currentTurnAttachments: preparedAttachments?.promptText ?? null,
+          form: {
+            label,
+            runtimeDescription: `You are ${label} running inside the Dream desktop IDE with native project tools.`,
+            systemPrompt:
+              "Complete the user's request using the active project when relevant.",
+          },
+          messages,
+          projectPath,
+          projectReferencesPrompt,
+          resumed: loadedSession,
+          sessionHandoff,
           skillSlashCommand,
-        );
+        });
 
         const promptResult = await connection.request(
           "session/prompt",
-          { prompt: [{ text: dispatchedPrompt, type: "text" }], sessionId },
+          { prompt: [{ text: prompt, type: "text" }], sessionId },
           30 * 60_000,
         );
         turn.usage(

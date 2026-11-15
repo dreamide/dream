@@ -8,15 +8,16 @@ import {
   resumeOpenCodeSession,
 } from "../providers/opencode-server.js";
 import { streamAgentTurn } from "./agent-turn.js";
-import {
-  buildCodexConversationPrompt,
-  chunkTextInput,
-  getLatestUserPrompt,
-} from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
 import { toOpenCodeMcpConfig } from "./mcp-servers.js";
 import { resolveOpenCodeDisabledTools } from "./opencode-tool-budget.js";
-import { withSessionHandoff } from "./provider-session.js";
+import { buildTurnPrompt, chunkTextInput } from "./turn-prompt.js";
+
+const OPENCODE_PROMPT_FORM = {
+  label: "OpenCode",
+  runtimeDescription:
+    "You are running through the real OpenCode server with native project tools. Respect the active project root and complete the latest user request.",
+};
 
 const OPENCODE_WRITE_TOOL_NAMES = new Set([
   "apply-patch",
@@ -889,21 +890,6 @@ export const streamOpenCodeResponse = ({
 
         void (async () => {
           if (finished || abortSignal?.aborted) return;
-          const fullPrompt = buildCodexConversationPrompt({
-            currentTurnAttachments: preparedAttachments?.promptText ?? null,
-            currentTurnProjectReferences: projectReferencesPrompt,
-            messages,
-            projectPath,
-            runtimeDescription:
-              "You are running through the real OpenCode server with native project tools. Respect the active project root and complete the latest user request.",
-            systemPrompt,
-          });
-          const currentTurnPrompt = getLatestUserPrompt(
-            messages,
-            preparedAttachments?.promptText ?? null,
-            withSessionHandoff(projectReferencesPrompt, sessionHandoff),
-          );
-
           const { modelID, providerID } = parseOpenCodeModel(model);
           server = await openOpenCodeServer({
             config: getOpenCodeServerConfig(permissionMode, mcpServers),
@@ -947,7 +933,15 @@ export const streamOpenCodeResponse = ({
           });
 
           turn.session(activeSessionId, { resumed, reason: freshReason });
-          const prompt = resumed ? currentTurnPrompt : fullPrompt;
+          const prompt = buildTurnPrompt({
+            currentTurnAttachments: preparedAttachments?.promptText ?? null,
+            form: { ...OPENCODE_PROMPT_FORM, systemPrompt },
+            messages,
+            projectPath,
+            projectReferencesPrompt,
+            resumed,
+            sessionHandoff,
+          });
           submittedPrompt = prompt;
 
           const events = await server.client.event.subscribe({

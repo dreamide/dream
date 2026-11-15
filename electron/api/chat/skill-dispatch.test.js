@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import {
   applySkillDispatchToMessages,
-  applySkillSlashPrefix,
   findSkillMentions,
   getMessageText,
   planSkillDispatch,
 } from "./skill-dispatch.js";
+import { applySkillSlashPrefix } from "./turn-prompt.js";
 
 const skills = [
   {

@@ -13,16 +13,17 @@
 // covered prefix is unchanged; resumes it with a `delta` handoff of what the
 // provider missed; resumes a `native-fork` of the branch source's session;
 // or `reconstructed`, a fresh session given the full history. The adapter
-// only probes what it is told to resume and builds its own prompt; whatever
-// it reports is what `contextTransfer` records, so a probe that fails
-// records the reconstruction that followed.
+// only probes what it is told to resume, and builds its prompt from the
+// outcome through the Turn prompt (turn-prompt.js); whatever it reports is
+// what `contextTransfer` records, so a probe that fails records the
+// reconstruction that followed.
 //
 // Provider-specific rules live on the provider's record: whether it keeps
 // one session across models (`modelSwitchInSession`), how it forks (`fork`),
 // and whether tools are fixed when its session starts
 // (`toolsFixedAtSessionStart`).
 import { ORCHESTRATION_TOOLS_VERSION } from "../../shared/agent-turn-contract.js";
-import { serializeCodexMessage } from "./codex-prompt.js";
+import { serializeTurnMessage } from "./turn-prompt.js";
 
 const MAX_HANDOFF_CHARS = 32_000;
 
@@ -54,7 +55,7 @@ const coveredHandoff = (saved, messages, fingerprint) => {
   )
     return null;
   const text = missed
-    .map((message) => serializeCodexMessage(message))
+    .map((message) => serializeTurnMessage(message))
     .join("\n\n");
   if (text.length > MAX_HANDOFF_CHARS) return null;
   return {
@@ -64,15 +65,6 @@ const coveredHandoff = (saved, messages, fingerprint) => {
 
 const errorText = (error) =>
   error instanceof Error ? error.message : String(error);
-
-/**
- * The project references a resumed turn's prompt carries: its own, then the
- * handoff. A turn given the full history leaves the handoff out, since the
- * missed messages are in that history.
- */
-export const withSessionHandoff = (projectReferencesPrompt, sessionHandoff) =>
-  [projectReferencesPrompt, sessionHandoff].filter(Boolean).join("\n\n") ||
-  null;
 
 /**
  * Decides what this turn starts from and returns its Provider session.

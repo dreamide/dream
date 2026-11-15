@@ -19,11 +19,13 @@ import {
   getCodexReasoningEffort,
   getCodexTokenCountUsage,
 } from "./codex-common.js";
-import {
-  buildCodexAppServerConversationPrompt,
-  getLatestUserPrompt,
-} from "./codex-prompt.js";
-import { withSessionHandoff } from "./provider-session.js";
+import { buildTurnPrompt } from "./turn-prompt.js";
+
+const CODEX_PROMPT_FORM = {
+  label: "Codex",
+  runtimeDescription:
+    "You are running through the real Codex CLI with native shell and git access.",
+};
 
 const isRecord = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -1078,18 +1080,6 @@ export const streamCodexAppServerResponse = ({
             if (finished) {
               return;
             }
-            const fullPrompt = buildCodexAppServerConversationPrompt({
-              currentTurnAttachments: preparedAttachments?.promptText ?? null,
-              currentTurnProjectReferences: projectReferencesPrompt,
-              messages,
-              projectPath,
-              systemPrompt,
-            });
-            const currentTurnPrompt = getLatestUserPrompt(
-              messages,
-              preparedAttachments?.promptText ?? null,
-              withSessionHandoff(projectReferencesPrompt, sessionHandoff),
-            );
             const sandbox = getCodexAppSandboxMode(permissionMode);
             const approvalPolicy = getCodexAppApprovalPolicy(permissionMode);
             const serviceTier = modelSpeed === "fast" ? "fast" : null;
@@ -1212,7 +1202,16 @@ export const streamCodexAppServerResponse = ({
                 : {}),
               input: [
                 {
-                  text: resumed ? currentTurnPrompt : fullPrompt,
+                  text: buildTurnPrompt({
+                    currentTurnAttachments:
+                      preparedAttachments?.promptText ?? null,
+                    form: { ...CODEX_PROMPT_FORM, systemPrompt },
+                    messages,
+                    projectPath,
+                    projectReferencesPrompt,
+                    resumed,
+                    sessionHandoff,
+                  }),
                   text_elements: [],
                   type: "text",
                 },

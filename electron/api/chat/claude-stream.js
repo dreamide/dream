@@ -31,14 +31,13 @@ import {
   BROWSER_READ_ONLY_TOOL_IDS,
   createBrowserMcpServer,
 } from "./browser-tools.js";
-import { getLatestUserMessage } from "./codex-prompt.js";
 import { formatStreamError } from "./errors.js";
 import { toClaudeMcpServers } from "./mcp-servers.js";
-import { withSessionHandoff } from "./provider-session.js";
 import {
   DEFAULT_TOOL_STEP_LIMIT,
   REASONING_TOOL_STEP_LIMIT,
 } from "./schema.js";
+import { decideTurnContent, getLatestUserMessage } from "./turn-prompt.js";
 
 const CLAUDE_PERMISSION_MODE_MAP = {
   ask: "default",
@@ -538,9 +537,16 @@ export const streamClaudeResponse = async ({
       freshReason = `Claude Code could not inspect the saved session: ${detail}`;
     }
   }
-  const instructions = resumedSessionId
-    ? withSessionHandoff(projectReferencesPrompt, sessionHandoff)
-    : projectReferencesPrompt;
+  // Claude takes structured messages: the Turn prompt decides which ones and
+  // the context sent as instructions; images and saved attachment paths are
+  // encoded here.
+  const turnContent = decideTurnContent({
+    messages,
+    projectReferencesPrompt,
+    resumed: Boolean(resumedSessionId),
+    sessionHandoff,
+  });
+  const instructions = turnContent.context;
   const providerFactory = (modelId, turn) => {
     let compactionId = null;
     return claudeCode(normalizeClaudeCodeModel(modelId), {
@@ -643,12 +649,9 @@ export const streamClaudeResponse = async ({
 
   let modelMessages;
   try {
-    const messagesForModel = resumedSessionId
-      ? [getLatestUserMessage(messages)].filter(Boolean)
-      : messages;
     modelMessages = await convertToModelMessages(
       appendClaudeAttachmentTextToLatestUserMessage(
-        messagesForModel,
+        turnContent.messages,
         attachmentPaths,
       ),
     );

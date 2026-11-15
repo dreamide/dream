@@ -17,12 +17,13 @@
  *   so a leading `/name` would never reach its slash parser. Skills with
  *   `disable-model-invocation` cannot be loaded by Claude's Skill tool, so
  *   the model is pointed at the SKILL.md path to read instead.
- * - slash: the prompt is prefixed with `/name` (Cursor).
+ * - slash: the prompt is prefixed with `/name` (Cursor, Antigravity), by
+ *   the Turn prompt (turn-prompt.js) once the prompt is built.
  */
 
 import { getProviderCapabilities } from "../../shared/provider-capabilities.js";
 import { listProviderSkills } from "../skills/index.js";
-import { getLatestUserMessage } from "./codex-prompt.js";
+import { getLatestUserMessage } from "./turn-prompt.js";
 
 export const SKILL_MENTION_PATTERN =
   /(^|[\s([{])\$(?![0-9])([a-zA-Z0-9][a-zA-Z0-9:_-]*[a-zA-Z0-9]|[a-zA-Z])(?=$|[\s),.;:!?\]}])/g;
@@ -162,13 +163,6 @@ export const applySkillDispatchToMessages = (messages, plan) => {
         }
       : message,
   );
-};
-
-export const applySkillSlashPrefix = (prompt, slashCommand) => {
-  if (!slashCommand) {
-    return prompt;
-  }
-  return `/${slashCommand} ${prompt}`;
 };
 
 /**

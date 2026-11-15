@@ -315,6 +315,51 @@ describe("streamAntigravityResponse", () => {
     expect(args[pIndex + 1]).not.toContain("USER:");
   });
 
+  it("describes an attachment by the shared rules, with its text contents", async () => {
+    const { streamAntigravityResponse } = await import(
+      "./antigravity-stream.js"
+    );
+
+    const responsePromise = streamAntigravityResponse({
+      messages: [
+        { id: "u1", parts: [{ text: "Turn 1", type: "text" }], role: "user" },
+        {
+          id: "a1",
+          parts: [{ text: "Response 1", type: "text" }],
+          role: "assistant",
+        },
+        {
+          id: "u2",
+          parts: [
+            { text: "Read this", type: "text" },
+            {
+              filename: "notes.txt",
+              mediaType: "text/plain",
+              type: "file",
+              url: `data:text/plain;base64,${Buffer.from("hello notes").toString("base64")}`,
+            },
+          ],
+          role: "user",
+        },
+      ],
+      model: "gemini-3.8-flash-low",
+      projectPath: "D:/project",
+      resumeSessionId: "conv-existing-456",
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    fakeChild.emit("close", 0);
+    await responsePromise;
+
+    const { args } = spawnCalls[0];
+    const prompt = args[args.indexOf("-p") + 1];
+    expect(prompt).toContain(
+      "Read this\n\n[Attached file: notes.txt (text/plain)]",
+    );
+    expect(prompt).toContain("hello notes");
+    expect(prompt).not.toContain("[File notes.txt]");
+  });
+
   it("omits --effort flag when model has built-in effort or does not support effort", async () => {
     const { streamAntigravityResponse } = await import(
       "./antigravity-stream.js"

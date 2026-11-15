@@ -215,6 +215,15 @@ session, the message records the reconstruction that actually happened. The
 chat row's copy of the session is a mirror for "Continue in terminal";
 nothing reads it to decide a resume.
 
+The **Turn prompt** (`electron/api/chat/turn-prompt.js`) decides what a turn
+sends once the adapter knows whether it resumed: the latest user message
+with the references, the handoff and the current turn's attachments, or else
+the history reconstructed as a bounded transcript without the handoff, plus
+a dispatched skill's slash prefix. Text-prompt adapters send its text in
+their own framing; Claude takes the decided messages and context and encodes
+them itself. Adapters keep their native probe, their native session handling
+and their report of how the turn started.
+
 ## Host
 
 The machine whose filesystem, agent CLIs and terminals a project uses. The

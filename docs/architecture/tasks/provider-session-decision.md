@@ -116,6 +116,9 @@ Remaining/deferred:
   the delegation store, and is not proposed here.
 - Live forks and resumes against real CLIs were not run. Adapter tests use
   the existing fakes.
+- Prompt construction, left in the adapters here, moved to the Turn prompt
+  module (`turn-prompt.js`) in ARC14-07 (`review-20261114.md`); adapters
+  keep their probe and their report.
 
 Recovery: docs/architecture/tasks/provider-session-decision.md#psd-01.
 Check the status above and the validation results.
