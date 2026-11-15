@@ -27,13 +27,18 @@ import { API_SESSION_TOKEN_HEADER } from "./api/shared/session-token.js";
 import { ensureDaemon, probeDaemon, stopRunningDaemon } from "./host/daemon.js";
 import { HOST_IDENTITY_FILE, loadHostIdentity } from "./host/identity.js";
 import { hostOptionFlags } from "./host/options.js";
-import { HOST_PROTOCOL_VERSION, hostProtocolProblem } from "./host/protocol.js";
+import { HOST_PROTOCOL_VERSION } from "./host/protocol.js";
 import {
   getHostHome,
   getRunDirectory,
   readHostRecord,
 } from "./host/run-directory.js";
 import { isStateLockHeld, readStateLockRecord } from "./host/state-lock.js";
+import {
+  hostProtocolProblem,
+  matchesPinnedIdentity,
+  requestHostInfo,
+} from "./shared/host-verification.js";
 
 /** The host home of the desktop's own host, beside its database. */
 export const childHostHome = (stateDatabasePath) => `${stateDatabasePath}.host`;
@@ -145,10 +150,9 @@ function createHostAttachment({
         baseUrl: `http://127.0.0.1:${running.port}`,
         token: running.token,
       };
-      const response = await fetch(`${endpoint.baseUrl}/api/host-info`, {
+      const response = await requestHostInfo({
+        baseUrl: endpoint.baseUrl,
         headers: { [API_SESSION_TOKEN_HEADER]: endpoint.token },
-        redirect: "error",
-        signal: AbortSignal.timeout(2_000),
       });
       if (!response.ok) throw new Error("The host refused attachment.");
       const info = await response.json();
@@ -159,10 +163,11 @@ function createHostAttachment({
           "Update and restart the host before attaching this desktop; it does not support terminal discovery.",
         );
       }
+      // Stricter than a route's pin: the local identity always has a
+      // fingerprint, and the process and public key must match as well.
       if (
         info.pid !== running.pid ||
-        info.hostId !== expected.hostId ||
-        info.fingerprint !== expected.fingerprint ||
+        !matchesPinnedIdentity(expected, info) ||
         info.publicKey !== expected.publicKey
       ) {
         throw new Error(

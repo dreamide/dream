@@ -27,7 +27,10 @@
 // this catalog guard. A public descriptor alone never authorizes that merge.
 //
 // Pure, and shared: the codec decodes saved connections with it.
-import { hostProtocolProblem } from "../host/protocol.js";
+import {
+  hostProtocolProblem,
+  matchesPinnedIdentity,
+} from "./host-verification.js";
 
 /** @typedef {import("../../src/types/ide").SavedHostConnection} SavedHostConnection */
 /** @typedef {import("../../src/types/ide").HostRoute} HostRoute */
@@ -239,9 +242,7 @@ export const acceptHostDescriptor = (
   }
 
   if (saved) {
-    const sameHost =
-      saved.hostId === hostId &&
-      (!saved.fingerprint || !fingerprint || saved.fingerprint === fingerprint);
+    const sameHost = matchesPinnedIdentity(saved, { hostId, fingerprint });
     if (!sameHost && !isLocal) {
       return refuse(
         route.kind === "origin"

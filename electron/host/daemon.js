@@ -28,6 +28,7 @@ import {
   API_SESSION_TOKEN_HEADER,
   createApiSessionToken,
 } from "../api/shared/session-token.js";
+import { requestHostInfo } from "../shared/host-verification.js";
 import { createDaemonEnvironment } from "./daemon-environment.js";
 import { createIdleMonitor } from "./idle-monitor.js";
 import {
@@ -92,16 +93,14 @@ export async function probeDaemon(runDirectory) {
   const record = readHostRecord(runDirectory);
   if (!record || !isProcessAlive(record.pid)) return null;
   try {
-    const response = await fetch(
-      `http://127.0.0.1:${record.port}/api/host-info`,
-      {
-        headers: { [API_SESSION_TOKEN_HEADER]: record.token },
-        redirect: "error",
-        signal: AbortSignal.timeout(2_000),
-      },
-    );
+    const response = await requestHostInfo({
+      baseUrl: `http://127.0.0.1:${record.port}`,
+      headers: { [API_SESSION_TOKEN_HEADER]: record.token },
+    });
     if (!response.ok) return null;
     const info = await response.json();
+    // This runtime's own protocol, not hostProtocolProblem's supported
+    // range: `ensure` reuses only a daemon that speaks what it would start.
     if (
       info?.hostProtocolVersion !== HOST_PROTOCOL_VERSION ||
       info?.pid !== record.pid

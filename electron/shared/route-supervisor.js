@@ -2,6 +2,7 @@
 // and identity proof; this owner selects only verified, ready handles. It
 // never retries requests or knows how a host process is started or stopped.
 import { MAX_HOST_ROUTES } from "./host-connections.js";
+import { matchesPinnedIdentity } from "./host-verification.js";
 
 const RETRY_MS = [2_000, 4_000, 8_000, 16_000, 30_000, 60_000];
 
@@ -197,11 +198,7 @@ export function createRouteSupervisor({
       handle = await Promise.race([opening, aborted]);
       if (lost) throw lost;
       const endpoint = handle.endpoint;
-      if (
-        pinned &&
-        (endpoint.hostId !== pinned.hostId ||
-          (pinned.fingerprint && endpoint.fingerprint !== pinned.fingerprint))
-      ) {
+      if (pinned && !matchesPinnedIdentity(pinned, endpoint)) {
         const refusal = new Error(
           "This route reaches a different host than the saved connection.",
         );

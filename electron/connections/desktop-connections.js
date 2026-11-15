@@ -3,7 +3,12 @@
 // closing a route ends its forward, never the host service or its work.
 import net from "node:net";
 import { API_SESSION_TOKEN_HEADER } from "../api/shared/session-token.js";
-import { hostProtocolProblem } from "../host/protocol.js";
+import {
+  catalogMatchesHost,
+  hostProtocolProblem,
+  matchesPinnedIdentity,
+  requestCatalogProbe,
+} from "../shared/host-verification.js";
 import { createRouteSupervisor } from "../shared/route-supervisor.js";
 import { createSshHostManager } from "../ssh/ssh-hosts.js";
 
@@ -70,15 +75,11 @@ export function createDesktopHostConnections({
         target: route.target,
       });
       signal.throwIfAborted();
-      const response = await fetchImpl(`${endpoint.baseUrl}/api/catalog`, {
-        method: "POST",
-        headers: {
-          [API_SESSION_TOKEN_HEADER]: endpoint.token,
-          "content-type": "application/json",
-        },
-        body: "{}",
-        redirect: "error",
-        signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+      const response = await requestCatalogProbe({
+        baseUrl: endpoint.baseUrl,
+        headers: { [API_SESSION_TOKEN_HEADER]: endpoint.token },
+        signal,
+        fetchImpl,
       });
       if (!response.ok) {
         const reason = new Error(
@@ -96,11 +97,7 @@ export function createDesktopHostConnections({
         reason.fatal = true;
         throw reason;
       }
-      if (
-        endpoint.hostId &&
-        (catalog.host?.hostId !== endpoint.hostId ||
-          catalog.host?.fingerprint !== endpoint.fingerprint)
-      ) {
+      if (endpoint.hostId && !catalogMatchesHost(catalog, endpoint)) {
         const reason = new Error(
           "The SSH route's catalog does not match its verified host identity.",
         );
@@ -204,9 +201,7 @@ export function createDesktopHostConnections({
       if (
         host?.identity &&
         expectedIdentity &&
-        (host.identity.hostId !== expectedIdentity.hostId ||
-          (expectedIdentity.fingerprint &&
-            host.identity.fingerprint !== expectedIdentity.fingerprint))
+        !matchesPinnedIdentity(expectedIdentity, host.identity)
       ) {
         throw new Error(
           "This connection is pinned to a different host identity. Disconnect it before changing the saved host.",

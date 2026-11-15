@@ -7,8 +7,13 @@ import https from "node:https";
 import { Readable } from "node:stream";
 import tls from "node:tls";
 import { fingerprintOf } from "../host/identity.js";
-import { hostProtocolProblem } from "../host/protocol.js";
 import { hostProofMessage } from "../shared/host-proof.js";
+import {
+  catalogMatchesHost,
+  hostProtocolProblem,
+  matchesPinnedIdentity,
+  requestCatalogProbe,
+} from "../shared/host-verification.js";
 
 const fatal = (message) => Object.assign(new Error(message), { fatal: true });
 
@@ -182,12 +187,7 @@ export function createVerifiedHttps({
             )
           )
             throw fatal("The HTTPS host's identity proof is invalid.");
-          if (
-            identity &&
-            (identity.hostId !== host.hostId ||
-              (identity.fingerprint &&
-                identity.fingerprint !== host.fingerprint))
-          )
+          if (identity && !matchesPinnedIdentity(identity, host))
             throw fatal(
               "This HTTPS route reaches a different host than the saved connection. No device credential was sent.",
             );
@@ -364,10 +364,7 @@ export function createHttpsRoutes({
       const origin = httpsOrigin(route.origin);
       if (
         grant.origin !== origin ||
-        (expectedIdentity &&
-          (grant.hostId !== expectedIdentity.hostId ||
-            (expectedIdentity.fingerprint &&
-              grant.fingerprint !== expectedIdentity.fingerprint)))
+        (expectedIdentity && !matchesPinnedIdentity(expectedIdentity, grant))
       )
         throw fatal(
           "This route's device credential belongs to another origin or host. Pair it again.",
@@ -416,21 +413,17 @@ export function createHttpsRoutes({
       try {
         signal.throwIfAborted();
         await check();
-        const response = await request(`${origin}/api/catalog`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: "{}",
-          signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+        const response = await requestCatalogProbe({
+          baseUrl: origin,
+          signal,
+          fetchImpl: request,
         });
         if (!response.ok)
           throw new Error(
             `The HTTPS route's catalog is unavailable (${response.status}).`,
           );
         const catalog = await response.json();
-        if (
-          catalog.host?.hostId !== grant.hostId ||
-          catalog.host?.fingerprint !== grant.fingerprint
-        )
+        if (!catalogMatchesHost(catalog, grant))
           throw fatal("The HTTPS catalog does not match its verified host.");
         const poll = () => {
           timer = setTimer(() => {

@@ -24,7 +24,11 @@ import { spawn as spawnChildProcess } from "node:child_process";
 import { createReadStream } from "node:fs";
 import net from "node:net";
 import { API_SESSION_TOKEN_HEADER } from "../api/shared/session-token.js";
-import { hostProtocolProblem } from "../host/protocol.js";
+import {
+  hostProtocolProblem,
+  matchesPinnedIdentity,
+  requestHostInfo,
+} from "../shared/host-verification.js";
 import {
   buildInstallScript,
   buildPlatformScript,
@@ -366,13 +370,11 @@ export function createSshHostConnection({
 
   const fetchHostInfo = async (localPort, token) => {
     try {
-      const response = await fetchImpl(
-        `http://127.0.0.1:${localPort}/api/host-info`,
-        {
-          headers: { [API_SESSION_TOKEN_HEADER]: token },
-          signal: AbortSignal.timeout(2_000),
-        },
-      );
+      const response = await requestHostInfo({
+        baseUrl: `http://127.0.0.1:${localPort}`,
+        headers: { [API_SESSION_TOKEN_HEADER]: token },
+        fetchImpl,
+      });
       return response.ok ? await response.json() : null;
     } catch {
       return null;
@@ -390,11 +392,7 @@ export function createSshHostConnection({
     if (!hostId) {
       return `The Dream host at ${target} did not identify itself, so it cannot be confirmed as the host saved for it. Reconnect so Dream installs a matching one.`;
     }
-    if (
-      hostId !== pinnedIdentity.hostId ||
-      (pinnedIdentity.fingerprint &&
-        info.fingerprint !== pinnedIdentity.fingerprint)
-    ) {
+    if (!matchesPinnedIdentity(pinnedIdentity, info)) {
       return `${target} now reaches a different Dream host than the one saved for it, so its projects were not loaded from there. If that machine was replaced, remove this host in Settings and add it again.`;
     }
     return null;

@@ -5,6 +5,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import getPort from "get-port";
+import { matchesPinnedIdentity } from "../shared/host-verification.js";
 import { startAskpassServer } from "./askpass-server.js";
 import {
   createSshHostConnection,
@@ -129,9 +130,7 @@ export function createSshHostManager({
         const endpoint = existing.getEndpoint();
         if (
           !expectedIdentity?.hostId ||
-          (endpoint?.hostId === expectedIdentity.hostId &&
-            (!expectedIdentity.fingerprint ||
-              endpoint?.fingerprint === expectedIdentity.fingerprint))
+          matchesPinnedIdentity(expectedIdentity, endpoint)
         ) {
           return endpoint;
         }

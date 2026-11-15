@@ -240,6 +240,14 @@ is a consistency check, not authentication: the route vouches for the host
 (this app's own process, an authenticated SSH session). A route that cannot
 vouch for it verifies the key instead.
 
+**Host verification** (`electron/shared/host-verification.js`) decides
+whether a host is the one pinned for a connection: the same host ID and,
+when a fingerprint is pinned, the same fingerprint; a host that reports none
+does not match. Every route, the SSH modules, the home host attachment and
+saved host connections ask it, each with its own wording and timing. It also
+owns the protocol check, the host-info probe and the check that a route's
+catalog names the host just verified.
+
 ## Saved host connection
 
 One client's record that a **client connection ID** reaches a persistent

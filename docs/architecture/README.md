@@ -157,3 +157,8 @@ Module names and current ownership live in ../../GLOSSARY.md.
   desktop. Host mode in Settings and WSL hosts were removed along the way, and
   some of these tasks were later reversed; each section's status says which.
   Their Hosts and Sharing & access pages are now one Connections page.
+
+- `tasks/review-20261114.md` tracks ARC14-01 to ARC14-08 from the November 14
+  architecture review: Host verification, a Project on its Host, branch
+  actions, the agent CLI run, the Terminal session, desktop launch, the turn
+  prompt and Provider presentation.
