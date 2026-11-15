@@ -569,6 +569,16 @@ the surface decides how a failure shows. Which statuses a summary read
 leaves out is `narrowGitStatus` in `electron/shared/git-changes.js`, the
 same on host and client.
 
+**Branch actions** (`src/components/ide/git-actions/branch-actions.ts`)
+decide which of these writes a branch offers at once, each enabled or not,
+from its status, its pull request, whether it is a worktree and whether a
+write runs: commit, push or publish, fetch, pull, view or create a pull
+request, merge or remove a worktree, and whether the footer's git trigger is
+highlighted. Creating a pull request is not offered while the branch's pull
+request is still loading, nor beside an open or merged one; a failed lookup
+still offers it. The footer menu, the push dialog and the create pull
+request dialog read it.
+
 ## Commit draft
 
 A commit being written (`src/components/ide/git-actions/commit-draft.ts`):

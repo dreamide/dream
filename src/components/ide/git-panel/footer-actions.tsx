@@ -31,12 +31,14 @@ import type {
   ProjectWorktreeInfo,
 } from "@/types/ide";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
-import { getPullRequestBranchError } from "../git-actions/branch-utils";
+import {
+  type BranchPullRequest,
+  getBranchActions,
+} from "../git-actions/branch-actions";
 import { CreatePrDialog } from "../git-actions/create-pr-dialog";
 import { PullDialog } from "../git-actions/pull-dialog";
 import { PushDialog } from "../git-actions/push-dialog";
 import { GitMenuDeltaSummary } from "../git-actions/summary";
-import { getStatusFileCount, hasPushableCommits } from "../git-actions/utils";
 import {
   WorktreeActionDialog,
   type WorktreeDialogAction,
@@ -97,7 +99,7 @@ const GitFooterActionsImpl = ({
     detail: "full",
     hostId,
   });
-  const { data: pullRequestContext } = usePullRequestContext(
+  const { data: pullRequestContext, lookupFailed } = usePullRequestContext(
     projectPath,
     active && Boolean(status?.isRepo),
     hostId,
@@ -127,26 +129,13 @@ const GitFooterActionsImpl = ({
   const [worktreeAction, setWorktreeAction] =
     useState<WorktreeDialogAction>("merge");
 
-  const pullRequest = pullRequestContext
+  const pullRequest: BranchPullRequest = pullRequestContext
     ? pullRequestContext.current
-    : undefined;
-  const hasChanges = getStatusFileCount(status) > 0;
-  const canPush = hasPushableCommits(status);
+    : lookupFailed
+      ? "unavailable"
+      : "loading";
   const gitBusy = gitWrite !== null;
-  // Something is ready to commit or push: the trigger is tinted like the
-  // sidebar's accented buttons.
-  const highlightTrigger = !gitBusy && (hasChanges || canPush);
   const syncing = gitWrite === "fetch" || gitWrite === "pull" ? gitWrite : null;
-  const canCreatePr =
-    Boolean(status?.remoteName) &&
-    pullRequest?.state !== "open" &&
-    !getPullRequestBranchError(
-      status?.branch ?? null,
-      status?.baseBranch ?? "main",
-      { detachedHead: "detached", sameBranch: () => "same" },
-    );
-  const worktreeMergeBase =
-    worktreeProject?.worktree.baseRef ?? status?.baseBranch ?? null;
 
   const handleSync = async (action: "fetch" | "pull") => {
     if (gitBusy) return;
@@ -260,10 +249,17 @@ const GitFooterActionsImpl = ({
     return null;
   }
 
+  const actions = getBranchActions({
+    pullRequest,
+    status,
+    worktree: worktreeProject?.worktree ?? null,
+    writeRunning: gitBusy,
+  });
+
   const menu = (
     <DropdownMenuContent align="end" className="w-56" side="top">
       <DropdownMenuItem
-        disabled={!hasChanges || gitBusy}
+        disabled={!actions.commit.enabled}
         onClick={() => showGitPanel("changes", { focusCommitMessage: true })}
       >
         <GitCommitHorizontal className="size-4" />
@@ -271,18 +267,15 @@ const GitFooterActionsImpl = ({
         <GitMenuDeltaSummary status={status} />
       </DropdownMenuItem>
       <DropdownMenuItem
-        disabled={!canPush || gitBusy}
+        disabled={!actions.push.enabled}
         onClick={() => setPushOpen(true)}
       >
         <UploadCloud className="size-4" />
-        {status.upstreamBranch ? gitT("push") : gitT("publishBranch")}
-        <MenuCommitCount
-          count={status.upstreamBranch ? status.aheadCount : 0}
-          direction="ahead"
-        />
+        {actions.push.publish ? gitT("publishBranch") : gitT("push")}
+        <MenuCommitCount count={actions.push.aheadCount} direction="ahead" />
       </DropdownMenuItem>
       <DropdownMenuItem
-        disabled={!status.remoteName || gitBusy}
+        disabled={!actions.fetch.enabled}
         onClick={() => void handleSync("fetch")}
       >
         {syncing === "fetch" ? (
@@ -293,7 +286,7 @@ const GitFooterActionsImpl = ({
         {gitT("fetch")}
       </DropdownMenuItem>
       <DropdownMenuItem
-        disabled={!status.upstreamBranch || gitBusy}
+        disabled={!actions.pull.enabled}
         onClick={() => void handleSync("pull")}
       >
         {syncing === "pull" ? (
@@ -302,41 +295,40 @@ const GitFooterActionsImpl = ({
           <ArrowDown className="size-4" />
         )}
         {gitT("pull")}
-        <MenuCommitCount
-          count={status.upstreamBranch ? status.behindCount : 0}
-          direction="behind"
-        />
+        <MenuCommitCount count={actions.pull.behindCount} direction="behind" />
       </DropdownMenuItem>
       <DropdownMenuSeparator />
-      {pullRequest ? (
+      {actions.viewPullRequest ? (
         <DropdownMenuItem onClick={() => showGitPanel("pull-request")}>
           <GitPullRequest className="size-4" />
-          {gitT("viewPullRequest", { number: pullRequest.number })}
+          {gitT("viewPullRequest", {
+            number: actions.viewPullRequest.number,
+          })}
         </DropdownMenuItem>
       ) : null}
-      {pullRequest?.state === "open" ? null : (
+      {actions.createPullRequest.offered ? (
         <DropdownMenuItem
-          disabled={!canCreatePr || gitBusy}
+          disabled={!actions.createPullRequest.enabled}
           onClick={() => setCreatePrOpen(true)}
         >
           <GitPullRequest className="size-4" />
           {gitT("createPullRequest")}
         </DropdownMenuItem>
-      )}
-      {worktreeProject ? (
+      ) : null}
+      {actions.worktree ? (
         <>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            disabled={gitBusy}
+            disabled={!actions.worktree.enabled}
             onClick={() => openWorktreeDialog("merge")}
           >
             <GitMerge className="size-4" />
-            {worktreeMergeBase
-              ? worktreeT("mergeInto", { base: worktreeMergeBase })
+            {actions.worktree.mergeBase
+              ? worktreeT("mergeInto", { base: actions.worktree.mergeBase })
               : worktreeT("merge")}
           </DropdownMenuItem>
           <DropdownMenuItem
-            disabled={gitBusy}
+            disabled={!actions.worktree.enabled}
             onClick={() => openWorktreeDialog("remove")}
             variant="destructive"
           >
@@ -364,6 +356,7 @@ const GitFooterActionsImpl = ({
     </DropdownMenuContent>
   );
 
+  // A highlighted trigger is tinted like the sidebar's accented buttons.
   return (
     <>
       <DropdownMenu>
@@ -371,10 +364,12 @@ const GitFooterActionsImpl = ({
           render={
             <Button
               aria-label={gitT("gitActions")}
-              className={highlightTrigger ? undefined : "text-muted-foreground"}
+              className={
+                actions.highlighted ? undefined : "text-muted-foreground"
+              }
               size="icon-sm"
               title={gitT("gitActions")}
-              variant={highlightTrigger ? "accent-subtle" : "ghost"}
+              variant={actions.highlighted ? "accent-subtle" : "ghost"}
             />
           }
         >
@@ -390,6 +385,7 @@ const GitFooterActionsImpl = ({
       {pushOpen ? (
         <PushDialog
           branch={status.branch}
+          canPush={actions.push.enabled}
           hostId={hostId}
           onOpenChange={setPushOpen}
           open
@@ -401,6 +397,7 @@ const GitFooterActionsImpl = ({
       ) : null}
       {createPrOpen ? (
         <CreatePrDialog
+          action={actions.createPullRequest}
           branch={status.branch}
           onCompleted={handlePrCompleted}
           onOpenChange={setCreatePrOpen}

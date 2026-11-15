@@ -9,14 +9,14 @@ const normalizeBranchComparisonName = (value: string | null | undefined) => {
     .replace(/^refs\/remotes\/[^/]+\//, "");
 };
 
-export const getPullRequestBranchError = (
+export const getPullRequestBranchError = <Message>(
   headBranch: string | null,
   baseBranch: string,
   messages: {
-    detachedHead: string;
-    sameBranch: (values: { base: string; head: string }) => string;
+    detachedHead: Message;
+    sameBranch: (values: { base: string; head: string }) => Message;
   },
-) => {
+): Message | null => {
   const normalizedHead = normalizeBranchComparisonName(headBranch);
   const normalizedBase = normalizeBranchComparisonName(baseBranch);
 

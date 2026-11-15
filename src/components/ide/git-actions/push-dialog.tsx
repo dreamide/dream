@@ -18,10 +18,10 @@ import type {
 import { useIdeStore } from "../ide-store";
 import { GitCommitList } from "./commit-list";
 import { ActionError, DialogMetricRow, GitDialogHeader } from "./dialog-layout";
-import { hasPushableCommits } from "./utils";
 
 export const PushDialog = ({
   branch,
+  canPush,
   onOpenChange,
   open,
   projectId,
@@ -31,6 +31,11 @@ export const PushDialog = ({
   status,
 }: {
   branch: string | null;
+  /**
+   * The branch actions' push is enabled: commits to push, or a branch to
+   * publish, and no git write running for the project.
+   */
+  canPush: boolean;
   onOpenChange: (open: boolean) => void;
   open: boolean;
   projectId: string;
@@ -42,7 +47,6 @@ export const PushDialog = ({
 }) => {
   const commonT = useTranslations("common");
   const gitT = useTranslations("git");
-  const gitBusy = useIdeStore((s) => s.gitWriteByProject[projectId] != null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<ProjectGitPushPreviewResponse | null>(
@@ -50,7 +54,6 @@ export const PushDialog = ({
   );
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const canPush = hasPushableCommits(status);
 
   useEffect(() => {
     if (!open) {
@@ -104,7 +107,7 @@ export const PushDialog = ({
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      if (submitting || gitBusy || previewLoading || !preview || !canPush) {
+      if (submitting || previewLoading || !preview || !canPush) {
         return;
       }
 
@@ -128,7 +131,6 @@ export const PushDialog = ({
     },
     [
       canPush,
-      gitBusy,
       gitT,
       onOpenChange,
       preview,
@@ -213,9 +215,7 @@ export const PushDialog = ({
           <div className="flex justify-end">
             <Button
               className="min-w-36"
-              disabled={
-                submitting || gitBusy || previewLoading || !preview || !canPush
-              }
+              disabled={submitting || previewLoading || !preview || !canPush}
               type="submit"
             >
               {submitting ? <Spinner className="size-4" /> : null}

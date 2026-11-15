@@ -294,6 +294,11 @@ export function usePullRequestContext(
     error: failed
       ? getApiErrorMessage(resource.error, "Unable to access GitHub.")
       : null,
+    /**
+     * The last lookup failed (true also while it is tried again), so a null
+     * `data` means no answer could be had, not that none has come yet.
+     */
+    lookupFailed: resource.error !== undefined,
     refresh,
   };
 }

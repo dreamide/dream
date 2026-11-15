@@ -29,15 +29,3 @@ export const getChangesRemovedLines = (changes: ProjectGitStatusEntry[]) =>
 
 export const hasPushDestination = (status: ProjectGitStatusResponse | null) =>
   Boolean(status?.upstreamBranch || status?.remoteName);
-
-export const hasPushableCommits = (status: ProjectGitStatusResponse | null) => {
-  if (!status) {
-    return false;
-  }
-
-  if (status.upstreamBranch) {
-    return status.aheadCount > 0;
-  }
-
-  return Boolean(status.remoteName);
-};
