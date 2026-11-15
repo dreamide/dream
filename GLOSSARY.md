@@ -303,6 +303,13 @@ cannot hold a request. A host that cannot start, nor fall back to the
 desktop's process, still ends the launch. The catalog then loads as it
 always has: the window's first catalog read waits for the host.
 
+The order around `start()` is `electron/desktop-launch.js`'s, built with
+Electron's parts passed in: before it, the workspace database, its lock, the
+save queue and the home host (at import); then the ports, `start()` and
+remote access once the host listens, and the install id; at quit, the
+teardown from the host to the workspace lock. `main.js` calls each at its
+point in Electron's lifecycle and keeps the windows.
+
 ## Host options
 
 Every option a host starts with (`electron/host/options.js`): a flag and an

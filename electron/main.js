@@ -41,13 +41,13 @@ import {
   createHomeHostAttachment,
   withInProcessFallback,
 } from "./desktop-host.js";
-import { resolveDesktopHostMode } from "./desktop-host-mode.js";
+import { createDesktopLaunch } from "./desktop-launch.js";
 import { createDevLogger, publishDevSession } from "./dev-inspection.js";
 import { detectAvailableEditors, openProjectInEditor } from "./editors.js";
 import { getHelloUrl } from "./hello.js";
 import { configureHostDataDirectory } from "./host/host-paths.js";
 import { createHost } from "./host/index.js";
-import { acquireStateLock, StateLockedError } from "./host/state-lock.js";
+import { acquireStateLock } from "./host/state-lock.js";
 import {
   closePersistedStateDatabase,
   installIdConfigValue,
@@ -107,9 +107,6 @@ const readDreamVersion = () => {
   }
 };
 const dreamVersion = readDreamVersion();
-// A host mode named in the environment (desktop-host-mode.js); `desktop` and
-// `auto` choose as if unset.
-const requestedHostMode = process.env.DREAM_HOST_MODE?.trim() || "";
 
 // Diagnostic only: opt-in via env var to test whether software rendering is
 // caused by Chromium's GPU blocklist (do NOT enable in production builds —
@@ -120,11 +117,6 @@ if (process.env.DREAM_IGNORE_GPU_BLOCKLIST === "1") {
     "[gpu] --ignore-gpu-blocklist enabled via DREAM_IGNORE_GPU_BLOCKLIST (diagnostic mode)",
   );
 }
-const rendererUrlFromEnv = process.env.ELECTRON_RENDERER_URL?.trim();
-const rendererStartupTimeoutMs = Number(
-  process.env.VITE_READY_TIMEOUT_MS ?? 45000,
-);
-const rendererProbeIntervalMs = 300;
 const APP_NAME = "Dream";
 const APP_ID = "ai.dreamdream.dream";
 const APP_USER_DATA_DIR_NAME = "dreamide";
@@ -147,98 +139,44 @@ app.setPath("userData", APP_USER_DATA_PATH);
 // Keep Chromium caches per process so parallel launches do not lock user data.
 app.setPath("sessionData", APP_SESSION_DATA_PATH);
 
-// The desktop's workspace and its local host's catalog are separate files,
-// each with its own writer (workspace-database.js): the desktop's save
-// queue writes the workspace, the host its catalog. Set up before either
-// writer starts; an existing workspace moves out of the state database
-// once, from a backed-up copy.
-configureHostDataDirectory(APP_USER_DATA_PATH);
-const STATE_DATABASE_PATH = resolveStateDatabasePath();
-let WORKSPACE_DATABASE_PATH = STATE_DATABASE_PATH;
-let workspaceSeparate = false;
-try {
-  const prepared = prepareWorkspaceDatabase({
-    stateDatabasePath: STATE_DATABASE_PATH,
-  });
-  WORKSPACE_DATABASE_PATH = prepared.workspaceDatabasePath;
-  workspaceSeparate = true;
-  if (prepared.migrated) {
-    console.log(
-      `Moved the workspace to ${prepared.workspaceDatabasePath} (backup: ${prepared.backupPath}).`,
-    );
-  }
-} catch (error) {
-  // The workspace stays where it was, with the one shared writer it had:
-  // nothing is lost, and the move is tried again at the next start.
-  console.error("Could not move the workspace to its own database:", error);
-}
-
-// One desktop per workspace: two would be two writers of one file. A host
-// in this process on the shared database takes the state lock instead.
-let releaseWorkspaceLock = () => {};
-if (workspaceSeparate) {
-  try {
-    releaseWorkspaceLock = acquireStateLock(WORKSPACE_DATABASE_PATH, {
-      kind: "desktop",
-    });
-  } catch (error) {
-    if (!(error instanceof StateLockedError)) throw error;
-    dialog.showErrorBox(
-      "Dream is already running",
-      `Another Dream window (process ${error.holder?.pid ?? "unknown"}) is using this workspace. Switch to it, or quit it first.`,
-    );
-    process.exit(1);
-  }
-}
-
-// The home host: the host running on this desktop's database (whoever
-// started it) or one the desktop starts, or inside this process. All of them use this desktop's identity and catalog.
-const resolvedHostMode = resolveDesktopHostMode({
-  envMode: requestedHostMode,
-  workspaceSeparate,
-});
-const resolveRemoteHost = (hostId) => desktopConnections.getEndpoint(hostId);
-const createInProcessHost = () =>
-  createHost({
-    // The browser client paired devices load: this app's renderer build.
+// The launch and quit sequence (desktop-launch.js): the workspace database
+// and its lock, the save queue and the home host here, before either
+// writer starts; the renderer server, remote access and the install id once
+// Electron is ready; the ordered teardown at quit.
+const launch = createDesktopLaunch({
+  appName: APP_NAME,
+  electron: { app, dialog },
+  env: process.env,
+  exit: (code) => process.exit(code),
+  // Created below, after the home host; used only once the host runs.
+  getConnections: () => desktopConnections,
+  hosts: { createHomeHostAttachment, createHost, withInProcessFallback },
+  isDevelopment,
+  paths: {
+    appDir: __dirname,
     clientDirectory: path.join(__dirname, "..", "dist"),
     dataDirectory: APP_USER_DATA_PATH,
-    diagnosticsEnabled: !app.isPackaged,
-    kind: "desktop",
-    // Only while the workspace could not move out: then the host's writes
-    // share the workspace's queue, one writer for the one file.
-    ...(workspaceSeparate ? {} : { getStateWriter: () => getStateSaveQueue() }),
-    version: dreamVersion,
-    // Requests for SSH-host projects go through the local API to the host's
-    // forwarded port (api/host-proxy-routes.js).
-    resolveRemoteHost,
-  });
-
-const host = (() => {
-  switch (resolvedHostMode.mode) {
-    case "detached":
-      // A host that cannot start in its own process, with nothing else on
-      // the data, leaves the window working with a host in this one.
-      return withInProcessFallback({
-        attached: createHomeHostAttachment({
-          clientDirectory: path.join(__dirname, "..", "dist"),
-          dataDirectory: APP_USER_DATA_PATH,
-          diagnosticsEnabled: !app.isPackaged,
-          resolveRemoteHost,
-          stateDatabasePath: STATE_DATABASE_PATH,
-          version: dreamVersion,
-        }),
-        createInProcess: createInProcessHost,
-        fallBack: true,
-        stateDatabasePath: STATE_DATABASE_PATH,
-      });
-    default:
-      return createInProcessHost();
-  }
-})();
-
-/** The host mode now: a detached host that could not start fell back. */
-const currentHostMode = () => host.mode ?? resolvedHostMode.mode;
+  },
+  persistence: {
+    acquireStateLock,
+    closePersistedStateDatabase,
+    configureHostDataDirectory,
+    createStateSaveQueue,
+    installIdConfigValue,
+    prepareWorkspaceDatabase,
+    readOrCreatePersistedInstallId,
+    resolveStateDatabasePath,
+  },
+  renderer: { createRendererServerManager, getPort },
+  version: dreamVersion,
+});
+// A workspace another desktop holds has ended the launch here (exit 1).
+const {
+  host,
+  hostMode: currentHostMode,
+  saveQueue: stateSaveQueue,
+  workspaceDatabasePath: WORKSPACE_DATABASE_PATH,
+} = launch.prepare();
 
 let mainWindow = null;
 let updateManager = null;
@@ -251,7 +189,7 @@ const themes = createThemeStore({
   load: () =>
     loadPersistedThemePreference({ databasePath: WORKSPACE_DATABASE_PATH }),
   save: (preferences) => {
-    getStateSaveQueue()
+    stateSaveQueue
       .write("config", themePreferenceConfigValue(preferences))
       .catch((error) => {
         console.error("Failed to save theme preference:", error);
@@ -317,13 +255,6 @@ const desktopConnections = createDesktopHostConnections({
   // host from the working tree (pnpm host:install-dev <target>).
   runtimeVersion: app.isPackaged ? dreamVersion : DEV_RUNTIME_VERSION,
 });
-
-let rendererServerManager = null;
-
-function parsePort(value) {
-  const port = Number(value);
-  return Number.isInteger(port) && port > 0 && port <= 65_535 ? port : null;
-}
 
 function isDevToolsShortcut(input) {
   const key = typeof input?.key === "string" ? input.key.toLowerCase() : "";
@@ -403,56 +334,6 @@ function configureDetachedDevToolsShortcuts() {
   });
 }
 
-async function createStartupRendererServerManager() {
-  const configuredApiServerPort = parsePort(process.env.ELECTRON_API_PORT);
-  const configuredInternalRendererPort = parsePort(
-    process.env.ELECTRON_INTERNAL_PORT,
-  );
-  const apiServerPort =
-    configuredApiServerPort ??
-    (await getPort({
-      exclude:
-        configuredInternalRendererPort === null
-          ? undefined
-          : [configuredInternalRendererPort],
-      host: "127.0.0.1",
-      reserve: true,
-    }));
-  const internalRendererPort =
-    configuredInternalRendererPort ??
-    (await getPort({
-      exclude: [apiServerPort],
-      host: "127.0.0.1",
-      reserve: true,
-    }));
-
-  if (!rendererUrlFromEnv && apiServerPort === internalRendererPort) {
-    throw new Error(
-      `Renderer and API ports must be different. Both resolved to ${apiServerPort}.`,
-    );
-  }
-
-  console.log(
-    `Starting ${APP_NAME} with renderer port ${internalRendererPort} and API port ${apiServerPort}.`,
-  );
-
-  return createRendererServerManager({
-    apiServerPort,
-    appDir: __dirname,
-    developmentRendererUrl:
-      rendererUrlFromEnv || `http://127.0.0.1:${internalRendererPort}`,
-    internalRendererPort,
-    isDevelopment,
-    rendererProbeIntervalMs,
-    rendererStartupTimeoutMs,
-    rendererUrlFromEnv,
-    startApi: ({ apiToken, port }) => host.listen({ apiToken, port }),
-    onRendererOutput: devLogger
-      ? (text) => devLogger.log("vite", text)
-      : undefined,
-  });
-}
-
 function getUrlOrigin(value) {
   try {
     return new URL(value).origin;
@@ -462,6 +343,7 @@ function getUrlOrigin(value) {
 }
 
 function isRendererNavigation(url) {
+  const rendererServerManager = launch.rendererServer();
   if (!rendererServerManager) {
     return false;
   }
@@ -633,13 +515,13 @@ async function createMainWindow() {
       .catch(() => {});
   }
 
-  mainWindow.loadURL(rendererServerManager.getUrl()).catch((error) => {
+  mainWindow.loadURL(launch.rendererServer().getUrl()).catch((error) => {
     console.error("Failed to load renderer:", error);
   });
 }
 
 ipcMain.on(DESKTOP_SYNC_CHANNELS.apiSessionToken, (event) => {
-  const apiSessionToken = rendererServerManager?.getApiSessionToken();
+  const apiSessionToken = launch.rendererServer()?.getApiSessionToken();
   if (!apiSessionToken) {
     console.error(
       "API session token requested before renderer server startup.",
@@ -650,15 +532,6 @@ ipcMain.on(DESKTOP_SYNC_CHANNELS.apiSessionToken, (event) => {
 
   event.returnValue = apiSessionToken;
 });
-
-// The workspace's reads and writes stay off the main thread. The queue runs
-// them in order: workspace changes, config values and the workspace load a
-// reloaded window makes. (The host's catalog has its own writer.)
-let stateSaveQueue = null;
-const getStateSaveQueue = () =>
-  (stateSaveQueue ??= createStateSaveQueue({
-    databasePath: WORKSPACE_DATABASE_PATH,
-  }));
 
 ipcMain.on(DESKTOP_SYNC_CHANNELS.initialThemePreferences, (event) => {
   event.returnValue = themes.get();
@@ -687,9 +560,9 @@ const desktop = createDesktopHandlers({
   sshHosts: desktopConnections,
   sshPrompts,
   state: {
-    loadWorkspace: () => getStateSaveQueue().loadWorkspace(),
+    loadWorkspace: () => stateSaveQueue.loadWorkspace(),
     saveWorkspaceChanges: (changes) =>
-      getStateSaveQueue().write("workspace-changes", changes),
+      stateSaveQueue.write("workspace-changes", changes),
   },
   systemPrefersDark: () => nativeTheme.shouldUseDarkColors,
   themes,
@@ -722,23 +595,14 @@ app
       app.dock?.setIcon(appIconPath);
     }
 
-    rendererServerManager = await createStartupRendererServerManager();
-    // The host starts beside the renderer; in production the window loads
-    // while it does (renderer-server.js says what the window waits on).
-    await rendererServerManager.start();
-    const hostListening = rendererServerManager.whenHostListening();
-    // Remote access as the user left it (Settings > Connections), once the
-    // host listens. Never holds the window up: its setup can wait on
-    // Tailscale.
-    hostListening.then(
-      () =>
-        host
-          .startRemoteAccess()
-          .catch((error) =>
-            console.warn("Remote access did not start:", error),
-          ),
-      () => {},
-    );
+    // The ports, the host and the renderer, then remote access once the
+    // host listens (desktop-launch.js).
+    const { hostListening, rendererServer: rendererServerManager } =
+      await launch.start({
+        onRendererOutput: devLogger
+          ? (text) => devLogger.log("vite", text)
+          : undefined,
+      });
     if (devInspectionEnabled) {
       await publishDevSession(projectRoot, {
         kind: "electron",
@@ -751,21 +615,7 @@ app
       }).catch((error) => console.warn("Cannot publish dev session:", error));
     }
 
-    try {
-      const persisted = readOrCreatePersistedInstallId({
-        databasePath: WORKSPACE_DATABASE_PATH,
-      });
-      installId = persisted.installId;
-      if (persisted.created) {
-        getStateSaveQueue()
-          .write("config", installIdConfigValue(installId))
-          .catch((error) => {
-            console.error("Failed to save install ID:", error);
-          });
-      }
-    } catch (error) {
-      console.error("Failed to initialize install ID:", error);
-    }
+    installId = launch.readInstallId();
 
     await createMainWindow();
     if (devLogger) {
@@ -810,15 +660,10 @@ app.on("before-quit", (event) => {
 
   updateManager?.stop();
 
+  // The host, the connections, the renderer server, the save queue's
+  // flush, the database, then the workspace lock (desktop-launch.js).
   Promise.resolve()
-    .then(async () => {
-      await host.close();
-      await desktopConnections.disconnectAll();
-      await rendererServerManager?.stop();
-      await stateSaveQueue?.flushAndClose();
-      closePersistedStateDatabase();
-      releaseWorkspaceLock();
-    })
+    .then(() => launch.quit())
     .catch((error) => {
       console.error("Error during quit cleanup:", error);
     })
