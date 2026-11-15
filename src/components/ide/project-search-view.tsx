@@ -49,6 +49,8 @@ export interface ProjectSearchViewProps {
     position: ProjectFilePosition,
     options: { pin: boolean },
   ) => void;
+  /** The project's Host (`getProjectHostId`). */
+  hostId: string;
   projectPath: string;
   /** Bumped when the project's files may have changed; searches again. */
   refreshVersion: number;
@@ -91,6 +93,7 @@ const countMatches = (file: ProjectSearchFile) =>
  */
 export const ProjectSearchView = ({
   focusRequest,
+  hostId,
   onOpenResult,
   projectPath,
   refreshVersion,
@@ -147,7 +150,7 @@ export const ProjectSearchView = ({
             regexp,
             wholeWord,
           },
-          { signal: controller.signal },
+          { hostId, signal: controller.signal },
         )
         .then((response) => {
           setCollapsedPaths(new Set());
@@ -170,6 +173,7 @@ export const ProjectSearchView = ({
   }, [
     caseSensitive,
     exclude,
+    hostId,
     include,
     projectPath,
     query,

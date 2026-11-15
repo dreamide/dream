@@ -43,8 +43,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import type { Messages } from "@/i18n/messages";
-import { LOCAL_HOST_ID } from "@/lib/host-routing";
-import type { ProjectScope } from "@/lib/project-resource-cache";
+import { type ProjectScope, projectScope } from "@/lib/project-resource-cache";
 import { cn } from "@/lib/utils";
 import type { ProjectConfig, ProjectGitStatusEntry } from "@/types/ide";
 import type { DiffViewMode } from "../changes";
@@ -1266,10 +1265,7 @@ export function PullRequestView({
   active?: boolean;
 }) {
   const t = useTranslations();
-  const scope = {
-    projectPath: project.path,
-    hostId: project.hostId ?? LOCAL_HOST_ID,
-  };
+  const scope = projectScope(project);
   const context = usePullRequestContext(project.path, active, scope.hostId);
   const [mergeTarget, setMergeTarget] = useState<{
     repository: string;

@@ -35,7 +35,8 @@ export const PushDialog = ({
   open: boolean;
   projectId: string;
   projectPath: string;
-  hostId?: string;
+  /** The project's Host (`getProjectHostId`). */
+  hostId: string;
   refreshToken: number;
   status: ProjectGitStatusResponse | null;
 }) => {

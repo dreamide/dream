@@ -33,11 +33,13 @@ const skillRequest = async <T>(
   }
 };
 
+/** Each request goes to `hostId`: the Host whose skills are shown. */
 export const createSkillRequest = async (
   input: ApiRequestOf<"createSkill">,
+  hostId: string,
 ) => {
   const result = await skillRequest(
-    apiClient.createSkill(input),
+    apiClient.createSkill(input, { hostId }),
     "Creating the skill failed.",
   );
   invalidateProviderSkills();
@@ -46,9 +48,10 @@ export const createSkillRequest = async (
 
 export const setSkillEnabledRequest = async (
   input: ApiRequestOf<"setSkillEnabled">,
+  hostId: string,
 ) => {
   await skillRequest(
-    apiClient.setSkillEnabled(input),
+    apiClient.setSkillEnabled(input, { hostId }),
     "Updating the skill failed.",
   );
   invalidateProviderSkills();
@@ -56,8 +59,14 @@ export const setSkillEnabledRequest = async (
 
 export type { SkillFileContents } from "@/lib/api-client";
 
-export const readSkillFileRequest = (input: ApiRequestOf<"readSkill">) =>
-  skillRequest(apiClient.readSkill(input), "Reading the skill failed.");
+export const readSkillFileRequest = (
+  input: ApiRequestOf<"readSkill">,
+  hostId: string,
+) =>
+  skillRequest(
+    apiClient.readSkill(input, { hostId }),
+    "Reading the skill failed.",
+  );
 
 export const toSkillName = (value: string) =>
   value

@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SavedPrompt } from "@/types/ide";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { useIdeStore } from "../ide-store";
 import { CreateSkillDialog } from "../skills/create-skill-dialog";
 import { SavedPromptDialog } from "./saved-prompt-dialog";
@@ -32,10 +33,10 @@ export const SavedPromptsSettingsSection = () => {
   const commonT = useTranslations("common");
   const skillsT = useTranslations("skills");
   const savedPrompts = useIdeStore((state) => state.savedPrompts);
-  const activeProjectPath = useIdeStore(
+  const activeProject = useIdeStore(
     (state) =>
-      state.projects.find((project) => project.id === state.activeProjectId)
-        ?.path ?? null,
+      state.projects.find((project) => project.id === state.activeProjectId) ??
+      null,
   );
   const [skillSource, setSkillSource] = useState<SavedPrompt | null>(null);
   const addSavedPrompt = useIdeStore((state) => state.addSavedPrompt);
@@ -228,8 +229,9 @@ export const SavedPromptsSettingsSection = () => {
             name: skillSource.name,
             userInvocationOnly: true,
           }}
+          hostId={getProjectHostId(activeProject)}
           onClose={() => setSkillSource(null)}
-          projectPath={activeProjectPath}
+          projectPath={activeProject?.path ?? null}
         />
       ) : null}
     </div>

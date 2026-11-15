@@ -1,9 +1,14 @@
 import { expect, test } from "vitest";
 import { createFakeApiClient, fakeApiError } from "@/lib/api-client-fake";
-import { createFileEditorSessions } from "./file-editor-session";
+import {
+  createFileEditorSessions,
+  type FileEditorSessionDependencies,
+} from "./file-editor-session";
 
 const PROJECT_ID = "project-1";
 const PROJECT_PATH = "/work/app";
+/** Another Project at the same path, on another Host. */
+const REMOTE_PROJECT_ID = "project-2";
 
 const deferred = <T>() => {
   let resolve!: (value: T) => void;
@@ -28,7 +33,7 @@ const createHarness = (files: Record<string, string> = {}) => {
     writeStatus: null as number | null,
   };
   const saved: string[] = [];
-  const api = createFakeApiClient({
+  const fake = createFakeApiClient({
     readProjectFile: async ({ filePath }) => {
       await control.readGate.get(filePath);
       // Read when released, as a real read would be.
@@ -65,20 +70,36 @@ const createHarness = (files: Record<string, string> = {}) => {
       };
     },
   });
+  // The Host each read and write was sent to.
+  const sent: { hostId: string | undefined; name: string }[] = [];
+  const api: FileEditorSessionDependencies["api"] = {
+    readProjectFile: (request, options) => {
+      sent.push({ hostId: options?.hostId, name: "readProjectFile" });
+      return fake.client.readProjectFile(request, options);
+    },
+    writeProjectFile: (request, options) => {
+      sent.push({ hostId: options?.hostId, name: "writeProjectFile" });
+      return fake.client.writeProjectFile(request, options);
+    },
+  };
   const sessions = createFileEditorSessions({
-    api: api.client,
-    getProjectPath: (projectId) =>
-      projectId === PROJECT_ID ? PROJECT_PATH : null,
+    api,
+    getProjectScope: (projectId) =>
+      projectId === PROJECT_ID
+        ? { hostId: "local", projectPath: PROJECT_PATH }
+        : projectId === REMOTE_PROJECT_ID
+          ? { hostId: "devbox", projectPath: PROJECT_PATH }
+          : null,
     onSaved: (projectId) => saved.push(projectId),
   });
   const session = sessions.session(PROJECT_ID);
   const readsOf = (path: string) =>
-    api.calls.filter(
+    fake.calls.filter(
       (call) =>
         call.name === "readProjectFile" &&
         (call.request as { filePath: string }).filePath === path,
     ).length;
-  return { control, disk, readsOf, saved, session, sessions };
+  return { control, disk, readsOf, saved, sent, session, sessions };
 };
 
 test("opening a file shows it in the preview tab and reads it", async () => {
@@ -335,4 +356,21 @@ test("showing a file whose read failed reads it again", async () => {
 
   expect(readsOf("a.ts")).toBe(2);
   expect(session.getSnapshot().buffers["a.ts"]?.draftContent).toBe("a");
+});
+
+test("reads and writes go to the session's own Project Host, whatever shares its path", async () => {
+  const { sent, session, sessions } = createHarness({ "a.ts": "disk" });
+  const remote = sessions.session(REMOTE_PROJECT_ID);
+  remote.open("a.ts");
+  await flush();
+  remote.edit("a.ts", "draft");
+  await remote.save("a.ts");
+  session.open("a.ts");
+  await flush();
+
+  expect(sent).toEqual([
+    { hostId: "devbox", name: "readProjectFile" },
+    { hostId: "devbox", name: "writeProjectFile" },
+    { hostId: "local", name: "readProjectFile" },
+  ]);
 });

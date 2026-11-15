@@ -123,13 +123,18 @@ const modelSelectorIconClassName = (provider: AiProvider) =>
  * composer mounts (or taken from a longer list the file explorer already
  * read), and kept fresh after writes only while a mention is being typed.
  */
-const useProjectReferenceIndex = (projectPath: string, needed: boolean) => {
+const useProjectReferenceIndex = (
+  hostId: string,
+  projectPath: string,
+  needed: boolean,
+) => {
   const key = useMemo(
     () =>
       projectResourceKey("projectFiles", projectPath, {
+        hostId,
         params: { maxResults: PROJECT_REFERENCE_FILE_LIMIT },
       }),
-    [projectPath],
+    [hostId, projectPath],
   );
   useEffect(() => {
     void readProjectResource(key).catch(() => undefined);
@@ -262,6 +267,8 @@ export interface ChatComposerProps {
   contextUsage?: LanguageModelUsage;
   contextUsedTokens: number;
   hideUsageAndContext?: boolean;
+  /** The project's Host (`getProjectHostId`). */
+  hostId: string;
   isActive: boolean;
   isProcessing: boolean;
   isProviderInstalled: boolean;
@@ -307,6 +314,7 @@ export const ChatComposer = ({
   contextUsage,
   contextUsedTokens,
   hideUsageAndContext = false,
+  hostId,
   isActive,
   isProcessing,
   isProviderInstalled,
@@ -374,10 +382,12 @@ export const ChatComposer = ({
   const skillsSupported = providerSupportsSkills(selectedProvider);
   const { skills } = useProviderSkills({
     enabled: composerNeedsSkillCatalog(draft, skillsSupported),
+    hostId,
     projectPath,
     provider: selectedProvider,
   });
   const projectReferences = useProjectReferenceIndex(
+    hostId,
     projectPath,
     draft.token?.kind === "reference",
   );

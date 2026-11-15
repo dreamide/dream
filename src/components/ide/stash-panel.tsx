@@ -14,6 +14,7 @@ import type {
   ReasoningEffort,
   StashItem,
 } from "@/types/ide";
+import { getProjectHostId } from "../../../electron/shared/persisted-state-codec.js";
 import { ChatComposer } from "./chat/chat-composer";
 import {
   type ChatPanelModelOption,
@@ -60,6 +61,7 @@ const EMPTY_DRAFT: ComposerDraft = { references: [], text: "" };
 
 const StashItemComposer = ({
   allModelOptions,
+  hostId,
   isActive,
   isProviderInstalled,
   item,
@@ -70,6 +72,8 @@ const StashItemComposer = ({
   projectPath,
 }: {
   allModelOptions: ChatPanelModelOption[];
+  /** The project's Host (`getProjectHostId`). */
+  hostId: string;
   isActive: boolean;
   isProviderInstalled: boolean;
   item: StashItem;
@@ -141,6 +145,7 @@ const StashItemComposer = ({
           {browserT("feedbackNewChat")}
         </label>
       }
+      hostId={hostId}
       isActive={isActive && canSubmit}
       isProcessing={false}
       isProviderInstalled={isProviderInstalled}
@@ -264,6 +269,7 @@ const StashDraftComposer = ({
       contextWindow={0}
       contextUsedTokens={0}
       hideUsageAndContext
+      hostId={getProjectHostId(project)}
       isActive={isActive}
       isProcessing={false}
       isProviderInstalled={isProviderInstalled}
@@ -357,6 +363,7 @@ const StashPanelImpl = ({
                 onUpdate={(updater) =>
                   updateStashItem(project.id, item.id, updater)
                 }
+                hostId={getProjectHostId(project)}
                 projectId={project.id}
                 projectPath={project.path}
               />

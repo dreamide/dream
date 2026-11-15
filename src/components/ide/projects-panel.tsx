@@ -13,6 +13,7 @@ import type {
   ProjectConfig,
   ProjectGitWorktreeInfo,
 } from "@/types/ide";
+import { getProjectHostId } from "../../../electron/shared/persisted-state-codec.js";
 import { formatLastActiveTime } from "./activity-time";
 import {
   isChatRunning,
@@ -27,9 +28,11 @@ import { projectResourceKey, useProjectResource } from "./project-resources";
 type WorktreeRepoPaths = { mainWorktreePath: string; repoRoot: string };
 
 /** The project's app-managed worktrees, read while the sidebar is shown. */
-const useAppManagedWorktrees = (projectPath: string, visible: boolean) => {
+const useAppManagedWorktrees = (project: ProjectConfig, visible: boolean) => {
   const resource = useProjectResource(
-    projectResourceKey("gitWorktrees", projectPath),
+    projectResourceKey("gitWorktrees", project.path, {
+      hostId: getProjectHostId(project),
+    }),
     { active: visible },
   );
   const payload = resource.error === undefined ? resource.data : undefined;
@@ -94,7 +97,7 @@ export const ProjectSidebar = ({
     loading: worktreesLoading,
     repoPaths,
     worktrees,
-  } = useAppManagedWorktrees(project.path, visible);
+  } = useAppManagedWorktrees(project, visible);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [pendingRemoveWorktree, setPendingRemoveWorktree] =

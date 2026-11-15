@@ -27,7 +27,7 @@ const createTestStore = (
         writable: true,
       }),
     }).client,
-    getProjectPath: () => project.path,
+    getProjectScope: () => ({ hostId: "local", projectPath: project.path }),
   });
   const discardUntouchedTerminals = vi.fn();
   const openProjectTerminal = vi.fn(async () => {});

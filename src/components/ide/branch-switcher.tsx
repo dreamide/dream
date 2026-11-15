@@ -29,6 +29,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitBranches } from "@/hooks/use-project-git-branches";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { cn } from "@/lib/utils";
+import { getProjectHostId } from "../../../electron/shared/persisted-state-codec.js";
 import { branchDeleteBlockedKey } from "./git-actions/branch-delete-summary";
 import { DeleteBranchDialog } from "./git-actions/delete-branch-dialog";
 import { useIdeStore } from "./ide-store";
@@ -57,8 +58,8 @@ const BranchSwitcherImpl = ({
 }: BranchSwitcherProps) => {
   const branchT = useTranslations("branches");
   const commonT = useTranslations("common");
-  const projectHostId = useIdeStore(
-    (s) => s.projects.find((project) => project.id === projectId)?.hostId,
+  const projectHostId = useIdeStore((s) =>
+    getProjectHostId(s.projects.find((project) => project.id === projectId)),
   );
   // The button shows the branch from the status every footer shares; the
   // branch list is read only when the menu opens.

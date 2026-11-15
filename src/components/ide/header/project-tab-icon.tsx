@@ -1,6 +1,5 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { fetchApiBlob, getProjectFileRawUrl } from "@/lib/api-client";
-import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { ProjectIconInfo } from "@/types/ide";
 
 // The same path on two hosts is two folders, with two icons.
@@ -51,15 +50,15 @@ const loadProjectIcon = (
 export function ProjectTabIcon({
   className = "size-4",
   fallback = null,
-  hostId = LOCAL_HOST_ID,
+  hostId,
   icon,
   projectName,
   projectPath,
 }: {
   className?: string;
   fallback?: ReactNode;
-  /** The project's host; the local host when absent. */
-  hostId?: string;
+  /** The project's Host (`getProjectHostId`). */
+  hostId: string;
   icon: ProjectIconInfo | null;
   projectName: string;
   projectPath: string;

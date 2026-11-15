@@ -2,9 +2,9 @@ import { useTranslations } from "next-intl";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import { cn } from "@/lib/utils";
 import type { GitPanelTab, ProjectConfig } from "@/types/ide";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { useIdeStore } from "../ide-store";
 import { DEFAULT_GIT_PANEL_TAB } from "../ide-types";
 import { RightPanelExpandButton } from "../right-panel-expand-button";
@@ -104,7 +104,7 @@ export const GitPanel = ({
       return (
         <GitLog
           active={tabActive}
-          hostId={project.hostId ?? LOCAL_HOST_ID}
+          hostId={getProjectHostId(project)}
           projectPath={project.path}
         />
       );

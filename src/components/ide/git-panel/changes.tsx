@@ -26,6 +26,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import type { ProjectGitStatusEntry } from "@/types/ide";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { ChangesRow, type DiffViewMode } from "../changes";
 import {
   changesViewReducer,
@@ -61,7 +62,6 @@ const ChangeWithDiff = memo(
     readDiff,
     ...rowProps
   }: Omit<ChangesRowProps, "diff" | "diffError" | "diffLoading"> & {
-    hostId: string | undefined;
     readDiff: boolean;
   }) => {
     const panelsT = useTranslations("panels");
@@ -83,6 +83,7 @@ const ChangeWithDiff = memo(
         }
         diffLoading={loading}
         expanded={expanded}
+        hostId={hostId}
         projectPath={projectPath}
       />
     );
@@ -110,7 +111,7 @@ const GitChangesImpl = ({
 
   const projectId = activeProject?.id ?? null;
   const projectPath = activeProject?.path ?? null;
-  const hostId = activeProject?.hostId;
+  const hostId = getProjectHostId(activeProject);
   const wordWrapEnabled = activeProject?.ui.changesDiffWordWrap ?? true;
   const gitRefreshKey = useIdeStore((s) =>
     projectId ? (s.projectGitRefreshKeys[projectId] ?? 0) : 0,

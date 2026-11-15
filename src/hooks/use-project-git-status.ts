@@ -21,11 +21,11 @@ export const useProjectGitStatus = (
     active?: boolean;
     detail?: ProjectGitStatusDetail;
     /**
-     * The project's host (absent: the project's own). The same path on two
-     * hosts is two repositories, each read from its own host.
+     * The project's Host (`getProjectHostId`). The same path on two hosts
+     * is two repositories, each read from its own host.
      */
-    hostId?: string;
-  } = {},
+    hostId: string;
+  },
 ) => {
   const uiT = useTranslations("ui");
   const detail = options.detail ?? "full";

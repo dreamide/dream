@@ -29,7 +29,12 @@ export const setHostResolver = (next: HostResolver) => {
   resolver = next;
 };
 
-/** The host a request with this body is for; the local host by default. */
+/**
+ * The host a request with this body is for; the local host by default.
+ * A path alone is a guess (the active Project first): only for callers that
+ * have nothing but a path. A caller that knows its Project names its Host
+ * (`projectScope`, `getProjectHostId`).
+ */
 export const resolveRequestHost = (body: unknown): string => {
   if (!body || typeof body !== "object") return LOCAL_HOST_ID;
   try {

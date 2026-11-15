@@ -20,6 +20,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { cn } from "@/lib/utils";
 import type { ProjectConfig } from "@/types/ide";
+import { getProjectHostId } from "../../../electron/shared/persisted-state-codec.js";
 import { BranchSwitcher } from "./branch-switcher";
 import { GitFooterActions } from "./git-panel/footer-actions";
 import { useIdeStore } from "./ide-store";
@@ -140,7 +141,7 @@ export const ProjectBranchFooter = ({
   const worktreeT = useTranslations("worktrees");
   const { branch, isRepo, loading } = useProjectGitStatus(project.path, {
     detail: "summary",
-    hostId: project.hostId,
+    hostId: getProjectHostId(project),
   });
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
   const openProjectFolder = useOpenProjectFolder();

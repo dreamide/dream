@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { AiProvider, ProviderSkill } from "@/types/ide";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { fetchProviderSkills } from "../chat/provider-skills";
 import { useIdeStore } from "../ide-store";
 import { useOpenLocalPath } from "../ssh/use-open-local-path";
@@ -70,6 +71,8 @@ export const SkillsSettingsSection = () => {
         projects.find((item) => item.id === activeProjectId) ??
         null);
   const projectPath = project?.path ?? "";
+  // No project: the home Host's skills.
+  const hostId = getProjectHostId(project);
   const openLocalPath = useOpenLocalPath();
 
   const load = useCallback(
@@ -77,16 +80,18 @@ export const SkillsSettingsSection = () => {
       setIsLoading(true);
       setActionError(null);
       try {
-        const result = await fetchProviderSkills(provider, projectPath, {
-          force,
-        });
+        const result = await fetchProviderSkills(
+          provider,
+          { hostId, projectPath },
+          { force },
+        );
         setSkills(result.skills);
         setErrors(result.errors);
       } finally {
         setIsLoading(false);
       }
     },
-    [projectPath, provider],
+    [hostId, projectPath, provider],
   );
 
   useEffect(() => {
@@ -109,11 +114,14 @@ export const SkillsSettingsSection = () => {
     }
     let cancelled = false;
     setPreview({ contents: null, error: null, path: selectedPath });
-    readSkillFileRequest({
-      path: selectedPath,
-      projectPath: projectPath || undefined,
-      provider,
-    })
+    readSkillFileRequest(
+      {
+        path: selectedPath,
+        projectPath: projectPath || undefined,
+        provider,
+      },
+      hostId,
+    )
       .then((contents) => {
         if (!cancelled) {
           setPreview({ contents, error: null, path: selectedPath });
@@ -131,7 +139,7 @@ export const SkillsSettingsSection = () => {
     return () => {
       cancelled = true;
     };
-  }, [projectPath, provider, selectedPath, t]);
+  }, [hostId, projectPath, provider, selectedPath, t]);
 
   const grouped = useMemo(() => {
     const groups = new Map<string, ProviderSkill[]>();
@@ -181,12 +189,15 @@ export const SkillsSettingsSection = () => {
     setPendingToggle(key);
     setActionError(null);
     try {
-      await setSkillEnabledRequest({
-        enabled,
-        name: skill.name,
-        path: skill.path || undefined,
-        provider,
-      });
+      await setSkillEnabledRequest(
+        {
+          enabled,
+          name: skill.name,
+          path: skill.path || undefined,
+          provider,
+        },
+        hostId,
+      );
       await load(true);
     } catch (error) {
       setActionError(
@@ -482,6 +493,7 @@ export const SkillsSettingsSection = () => {
         <CreateSkillDialog
           onClose={() => setShowCreateDialog(false)}
           onCreated={() => void load(true)}
+          hostId={hostId}
           projectPath={projectPath || null}
         />
       ) : null}

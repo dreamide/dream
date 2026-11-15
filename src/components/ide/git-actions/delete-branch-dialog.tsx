@@ -34,7 +34,8 @@ export const DeleteBranchDialog = ({
   projectPath,
 }: {
   branchName: string;
-  hostId?: string;
+  /** The project's Host (`getProjectHostId`). */
+  hostId: string;
   onClose: () => void;
   /** Answers once the branch is gone; throws a displayable error if not. */
   onDelete: (branchName: string, confirmedHead: string | null) => Promise<void>;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AiProvider, ProviderSkill } from "@/types/ide";
 import {
   fetchProviderSkills,
@@ -8,29 +8,33 @@ import {
 } from "./provider-skills";
 
 /**
- * Skills the selected provider can invoke for this project. Loaded lazily
- * (`enabled`) because Codex discovery starts its app-server.
+ * Skills the selected provider can invoke for this project on its Host.
+ * Loaded lazily (`enabled`) because Codex discovery starts its app-server.
  */
 export const useProviderSkills = ({
   enabled,
+  hostId,
   projectPath,
   provider,
 }: {
   enabled: boolean;
+  /** The project's Host (`getProjectHostId`). */
+  hostId: string;
   projectPath: string;
   provider: AiProvider;
 }) => {
+  const scope = useMemo(() => ({ hostId, projectPath }), [hostId, projectPath]);
   const [skills, setSkills] = useState<ProviderSkill[]>(
-    () => getCachedProviderSkills(provider, projectPath)?.skills ?? [],
+    () => getCachedProviderSkills(provider, scope)?.skills ?? [],
   );
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    setSkills(getCachedProviderSkills(provider, projectPath)?.skills ?? []);
+    setSkills(getCachedProviderSkills(provider, scope)?.skills ?? []);
     return subscribeToProviderSkills(() => {
-      setSkills(getCachedProviderSkills(provider, projectPath)?.skills ?? []);
+      setSkills(getCachedProviderSkills(provider, scope)?.skills ?? []);
     });
-  }, [projectPath, provider]);
+  }, [provider, scope]);
 
   useEffect(() => {
     if (!enabled || !providerSupportsSkills(provider)) {
@@ -39,7 +43,7 @@ export const useProviderSkills = ({
 
     let cancelled = false;
     setIsLoading(true);
-    void fetchProviderSkills(provider, projectPath).finally(() => {
+    void fetchProviderSkills(provider, scope).finally(() => {
       if (!cancelled) {
         setIsLoading(false);
       }
@@ -47,7 +51,7 @@ export const useProviderSkills = ({
     return () => {
       cancelled = true;
     };
-  }, [enabled, projectPath, provider]);
+  }, [enabled, provider, scope]);
 
   return { isLoading, skills };
 };

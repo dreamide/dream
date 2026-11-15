@@ -33,12 +33,14 @@ import {
 import { resolveRequestHost } from "@/lib/host-routing";
 import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
 import { resolveEffectiveMcpServers } from "@/lib/mcp-servers";
+import { projectScope } from "@/lib/project-resource-cache";
 import type {
   AiProvider,
   PendingChatSubmit,
   ProjectReference,
 } from "@/types/ide";
 import { isAiSdkApproval } from "../../../../electron/shared/agent-turn-contract.js";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { getProviderCapabilities } from "../../../../electron/shared/provider-capabilities.js";
 import { getActivityAttention } from "../activity-status";
 import { useActivityStore } from "../activity-store";
@@ -1102,7 +1104,10 @@ const serializeQueuedSubmission = async (
   if (!providerSupportsSkills(selectedProvider)) {
     return { ...draft, skills: [] };
   }
-  const { skills } = await fetchProviderSkills(selectedProvider, project.path);
+  const { skills } = await fetchProviderSkills(
+    selectedProvider,
+    projectScope(project),
+  );
   return serializeComposerDraft(draft, skills);
 };
 
@@ -1213,7 +1218,7 @@ const warmCommitMessagesOfSettledProjects = (
       continue;
     void warmProjectCommitMessage({
       ...getDefaultGitGenerationModelSelection(state.settings),
-      hostId: project.hostId,
+      hostId: getProjectHostId(project),
       projectPath: project.path,
     });
   }

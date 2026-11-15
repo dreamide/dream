@@ -26,6 +26,7 @@ import { resolveRequestHost } from "@/lib/host-routing";
 import {
   createProjectResourceCache,
   type ProjectScope,
+  projectScope,
   type ResourceGroup,
   type ResourceKey,
   type ResourceParams,
@@ -178,7 +179,7 @@ const findProjectId = (scope: ProjectScope) => {
     [...state.projects, ...state.closedProjects].find(
       (project) =>
         normalizeProjectPathKey(project.path) === pathKey &&
-        resolveRequestHost({ projectId: project.id }) === scope.hostId,
+        projectScope(project).hostId === scope.hostId,
     )?.id ?? null
   );
 };
@@ -212,19 +213,17 @@ const watchRefreshKeys = () => {
           (item) => item.id === projectId,
         );
         if (!project) continue;
-        projectResources.invalidate(
-          {
-            hostId: resolveRequestHost({ projectId }),
-            projectPath: project.path,
-          },
-          group,
-        );
+        projectResources.invalidate(projectScope(project), group);
       }
     }
   });
 };
 
-/** A resource's key; the host is the project's own unless named. */
+/**
+ * A resource's key. A caller that knows its Project names its Host
+ * (`projectScope`); without one the Host is guessed from the path, which is
+ * only for callers that have nothing but a path.
+ */
 export const projectResourceKey = <Kind extends ProjectResourceKind>(
   kind: Kind,
   projectPath: string,

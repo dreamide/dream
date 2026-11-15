@@ -14,11 +14,11 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type {
   ProjectGitStatusEntry,
   ProjectGitStatusResponse,
 } from "@/types/ide";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import {
   type CommitMessageRequest,
   cachedCommitMessage,
@@ -279,11 +279,12 @@ export const useCommitDraft = ({
   reasoningEffort,
   status,
 }: Omit<CommitDraftInputs, "hostId"> & { projectId: string }) => {
-  const hostId = useIdeStore(
-    (state) =>
+  const hostId = useIdeStore((state) =>
+    getProjectHostId(
       [...state.projects, ...state.closedProjects].find(
         (project) => project.id === projectId,
-      )?.hostId ?? LOCAL_HOST_ID,
+      ),
+    ),
   );
   const gitT = useTranslations("git");
   const gitTRef = useRef(gitT);

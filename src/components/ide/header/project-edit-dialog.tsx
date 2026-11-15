@@ -177,7 +177,7 @@ export const ProjectEditDialog = ({
                   <Spinner className="size-5" />
                 ) : project ? (
                   <ProjectTabIcon
-                    hostId={project.hostId}
+                    hostId={getProjectHostId(project)}
                     className="size-8"
                     icon={selectedIcon ?? automaticIcon}
                     projectName={project.name}

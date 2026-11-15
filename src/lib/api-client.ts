@@ -955,7 +955,7 @@ export interface RawHostRequest {
 
 /**
  * A raw route for the project at `projectPath`, on `hostId` when given,
- * otherwise on the host of the open project at that path.
+ * otherwise on the host guessed from the path (for callers with only a path).
  */
 const rawRoute = (
   route: string,
@@ -978,7 +978,9 @@ export const getProjectFileRawUrl = (
 export const getProjectGitFileAtHeadRawUrl = (
   projectPath: string,
   filePath: string,
-) => rawRoute("/api/project-git-file-at-head-raw", projectPath, filePath);
+  hostId?: string,
+) =>
+  rawRoute("/api/project-git-file-at-head-raw", projectPath, filePath, hostId);
 
 /**
  * Loads one of the raw routes above as a blob, with its host's credential,

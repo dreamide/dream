@@ -467,15 +467,16 @@ export const useWorktreeFinish = (
     });
   });
   const snapshot = useSyncExternalStore(finish.subscribe, finish.getSnapshot);
+  const hostId = getProjectHostId({ hostId: worktree.hostId });
 
   const { loading: statusLoading, status } = useProjectGitStatus(
     worktree.path,
-    { active: open, hostId: worktree.hostId },
+    { active: open, hostId },
   );
   const branchPreview = useBranchDeletePreview({
     branchName: worktree.branch ?? "",
     enabled: open && snapshot.deleteBranch && worktree.branch !== null,
-    hostId: worktree.hostId,
+    hostId,
     projectPath: worktree.mainWorktreePath,
     removingWorktreePath: worktree.path,
   });

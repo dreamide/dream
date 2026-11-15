@@ -1,7 +1,8 @@
 import { apiClient } from "@/lib/api-client";
 // The provider's skill catalog: which skills a provider can load for a
-// project, fetched from the main process and cached briefly. How skills are
-// mentioned in the composer's text lives in composer-draft.ts.
+// project on its Host, fetched from that Host and cached briefly. How skills
+// are mentioned in the composer's text lives in composer-draft.ts.
+import type { ProjectScope } from "@/lib/project-resource-cache";
 import type { AiProvider, ProviderSkillsResponse } from "@/types/ide";
 import { getProviderCapabilities } from "../../../../electron/shared/provider-capabilities.js";
 
@@ -19,8 +20,11 @@ const SKILL_CACHE_TTL_MS = 30_000;
 const skillCache = new Map<string, SkillCacheEntry>();
 const skillCacheListeners = new Set<() => void>();
 
-const cacheKey = (provider: AiProvider, projectPath: string) =>
-  `${provider}::${projectPath}`;
+// The same path on two Hosts is two projects, with two catalogs.
+const cacheKey = (
+  provider: AiProvider,
+  { hostId, projectPath }: ProjectScope,
+) => `${provider}\0${hostId}\0${projectPath}`;
 
 const notifySkillCacheListeners = () => {
   for (const listener of skillCacheListeners) {
@@ -37,12 +41,13 @@ export const subscribeToProviderSkills = (listener: () => void) => {
 
 export const getCachedProviderSkills = (
   provider: AiProvider,
-  projectPath: string,
-) => skillCache.get(cacheKey(provider, projectPath))?.value ?? null;
+  scope: ProjectScope,
+) => skillCache.get(cacheKey(provider, scope))?.value ?? null;
 
+/** The catalog for `scope`: the project's path on its Host (`projectScope`). */
 export const fetchProviderSkills = async (
   provider: AiProvider,
-  projectPath: string,
+  scope: ProjectScope,
   { force = false }: { force?: boolean } = {},
 ): Promise<ProviderSkillsResponse> => {
   const empty: ProviderSkillsResponse = { errors: [], provider, skills: [] };
@@ -50,7 +55,7 @@ export const fetchProviderSkills = async (
     return empty;
   }
 
-  const key = cacheKey(provider, projectPath);
+  const key = cacheKey(provider, scope);
   const cached = skillCache.get(key);
   if (!force && cached?.value && Date.now() - cached.at < SKILL_CACHE_TTL_MS) {
     return cached.value;
@@ -61,11 +66,10 @@ export const fetchProviderSkills = async (
 
   const pending = (async () => {
     try {
-      const payload = await apiClient.skills({
-        force,
-        projectPath,
-        provider,
-      });
+      const payload = await apiClient.skills(
+        { force, projectPath: scope.projectPath, provider },
+        { hostId: scope.hostId },
+      );
       return {
         errors: Array.isArray(payload.errors) ? payload.errors : [],
         provider,

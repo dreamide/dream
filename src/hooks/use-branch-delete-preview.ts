@@ -17,8 +17,8 @@ export const useBranchDeletePreview = ({
 }: {
   branchName: string;
   enabled: boolean;
-  /** The project's host (absent: the project's own). */
-  hostId?: string;
+  /** The project's Host (`getProjectHostId`). */
+  hostId: string;
   projectPath: string;
   /** Asks on behalf of removing this worktree, which has the branch open. */
   removingWorktreePath?: string | null;

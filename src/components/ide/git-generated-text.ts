@@ -11,7 +11,6 @@
  * are kept; a failure reaches the caller and is never cached.
  */
 import { apiClient } from "@/lib/api-client";
-import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type {
   AiProvider,
   ModelSpeed,
@@ -193,18 +192,17 @@ export const warmProjectCommitMessage = async ({
   projectPath,
   ...settings
 }: GitGenerationSettings & {
-  /** The project's host (absent: the local host). */
-  hostId?: string;
+  /** The project's Host (`getProjectHostId`). */
+  hostId: string;
   includeUnstaged?: boolean;
   projectPath: string;
 }) => {
-  const targetHostId = hostId ?? LOCAL_HOST_ID;
   try {
     // Read now: the turn that just ended may have changed files after the
     // last status read, and a delayed panel refresh may not have run yet.
     const status = await readProjectResource(
       projectResourceKey("gitStatus", projectPath, {
-        hostId: targetHostId,
+        hostId,
         params: { detail: "full" },
       }),
       { force: true },
@@ -215,7 +213,7 @@ export const warmProjectCommitMessage = async ({
       ...settings,
       changes,
       includeUnstaged,
-      hostId: targetHostId,
+      hostId,
       projectPath,
     });
   } catch {

@@ -23,8 +23,8 @@ export const useProjectGitBranches = (
   }: {
     /** Whether the reader is being shown (default: yes). */
     active?: boolean;
-    /** The project's host (absent: the project's own). */
-    hostId?: string;
+    /** The project's Host (`getProjectHostId`). */
+    hostId: string;
     /** The project a checkout writes to. */
     projectId: string;
   },

@@ -16,6 +16,7 @@
  * Errors are kept as thrown, for the panel to put into words.
  */
 import { type ApiClient, ApiError } from "@/lib/api-client";
+import type { ProjectScope } from "@/lib/project-resource-cache";
 import {
   type FileBufferAction,
   type FileBuffersState,
@@ -125,8 +126,12 @@ export interface FileEditorSession {
 
 export interface FileEditorSessionDependencies {
   api: Pick<ApiClient, "readProjectFile" | "writeProjectFile">;
-  /** The project's folder, or null when it is no longer open. */
-  getProjectPath: (projectId: string) => string | null;
+  /**
+   * The project's folder on its Host (`projectScope`), or null when it is
+   * no longer open. Reads and writes go to that Host, even when another
+   * Project has the same path on another Host.
+   */
+  getProjectScope: (projectId: string) => ProjectScope | null;
   /** A file was written: the project's git state changed. */
   onSaved?: (projectId: string) => void;
 }
@@ -199,8 +204,8 @@ const createSession = (
   };
 
   const read = (path: string) => {
-    const projectPath = deps.getProjectPath(projectId);
-    if (!projectPath) return;
+    const scope = deps.getProjectScope(projectId);
+    if (!scope) return;
     const token = Symbol(path);
     pendingReads.set(path, token);
     setRead(path, { error: null, metadata: null, status: "loading" });
@@ -211,29 +216,38 @@ const createSession = (
       apply();
       emit();
     };
-    deps.api.readProjectFile({ filePath: path, projectPath }).then(
-      (payload) =>
-        settle(() => {
-          reduceBuffers({ type: "load", key: path, content: payload.content });
-          setRead(path, {
-            error: null,
-            metadata: {
-              lineEnding: payload.lineEnding,
-              readOnlyReason: payload.readOnlyReason,
-              writable: payload.writable,
-            },
-            status: "ready",
-          });
-        }),
-      (error: unknown) =>
-        settle(() =>
-          setRead(path, {
-            error,
-            metadata: null,
-            status: isPreviewUnavailable(error) ? "unavailable" : "failed",
+    deps.api
+      .readProjectFile(
+        { filePath: path, projectPath: scope.projectPath },
+        { hostId: scope.hostId },
+      )
+      .then(
+        (payload) =>
+          settle(() => {
+            reduceBuffers({
+              type: "load",
+              key: path,
+              content: payload.content,
+            });
+            setRead(path, {
+              error: null,
+              metadata: {
+                lineEnding: payload.lineEnding,
+                readOnlyReason: payload.readOnlyReason,
+                writable: payload.writable,
+              },
+              status: "ready",
+            });
           }),
-        ),
-    );
+        (error: unknown) =>
+          settle(() =>
+            setRead(path, {
+              error,
+              metadata: null,
+              status: isPreviewUnavailable(error) ? "unavailable" : "failed",
+            }),
+          ),
+      );
   };
 
   /**
@@ -328,10 +342,10 @@ const createSession = (
     discardAndClose: (path) => closeTab(path),
 
     save: async (path) => {
-      const projectPath = deps.getProjectPath(projectId);
+      const scope = deps.getProjectScope(projectId);
       const buffer = buffers[path];
       if (
-        !projectPath ||
+        !scope ||
         !buffer ||
         buffer.status !== "dirty" ||
         !reads[path]?.metadata?.writable
@@ -342,12 +356,15 @@ const createSession = (
       reduceBuffers({ type: "save-start", key: path });
       emit();
       try {
-        const payload = await deps.api.writeProjectFile({
-          content: buffer.draftContent,
-          expectedContent: buffer.diskContent,
-          filePath: path,
-          projectPath,
-        });
+        const payload = await deps.api.writeProjectFile(
+          {
+            content: buffer.draftContent,
+            expectedContent: buffer.diskContent,
+            filePath: path,
+            projectPath: scope.projectPath,
+          },
+          { hostId: scope.hostId },
+        );
         reduceBuffers({
           type: "save-success",
           key: path,

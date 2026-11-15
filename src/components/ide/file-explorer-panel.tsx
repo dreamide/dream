@@ -48,6 +48,7 @@ import {
   getProjectFileRawUrl,
 } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { getProjectHostId } from "../../../electron/shared/persisted-state-codec.js";
 import { isBufferDirty } from "./file-buffers";
 import {
   EMPTY_FILE_EDITOR_SNAPSHOT,
@@ -90,6 +91,8 @@ type FileTreeMode = "files" | "search";
 
 interface ProjectFileTreeProps {
   active: boolean;
+  /** The project's Host (`getProjectHostId`). */
+  hostId: string;
   onSelectedFileMissing: (path: string) => void;
   projectPath: string;
   refreshVersion: number;
@@ -204,6 +207,7 @@ const fileTreeStyle = {
 
 const ProjectFileTree = ({
   active,
+  hostId,
   onPinFile,
   onSelectedFileMissing,
   onSelectFile,
@@ -266,12 +270,13 @@ const ProjectFileTree = ({
     () =>
       new ProjectFileTreeModule({
         fetchDirectory: (directory) =>
-          apiClient.projectDirectory({ directory, projectPath }),
+          apiClient.projectDirectory({ directory, projectPath }, { hostId }),
         // The project's file list from the project resources, shared with
         // the composer's `@` menu (which takes a prefix of it).
         fetchFiles: async () => {
           const payload = await readProjectResource(
             projectResourceKey("projectFiles", projectPath, {
+              hostId,
               params: { maxResults: PROJECT_SEARCH_INDEX_LIMIT },
             }),
           );
@@ -279,7 +284,7 @@ const ProjectFileTree = ({
         },
         model,
       }),
-    [model, projectPath],
+    [hostId, model, projectPath],
   );
   treeRef.current = tree;
   const { directoryErrors, rootStatus } = useSyncExternalStore(
@@ -557,6 +562,7 @@ const FileExplorerPanelImpl = ({
 
   const projectId = activeProject?.id ?? null;
   const projectPath = activeProject?.path ?? null;
+  const hostId = getProjectHostId(activeProject);
   const { session, snapshot } = useFileEditorSession(projectId);
   const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState<
     string | null
@@ -697,7 +703,7 @@ const FileExplorerPanelImpl = ({
 
       try {
         const blob = await fetchApiBlob(
-          getProjectFileRawUrl(projectPath, selectedFilePath),
+          getProjectFileRawUrl(projectPath, selectedFilePath, hostId),
         );
         const objectUrl = URL.createObjectURL(blob);
 
@@ -725,6 +731,7 @@ const FileExplorerPanelImpl = ({
     };
   }, [
     describeError,
+    hostId,
     panelsT,
     projectPath,
     replaceSelectedImagePreviewUrl,
@@ -1019,6 +1026,7 @@ const FileExplorerPanelImpl = ({
             >
               <ProjectFileTree
                 active={active}
+                hostId={hostId}
                 onPinFile={handlePinFile}
                 onSelectedFileMissing={handleSelectedFileMissing}
                 onSelectFile={handleSelectFile}
@@ -1036,6 +1044,7 @@ const FileExplorerPanelImpl = ({
             >
               <ProjectSearchView
                 focusRequest={projectSearchFocusRequest}
+                hostId={hostId}
                 toolbarSlot={treeMode === "search" ? treeToolbarSlot : null}
                 onOpenResult={handleOpenSearchResult}
                 projectPath={activeProject.path}

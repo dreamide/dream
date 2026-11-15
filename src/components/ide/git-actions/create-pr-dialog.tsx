@@ -19,7 +19,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type {
   AiProvider,
   ModelSpeed,
@@ -27,6 +26,7 @@ import type {
   ProjectGitStatusResponse,
   ReasoningEffort,
 } from "@/types/ide";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import {
   cachedPullRequestDetails,
   generatePullRequestDetails,
@@ -75,11 +75,12 @@ export const CreatePrDialog = ({
   const commonT = useTranslations("common");
   const gitT = useTranslations("git");
   const uiT = useTranslations("ui");
-  const hostId = useIdeStore(
-    (state) =>
+  const hostId = useIdeStore((state) =>
+    getProjectHostId(
       [...state.projects, ...state.closedProjects].find(
         (project) => project.id === projectId,
-      )?.hostId ?? LOCAL_HOST_ID,
+      ),
+    ),
   );
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");

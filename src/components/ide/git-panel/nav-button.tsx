@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 import { memo } from "react";
 import { useProjectGitStatus } from "@/hooks/use-project-git-status";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { getStatusFileCount } from "../git-actions/utils";
 import { useIdeStore } from "../ide-store";
 import { usePullRequestContext } from "../pull-requests/api";
@@ -25,8 +26,8 @@ const GitNavButtonImpl = ({
 }) => {
   const gitT = useTranslations("git");
   const title = useShortcutTitle("showGit", gitT("title"));
-  const projectHostId = useIdeStore(
-    (s) => s.projects.find((item) => item.id === projectId)?.hostId,
+  const projectHostId = useIdeStore((s) =>
+    getProjectHostId(s.projects.find((item) => item.id === projectId)),
   );
   const { status } = useProjectGitStatus(projectPath, {
     active: visible,

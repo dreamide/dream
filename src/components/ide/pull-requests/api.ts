@@ -11,7 +11,6 @@ import {
   apiClient,
   getApiErrorMessage,
 } from "@/lib/api-client";
-import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type {
   ProjectScope,
   ResourceParams,
@@ -277,8 +276,9 @@ export function usePrPage<T>(
  */
 export function usePullRequestContext(
   projectPath: string,
-  active = true,
-  hostId = LOCAL_HOST_ID,
+  active: boolean,
+  /** The project's Host (`getProjectHostId`). */
+  hostId: string,
 ) {
   const key = useMemo(
     () => projectResourceKey("pullRequestContext", projectPath, { hostId }),

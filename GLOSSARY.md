@@ -541,6 +541,11 @@ are read to the resources.
 Pull-request writes make only their own project's pull-request resources stale,
 including every loaded page; drafts and selection survive the refresh. A host
 is part of every resource's identity, even when paths on two hosts match.
+A Project's Host is `getProjectHostId` (none named is the home Host), and
+`projectScope` pairs it with the path; every caller that knows its Project
+names that Host. Guessing the Host from a path (`resolveRequestHost`, the
+active Project at that path first) is only for callers that have nothing but
+a path.
 
 ## GitHub pull requests
 
@@ -877,8 +882,8 @@ at the caret.
 
 ## Skill catalog
 
-The skills a provider can load for a project, fetched from the main process
-and cached briefly (`provider-skills.ts`). Not to be confused with a skill
+The skills a provider can load for a project, fetched from the project's Host
+and cached briefly by provider, Host and path (`provider-skills.ts`). Not to be confused with a skill
 _mention_, which is text in a draft.
 
 ## Route client

@@ -30,6 +30,8 @@ export interface CreateSkillDialogProps {
   };
   onClose: () => void;
   onCreated?: (paths: string[]) => void;
+  /** The Host the skill is written on: the project's, or the home Host. */
+  hostId: string;
   /** The project for project-scoped targets; user targets work without one. */
   projectPath: string | null;
 }
@@ -39,6 +41,7 @@ export interface CreateSkillDialogProps {
  * initialises from `initialValue` without effects.
  */
 export const CreateSkillDialog = ({
+  hostId,
   initialValue,
   onClose,
   onCreated,
@@ -83,14 +86,17 @@ export const CreateSkillDialog = ({
     setIsSubmitting(true);
     setError(null);
     try {
-      const result = await createSkillRequest({
-        body,
-        description: description.trim(),
-        name,
-        projectPath: projectPath ?? undefined,
-        targets,
-        userInvocationOnly,
-      });
+      const result = await createSkillRequest(
+        {
+          body,
+          description: description.trim(),
+          name,
+          projectPath: projectPath ?? undefined,
+          targets,
+          userInvocationOnly,
+        },
+        hostId,
+      );
       onCreated?.(result.paths);
       onClose();
     } catch (submitError) {

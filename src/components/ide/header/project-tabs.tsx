@@ -343,7 +343,7 @@ export const ProjectTabs = () => {
             key={`${project.id}:${project.icon.path}:${project.icon.mtimeMs}`}
           >
             <ProjectTabIcon
-              hostId={project.hostId}
+              hostId={getProjectHostId(project)}
               icon={project.icon}
               projectName={project.name}
               projectPath={project.path}

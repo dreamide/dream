@@ -59,9 +59,11 @@ const isImageFile = (filePath: string) => {
 
 const DeletedImagePreview = ({
   filePath,
+  hostId,
   projectPath,
 }: {
   filePath: string;
+  hostId: string;
   projectPath: string;
 }) => {
   const panelsT = useTranslations("panels");
@@ -79,7 +81,7 @@ const DeletedImagePreview = ({
 
       try {
         const blob = await fetchApiBlob(
-          getProjectGitFileAtHeadRawUrl(projectPath, filePath),
+          getProjectGitFileAtHeadRawUrl(projectPath, filePath, hostId),
         );
         objectUrl = URL.createObjectURL(blob);
         if (cancelled) {
@@ -109,7 +111,7 @@ const DeletedImagePreview = ({
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [filePath, panelsT, projectPath, uiT]);
+  }, [filePath, hostId, panelsT, projectPath, uiT]);
 
   if (error) {
     return (
@@ -146,6 +148,7 @@ const ExpandedDiffBody = ({
   diffError,
   diffLoading,
   forceRenderDiff,
+  hostId,
   mode,
   onForceRenderDiff,
   projectId,
@@ -157,6 +160,7 @@ const ExpandedDiffBody = ({
   diffError: string | null;
   diffLoading: boolean;
   forceRenderDiff: boolean;
+  hostId: string;
   mode: DiffViewMode;
   onForceRenderDiff: () => void;
   projectId: string;
@@ -211,6 +215,7 @@ const ExpandedDiffBody = ({
         {showDeletedImage ? (
           <DeletedImagePreview
             filePath={change.path}
+            hostId={hostId}
             projectPath={projectPath}
           />
         ) : (
@@ -270,6 +275,7 @@ export const ChangesRow = ({
   diffLoading,
   expanded,
   forceRenderDiff,
+  hostId,
   mode,
   onForceRenderDiff,
   onRevert,
@@ -285,6 +291,8 @@ export const ChangesRow = ({
   diffLoading: boolean;
   expanded: boolean;
   forceRenderDiff: boolean;
+  /** The project's Host (`getProjectHostId`). */
+  hostId: string;
   mode: DiffViewMode;
   onForceRenderDiff: () => void;
   onRevert: () => void;
@@ -327,6 +335,7 @@ export const ChangesRow = ({
           diffError={diffError}
           diffLoading={diffLoading}
           forceRenderDiff={forceRenderDiff}
+          hostId={hostId}
           mode={mode}
           onForceRenderDiff={onForceRenderDiff}
           projectId={projectId}

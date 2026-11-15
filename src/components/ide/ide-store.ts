@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { apiClient } from "@/lib/api-client";
 import { LOCAL_HOST_ID, setHostResolver } from "@/lib/host-routing";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
+import { projectScope } from "@/lib/project-resource-cache";
 import {
   encodePersistedState,
   getProjectHostId,
@@ -58,9 +59,12 @@ const transcriptCache = createTranscriptCache(
 /** Each open project's Files panel tabs and drafts (file-editor-session.ts). */
 export const fileEditorSessions = createFileEditorSessions({
   api: apiClient,
-  getProjectPath: (projectId) =>
-    useIdeStore.getState().projects.find((project) => project.id === projectId)
-      ?.path ?? null,
+  getProjectScope: (projectId) => {
+    const project = useIdeStore
+      .getState()
+      .projects.find((item) => item.id === projectId);
+    return project ? projectScope(project) : null;
+  },
   onSaved: (projectId) =>
     useIdeStore.getState().bumpProjectGitRefreshKey(projectId),
 });
@@ -380,6 +384,8 @@ setHostResolver((hint) => {
     );
     if (bySession) return bySession;
   }
+  // A path alone is a guess; only callers with nothing but a path rely on
+  // it. A caller that knows its Project names its Host (`projectScope`).
   if (typeof hint.projectPath === "string") {
     const match = findProjectForPath(
       projects,

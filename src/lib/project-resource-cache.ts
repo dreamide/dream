@@ -18,11 +18,25 @@
  * fake Route client in tests.
  */
 
+import { getProjectHostId } from "../../electron/shared/persisted-state-codec.js";
+
 /** Which project a resource belongs to: one path on one host. */
 export interface ProjectScope {
   hostId: string;
   projectPath: string;
 }
+
+/**
+ * A known Project's scope: its path on its own Host (`getProjectHostId`, so
+ * a Project naming no Host is on the home Host). Never guessed from the path.
+ */
+export const projectScope = (project: {
+  hostId?: string | null;
+  path: string;
+}): ProjectScope => ({
+  hostId: getProjectHostId(project),
+  projectPath: project.path,
+});
 
 /** Resources a version covers, invalidated together. */
 export type ResourceGroup = "files" | "git";

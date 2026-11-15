@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test, vi } from "vitest";
 import { createProjectConfig, DEFAULT_SETTINGS } from "@/lib/ide-defaults";
+import { projectScope } from "@/lib/project-resource-cache";
 import type { ProjectGitStatusResponse } from "@/types/ide";
 import {
   narrowGitStatus,
@@ -84,6 +85,7 @@ beforeEach(() => {
   const project = createProjectConfig(PROJECT_PATH, DEFAULT_SETTINGS);
   projectId = project.id;
   useIdeStore.setState({
+    activeProjectId: null,
     closedProjects: [],
     projectFilesRefreshKeys: {},
     projectGitRefreshKeys: {},
@@ -233,4 +235,44 @@ test("a file's diff is read as the status named it, once per refresh, and again 
   useIdeStore.getState().bumpProjectGitRefreshKey(projectId);
   await readProjectResource(renamed);
   assert.equal(api.gitDiff.mock.calls.length, 3);
+});
+
+test("two Projects at one path on two Hosts each read and refresh on their own Host", async () => {
+  const home = createProjectConfig(PROJECT_PATH, DEFAULT_SETTINGS);
+  const remote = {
+    ...createProjectConfig(PROJECT_PATH, DEFAULT_SETTINGS),
+    hostId: "devbox",
+  };
+  useIdeStore.setState({
+    activeProjectId: remote.id,
+    projects: [home, remote],
+  });
+  const keyOf = (project: typeof home) => {
+    const { hostId, projectPath } = projectScope(project);
+    return projectResourceKey("gitStatus", projectPath, {
+      hostId,
+      params: { detail: "full" },
+    });
+  };
+  // A home-host Project names no Host; its scope is still the home Host,
+  // while the path alone guesses the active Project's.
+  assert.equal(keyOf(home).hostId, "local");
+  assert.equal(keyOf(remote).hostId, "devbox");
+  assert.equal(statusKey("full").hostId, "devbox");
+
+  await readProjectResource(keyOf(home));
+  await readProjectResource(keyOf(remote));
+  assert.deepEqual(
+    api.gitStatus.mock.calls.map(([, options]) => options?.hostId),
+    ["local", "devbox"],
+  );
+
+  // A bump of one makes only that one's resources stale.
+  useIdeStore.getState().bumpProjectGitRefreshKey(home.id);
+  await readProjectResource(keyOf(home));
+  await readProjectResource(keyOf(remote));
+  assert.deepEqual(
+    api.gitStatus.mock.calls.map(([, options]) => options?.hostId),
+    ["local", "devbox", "local"],
+  );
 });

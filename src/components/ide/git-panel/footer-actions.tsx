@@ -30,6 +30,7 @@ import type {
   ProjectGitPulledResponse,
   ProjectWorktreeInfo,
 } from "@/types/ide";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { getPullRequestBranchError } from "../git-actions/branch-utils";
 import { CreatePrDialog } from "../git-actions/create-pr-dialog";
 import { PullDialog } from "../git-actions/pull-dialog";
@@ -86,6 +87,7 @@ const GitFooterActionsImpl = ({
   const worktreeT = useTranslations("worktrees");
   const projectId = project.id;
   const projectPath = project.path;
+  const hostId = getProjectHostId(project);
   const worktreeProject = project.worktree
     ? (project as WorktreeProject)
     : null;
@@ -93,12 +95,12 @@ const GitFooterActionsImpl = ({
   const { status } = useProjectGitStatus(projectPath, {
     active,
     detail: "full",
-    hostId: project.hostId,
+    hostId,
   });
   const { data: pullRequestContext } = usePullRequestContext(
     projectPath,
     active && Boolean(status?.isRepo),
-    project.hostId,
+    hostId,
   );
   const gitRefreshKey = useIdeStore(
     (s) => s.projectGitRefreshKeys[projectId] ?? 0,
@@ -231,7 +233,7 @@ const GitFooterActionsImpl = ({
     if (openingRepository) return;
     setOpeningRepository(true);
     try {
-      const { url } = await apiClient.gitRemoteUrl({ projectPath });
+      const { url } = await apiClient.gitRemoteUrl({ projectPath }, { hostId });
       openExternalUrl(url);
     } catch (error) {
       toast.error(getApiErrorMessage(error, gitT("unableToOpenRepository")));
@@ -388,7 +390,7 @@ const GitFooterActionsImpl = ({
       {pushOpen ? (
         <PushDialog
           branch={status.branch}
-          hostId={project.hostId}
+          hostId={hostId}
           onOpenChange={setPushOpen}
           open
           projectId={projectId}

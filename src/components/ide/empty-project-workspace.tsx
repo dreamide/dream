@@ -37,6 +37,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { getClientPlatform } from "@/lib/connections/platform";
 import { getConnectedProviders } from "@/lib/ide-defaults";
 import type { ProjectConfig } from "@/types/ide";
+import { getProjectHostId } from "../../../electron/shared/persisted-state-codec.js";
 import { ProjectTabIcon } from "./header/project-tab-icon";
 import { useIdeStore } from "./ide-store";
 import { ALL_PROVIDERS, getProviderLabel } from "./ide-types";
@@ -345,7 +346,7 @@ export const EmptyProjectWorkspace = () => {
                             <FolderTree className="size-4" />
                           ) : project.icon ? (
                             <ProjectTabIcon
-                              hostId={project.hostId}
+                              hostId={getProjectHostId(project)}
                               fallback={placeholderIcon}
                               icon={project.icon}
                               projectName={project.name}

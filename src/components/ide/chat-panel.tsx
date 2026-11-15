@@ -25,6 +25,7 @@ import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import { getUsageReasoningTokens } from "@/lib/ai-usage";
 import { getModelContextWindow } from "@/lib/models";
 import type { ChatConfig, ProjectConfig } from "@/types/ide";
+import { getProjectHostId } from "../../../electron/shared/persisted-state-codec.js";
 import {
   CHAT_CONTENT_BOTTOM_PADDING_PX,
   ChatMessage,
@@ -187,7 +188,7 @@ export const ChatPanel = ({
       // its project is shown again.
       active: isProjectActive,
       detail: "summary",
-      hostId: project.hostId,
+      hostId: getProjectHostId(project),
     },
   );
   const allModelOptions = useMemo(
@@ -604,6 +605,7 @@ export const ChatPanel = ({
         {readOnly ? null : (
           <ChatComposer
             chatProvider={chat.provider}
+            hostId={getProjectHostId(project)}
             contextWindow={contextWindow}
             contextUsage={contextUsage}
             contextUsedTokens={contextUsedTokens}
