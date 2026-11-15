@@ -11,7 +11,7 @@ import { terminalClient } from "@/lib/terminal-client";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import { echoPipeFallbackInput } from "./ide-helpers";
-import { useIdeStore } from "./ide-store";
+import { terminalSessionOwner, useIdeStore } from "./ide-store";
 import { TERMINAL_MIN_HEIGHT_PX } from "./ide-types";
 import { RightPanelExpandButton } from "./right-panel-expand-button";
 import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
@@ -21,7 +21,6 @@ import {
   getTerminalScrollback,
   subscribeToTerminalOutput,
 } from "./terminal-scrollback";
-import { terminalSessions } from "./terminal-session";
 import { attachTerminalWebglRenderer } from "./terminal-webgl";
 
 const EMPTY_TERMINAL_SESSION_IDS: string[] = [];
@@ -438,16 +437,11 @@ export const TerminalPanel = ({
     );
 
     const inputSubscription = terminal.onData((data) => {
-      terminalSessions.input(sessionId, data);
-
       if (transportRef.current === "pipe") {
         echoPipeFallbackInput(terminal, data);
       }
 
-      terminalClient.sendInput({
-        data,
-        sessionId,
-      });
+      terminalSessionOwner.input(sessionId, data);
     });
 
     const resizeObserver = new ResizeObserver(scheduleFitAndSyncSize);

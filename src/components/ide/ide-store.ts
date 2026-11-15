@@ -46,7 +46,10 @@ import {
   settleSettings,
 } from "./store/settings-actions";
 import { createStashActions } from "./store/stash-actions";
-import { createTerminalActions } from "./store/terminal-actions";
+import {
+  createTerminalActions,
+  createTerminalSessionOwner,
+} from "./store/terminal-actions";
 import { createTranscriptCache } from "./store/transcript-cache";
 import * as workspace from "./store/workspace-document";
 import { createWorktreeActions } from "./store/worktree-actions";
@@ -68,6 +71,12 @@ export const fileEditorSessions = createFileEditorSessions({
   onSaved: (projectId) =>
     useIdeStore.getState().bumpProjectGitRefreshKey(projectId),
 });
+
+/** Every Terminal session's state, kept together (store/terminal-actions.ts). */
+export const terminalSessionOwner = createTerminalSessionOwner(
+  (update) => useIdeStore.setState(update),
+  () => useIdeStore.getState(),
+);
 
 // ---------------------------------------------------------------------------
 // Store
@@ -176,7 +185,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
 
   // ── Actions: projects and chats ─────────────────────────────────────
-  ...createProjectLifecycleActions(set, get),
+  ...createProjectLifecycleActions(set, get, terminalSessionOwner),
   ...createWorktreeActions(set, get),
   ...createGitWriteActions(set, get),
   ...createChatActions(set, get),
@@ -192,7 +201,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   // ── Actions: runtime ────────────────────────────────────────────────
   ...createRuntimeActions(set),
   ...createBrowserActions(set),
-  ...createTerminalActions(set, get),
+  ...createTerminalActions(set, get, terminalSessionOwner),
 
   // ── Actions: hydration & persistence ────────────────────────────────
   hydrate: async () => {
@@ -262,7 +271,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
 
   ...transcriptCache.actions,
   ...createCatalogActions(set, get),
-  ...createHostActions(set, get),
+  ...createHostActions(set, get, terminalSessionOwner),
 
   // Saves now, every slice; see the save scheduler below.
   persist: () => saveScheduler.saveAll(),

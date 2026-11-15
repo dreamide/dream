@@ -36,10 +36,15 @@ import type {
   IdeStoreSet,
 } from "./ide-store-types";
 import { createSavedHostConnectionEdits } from "./saved-host-connection-edits";
+import {
+  createTerminalSessionOwner,
+  type TerminalSessionOwner,
+} from "./terminal-actions";
 
 export const createHostActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
+  terminals: TerminalSessionOwner = createTerminalSessionOwner(set, get),
 ): Pick<
   IdeState,
   | "connectHost"
@@ -233,6 +238,7 @@ export const createHostActions = (
   const edits = createSavedHostConnectionEdits(set, get, {
     invalidateConnection: stopFollowing,
     reconnect: connectHost,
+    terminals,
   });
 
   return {

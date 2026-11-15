@@ -1,18 +1,20 @@
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
-import { terminalClient } from "@/lib/terminal-client";
 import type { ProjectConfig, ProjectWorktreeInfo } from "@/types/ide";
-import { deleteTerminalScrollback } from "../terminal-scrollback";
-import { terminalSessions } from "../terminal-session";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 import {
   commitWorkspaceRemoval,
   dropProjectRuntimeState,
 } from "./project-runtime-state";
+import {
+  createTerminalSessionOwner,
+  type TerminalSessionOwner,
+} from "./terminal-actions";
 import * as workspace from "./workspace-document";
 
 export const createProjectLifecycleActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
+  terminals: TerminalSessionOwner = createTerminalSessionOwner(set, get),
 ): Pick<
   IdeState,
   | "setProjects"
@@ -91,21 +93,7 @@ export const createProjectLifecycleActions = (
     return true;
   },
 
-  stopProjectTerminals: async (projectId: string) => {
-    terminalSessions.closeProject(projectId);
-    const terminalSessionIds =
-      get().projectTerminalSessionIds?.[projectId] ?? [];
-    const stops = terminalSessionIds.map(async (sessionId) => {
-      deleteTerminalScrollback(sessionId);
-      try {
-        await terminalClient.stop(sessionId);
-      } catch (error) {
-        // The host may be gone; nothing here can stop the shell then.
-        console.warn(`Unable to stop terminal ${sessionId}.`, error);
-      }
-    });
-    await Promise.all(stops);
-  },
+  stopProjectTerminals: (projectId: string) => terminals.dropProject(projectId),
 
   closeProject: (projectId: string) => {
     void get().stopProjectTerminals(projectId);

@@ -6,9 +6,6 @@ export const createRuntimeActions = (
   set: IdeStoreSet,
 ): Pick<
   IdeState,
-  | "setTerminalStatus"
-  | "setTerminalTransport"
-  | "setTerminalShell"
   | "setTerminalSessionName"
   | "setChatStreaming"
   | "setChatAwaitingAnswer"
@@ -21,24 +18,6 @@ export const createRuntimeActions = (
   | "openExternalUrl"
   | "openExternalPath"
 > => ({
-  setTerminalStatus: (projectId, status) => {
-    set((state) => ({
-      terminalStatus: { ...state.terminalStatus, [projectId]: status },
-    }));
-  },
-
-  setTerminalTransport: (projectId, transport) => {
-    set((state) => ({
-      terminalTransport: { ...state.terminalTransport, [projectId]: transport },
-    }));
-  },
-
-  setTerminalShell: (projectId, shell) => {
-    set((state) => ({
-      terminalShell: { ...state.terminalShell, [projectId]: shell },
-    }));
-  },
-
   setTerminalSessionName: (sessionId, name) => {
     const normalizedSessionId =
       typeof sessionId === "string" ? sessionId.trim() : "";

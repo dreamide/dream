@@ -519,6 +519,14 @@ The client tracks a typed command until its output goes quiet, then refreshes
 the Project's Git and Files panels. This observation follows the Terminal
 session when its view is hidden; closing the terminal settles a pending
 refresh, while removing its Project cancels it.
+One owner, `createTerminalSessionOwner` in `store/terminal-actions.ts`
+(the app's is `terminalSessionOwner`), changes a session's pieces together:
+the store maps panels render, its output buffer, its command observation and
+untouched mark, and its shell through the terminal client. Opening, closing,
+discarding untouched terminals, typed input, a Project's close or removal
+(`stopProjectTerminals`) and a Host's removal go through it, and so do host
+events: output and its acknowledgement, status, a detached home host's
+surviving terminals and their discovery.
 
 ## Project resources
 

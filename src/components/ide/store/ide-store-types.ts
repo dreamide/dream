@@ -472,10 +472,6 @@ export interface IdeState {
   upgradeCli: (provider: AiProvider) => Promise<CliUpgradeResult>;
 
   // Actions - runtime
-  setTerminalStatus: (projectId: string, status: "running" | "stopped") => void;
-  restoreHostTerminal: (sessionId: string) => void;
-  setTerminalTransport: (projectId: string, transport: "pty" | "pipe") => void;
-  setTerminalShell: (projectId: string, shell: string) => void;
   setTerminalSessionName: (sessionId: string, name: string) => void;
   setChatStreaming: (chatId: string, streaming: boolean) => void;
   setChatAwaitingAnswer: (chatId: string, awaiting: boolean) => void;

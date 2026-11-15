@@ -6,7 +6,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { dismissBootScreen } from "@/lib/boot-screen";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
-import { getHostSocketClient } from "@/lib/host-socket";
 import { terminalClient } from "@/lib/terminal-client";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
@@ -17,7 +16,7 @@ import { ChatRuntimeHost } from "./chat/chat-runtime-host";
 import { ChatSearchDialog } from "./chat-search-dialog";
 import { EmptyProjectWorkspace } from "./empty-project-workspace";
 import { IdeHeader } from "./ide-header";
-import { useIdeStore } from "./ide-store";
+import { terminalSessionOwner, useIdeStore } from "./ide-store";
 import { OpenProjectDialog } from "./open-project/open-project-dialog";
 import { flushProjectPanelRefresh } from "./project-panel-refresh";
 import { ProjectWorkspace } from "./project-workspace";
@@ -26,11 +25,6 @@ import { GlobalShortcuts } from "./shortcuts/global-shortcuts";
 import { SshPromptDialog } from "./ssh/ssh-prompt-dialog";
 import { watchHostBrowser } from "./store/host-browser-watch";
 import { watchHostCatalog } from "./store/host-catalog-watch";
-import {
-  hasTerminalScrollback,
-  publishTerminalOutput,
-} from "./terminal-scrollback";
-import { terminalSessions } from "./terminal-session";
 import { useBrowserAgentCommands } from "./use-browser-agent-commands";
 import { watchWindowReturn } from "./window-return";
 
@@ -86,9 +80,6 @@ export const IdeShell = () => {
   const hydrate = useIdeStore((s) => s.hydrate);
   const setIsMacOs = useIdeStore((s) => s.setIsMacOs);
   const setIsElectron = useIdeStore((s) => s.setIsElectron);
-  const setTerminalStatus = useIdeStore((s) => s.setTerminalStatus);
-  const setTerminalTransport = useIdeStore((s) => s.setTerminalTransport);
-  const setTerminalShell = useIdeStore((s) => s.setTerminalShell);
   const setBrowserError = useIdeStore((s) => s.setBrowserError);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
   const checkCliUpdates = useIdeStore((s) => s.checkCliUpdates);
@@ -244,43 +235,14 @@ export const IdeShell = () => {
   // has terminals too); the webview browser's errors, on the desktop.
   useEffect(() => {
     const desktopApi = getDesktopApi();
-    terminalSessions.setRefreshProject(flushProjectPanelRefresh);
+    terminalSessionOwner.setRefreshProject(flushProjectPanelRefresh);
 
-    const removeTerminalData = terminalClient.onData((event) => {
-      const { generation, sequence, sessionId } = event;
-      terminalSessions.output(sessionId);
-      publishTerminalOutput(sessionId, event.chunk, () => {
-        if (generation !== undefined && sequence !== undefined) {
-          terminalClient.acknowledge({
-            sessionId,
-            generation,
-            sequence,
-          });
-        }
-      });
-    });
-
-    const removeTerminalStatus = terminalClient.onStatus((event) => {
-      if (
-        desktopApi?.hostMode === "detached" &&
-        event.status === "running" &&
-        !hasTerminalScrollback(event.sessionId)
-      ) {
-        useIdeStore.getState().restoreHostTerminal(event.sessionId);
-      }
-      if (!hasTerminalScrollback(event.sessionId)) {
-        return;
-      }
-      setTerminalStatus(event.sessionId, event.status);
-      if (event.transport) {
-        setTerminalTransport(event.sessionId, event.transport);
-      }
-
-      const shell = typeof event.shell === "string" ? event.shell.trim() : "";
-      if (shell) {
-        setTerminalShell(event.sessionId, shell);
-      }
-    });
+    const removeTerminalData = terminalClient.onData((event) =>
+      terminalSessionOwner.receiveOutput(event),
+    );
+    const removeTerminalStatus = terminalClient.onStatus((event) =>
+      terminalSessionOwner.receiveStatus(event),
+    );
 
     const removeBrowserError = desktopApi?.onBrowserError((event) => {
       setBrowserError(
@@ -293,31 +255,13 @@ export const IdeShell = () => {
       removeTerminalStatus();
       removeBrowserError?.();
     };
-  }, [
-    setTerminalStatus,
-    setTerminalTransport,
-    setTerminalShell,
-    setBrowserError,
-  ]);
+  }, [setBrowserError]);
 
   // Discover a detached host's terminals after the workspace knows their projects.
-  useEffect(() => {
-    if (getDesktopApi()?.hostMode !== "detached") return;
-    let known = "";
-    const discover = () => {
-      const state = useIdeStore.getState();
-      if (!state.stateHydrated) return;
-      const key = JSON.stringify(state.projects.map((project) => project.id));
-      if (key === known) return;
-      known = key;
-      getHostSocketClient(LOCAL_HOST_ID).send({
-        channel: "terminal",
-        type: "discover",
-      });
-    };
-    discover();
-    return useIdeStore.subscribe(discover);
-  }, []);
+  useEffect(
+    () => terminalSessionOwner.followDiscovery(useIdeStore.subscribe),
+    [],
+  );
 
   // Re-check for newer agent CLI releases while the app stays open. The first
   // check runs after the startup provider models refresh.

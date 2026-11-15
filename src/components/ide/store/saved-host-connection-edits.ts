@@ -10,12 +10,12 @@ import {
   forgetHostConnection,
   MAX_HOST_ROUTES,
 } from "../../../../electron/shared/host-connections.js";
-import { terminalSessions } from "../terminal-session";
 import { catalogBaselines } from "./catalog-baselines";
 import { HostIdentityError } from "./host-catalog-lifecycle";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 import { applyWorkspaceRemoval } from "./project-runtime-state";
 import { settleSettings } from "./settings-actions";
+import type { TerminalSessionOwner } from "./terminal-actions";
 import * as workspace from "./workspace-document";
 
 type EditActions = Pick<
@@ -49,9 +49,12 @@ export const createSavedHostConnectionEdits = (
   {
     invalidateConnection,
     reconnect,
+    terminals,
   }: {
     invalidateConnection: (id: string) => void;
     reconnect: (id: string) => Promise<boolean>;
+    /** The Terminal session owner, which drops a removed Host's sessions. */
+    terminals: Pick<TerminalSessionOwner, "dropHost">;
   },
 ) => {
   const revisions = new Map<string, number>();
@@ -188,13 +191,13 @@ export const createSavedHostConnectionEdits = (
       invalidate(hostId);
       try {
         const beforeRemoval = get();
-        for (const projectId of workspace.removeHostProjects(
-          beforeRemoval,
-          beforeRemoval.settings,
-          hostId,
-        ).removedProjectIds) {
-          terminalSessions.closeProject(projectId);
-        }
+        terminals.dropHost(
+          workspace.removeHostProjects(
+            beforeRemoval,
+            beforeRemoval.settings,
+            hostId,
+          ).removedProjectIds,
+        );
         // Its shells go with it, stopped while the host can still be reached.
         // A host that does not answer does not hold the removal up; one that
         // is not connected cannot be asked.
