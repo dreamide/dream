@@ -1,9 +1,9 @@
-import { spawn } from "node:child_process";
-import readline from "node:readline";
-import { stopChildProcess } from "../../process-tree.js";
+import { runAgentCli } from "../providers/agent-cli-run.js";
 import {
   assertSafeAntigravityArg,
   getAntigravityCliSpawnErrorMessage,
+  getAntigravityPromptInput,
+  getAntigravityResultError,
   resolveAntigravityCliLaunch,
   resolveAntigravityEffort,
 } from "../providers/antigravity-cli.js";
@@ -14,8 +14,6 @@ import {
 } from "./codex-prompt.js";
 import { withSessionHandoff } from "./provider-session.js";
 import { applySkillSlashPrefix } from "./skill-dispatch.js";
-
-const MAX_STDERR_CHARS = 64_000;
 
 export const resolveAntigravityContextWindow = (model) => {
   if (typeof model === "string") {
@@ -175,15 +173,8 @@ export const streamAntigravityResponse = async (options) => {
   const launch = await resolveAntigravityCliLaunch();
   assertSafeAntigravityArg(launch, model, "model");
   assertSafeAntigravityArg(launch, targetSessionId, "conversation ID");
-  const maxCommandLineLength = launch.shell ? 8000 : 30000;
-  const useStdin =
-    Boolean(launch.shell) || finalPrompt.length > maxCommandLineLength;
-
-  if (useStdin) {
-    cliArgs.push("--input-format", "stream-json");
-  } else {
-    cliArgs.push("-p", finalPrompt);
-  }
+  const promptInput = getAntigravityPromptInput(launch, finalPrompt);
+  cliArgs.push(...promptInput.args);
 
   return streamAgentTurn({
     abortSignal,
@@ -200,52 +191,9 @@ export const streamAntigravityResponse = async (options) => {
         resumed: Boolean(targetSessionId),
       });
 
-      let child;
-      try {
-        child = spawn(launch.command, [...launch.argsPrefix, ...cliArgs], {
-          cwd: projectPath,
-          shell: launch.shell,
-          stdio: [useStdin ? "pipe" : "ignore", "pipe", "pipe"],
-        });
-        if (useStdin && child.stdin) {
-          child.stdin.on("error", () => {});
-          const payload = `${JSON.stringify({
-            event: "user",
-            message: { content: finalPrompt },
-          })}\n`;
-          child.stdin.end(payload);
-        }
-      } catch (error) {
-        throw new Error(getAntigravityCliSpawnErrorMessage(error));
-      }
-
-      let stderr = "";
       let hasStreamedText = false;
-      let exitError = null;
 
-      const onAbort = () => {
-        void stopChildProcess(child).catch(() => {});
-      };
-
-      if (abortSignal) {
-        if (abortSignal.aborted) {
-          onAbort();
-        } else {
-          abortSignal.addEventListener("abort", onAbort, { once: true });
-        }
-      }
-
-      child.stderr.setEncoding("utf8");
-      child.stderr.on("data", (chunk) => {
-        stderr = `${stderr}${chunk}`.slice(-MAX_STDERR_CHARS);
-      });
-
-      child.on("error", (error) => {
-        exitError = new Error(getAntigravityCliSpawnErrorMessage(error));
-      });
-
-      const reader = readline.createInterface({ input: child.stdout });
-
+      // A thrown error ends the turn once the CLI exits.
       const handleEvent = (event) => {
         if (!event || typeof event !== "object") {
           return;
@@ -368,63 +316,24 @@ export const streamAntigravityResponse = async (options) => {
               );
             }
           }
-          if (result.status && result.status !== "SUCCESS") {
-            const rawErr = result.error;
-            const errorMsg =
-              (typeof rawErr === "object" && rawErr !== null
-                ? rawErr.message || JSON.stringify(rawErr)
-                : rawErr) ||
-              result.response ||
-              `Antigravity request ended with status ${result.status}.`;
-            throw new Error(errorMsg);
+          const resultError = getAntigravityResultError(result);
+          if (resultError) {
+            throw new Error(resultError);
           }
         }
       };
 
-      reader.on("line", (line) => {
-        const trimmed = line.trim();
-        if (!trimmed) return;
-        let event;
-        try {
-          event = JSON.parse(trimmed);
-        } catch {
-          return; // Ignore non-JSON output
-        }
-        try {
-          handleEvent(event);
-        } catch (error) {
-          exitError ??=
-            error instanceof Error ? error : new Error(String(error));
-        }
-      });
-
-      await new Promise((resolve, reject) => {
-        child.on("close", (code) => {
-          reader.close();
-          if (abortSignal?.removeEventListener) {
-            abortSignal.removeEventListener("abort", onAbort);
-          }
-
-          if (abortSignal?.aborted) {
-            resolve();
-            return;
-          }
-
-          if (exitError) {
-            reject(exitError);
-            return;
-          }
-
-          if (code !== 0) {
-            const detail = stderr.trim();
-            reject(
-              new Error(detail || `Antigravity CLI exited with code ${code}.`),
-            );
-            return;
-          }
-
-          resolve();
-        });
+      // A stop rejects once the process tree is stopped; streamAgentTurn
+      // drops errors after the turn was aborted.
+      await runAgentCli({
+        args: cliArgs,
+        cwd: projectPath,
+        label: "Antigravity",
+        launch,
+        onEvent: handleEvent,
+        signal: abortSignal,
+        spawnErrorMessage: getAntigravityCliSpawnErrorMessage,
+        stdin: promptInput.stdin,
       });
     },
   });

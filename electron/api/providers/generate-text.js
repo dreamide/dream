@@ -2,11 +2,11 @@
 // agent's final text out, no tools and no session kept. Used for chat
 // titles, commit messages and pull request text through the provider
 // registry. Every runner takes the same options; a CLI with no system
-// prompt slot gets `system` inlined ahead of the prompt.
-import { spawn } from "node:child_process";
+// prompt slot gets `system` inlined ahead of the prompt. Every runner stops
+// after `timeoutMs` (two minutes by default) or when `signal` aborts; the
+// spawned CLIs run through agent-cli-run.js.
 import { generateText } from "ai";
 import { claudeCode } from "ai-sdk-provider-claude-code";
-import { stopChildProcess } from "../../process-tree.js";
 import {
   CLAUDE_REASONING_EFFORT_MAP,
   getModelReasoningEfforts,
@@ -20,8 +20,16 @@ import { getCodexReasoningEffort } from "../chat/codex-common.js";
 import { getCodexErrorDetail } from "../chat/codex-prompt.js";
 import { resolveCliCommandPath } from "../shared/cli.js";
 import {
+  createAgentCliStopError,
+  createAgentCliTimeoutError,
+  runAgentCli,
+} from "./agent-cli-run.js";
+import {
   assertSafeAntigravityArg,
   getAntigravityCliSpawnErrorMessage,
+  getAntigravityErrorText,
+  getAntigravityPromptInput,
+  getAntigravityResultError,
   resolveAntigravityCliLaunch,
   resolveAntigravityEffort,
 } from "./antigravity-cli.js";
@@ -36,58 +44,34 @@ import {
   withOpenCodeServer,
 } from "./opencode-server.js";
 
+const DEFAULT_TEXT_TIMEOUT_MS = 120_000;
 // A one-shot prompt's server may take longer to start than a turn's.
 const OPENCODE_TEXT_SERVER_TIMEOUT_MS = 15_000;
-const OPENCODE_DEFAULT_REQUEST_TIMEOUT_MS = 120_000;
 
 const inlineSystemPrompt = (system, prompt) =>
   system ? `${system}\n\n${prompt}` : prompt;
 
 /**
- * Reads newline-delimited JSON from a child process, handing each parsed
- * line to `onEvent` and collecting anything else as stderr text.
+ * Runs `request(requestSignal)` for a runner that talks to its CLI through a
+ * library rather than agent-cli-run.js: the signal aborts after `timeoutMs`
+ * or with `signal`, and the rejection says which.
  */
-const createJsonLineReader = (onEvent) => {
-  let stdoutBuffer = "";
-  let stderrBuffer = "";
-
-  const consumeLine = (line) => {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      return;
+const withRequestSignal = async (label, { signal, timeoutMs }, request) => {
+  const timeoutSignal = timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : null;
+  const requestSignal = AbortSignal.any(
+    [signal, timeoutSignal].filter(Boolean),
+  );
+  try {
+    return await request(requestSignal);
+  } catch (error) {
+    if (signal?.aborted) {
+      throw createAgentCliStopError(label);
     }
-    try {
-      onEvent(JSON.parse(trimmed));
-    } catch {
-      stderrBuffer += `${trimmed}\n`;
+    if (timeoutSignal?.aborted) {
+      throw createAgentCliTimeoutError(label, timeoutMs);
     }
-  };
-
-  return {
-    appendStderr: (chunk) => {
-      stderrBuffer += chunk.toString();
-    },
-    appendStdout: (chunk) => {
-      stdoutBuffer += chunk.toString();
-      const lines = stdoutBuffer.split(/\r?\n/);
-      stdoutBuffer = lines.pop() ?? "";
-      for (const line of lines) {
-        consumeLine(line);
-      }
-    },
-    flush: () => {
-      consumeLine(stdoutBuffer);
-      stdoutBuffer = "";
-    },
-    get stderr() {
-      return stderrBuffer;
-    },
-    pushStderr: (detail) => {
-      if (detail) {
-        stderrBuffer += `${detail}\n`;
-      }
-    },
-  };
+    throw error;
+  }
 };
 
 export const runClaudePrompt = async ({
@@ -95,7 +79,9 @@ export const runClaudePrompt = async ({
   prompt,
   projectPath,
   reasoningEffort,
+  signal,
   system,
+  timeoutMs = DEFAULT_TEXT_TIMEOUT_MS,
 }) => {
   const claudeExecutablePath = await resolveCliCommandPath("claude");
   const claudeModel = normalizeClaudeCodeModel(model || "haiku");
@@ -104,45 +90,85 @@ export const runClaudePrompt = async ({
   const usesReasoningModel =
     reasoningEffort !== undefined &&
     getModelReasoningEfforts("anthropic", claudeModel).length > 0;
-  const result = await generateText({
-    model: claudeCode(claudeModel, {
-      ...(claudeExecutablePath
-        ? { pathToClaudeCodeExecutable: claudeExecutablePath }
-        : {}),
-      continue: false,
-      cwd: projectPath,
-      persistSession: false,
-      permissionMode: "plan",
-      mcpServers: {},
-      strictMcpConfig: true,
-      ...(usesReasoningModel
-        ? { effort: CLAUDE_REASONING_EFFORT_MAP[reasoningEffort ?? "medium"] }
-        : {}),
-    }),
-    prompt,
-    ...(system ? { instructions: system } : {}),
-  });
+  // The provider stops the Claude Code process when the signal aborts.
+  const result = await withRequestSignal(
+    "Claude",
+    { signal, timeoutMs },
+    (abortSignal) =>
+      generateText({
+        abortSignal,
+        model: claudeCode(claudeModel, {
+          ...(claudeExecutablePath
+            ? { pathToClaudeCodeExecutable: claudeExecutablePath }
+            : {}),
+          continue: false,
+          cwd: projectPath,
+          persistSession: false,
+          permissionMode: "plan",
+          mcpServers: {},
+          strictMcpConfig: true,
+          ...(usesReasoningModel
+            ? {
+                effort:
+                  CLAUDE_REASONING_EFFORT_MAP[reasoningEffort ?? "medium"],
+              }
+            : {}),
+        }),
+        prompt,
+        ...(system ? { instructions: system } : {}),
+      }),
+  );
 
   return result.text;
 };
 
-export const runCodexPrompt = ({
+export const runCodexPrompt = async ({
   model,
   modelSpeed = "standard",
   prompt,
   projectPath,
   reasoningEffort,
+  signal,
   system,
-}) =>
-  new Promise((resolve, reject) => {
-    let latestText = "";
-    const reader = createJsonLineReader((event) => {
+  timeoutMs = DEFAULT_TEXT_TIMEOUT_MS,
+}) => {
+  const launch = await resolveCodexCliLaunch();
+  let latestText = "";
+  await runAgentCli({
+    args: [
+      "exec",
+      "--json",
+      "--cd",
+      projectPath,
+      "--skip-git-repo-check",
+      ...(model ? ["--model", model] : []),
+      "-c",
+      'sandbox_mode="read-only"',
+      "-c",
+      'approval_policy="never"',
+      "-c",
+      // Callers that predate the text generation effort setting keep the
+      // original low effort.
+      `model_reasoning_effort=${JSON.stringify(
+        reasoningEffort === undefined
+          ? "low"
+          : getCodexReasoningEffort(reasoningEffort),
+      )}`,
+      ...(modelSpeed === "fast" ? ["-c", 'service_tier="fast"'] : []),
+      "-",
+    ],
+    cwd: projectPath,
+    label: "Codex",
+    launch,
+    // Codex reports retries as error events and may still succeed, so an
+    // error event only words a failed exit.
+    onEvent: (event, run) => {
       if (!event || typeof event !== "object") {
         return;
       }
 
       if (event.type === "error" || event.type === "turn.failed") {
-        reader.pushStderr(getCodexErrorDetail(event));
+        run.reportError(getCodexErrorDetail(event));
         return;
       }
 
@@ -154,74 +180,14 @@ export const runCodexPrompt = ({
       ) {
         latestText = item.text;
       }
-    });
-
-    void resolveCodexCliLaunch()
-      .then((launch) => {
-        const child = spawn(
-          launch.command,
-          [
-            ...launch.argsPrefix,
-            "exec",
-            "--json",
-            "--cd",
-            projectPath,
-            "--skip-git-repo-check",
-            ...(model ? ["--model", model] : []),
-            "-c",
-            'sandbox_mode="read-only"',
-            "-c",
-            'approval_policy="never"',
-            "-c",
-            // Callers that predate the text generation effort setting keep
-            // the original low effort.
-            `model_reasoning_effort=${JSON.stringify(
-              reasoningEffort === undefined
-                ? "low"
-                : getCodexReasoningEffort(reasoningEffort),
-            )}`,
-            ...(modelSpeed === "fast" ? ["-c", 'service_tier="fast"'] : []),
-            "-",
-          ],
-          {
-            cwd: projectPath,
-            env: process.env,
-            shell: launch.shell ?? false,
-            stdio: ["pipe", "pipe", "pipe"],
-            windowsHide: true,
-          },
-        );
-
-        child.stdout.on("data", reader.appendStdout);
-        child.stderr.on("data", reader.appendStderr);
-        child.on("error", (error) => {
-          reject(new Error(getCodexCliSpawnErrorMessage(error)));
-        });
-        child.on("close", (code) => {
-          reader.flush();
-          if (code === 0) {
-            resolve(latestText);
-            return;
-          }
-          reject(
-            new Error(
-              reader.stderr.trim() || `Codex CLI exited with code ${code}.`,
-            ),
-          );
-        });
-
-        child.stdin.end(inlineSystemPrompt(system, prompt));
-      })
-      .catch((error) => {
-        reject(
-          new Error(
-            error instanceof Error
-              ? error.message
-              : "Codex CLI request failed.",
-          ),
-        );
-      });
+    },
+    signal,
+    spawnErrorMessage: getCodexCliSpawnErrorMessage,
+    stdin: inlineSystemPrompt(system, prompt),
+    timeoutMs,
   });
+  return latestText;
+};
 
 export const parseOpenCodeModel = (model) => {
   const [providerID, ...modelParts] = String(model ?? "").split("/");
@@ -243,8 +209,9 @@ export const runOpenCodePrompt = async ({
   model,
   prompt,
   projectPath,
+  signal,
   system,
-  timeoutMs = OPENCODE_DEFAULT_REQUEST_TIMEOUT_MS,
+  timeoutMs = DEFAULT_TEXT_TIMEOUT_MS,
 }) => {
   const requestedModel = typeof model === "string" ? model.trim() : "";
   if (!requestedModel) {
@@ -252,21 +219,18 @@ export const runOpenCodePrompt = async ({
   }
 
   const openCodeModel = parseOpenCodeModel(requestedModel);
-  const requestAbortController = new AbortController();
-  const signal = requestAbortController.signal;
-  const requestTimeout = setTimeout(() => {
-    requestAbortController.abort();
-  }, timeoutMs);
-
-  try {
-    return await withOpenCodeServer(
-      { signal, timeoutMs: OPENCODE_TEXT_SERVER_TIMEOUT_MS },
+  return withRequestSignal("OpenCode", { signal, timeoutMs }, (requestSignal) =>
+    withOpenCodeServer(
+      {
+        signal: requestSignal,
+        timeoutMs: OPENCODE_TEXT_SERVER_TIMEOUT_MS,
+      },
       async (client) => {
         const sessionId = await createOpenCodeSession(client, {
           agent: "plan",
           directory: projectPath,
           model: openCodeModel,
-          signal,
+          signal: requestSignal,
         });
         const promptResult = await client.session.prompt({
           body: {
@@ -276,21 +240,14 @@ export const runOpenCodePrompt = async ({
           },
           path: { id: sessionId },
           query: { directory: projectPath },
-          signal,
+          signal: requestSignal,
         });
         return (promptResult.data?.parts ?? [])
           .map(getOpenCodePartText)
           .join(" ");
       },
-    );
-  } catch (error) {
-    if (signal.aborted) {
-      throw new Error("OpenCode request timed out.");
-    }
-    throw error;
-  } finally {
-    clearTimeout(requestTimeout);
-  }
+    ),
+  );
 };
 
 const getCursorEventText = (event) => {
@@ -318,10 +275,32 @@ const getCursorEventText = (event) => {
   return typeof event.message.text === "string" ? event.message.text : "";
 };
 
-export const runCursorPrompt = ({ model, prompt, projectPath, system }) =>
-  new Promise((resolve, reject) => {
-    let latestText = "";
-    const reader = createJsonLineReader((event) => {
+export const runCursorPrompt = async ({
+  model,
+  prompt,
+  projectPath,
+  signal,
+  system,
+  timeoutMs = DEFAULT_TEXT_TIMEOUT_MS,
+}) => {
+  const launch = await resolveCursorCliLaunch();
+  let latestText = "";
+  await runAgentCli({
+    args: [
+      "-p",
+      "--trust",
+      "--output-format",
+      "stream-json",
+      "--mode",
+      "ask",
+      "--model",
+      normalizeCursorCliModel(model),
+      inlineSystemPrompt(system, prompt),
+    ],
+    cwd: projectPath,
+    label: "Cursor",
+    launch,
+    onEvent: (event, run) => {
       const text = getCursorEventText(event);
       if (text) {
         latestText += text;
@@ -331,7 +310,7 @@ export const runCursorPrompt = ({ model, prompt, projectPath, system }) =>
       }
 
       if (event?.type === "error") {
-        reader.pushStderr(
+        run.reportError(
           typeof event.message === "string"
             ? event.message
             : typeof event.error === "string"
@@ -339,66 +318,19 @@ export const runCursorPrompt = ({ model, prompt, projectPath, system }) =>
               : "",
         );
       }
-    });
-
-    void resolveCursorCliLaunch()
-      .then((launch) => {
-        const child = spawn(
-          launch.command,
-          [
-            ...launch.argsPrefix,
-            "-p",
-            "--trust",
-            "--output-format",
-            "stream-json",
-            "--mode",
-            "ask",
-            "--model",
-            normalizeCursorCliModel(model),
-            inlineSystemPrompt(system, prompt),
-          ],
-          {
-            cwd: projectPath,
-            env: process.env,
-            shell: launch.shell ?? false,
-            stdio: ["ignore", "pipe", "pipe"],
-            windowsHide: true,
-          },
-        );
-
-        child.stdout.on("data", reader.appendStdout);
-        child.stderr.on("data", reader.appendStderr);
-        child.on("error", (error) => {
-          reject(new Error(getCursorCliSpawnErrorMessage(error)));
-        });
-        child.on("close", (code) => {
-          reader.flush();
-          if (code === 0) {
-            resolve(latestText);
-            return;
-          }
-          reject(
-            new Error(
-              reader.stderr.trim() || `Cursor CLI exited with code ${code}.`,
-            ),
-          );
-        });
-      })
-      .catch((error) => {
-        reject(
-          new Error(
-            error instanceof Error
-              ? error.message
-              : "Cursor CLI request failed.",
-          ),
-        );
-      });
+    },
+    signal,
+    spawnErrorMessage: getCursorCliSpawnErrorMessage,
+    timeoutMs,
   });
+  return latestText;
+};
 
 export const runGrokTextPrompt = ({
   model,
   prompt,
   projectPath,
+  signal,
   system,
   timeoutMs,
 }) =>
@@ -406,22 +338,50 @@ export const runGrokTextPrompt = ({
     cwd: projectPath,
     model,
     prompt: inlineSystemPrompt(system, prompt),
+    signal,
     ...(timeoutMs ? { timeoutMs } : {}),
   });
 
-export const runAntigravityPrompt = ({
+export const runAntigravityPrompt = async ({
   model,
   prompt,
   projectPath,
   reasoningEffort,
+  signal,
   system,
-  timeoutMs = 120_000,
-}) =>
-  new Promise((resolve, reject) => {
-    let latestText = "";
-    let errorDetails = "";
-    let timeoutTimer = null;
-    const reader = createJsonLineReader((event) => {
+  timeoutMs = DEFAULT_TEXT_TIMEOUT_MS,
+}) => {
+  const launch = await resolveAntigravityCliLaunch();
+  assertSafeAntigravityArg(launch, model, "model");
+  const effectiveEffort = resolveAntigravityEffort(model, reasoningEffort);
+  const promptInput = getAntigravityPromptInput(
+    launch,
+    inlineSystemPrompt(system, prompt),
+  );
+  // The CLI's own print timeout ends a quiet run before ours kills it.
+  const timeoutArgs =
+    typeof timeoutMs === "number" && timeoutMs > 0
+      ? ["--print-timeout", `${Math.ceil(timeoutMs / 1000)}s`]
+      : [];
+
+  let latestText = "";
+  let errorDetails = "";
+  await runAgentCli({
+    args: [
+      "--output-format",
+      "stream-json",
+      "--mode",
+      "plan",
+      "--disable-slash-commands",
+      ...timeoutArgs,
+      ...(model ? ["--model", model] : []),
+      ...(effectiveEffort ? ["--effort", effectiveEffort] : []),
+      ...promptInput.args,
+    ],
+    cwd: projectPath,
+    label: "Antigravity",
+    launch,
+    onEvent: (event, run) => {
       if (!event || typeof event !== "object") return;
       if (event.event === "step_update") {
         const update = event.step_update;
@@ -436,126 +396,30 @@ export const runAntigravityPrompt = ({
         if (typeof event.result?.response === "string") {
           latestText = event.result.response;
         }
-        if (event.result?.status && event.result.status !== "SUCCESS") {
-          const rawErr = event.result.error;
-          const msg =
-            (typeof rawErr === "object" && rawErr !== null
-              ? rawErr.message || JSON.stringify(rawErr)
-              : rawErr) ||
-            event.result.response ||
-            `Antigravity request ended with status ${event.result.status}.`;
-          errorDetails = msg;
-          reader.pushStderr(errorDetails);
+        const resultError = getAntigravityResultError(event.result);
+        if (resultError) {
+          errorDetails = resultError;
+          run.reportError(errorDetails);
         }
       }
       if (typeof event.response === "string") {
         latestText = event.response;
       }
       if (event.status === "ERROR" || event.error) {
-        const rawErr = event.error;
         errorDetails =
-          (typeof rawErr === "object" && rawErr !== null
-            ? rawErr.message || JSON.stringify(rawErr)
-            : rawErr) || "Antigravity generation failed.";
-        reader.pushStderr(errorDetails);
+          getAntigravityErrorText(event.error) ||
+          "Antigravity generation failed.";
+        run.reportError(errorDetails);
       }
-    });
-
-    void resolveAntigravityCliLaunch()
-      .then((launch) => {
-        assertSafeAntigravityArg(launch, model, "model");
-        const effectiveEffort = resolveAntigravityEffort(
-          model,
-          reasoningEffort,
-        );
-        const finalPrompt = inlineSystemPrompt(system, prompt);
-        const maxCommandLineLength = launch.shell ? 8000 : 30000;
-        const useStdin =
-          Boolean(launch.shell) || finalPrompt.length > maxCommandLineLength;
-        const timeoutArgs =
-          typeof timeoutMs === "number" && timeoutMs > 0
-            ? ["--print-timeout", `${Math.ceil(timeoutMs / 1000)}s`]
-            : [];
-        const child = spawn(
-          launch.command,
-          [
-            ...launch.argsPrefix,
-            "--output-format",
-            "stream-json",
-            "--mode",
-            "plan",
-            "--disable-slash-commands",
-            ...timeoutArgs,
-            ...(model ? ["--model", model] : []),
-            ...(effectiveEffort ? ["--effort", effectiveEffort] : []),
-            ...(useStdin
-              ? ["--input-format", "stream-json"]
-              : ["-p", finalPrompt]),
-          ],
-          {
-            cwd: projectPath,
-            env: process.env,
-            shell: launch.shell ?? false,
-            stdio: [useStdin ? "pipe" : "ignore", "pipe", "pipe"],
-            windowsHide: true,
-          },
-        );
-
-        if (typeof timeoutMs === "number" && timeoutMs > 0) {
-          timeoutTimer = setTimeout(() => {
-            void stopChildProcess(child, { waitTimeoutMs: 3000 }).catch(
-              () => {},
-            );
-            reject(
-              new Error(`Antigravity request timed out after ${timeoutMs}ms.`),
-            );
-          }, timeoutMs);
-        }
-
-        if (useStdin && child.stdin) {
-          child.stdin.on("error", () => {});
-          const payload = `${JSON.stringify({
-            event: "user",
-            message: { content: finalPrompt },
-          })}\n`;
-          child.stdin.end(payload);
-        }
-
-        child.stdout.setEncoding("utf8");
-        child.stderr.setEncoding("utf8");
-        child.stdout.on("data", reader.appendStdout);
-        child.stderr.on("data", reader.appendStderr);
-        child.on("error", (error) => {
-          if (timeoutTimer) clearTimeout(timeoutTimer);
-          reject(new Error(getAntigravityCliSpawnErrorMessage(error)));
-        });
-        child.on("close", (code) => {
-          if (timeoutTimer) clearTimeout(timeoutTimer);
-          reader.flush();
-          if (code === 0) {
-            if (errorDetails) {
-              reject(new Error(errorDetails));
-              return;
-            }
-            resolve(latestText);
-            return;
-          }
-          reject(
-            new Error(
-              reader.stderr.trim() ||
-                `Antigravity CLI exited with code ${code}.`,
-            ),
-          );
-        });
-      })
-      .catch((error) => {
-        if (timeoutTimer) clearTimeout(timeoutTimer);
-        reject(
-          new Error(
-            error instanceof Error
-              ? error.message
-              : "Antigravity CLI request failed.",
-          ),
-        );
-      });
+    },
+    signal,
+    spawnErrorMessage: getAntigravityCliSpawnErrorMessage,
+    stdin: promptInput.stdin,
+    timeoutMs,
   });
+  // The CLI can report a failed request and still exit with code 0.
+  if (errorDetails) {
+    throw new Error(errorDetails);
+  }
+  return latestText;
+};

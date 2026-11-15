@@ -815,6 +815,19 @@ turn (`electron/api/providers/opencode-server.js`). That module is the only
 place Dream starts one, for one-shot prompts and usage reads too, and the
 one rule for whether a saved OpenCode session may be resumed.
 
+An **agent CLI run** (`runAgentCli` in
+`electron/api/providers/agent-cli-run.js`) is one agent CLI process run to
+completion: it spawns a provider's resolved launch, writes its stdin, hands
+each JSON line of stdout to the caller, keeps the last 64,000 characters of
+stderr, words a spawn failure through the provider's message and a non-zero
+exit as the stderr tail or "`<X>` CLI exited with code N", and on a timeout
+or an aborted signal stops the process tree and rejects. The Codex, Cursor
+and Antigravity one-shot prompts (`generate-text.js`) and the Antigravity
+turn run on it; the provider supplies arguments and translation.
+Antigravity's prompt input (argv or stdin) and result-status error are in
+`antigravity-cli.js`. Long-lived JSON-RPC processes (ACP connection, Codex
+app server) keep their own lifetime.
+
 ## CLI catalog
 
 What a host knows about the agent CLIs installed on it: whether each

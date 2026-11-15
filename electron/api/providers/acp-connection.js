@@ -1,8 +1,11 @@
 import readline from "node:readline";
 import { stopChildProcess } from "../../process-tree.js";
+import {
+  formatAgentCliExitMessage,
+  MAX_AGENT_CLI_STDERR_CHARS,
+} from "./agent-cli-run.js";
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
-const MAX_STDERR_CHARS = 64_000;
 
 export class AcpConnection {
   constructor(child, label = "Agent") {
@@ -19,7 +22,7 @@ export class AcpConnection {
     this.reader.on("line", (line) => this.handleLine(line));
     child.stderr.on("data", (chunk) => {
       this.stderr = `${this.stderr}${chunk.toString()}`.slice(
-        -MAX_STDERR_CHARS,
+        -MAX_AGENT_CLI_STDERR_CHARS,
       );
     });
     child.on("error", (error) => this.failPending(error));
@@ -32,7 +35,7 @@ export class AcpConnection {
           detail ||
             (code === 0
               ? `${this.label} ACP connection closed.`
-              : `${this.label} CLI exited with code ${code}.`),
+              : formatAgentCliExitMessage(this.label, code)),
         ),
       );
     });

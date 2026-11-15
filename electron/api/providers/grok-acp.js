@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { resolveCliCommandPath } from "../shared/cli.js";
 import { AcpConnection } from "./acp-connection.js";
+import { createAgentCliStopError } from "./agent-cli-run.js";
 
 export { AcpConnection as GrokAcpConnection } from "./acp-connection.js";
 
@@ -101,15 +102,26 @@ export const getGrokModelsFromInitializeResult = (initializeResult) => {
     : [];
 };
 
+/**
+ * One prompt over a fresh ACP connection, closed (with its process tree)
+ * afterwards. `timeoutMs` bounds the prompt request; `signal` closes the
+ * connection early and rejects.
+ */
 export const runGrokPrompt = async ({
   cwd,
   model,
   prompt,
   reasoningEffort = "low",
+  signal,
   timeoutMs = 120_000,
 }) => {
+  if (signal?.aborted) {
+    throw createAgentCliStopError("Grok");
+  }
   let connection = null;
   let text = "";
+  const onAbort = () => connection?.close();
+  signal?.addEventListener("abort", onAbort, { once: true });
 
   try {
     connection = await spawnGrokAcp({
@@ -118,6 +130,9 @@ export const runGrokPrompt = async ({
       model,
       reasoningEffort,
     });
+    if (signal?.aborted) {
+      throw createAgentCliStopError("Grok");
+    }
     connection.onNotification = (method, params) => {
       const update = params?.update;
       if (
@@ -153,7 +168,10 @@ export const runGrokPrompt = async ({
       timeoutMs,
     );
     return text.trim();
+  } catch (error) {
+    throw signal?.aborted ? createAgentCliStopError("Grok") : error;
   } finally {
+    signal?.removeEventListener("abort", onAbort);
     connection?.close();
   }
 };

@@ -147,3 +147,41 @@ export const resolveAntigravityEffort = (model, reasoningEffort) => {
   const allowed = getModelReasoningEfforts("antigravity", model ?? "");
   return allowed.includes(reasoningEffort) ? reasoningEffort : null;
 };
+
+// Longest prompt passed as `-p` on a direct launch, under Windows' command
+// line limit.
+const MAX_ANTIGRAVITY_ARG_PROMPT_CHARS = 30_000;
+
+/**
+ * How a prompt reaches the CLI, for the turn and the one-shot alike: as `-p`,
+ * or as one stream-json user event on stdin when the launch goes through a
+ * shell (which would not quote it) or the prompt is too long for argv.
+ * Returns the arguments to append and the stdin text, if any.
+ */
+export const getAntigravityPromptInput = (launch, prompt) =>
+  launch?.shell || prompt.length > MAX_ANTIGRAVITY_ARG_PROMPT_CHARS
+    ? {
+        args: ["--input-format", "stream-json"],
+        stdin: `${JSON.stringify({
+          event: "user",
+          message: { content: prompt },
+        })}\n`,
+      }
+    : { args: ["-p", prompt], stdin: undefined };
+
+/** Words an Antigravity error value, a string or an object with a message. */
+export const getAntigravityErrorText = (rawError) =>
+  typeof rawError === "object" && rawError !== null
+    ? rawError.message || JSON.stringify(rawError)
+    : rawError;
+
+/**
+ * The error a `result` event reports, or null when its status is SUCCESS
+ * (or absent).
+ */
+export const getAntigravityResultError = (result) =>
+  result?.status && result.status !== "SUCCESS"
+    ? getAntigravityErrorText(result.error) ||
+      result.response ||
+      `Antigravity request ended with status ${result.status}.`
+    : null;
