@@ -21,7 +21,10 @@ export const createStandaloneChatActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
   { api = apiClient }: StoreActionDependencies = {},
-): Pick<IdeState, "createStandaloneChat" | "showStandaloneChat"> => {
+): Pick<
+  IdeState,
+  "createStandaloneChat" | "showStandaloneChat" | "promoteStandaloneChat"
+> => {
   /** A Host other than this machine is connected and loaded first. */
   const reachHost = async (hostId: string) => {
     if (hostId === LOCAL_HOST_ID) return true;
@@ -106,6 +109,26 @@ export const createStandaloneChatActions = (
       if (!(await reachHost(hostId))) return false;
       if (chat.deletedAt !== null) get().restoreChats([chat.id]);
       show(project.path, hostId);
+      get().setActiveChatId(project.id, chat.id);
+      return true;
+    },
+
+    promoteStandaloneChat: (chatId) => {
+      const state = get();
+      const chat = state.chats.find((item) => item.id === chatId);
+      const project = [...state.projects, ...state.closedProjects].find(
+        (item) => item.id === chat?.projectId,
+      );
+      if (!chat || !project?.standalone) return false;
+      set((current) => {
+        const promoted = workspace.promoteStandaloneProject(
+          current,
+          current.settings,
+          project.id,
+          chat.title,
+        );
+        return promoted.doc;
+      });
       get().setActiveChatId(project.id, chat.id);
       return true;
     },

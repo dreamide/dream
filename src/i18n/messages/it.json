@@ -683,7 +683,9 @@
     "chats": "Chat",
     "unableToStartChat": "Impossibile avviare la chat.",
     "noStandaloneChats": "Nessuna chat ancora.",
-    "newChatOn": "Nuova chat su…"
+    "newChatOn": "Nuova chat su…",
+    "turnIntoProject": "Trasforma in progetto",
+    "turnNamedIntoProject": "Trasforma {name} in un progetto"
   },
   "worktrees": {
     "baseRef": "Rif. base",

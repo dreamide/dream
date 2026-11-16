@@ -1,5 +1,6 @@
 import {
   Archive,
+  FolderInput,
   FolderTree,
   FolderX,
   MessageSquarePlus,
@@ -109,6 +110,7 @@ export const ProjectSidebar = ({
   );
   const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
   const showStandaloneChat = useIdeStore((s) => s.showStandaloneChat);
+  const promoteStandaloneChat = useIdeStore((s) => s.promoteStandaloneChat);
   const openProjects = useIdeStore((s) => s.projects);
   const closedProjects = useIdeStore((s) => s.closedProjects);
   const hosts = useIdeStore((s) => s.hosts);
@@ -385,6 +387,9 @@ export const ProjectSidebar = ({
                 const chatHostId = chatProject
                   ? getProjectHostId(chatProject)
                   : null;
+                // Once it has had a turn, its folder can become a project.
+                const canPromote =
+                  Boolean(chatProject) && chat.messageCount > 0;
                 const statusIndicator = isAwaiting ? (
                   <StatusDot
                     aria-label={projectsT("chatAwaitingApproval")}
@@ -426,7 +431,12 @@ export const ProjectSidebar = ({
                       }}
                       type="button"
                     >
-                      <div className="flex min-w-0 items-center gap-2 pr-16">
+                      <div
+                        className={cn(
+                          "flex min-w-0 items-center gap-2",
+                          canPromote ? "pr-24" : "pr-16",
+                        )}
+                      >
                         {chat.pinned ? (
                           <Pin
                             aria-label={projectsT("pinnedChat")}
@@ -457,6 +467,25 @@ export const ProjectSidebar = ({
                       </span>
                     </button>
                     <div className="-translate-y-1/2 absolute top-1/2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+                      {canPromote ? (
+                        <Button
+                          aria-label={projectsT("turnNamedIntoProject", {
+                            name: chat.title,
+                          })}
+                          className="size-7 rounded-md p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            promoteStandaloneChat(chat.id);
+                            onChatSelect?.();
+                          }}
+                          size="icon-sm"
+                          title={projectsT("turnIntoProject")}
+                          type="button"
+                          variant="ghost"
+                        >
+                          <FolderInput className="size-3.5" />
+                        </Button>
+                      ) : null}
                       <Button
                         aria-label={projectsT(
                           chat.pinned ? "unpinNamedChat" : "pinNamedChat",

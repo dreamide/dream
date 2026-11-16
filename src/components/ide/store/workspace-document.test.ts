@@ -1036,3 +1036,44 @@ test("restore keeps an open standalone project with a live chat", () => {
     "2026-11-16T00:00:00.000Z",
   );
 });
+
+test("promoting a standalone project makes it an ordinary tab where its folder is", () => {
+  const first = workspace.showStandaloneProject(
+    emptyDoc(),
+    SETTINGS,
+    "/chats/a",
+    { create: standalone() },
+  );
+  // Closed behind a second standalone chat, then promoted.
+  const second = workspace.showStandaloneProject(
+    first.doc,
+    SETTINGS,
+    "/chats/b",
+    { create: standalone() },
+  );
+  const promoted = workspace.promoteStandaloneProject(
+    second.doc,
+    SETTINGS,
+    first.projectId,
+    "  Release notes  ",
+  );
+
+  assertInvariant(promoted.doc);
+  const project = projectIn(promoted.doc, first.projectId);
+  assert.equal(project.standalone, null);
+  assert.equal(project.name, "Release notes");
+  assert.equal(project.path, "/chats/a");
+  assert.equal(promoted.doc.activeProjectId, first.projectId);
+  assert.equal(liveChatsOf(promoted.doc, first.projectId).length, 1);
+  // The other standalone project stays open behind the Chats tab.
+  assert.ok(projectIn(promoted.doc, second.projectId).standalone);
+
+  // An ordinary project is left as it is.
+  const again = workspace.promoteStandaloneProject(
+    promoted.doc,
+    SETTINGS,
+    first.projectId,
+    "Other",
+  );
+  assert.equal(again.doc, promoted.doc);
+});

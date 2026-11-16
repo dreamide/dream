@@ -321,6 +321,12 @@ export interface IdeState {
    */
   showStandaloneChat: (chatId: string) => Promise<boolean>;
   /**
+   * Turns a standalone chat's project into an ordinary one where its folder
+   * is, named after the chat, and shows it as its own tab. Its other chats
+   * go with it. False when the chat is not a standalone chat.
+   */
+  promoteStandaloneChat: (chatId: string) => boolean;
+  /**
    * Removes a closed project for good, with its chats: from this window and
    * from its host's catalog. Its folder is not touched.
    */

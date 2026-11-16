@@ -683,7 +683,9 @@
     "chats": "Discussions",
     "unableToStartChat": "Impossible de démarrer la discussion.",
     "noStandaloneChats": "Aucune discussion pour l'instant.",
-    "newChatOn": "Nouveau chat sur…"
+    "newChatOn": "Nouveau chat sur…",
+    "turnIntoProject": "Transformer en projet",
+    "turnNamedIntoProject": "Transformer {name} en projet"
   },
   "worktrees": {
     "baseRef": "Réf de base",

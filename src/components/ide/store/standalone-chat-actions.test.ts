@@ -214,3 +214,25 @@ test("showing a chat that is not standalone does nothing", async () => {
     false,
   );
 });
+
+test("turning a standalone chat into a project names it after the chat and shows it", async () => {
+  const { calls, store } = createTestStore();
+  const { chatId, projectId } = await created(store);
+  giveMessage(store, chatId as string);
+  store.getState().updateChat(chatId as string, (chat) => ({
+    ...chat,
+    title: "Release notes",
+  }));
+
+  assert.equal(store.getState().promoteStandaloneChat(chatId as string), true);
+
+  const project = store
+    .getState()
+    .projects.find((item) => item.id === projectId);
+  assert.equal(project?.standalone, null);
+  assert.equal(project?.name, "Release notes");
+  assert.equal(store.getState().activeProjectId, projectId);
+  // The folder stays where it is: no host call.
+  assert.equal(calls.length, 1);
+  assert.equal(store.getState().promoteStandaloneChat(chatId as string), false);
+});

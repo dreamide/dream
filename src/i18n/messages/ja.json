@@ -683,7 +683,9 @@
     "chats": "チャット",
     "unableToStartChat": "チャットを開始できません。",
     "noStandaloneChats": "まだチャットがありません。",
-    "newChatOn": "新しいチャットの場所…"
+    "newChatOn": "新しいチャットの場所…",
+    "turnIntoProject": "プロジェクトにする",
+    "turnNamedIntoProject": "{name} をプロジェクトにする"
   },
   "worktrees": {
     "baseRef": "基本参照",

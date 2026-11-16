@@ -266,7 +266,7 @@ Remaining/deferred: a command palette entry, if Dream gains a palette.
 
 ## SC-04: Turn into project
 
-Status: proposed
+Status: implemented
 
 Problem and trigger: a standalone chat can grow into real work.
 
@@ -290,7 +290,21 @@ Completion criteria:
   path is unchanged.
 - Git features show once the user runs `git init` in it.
 
-Validation: not started.
+Implementation: `promoteStandaloneProject` (`store/workspace-document.ts`)
+and the store action `promoteStandaloneChat`. The Chats list shows a "Turn
+into project" button on rows whose chat has messages.
+
+Validation:
+
+- `workspace-document.test.ts`: a closed standalone project is promoted
+  and opened as an ordinary tab with its chat, path and trimmed name; the
+  other standalone project stays open; an ordinary project is untouched.
+- `standalone-chat-actions.test.ts`: promotion names the project after the
+  chat, activates it, and makes no host call.
+- `pnpm check` passed.
+- By code reading: git features return because the Git rail button and
+  shortcuts are gated on `standalone`, and the rest on `isRepo`. Not checked
+  in the running app.
 
 ## SC-05: Chat folder cleanup
 

@@ -683,7 +683,9 @@
     "chats": "Trò chuyện",
     "unableToStartChat": "Không thể bắt đầu cuộc trò chuyện.",
     "noStandaloneChats": "Chưa có cuộc trò chuyện nào.",
-    "newChatOn": "Chat mới trên…"
+    "newChatOn": "Chat mới trên…",
+    "turnIntoProject": "Chuyển thành dự án",
+    "turnNamedIntoProject": "Chuyển {name} thành dự án"
   },
   "worktrees": {
     "baseRef": "Tham chiếu cơ sở",

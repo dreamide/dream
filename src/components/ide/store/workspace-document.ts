@@ -605,6 +605,35 @@ export const standaloneProjectsWithoutChats = (
     .map((project) => project.id);
 };
 
+/**
+ * Turns a standalone project into an ordinary one where its folder already
+ * is, named `name`, and shows it as a tab of its own with its chats.
+ */
+export const promoteStandaloneProject = (
+  doc: WorkspaceDocument,
+  settings: AppSettings,
+  projectId: string,
+  name: string,
+): { doc: WorkspaceDocument; projectId: string } => {
+  const project = allProjectsOf(doc).find((item) => item.id === projectId);
+  if (!project?.standalone) {
+    return { doc, projectId };
+  }
+  const promote = (item: ProjectConfig): ProjectConfig =>
+    item.id === projectId
+      ? { ...item, name: name.trim() || item.name, standalone: null }
+      : item;
+  const promoted = {
+    ...doc,
+    closedProjects: doc.closedProjects.map(promote),
+    projects: doc.projects.map(promote),
+  };
+  const opened = openProject(promoted, settings, project.path, {
+    hostId: getProjectHostId(project),
+  });
+  return { doc: opened.doc, projectId: opened.projectId };
+};
+
 /** Replaces the open project list (a reorder, or the shell's sync). */
 export const setProjects = (
   doc: WorkspaceDocument,

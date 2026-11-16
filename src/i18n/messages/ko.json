@@ -683,7 +683,9 @@
     "chats": "채팅",
     "unableToStartChat": "채팅을 시작할 수 없습니다.",
     "noStandaloneChats": "아직 채팅이 없습니다.",
-    "newChatOn": "새 채팅 위치…"
+    "newChatOn": "새 채팅 위치…",
+    "turnIntoProject": "프로젝트로 전환",
+    "turnNamedIntoProject": "{name}을(를) 프로젝트로 전환"
   },
   "worktrees": {
     "baseRef": "기본 참조",

@@ -683,7 +683,9 @@
     "chats": "聊天",
     "unableToStartChat": "無法開始聊天。",
     "noStandaloneChats": "還沒有聊天。",
-    "newChatOn": "新增聊天於…"
+    "newChatOn": "新增聊天於…",
+    "turnIntoProject": "轉為專案",
+    "turnNamedIntoProject": "將 {name} 轉為專案"
   },
   "worktrees": {
     "baseRef": "基礎參照",
