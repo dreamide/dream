@@ -26,6 +26,7 @@ import {
 import { registerBrowserToolCallRoutes } from "./browser-tool-call-routes.js";
 import { registerCatalogRoutes } from "./catalog-routes.js";
 import { ORCHESTRATION_MCP_PATH } from "./chat/delegation.js";
+import { registerChatFolderRoutes } from "./chat-folder-routes.js";
 import { registerChatRoutes } from "./chat-routes.js";
 import { registerCheckpointRoutes } from "./checkpoint-routes.js";
 import { registerCodePullRequestRoutes } from "./code-pull-request-routes.js";
@@ -108,6 +109,7 @@ export function registerHostRoutes(
     registerBrowserToolCallRoutes(app);
   }
   registerHostDirectoryRoutes(app);
+  registerChatFolderRoutes(app);
   if (catalog)
     registerCatalogRoutes(app, catalog, { describeHost: getHostDescriptor });
   registerToolApprovalRoutes(app);

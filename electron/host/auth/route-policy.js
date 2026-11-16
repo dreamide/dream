@@ -65,6 +65,7 @@ export const REMOTE_ROUTE_POLICY = Object.freeze({
 
   // Files
   "POST /api/host-directories": "operate",
+  "POST /api/chat-folders": "operate",
   "POST /api/project-directory": "view",
   "POST /api/project-files": "view",
   "POST /api/project-file": "view",

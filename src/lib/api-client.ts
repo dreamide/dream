@@ -67,6 +67,7 @@ import type {
   chatSubmitRequestSchema,
   chatTitleRequestBodySchema,
 } from "../../electron/api/chat/schema.js";
+import type { chatFolderCreateRequestSchema } from "../../electron/api/chat-folder-routes.js";
 import type { chatStopRequestSchema } from "../../electron/api/chat-routes.js";
 import type {
   checkpointChangesRequestSchema,
@@ -249,6 +250,12 @@ export interface HostDirectoryEntry {
   path: string;
   /** Its name starts with a dot. */
   hidden: boolean;
+}
+
+/** A new standalone chat's folder on its host (`/api/chat-folders`). */
+export interface ChatFolderResponse {
+  /** Absolute on the host; created and empty. */
+  path: string;
 }
 
 /** The folders in one folder of a host (`/api/host-directories`). */
@@ -737,6 +744,12 @@ export const API_ROUTES = {
     Input<typeof hostDirectoriesRequestSchema>,
     HostDirectoriesResponse
   >("/api/host-directories"),
+
+  // The folder of a new standalone chat, created on its host
+  createChatFolder: post<
+    Input<typeof chatFolderCreateRequestSchema>,
+    ChatFolderResponse
+  >("/api/chat-folders"),
 
   // Remote access and paired devices (this machine's operator only)
   remoteAccess: post<Record<string, never>, RemoteAccessStatus>(

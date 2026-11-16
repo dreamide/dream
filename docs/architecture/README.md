@@ -162,3 +162,7 @@ Module names and current ownership live in ../../GLOSSARY.md.
   architecture review: Host verification, a Project on its Host, branch
   actions, the agent CLI run, the Terminal session, desktop launch, the turn
   prompt and Provider presentation.
+
+- `tasks/standalone-chats.md` tracks SC-01 to SC-05: chats not tied to a
+  user-picked folder, each an ordinary Project with a chat folder under
+  `~/.dream/chats`, shown together under one Chats tab.
