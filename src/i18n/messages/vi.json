@@ -200,7 +200,8 @@
     "worktree": "worktree",
     "removeRecent": "Xóa",
     "removeRecentTitle": "Xóa {name}?",
-    "removeRecentDescription": "Dự án và các cuộc trò chuyện của nó sẽ bị xóa khỏi Dream. Bản thân thư mục không bị thay đổi."
+    "removeRecentDescription": "Dự án và các cuộc trò chuyện của nó sẽ bị xóa khỏi Dream. Bản thân thư mục không bị thay đổi.",
+    "startChat": "Bắt đầu trò chuyện"
   },
   "openProject": {
     "title": "Mở thư mục",
@@ -678,7 +679,11 @@
     "projectAwaitingAnswer": "Dự án đang chờ câu trả lời của bạn",
     "projectFinishedProcessing": "Dự án đã xử lý xong",
     "projects": "Dự án",
-    "searchHistory": "Tìm trong lịch sử..."
+    "searchHistory": "Tìm trong lịch sử...",
+    "chats": "Trò chuyện",
+    "unableToStartChat": "Không thể bắt đầu cuộc trò chuyện.",
+    "noStandaloneChats": "Chưa có cuộc trò chuyện nào.",
+    "newChatOn": "Chat mới trên…"
   },
   "worktrees": {
     "baseRef": "Tham chiếu cơ sở",
@@ -1098,6 +1103,7 @@
       "nextProject": "Dự án tiếp theo",
       "previousProject": "Dự án trước",
       "newChat": "Chat mới",
+      "newStandaloneChat": "Chat mới không có dự án",
       "focusChatInput": "Chuyển đến ô nhập chat",
       "toggleChatHistory": "Bật/tắt lịch sử chat",
       "toggleSideBySide": "Bật/tắt chat song song",

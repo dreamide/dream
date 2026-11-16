@@ -5,6 +5,7 @@ import {
   FolderTree,
   History,
   Laptop,
+  MessageSquarePlus,
   Plug,
   Server,
   Settings,
@@ -43,6 +44,7 @@ import { ALL_PROVIDERS } from "./ide-types";
 import { showOpenProjectDialog } from "./open-project/open-project-dialog-state";
 import { PROVIDER_PRESENTATION, ProviderIcon } from "./provider-presentation";
 import { useHostChoices } from "./ssh/use-host-choices";
+import { useStartStandaloneChat } from "./standalone-chats";
 
 const RECENT_PROJECT_LIMIT = 50;
 const RECENT_PROJECT_VISIBLE_COUNT = 10;
@@ -133,6 +135,7 @@ export const EmptyProjectWorkspace = () => {
   const setSettingsSection = useIdeStore((s) => s.setSettingsSection);
   const [recentProjectQuery, setRecentProjectQuery] = useState("");
   const commonT = useTranslations("common");
+  const startStandaloneChat = useStartStandaloneChat();
   const sshT = useTranslations("sshHosts");
   const forgetClosedProject = useIdeStore((s) => s.forgetClosedProject);
   // The closed project whose removal awaits confirmation.
@@ -273,10 +276,20 @@ export const EmptyProjectWorkspace = () => {
       </EmptyHeader>
 
       <EmptyContent className="max-w-xl gap-10">
-        <Button onClick={showOpenProjectDialog} size="lg">
-          <FolderOpen className="size-4" />
-          {emptyT("openFolder")}
-        </Button>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <Button onClick={showOpenProjectDialog} size="lg">
+            <FolderOpen className="size-4" />
+            {emptyT("openFolder")}
+          </Button>
+          <Button
+            onClick={() => void startStandaloneChat()}
+            size="lg"
+            variant="outline"
+          >
+            <MessageSquarePlus className="size-4" />
+            {emptyT("startChat")}
+          </Button>
+        </div>
 
         {recentProjects.length > 0 ? (
           <div className="flex w-full flex-col items-stretch gap-2">

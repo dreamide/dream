@@ -78,7 +78,7 @@ folder** Dream made on the chat's Host, `~/.dream/chats/<date>-<id8>`
 (`electron/host/chat-folders.js`). The folder is created with the Project and
 refused when the root is inside a git checkout; otherwise it is an ordinary
 Project folder, so agents, terminals and checkpoints work in it unchanged.
-At most one standalone project is open.
+At most one standalone project is open, and the Chats tab stands for it.
 Showing another closes it (`store/standalone-chat-actions.ts`). A standalone
 project closes when its last live chat is deleted, and is removed when its
 chats are purged.

@@ -200,7 +200,8 @@
     "worktree": "ワークツリー",
     "removeRecent": "削除",
     "removeRecentTitle": "{name} を削除しますか？",
-    "removeRecentDescription": "プロジェクトとそのチャットを Dream から削除します。フォルダ自体は変更されません。"
+    "removeRecentDescription": "プロジェクトとそのチャットを Dream から削除します。フォルダ自体は変更されません。",
+    "startChat": "チャットを始める"
   },
   "openProject": {
     "title": "フォルダを開く",
@@ -678,7 +679,11 @@
     "projectAwaitingAnswer": "プロジェクトが回答を待っています",
     "projectFinishedProcessing": "プロジェクトの処理が完了しました",
     "projects": "プロジェクト",
-    "searchHistory": "履歴を検索..."
+    "searchHistory": "履歴を検索...",
+    "chats": "チャット",
+    "unableToStartChat": "チャットを開始できません。",
+    "noStandaloneChats": "まだチャットがありません。",
+    "newChatOn": "新しいチャットの場所…"
   },
   "worktrees": {
     "baseRef": "基本参照",
@@ -1098,6 +1103,7 @@
       "nextProject": "次のプロジェクト",
       "previousProject": "前のプロジェクト",
       "newChat": "新しいチャット",
+      "newStandaloneChat": "プロジェクトなしの新しいチャット",
       "focusChatInput": "チャット入力欄にフォーカス",
       "toggleChatHistory": "チャット履歴の表示切り替え",
       "toggleSideBySide": "チャットの並べて表示を切り替え",

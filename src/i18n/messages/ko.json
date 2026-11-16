@@ -200,7 +200,8 @@
     "worktree": "워크트리",
     "removeRecent": "제거",
     "removeRecentTitle": "{name}을(를) 제거할까요?",
-    "removeRecentDescription": "프로젝트와 채팅이 Dream에서 제거됩니다. 폴더 자체는 그대로 유지됩니다."
+    "removeRecentDescription": "프로젝트와 채팅이 Dream에서 제거됩니다. 폴더 자체는 그대로 유지됩니다.",
+    "startChat": "채팅 시작"
   },
   "openProject": {
     "title": "폴더 열기",
@@ -678,7 +679,11 @@
     "projectAwaitingAnswer": "프로젝트가 답변을 기다리고 있습니다.",
     "projectFinishedProcessing": "프로젝트 처리가 완료되었습니다.",
     "projects": "프로젝트",
-    "searchHistory": "기록 검색..."
+    "searchHistory": "기록 검색...",
+    "chats": "채팅",
+    "unableToStartChat": "채팅을 시작할 수 없습니다.",
+    "noStandaloneChats": "아직 채팅이 없습니다.",
+    "newChatOn": "새 채팅 위치…"
   },
   "worktrees": {
     "baseRef": "기본 참조",
@@ -1098,6 +1103,7 @@
       "nextProject": "다음 프로젝트",
       "previousProject": "이전 프로젝트",
       "newChat": "새 채팅",
+      "newStandaloneChat": "프로젝트 없는 새 채팅",
       "focusChatInput": "채팅 입력란으로 이동",
       "toggleChatHistory": "채팅 기록 표시/숨기기",
       "toggleSideBySide": "채팅 나란히 보기 전환",

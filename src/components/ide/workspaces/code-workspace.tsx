@@ -1,10 +1,12 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { BrowserTabState, GitPanelTab, ProjectConfig } from "@/types/ide";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { areProjectsEqualExceptLastUsedAt } from "../ide-state";
 import { useIdeStore } from "../ide-store";
 import type { RightPanelView } from "../ide-types";
 import { useShortcut } from "../shortcuts/shortcuts";
+import { useStartStandaloneChat } from "../standalone-chats";
 import {
   BROWSER_PANEL_DEFAULT_WIDTH_PX,
   BROWSER_PANEL_MIN_WIDTH_PX,
@@ -303,14 +305,31 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
     setProjectChatHistoryPanelOpen(projectId, false);
   }, [projectId, setProjectChatHistoryPanelOpen]);
 
+  const startStandaloneChat = useStartStandaloneChat();
+  const standalone = project.standalone !== null;
+  const projectHostId = getProjectHostId(project);
+
   const handleAddChat = useCallback(() => {
+    // A new standalone chat gets a folder of its own, never this one's.
+    if (standalone) {
+      void startStandaloneChat(projectHostId);
+      return;
+    }
     if (multiChat) {
       addChatBeside(projectId);
       return;
     }
 
     addChat(projectId);
-  }, [addChat, addChatBeside, multiChat, projectId]);
+  }, [
+    addChat,
+    addChatBeside,
+    multiChat,
+    projectHostId,
+    projectId,
+    standalone,
+    startStandaloneChat,
+  ]);
 
   const handleToggleMultiChat = useCallback(() => {
     toggleProjectMultiChatMode(projectId);
@@ -469,14 +488,14 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
     () => handleSelectRightPanelView("explorer"),
     active,
   );
-  useShortcut("showChanges", handleShowChanges, active);
+  useShortcut("showChanges", handleShowChanges, active && !standalone);
   useShortcut(
     "showBrowser",
     () => handleSelectRightPanelView("browser"),
     active,
   );
-  useShortcut("showGit", handleShowGit, active);
-  useShortcut("showPullRequests", handleShowPullRequest, active);
+  useShortcut("showGit", handleShowGit, active && !standalone);
+  useShortcut("showPullRequests", handleShowPullRequest, active && !standalone);
   useShortcut("showStash", () => handleSelectRightPanelView("stash"), active);
   useShortcut(
     "findInFiles",
@@ -656,6 +675,7 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
         projectPath={project.path}
         rightPanelView={rightPanelView}
         rightVisible={rightVisible}
+        showGit={!standalone}
         stashAvailable={stashAvailable}
         terminalHiddenWithActiveSession={terminalHiddenWithActiveSession}
       />

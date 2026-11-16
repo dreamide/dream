@@ -16,6 +16,8 @@ export interface WorkspaceRightRailProps {
   projectPath: string;
   rightPanelView: RightPanelView;
   rightVisible: boolean;
+  /** Not for a standalone chat, whose folder is never a repository. */
+  showGit: boolean;
   stashAvailable: boolean;
   terminalHiddenWithActiveSession: boolean;
 }
@@ -29,6 +31,7 @@ const WorkspaceRightRailImpl = ({
   projectPath,
   rightPanelView,
   rightVisible,
+  showGit,
   stashAvailable,
   terminalHiddenWithActiveSession,
 }: WorkspaceRightRailProps) => {
@@ -40,13 +43,15 @@ const WorkspaceRightRailImpl = ({
 
   return (
     <aside className="relative z-20 flex w-12 shrink-0 flex-col items-center gap-1 py-2">
-      <GitNavButton
-        active={rightVisible && rightPanelView === "git"}
-        onClick={() => onSelectRightPanelView("git")}
-        projectId={projectId}
-        projectPath={projectPath}
-        visible={active}
-      />
+      {showGit ? (
+        <GitNavButton
+          active={rightVisible && rightPanelView === "git"}
+          onClick={() => onSelectRightPanelView("git")}
+          projectId={projectId}
+          projectPath={projectPath}
+          visible={active}
+        />
+      ) : null}
       <WorkspaceNavButton
         active={rightVisible && rightPanelView === "explorer"}
         onClick={() => onSelectRightPanelView("explorer")}

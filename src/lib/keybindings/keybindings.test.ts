@@ -207,8 +207,8 @@ describe("defaults", () => {
 
 describe("overrides", () => {
   it("store only differences from the default", () => {
-    const custom = assignBinding({}, "newChat", chord("Mod+Shift+n"), "other");
-    expect(custom).toEqual({ newChat: "Mod+Shift+n" });
+    const custom = assignBinding({}, "newChat", chord("Mod+Shift+k"), "other");
+    expect(custom).toEqual({ newChat: "Mod+Shift+k" });
     expect(isBindingCustomized("newChat", custom, "other")).toBe(true);
 
     expect(resetBinding(custom, "newChat", "other")).toEqual({});

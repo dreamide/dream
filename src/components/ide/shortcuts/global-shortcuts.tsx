@@ -1,11 +1,20 @@
 import { useChatSearchStore } from "../chat-search";
 import { useIdeStore } from "../ide-store";
 import { showOpenProjectDialog } from "../open-project/open-project-dialog-state";
+import { useStartStandaloneChat } from "../standalone-chats";
 import { useShortcut, useShortcutDispatcher } from "./shortcuts";
 
 const cycleProject = (step: 1 | -1) => {
-  const { activeProjectId, projects, setActiveProjectId } =
-    useIdeStore.getState();
+  const {
+    activeProjectId,
+    projects: openProjects,
+    setActiveProjectId,
+  } = useIdeStore.getState();
+  // In tab order: the Chats tab (the open standalone project) comes first.
+  const projects = [
+    ...openProjects.filter((project) => project.standalone),
+    ...openProjects.filter((project) => !project.standalone),
+  ];
   if (projects.length === 0) {
     return;
   }
@@ -38,6 +47,12 @@ export const GlobalShortcuts = () => {
   useShortcut("openSettings", () => setSettingsOpen(true), !settingsOpen);
   useShortcut("searchChats", () => openChatSearch(true));
   useShortcut("openProject", showOpenProjectDialog);
+  const startStandaloneChat = useStartStandaloneChat();
+  useShortcut(
+    "newStandaloneChat",
+    () => void startStandaloneChat(),
+    !settingsOpen,
+  );
   useShortcut("nextProject", () => cycleProject(1), !settingsOpen);
   useShortcut("previousProject", () => cycleProject(-1), !settingsOpen);
 

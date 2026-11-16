@@ -1,4 +1,4 @@
-import { FolderTree, Plus, Server } from "lucide-react";
+import { FolderTree, MessageSquare, Plus, Server } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -22,6 +22,7 @@ import {
 } from "../chat-activity";
 import { useIdeStore } from "../ide-store";
 import { useHostChoices } from "../ssh/use-host-choices";
+import { CHATS_TAB_ID, useOpenChatsTab } from "../standalone-chats";
 import {
   moveTabItem,
   type StandardTabItem,
@@ -108,7 +109,10 @@ const useProjectIconScanner = ({
     const abortController = new AbortController();
     const scanTargets = useIdeStore
       .getState()
-      .projects.filter((project) => project.icon?.source !== "custom")
+      .projects.filter(
+        // A chat folder has no icon of its own to find.
+        (project) => project.icon?.source !== "custom" && !project.standalone,
+      )
       .map((project) => ({
         hostId: getProjectHostId(project),
         id: project.id,
@@ -166,8 +170,31 @@ export const ProjectTabs = () => {
   const projectsT = useTranslations("projects");
   const appReady = useIdeStore((s) => s.appReady);
   const isMacOs = useIdeStore((s) => s.isMacOs);
-  const projects = useIdeStore((s) => s.projects);
+  const openProjects = useIdeStore((s) => s.projects);
+  const closedProjects = useIdeStore((s) => s.closedProjects);
+  // Standalone projects share the Chats tab; every other open project is
+  // a tab of its own.
+  const projects = useMemo(
+    () => openProjects.filter((project) => !project.standalone),
+    [openProjects],
+  );
+  const openStandalone = useMemo(
+    () => openProjects.find((project) => project.standalone) ?? null,
+    [openProjects],
+  );
+  const standaloneProjectIds = useMemo(
+    () =>
+      new Set(
+        [...openProjects, ...closedProjects]
+          .filter((project) => project.standalone)
+          .map((project) => project.id),
+      ),
+    [closedProjects, openProjects],
+  );
   const activeProjectId = useIdeStore((s) => s.activeProjectId);
+  const chatsTabActive =
+    openStandalone !== null && openStandalone.id === activeProjectId;
+  const openChatsTab = useOpenChatsTab();
   const setActiveProjectId = useIdeStore((s) => s.setActiveProjectId);
   const setProjects = useIdeStore((s) => s.setProjects);
   const closeProject = useIdeStore((s) => s.closeProject);
@@ -291,6 +318,64 @@ export const ProjectTabs = () => {
     [closeEditDialog, editTarget, editValue, updateProject],
   );
 
+  const chatsTabItem = useMemo<ProjectTabItem>(() => {
+    const anyStandalone = (ids: Set<string>) => {
+      for (const id of standaloneProjectIds) if (ids.has(id)) return true;
+      return false;
+    };
+    const awaitingAnswer = anyStandalone(awaitingAnswerProjectIds);
+    const completed = !chatsTabActive && anyStandalone(completedProjectIds);
+    const activeChatPalette =
+      chats.find(
+        (chat) =>
+          chat.id === openStandalone?.ui.activeChatId &&
+          chat.deletedAt === null,
+      )?.sparklesPalette ?? DEFAULT_SPARKLES_PALETTE;
+    return {
+      awaitingAnswer,
+      completed,
+      id: CHATS_TAB_ID,
+      label: projectsT("chats"),
+      leading: (
+        <span
+          className="flex size-4 shrink-0 items-center justify-center self-center leading-none text-muted-foreground"
+          key={awaitingAnswer ? "awaiting" : completed ? "completed" : "chats"}
+        >
+          {awaitingAnswer ? (
+            <StatusDot
+              aria-label={projectsT("projectAwaitingAnswer")}
+              color="amber"
+            />
+          ) : completed ? (
+            <StatusDot
+              aria-label={projectsT("projectFinishedProcessing")}
+              color="green"
+            />
+          ) : (
+            <MessageSquare className="size-3.5" />
+          )}
+        </span>
+      ),
+      path: "",
+      sparklesPalette:
+        activeChatPalette === "accent"
+          ? accentSparklesPalette
+          : activeChatPalette,
+      streaming: anyStandalone(runningProjectIds),
+      worktreeBranch: null,
+    };
+  }, [
+    accentSparklesPalette,
+    awaitingAnswerProjectIds,
+    chats,
+    chatsTabActive,
+    completedProjectIds,
+    openStandalone,
+    projectsT,
+    runningProjectIds,
+    standaloneProjectIds,
+  ]);
+
   const projectTabItems = useMemo<ProjectTabItem[]>(
     () =>
       projects.map((project) => {
@@ -397,11 +482,33 @@ export const ProjectTabs = () => {
     ],
   );
 
+  const tabItems = useMemo(
+    () => [chatsTabItem, ...projectTabItems],
+    [chatsTabItem, projectTabItems],
+  );
+
+  // The Chats tab stays first: a move to or from it is ignored, and the
+  // open standalone project keeps its place after the project tabs.
   const handleProjectReorder = useCallback(
     (fromIndex: number, toIndex: number) => {
-      setProjects(moveTabItem(projects, fromIndex, toIndex));
+      if (fromIndex === 0 || toIndex === 0) return;
+      setProjects([
+        ...moveTabItem(projects, fromIndex - 1, toIndex - 1),
+        ...(openStandalone ? [openStandalone] : []),
+      ]);
     },
-    [projects, setProjects],
+    [openStandalone, projects, setProjects],
+  );
+
+  const handleActivate = useCallback(
+    (id: string) => {
+      if (id === CHATS_TAB_ID) {
+        void openChatsTab();
+        return;
+      }
+      setActiveProjectId(id);
+    },
+    [openChatsTab, setActiveProjectId],
   );
 
   return (
@@ -409,7 +516,7 @@ export const ProjectTabs = () => {
       <div className="min-w-0 flex-1 [-webkit-app-region:drag]">
         {appReady ? (
           <StandardTabs
-            activeId={activeProjectId}
+            activeId={chatsTabActive ? CHATS_TAB_ID : activeProjectId}
             after={
               projectTabItems.length > 0 ? (
                 <Button
@@ -426,35 +533,38 @@ export const ProjectTabs = () => {
             }
             ariaLabel={projectsT("projects")}
             interactiveClassName="[-webkit-app-region:no-drag]"
-            items={projectTabItems}
-            onActivate={setActiveProjectId}
+            items={tabItems}
+            onActivate={handleActivate}
             onDoubleClick={(project) => {
+              if (project.id === CHATS_TAB_ID) return;
               setOpenProjectMenuId(null);
               setEditTarget({ id: project.id, name: project.label });
               setEditValue(project.label);
             }}
             onReorder={handleProjectReorder}
-            renderActions={(project) => (
-              <ProjectActionsMenu
-                closeProject={closeProject}
-                editors={
-                  sshTargetOf(project.id)
-                    ? projectOpenInEditors.filter(
-                        (editor) => editor.supportsRemote,
-                      )
-                    : projectOpenInEditors
-                }
-                isMacOs={isMacOs}
-                onOpenInEditor={handleOpenProjectInEditor}
-                open={openProjectMenuId === project.id}
-                project={project}
-                setOpen={(open) =>
-                  setOpenProjectMenuId(open ? project.id : null)
-                }
-                setEditTarget={setEditTarget}
-                setEditValue={setEditValue}
-              />
-            )}
+            renderActions={(project) =>
+              project.id === CHATS_TAB_ID ? null : (
+                <ProjectActionsMenu
+                  closeProject={closeProject}
+                  editors={
+                    sshTargetOf(project.id)
+                      ? projectOpenInEditors.filter(
+                          (editor) => editor.supportsRemote,
+                        )
+                      : projectOpenInEditors
+                  }
+                  isMacOs={isMacOs}
+                  onOpenInEditor={handleOpenProjectInEditor}
+                  open={openProjectMenuId === project.id}
+                  project={project}
+                  setOpen={(open) =>
+                    setOpenProjectMenuId(open ? project.id : null)
+                  }
+                  setEditTarget={setEditTarget}
+                  setEditValue={setEditValue}
+                />
+              )
+            }
             renderFrame={(project, tab) => (
               <ProjectTabFrame
                 sparklesPalette={project.sparklesPalette}

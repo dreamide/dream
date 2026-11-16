@@ -200,7 +200,8 @@
     "worktree": "worktree",
     "removeRecent": "Rimuovi",
     "removeRecentTitle": "Rimuovere {name}?",
-    "removeRecentDescription": "Il progetto e le sue chat vengono rimossi da Dream. La cartella non viene toccata."
+    "removeRecentDescription": "Il progetto e le sue chat vengono rimossi da Dream. La cartella non viene toccata.",
+    "startChat": "Avvia una chat"
   },
   "openProject": {
     "title": "Apri cartella",
@@ -678,7 +679,11 @@
     "projectAwaitingAnswer": "Il progetto attende la tua risposta",
     "projectFinishedProcessing": "Elaborazione del progetto terminata",
     "projects": "Progetti",
-    "searchHistory": "Cerca nella cronologia..."
+    "searchHistory": "Cerca nella cronologia...",
+    "chats": "Chat",
+    "unableToStartChat": "Impossibile avviare la chat.",
+    "noStandaloneChats": "Nessuna chat ancora.",
+    "newChatOn": "Nuova chat su…"
   },
   "worktrees": {
     "baseRef": "Rif. base",
@@ -1098,6 +1103,7 @@
       "nextProject": "Progetto successivo",
       "previousProject": "Progetto precedente",
       "newChat": "Nuova chat",
+      "newStandaloneChat": "Nuova chat senza progetto",
       "focusChatInput": "Vai al campo della chat",
       "toggleChatHistory": "Mostra/nascondi cronologia chat",
       "toggleSideBySide": "Attiva/disattiva chat affiancate",

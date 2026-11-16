@@ -200,7 +200,8 @@
     "worktree": "arbre de travail",
     "removeRecent": "Retirer",
     "removeRecentTitle": "Retirer {name} ?",
-    "removeRecentDescription": "Le projet et ses conversations sont retirés de Dream. Le dossier lui-même n'est pas modifié."
+    "removeRecentDescription": "Le projet et ses conversations sont retirés de Dream. Le dossier lui-même n'est pas modifié.",
+    "startChat": "Démarrer une discussion"
   },
   "openProject": {
     "title": "Ouvrir un dossier",
@@ -678,7 +679,11 @@
     "projectAwaitingAnswer": "Le projet attend votre réponse",
     "projectFinishedProcessing": "Traitement du projet terminé",
     "projects": "Projets",
-    "searchHistory": "Rechercher dans l’historique..."
+    "searchHistory": "Rechercher dans l’historique...",
+    "chats": "Discussions",
+    "unableToStartChat": "Impossible de démarrer la discussion.",
+    "noStandaloneChats": "Aucune discussion pour l'instant.",
+    "newChatOn": "Nouveau chat sur…"
   },
   "worktrees": {
     "baseRef": "Réf de base",
@@ -1098,6 +1103,7 @@
       "nextProject": "Projet suivant",
       "previousProject": "Projet précédent",
       "newChat": "Nouveau chat",
+      "newStandaloneChat": "Nouveau chat sans projet",
       "focusChatInput": "Aller au champ du chat",
       "toggleChatHistory": "Afficher/masquer l’historique des chats",
       "toggleSideBySide": "Activer/désactiver les chats côte à côte",

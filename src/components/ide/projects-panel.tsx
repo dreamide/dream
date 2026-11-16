@@ -1,12 +1,27 @@
-import { Archive, FolderTree, FolderX, Pin, PinOff } from "lucide-react";
+import {
+  Archive,
+  FolderTree,
+  FolderX,
+  MessageSquarePlus,
+  Pin,
+  PinOff,
+} from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusDot } from "@/components/ui/status-dot";
+import { getClientPlatform } from "@/lib/connections/platform";
+import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import { cn } from "@/lib/utils";
 import type {
   ChatConfig,
@@ -24,6 +39,12 @@ import { RemoveWorktreeDialog } from "./git-actions/remove-worktree-dialog";
 import { normalizeProjectPathKey } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import { projectResourceKey, useProjectResource } from "./project-resources";
+import { useHostChoices } from "./ssh/use-host-choices";
+import {
+  listStandaloneChats,
+  standaloneProjectsById,
+  useStartStandaloneChat,
+} from "./standalone-chats";
 
 type WorktreeRepoPaths = { mainWorktreePath: string; repoRoot: string };
 
@@ -76,6 +97,7 @@ export const ProjectSidebar = ({
   const projectsT = useTranslations("projects");
   const panelsT = useTranslations("panels");
   const worktreeT = useTranslations("worktrees");
+  const sshT = useTranslations("sshHosts");
   const relativeTimeFormatter = useMemo(
     () =>
       new Intl.RelativeTimeFormat(locale, { numeric: "auto", style: "narrow" }),
@@ -86,6 +108,30 @@ export const ProjectSidebar = ({
     (s) => s.projects.find((item) => item.id === project.id)?.ui ?? project.ui,
   );
   const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
+  const showStandaloneChat = useIdeStore((s) => s.showStandaloneChat);
+  const openProjects = useIdeStore((s) => s.projects);
+  const closedProjects = useIdeStore((s) => s.closedProjects);
+  const hosts = useIdeStore((s) => s.hosts);
+  const hostChoices = useHostChoices();
+  const startStandaloneChat = useStartStandaloneChat();
+  // A standalone project's sidebar is the Chats tab's: the standalone chats
+  // of every Host.
+  const standaloneProjects = useMemo(
+    () =>
+      project.standalone
+        ? standaloneProjectsById(openProjects, closedProjects)
+        : null,
+    [closedProjects, openProjects, project.standalone],
+  );
+  const hostLabels = useMemo(
+    () => new Map(hostChoices.map((host) => [host.id, host.label])),
+    [hostChoices],
+  );
+  /** Hosts a standalone chat can be started on besides this machine. */
+  const otherConnectedHosts = useMemo(
+    () => hostChoices.filter((host) => hosts[host.id]?.state === "connected"),
+    [hostChoices, hosts],
+  );
   const activity = useIdeStore(useShallow(selectChatActivity));
   const completedChatIds = useIdeStore((s) => s.completedChatIds);
   const titleGeneratingChatIds = useIdeStore((s) => s.titleGeneratingChatIds);
@@ -97,13 +143,16 @@ export const ProjectSidebar = ({
     loading: worktreesLoading,
     repoPaths,
     worktrees,
-  } = useAppManagedWorktrees(project, visible);
+  } = useAppManagedWorktrees(project, visible && !project.standalone);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [pendingRemoveWorktree, setPendingRemoveWorktree] =
     useState<ProjectGitWorktreeInfo | null>(null);
 
   const activeProjectChats = useMemo<ChatConfig[]>(() => {
+    if (standaloneProjects) {
+      return listStandaloneChats(allChats, standaloneProjects);
+    }
     return allChats
       .filter(
         (chat) =>
@@ -123,7 +172,7 @@ export const ProjectSidebar = ({
 
         return rightUpdated - leftUpdated;
       });
-  }, [allChats, project.id]);
+  }, [allChats, project.id, standaloneProjects]);
 
   const filteredChats = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -139,10 +188,14 @@ export const ProjectSidebar = ({
   const activeChatId = projectUi.activeChatId;
 
   const handleChatSelect = useCallback(
-    (chatId: string) => {
-      setActiveChatId(project.id, chatId);
+    (chat: ChatConfig) => {
+      if (chat.projectId !== project.id && project.standalone) {
+        void showStandaloneChat(chat.id);
+        return;
+      }
+      setActiveChatId(project.id, chat.id);
     },
-    [project.id, setActiveChatId],
+    [project.id, project.standalone, setActiveChatId, showStandaloneChat],
   );
 
   const handleWorktreeSelect = useCallback(
@@ -178,7 +231,52 @@ export const ProjectSidebar = ({
       )}
     >
       <div className="px-3 py-3">
-        <p className="font-medium text-sm">{projectsT("chatHistory")}</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-medium text-sm">
+            {project.standalone ? projectsT("chats") : projectsT("chatHistory")}
+          </p>
+          {project.standalone && otherConnectedHosts.length > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    aria-label={projectsT("newChatOn")}
+                    className="text-muted-foreground hover:text-foreground"
+                    size="icon-sm"
+                    title={projectsT("newChatOn")}
+                    type="button"
+                    variant="ghost"
+                  />
+                }
+              >
+                <MessageSquarePlus className="size-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => {
+                    void startStandaloneChat();
+                    onChatSelect?.();
+                  }}
+                >
+                  {getClientPlatform().kind === "web"
+                    ? getClientPlatform().homeLabel
+                    : sshT("localMachine")}
+                </DropdownMenuItem>
+                {otherConnectedHosts.map((host) => (
+                  <DropdownMenuItem
+                    key={host.id}
+                    onClick={() => {
+                      void startStandaloneChat(host.id);
+                      onChatSelect?.();
+                    }}
+                  >
+                    {host.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
+        </div>
         <SearchInput
           className="mt-2"
           clearLabel={panelsT("clearSearch")}
@@ -263,7 +361,9 @@ export const ProjectSidebar = ({
                 <p>
                   {searchQuery.trim()
                     ? projectsT("noMatchingChats")
-                    : projectsT("noChatsForProject")}
+                    : project.standalone
+                      ? projectsT("noStandaloneChats")
+                      : projectsT("noChatsForProject")}
                 </p>
               </div>
             ) : (
@@ -279,6 +379,12 @@ export const ProjectSidebar = ({
                   Boolean(completedChatIds[chat.id]) &&
                   chat.id !== activeChatId;
                 const lastActiveAt = chat.updatedAt || chat.createdAt;
+                // Standalone chats of every Host share one list: a chat on
+                // another Host says which.
+                const chatProject = standaloneProjects?.get(chat.projectId);
+                const chatHostId = chatProject
+                  ? getProjectHostId(chatProject)
+                  : null;
                 const statusIndicator = isAwaiting ? (
                   <StatusDot
                     aria-label={projectsT("chatAwaitingApproval")}
@@ -312,7 +418,7 @@ export const ProjectSidebar = ({
                     <button
                       className="w-full rounded-[inherit] px-3 py-2 text-left"
                       onClick={(event) => {
-                        handleChatSelect(chat.id);
+                        handleChatSelect(chat);
                         onChatSelect?.();
                         if (event.detail > 0) {
                           event.currentTarget.blur();
@@ -336,6 +442,11 @@ export const ProjectSidebar = ({
                           <p className="min-w-0 truncate text-sm leading-5">
                             {chat.title}
                           </p>
+                          {chatHostId && chatHostId !== LOCAL_HOST_ID ? (
+                            <p className="min-w-0 truncate text-muted-foreground text-xs">
+                              {hostLabels.get(chatHostId) ?? chatHostId}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                       <span className="-translate-y-1/2 absolute top-1/2 right-3 text-right text-muted-foreground text-xs group-hover:opacity-0 group-focus-within:opacity-0">

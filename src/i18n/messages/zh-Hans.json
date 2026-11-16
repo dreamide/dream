@@ -200,7 +200,8 @@
     "worktree": "工作树",
     "removeRecent": "移除",
     "removeRecentTitle": "移除 {name}？",
-    "removeRecentDescription": "将从 Dream 中移除该项目及其聊天。文件夹本身不受影响。"
+    "removeRecentDescription": "将从 Dream 中移除该项目及其聊天。文件夹本身不受影响。",
+    "startChat": "开始聊天"
   },
   "openProject": {
     "title": "打开文件夹",
@@ -678,7 +679,11 @@
     "projectAwaitingAnswer": "项目正在等待您的回答",
     "projectFinishedProcessing": "项目处理完成",
     "projects": "项目",
-    "searchHistory": "搜索历史记录..."
+    "searchHistory": "搜索历史记录...",
+    "chats": "聊天",
+    "unableToStartChat": "无法开始聊天。",
+    "noStandaloneChats": "还没有聊天。",
+    "newChatOn": "新建聊天于…"
   },
   "worktrees": {
     "baseRef": "基础引用",
@@ -1098,6 +1103,7 @@
       "nextProject": "下一个项目",
       "previousProject": "上一个项目",
       "newChat": "新建聊天",
+      "newStandaloneChat": "无项目的新聊天",
       "focusChatInput": "聚焦聊天输入框",
       "toggleChatHistory": "显示/隐藏聊天记录",
       "toggleSideBySide": "切换并排聊天",

@@ -190,28 +190,46 @@ common.
 
 ## SC-03: The Chats tab
 
-Status: proposed
+Status: implemented (checked in the running app only for the tab strip;
+see Validation)
 
 Problem and trigger: standalone chats need one place in the tab strip, and
 ways to start one.
 
 Scope: `header/project-tabs.tsx`, `projects-panel.tsx` (`ProjectSidebar`),
-`empty-project-workspace.tsx`, the command palette and keybindings.
+`empty-project-workspace.tsx`, global shortcuts and keybindings, and chat
+search. The shared behavior is in `src/components/ide/standalone-chats.ts`.
 
 - The tab strip shows one "Chats" tab, first, instead of a tab per
   standalone project. The tab stands for whichever standalone project is
-  open, and is active when that project is active.
-- In the Chats tab, the sidebar lists the standalone chats of every Host,
-  newest first, with their activity. Rows on a Host other than the local
-  one carry its label, as project tabs do. Choosing a row opens that chat's
-  project (SC-02).
-- "New chat" in the Chats tab creates on the home Host. When other Hosts are
-  connected, a menu offers them.
-- Other entry points: "Start a chat" beside "Open folder" on the empty
-  workspace, a command palette entry, and a shortcut.
-- When creating a chat folder is refused (SC-01), the reason is shown and
-  nothing is created.
-- The Chats tab cannot be closed or reordered.
+  open, and is active when that project is active. It shows running,
+  waiting and finished marks for every standalone chat, open or closed.
+- Activating it shows the open standalone project; else the most recent
+  standalone chat; else it starts a new one on the local Host.
+- In a standalone project, the sidebar is "Chats". It lists the standalone
+  chats of every Host, pinned first and then newest, with their activity.
+  Rows on a Host other than the local one carry its label. Choosing a row in
+  another standalone project shows that project (SC-02).
+- "New chat" (side nav or `Mod+N`) in a standalone project starts another
+  standalone chat on the same Host, never a second chat in the same folder.
+  When other Hosts are connected, the Chats sidebar header has a menu to
+  start one on any of them.
+- Other entry points:
+  - "Start a chat" beside "Open folder" on the empty workspace;
+  - the shortcut "New chat without a project" (`Mod+Shift+N`; Ctrl+Alt is
+    AltGr on Windows keyboards, so it was avoided);
+  - chat search, which opens a standalone result behind the Chats tab and
+    labels it "Chats" rather than with the folder's name.
+- A refused chat folder (SC-01) shows the host's reason as a toast, and
+  nothing is created. An unreachable Host shows its own connection error.
+- The Chats tab cannot be closed, renamed or reordered. Project tabs move
+  among themselves. Next/previous project follows tab order.
+- In a standalone project, the Git rail button and the Git, Changes and
+  Pull requests shortcuts are hidden, and project icon detection is skipped.
+
+Changed from the original scope: "a command palette entry" became the
+shortcut and chat search. Dream has no command palette; its command-style
+search is chat search.
 
 Completion criteria:
 
@@ -224,7 +242,27 @@ Completion criteria:
 - Checked in the running app on the local host, following
   `docs/development-tools.md`.
 
-Validation: not started.
+Validation:
+
+- `standalone-chats.test.ts`: the list (Hosts, open and closed, pinned then
+  newest, empty and deleted chats left out). The store paths behind each
+  entry point are covered by SC-02's tests.
+- Locale tests: the new keys exist in all eleven locales.
+- `pnpm check` passed.
+- In the running development window (screenshot over the debugger
+  endpoint): the Chats tab renders first, before the project tabs, and
+  standalone projects are absent from the strip. The label showed its
+  message key, because the window had cached its messages before the keys
+  existed.
+- **Not yet checked end to end.** The running host process predates
+  `/api/chat-folders`, and the dev app was not restarted. Still to check
+  after a restart:
+  - creating, listing, swapping and deleting standalone chats;
+  - the composer's focus after each entry point;
+  - the refusal toast;
+  - two Hosts in one list.
+
+Remaining/deferred: a command palette entry, if Dream gains a palette.
 
 ## SC-04: Turn into project
 

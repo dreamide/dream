@@ -200,7 +200,8 @@
     "worktree": "worktree",
     "removeRecent": "Remove",
     "removeRecentTitle": "Remove {name}?",
-    "removeRecentDescription": "This removes the project and its chats from Dream. The folder itself is not touched."
+    "removeRecentDescription": "This removes the project and its chats from Dream. The folder itself is not touched.",
+    "startChat": "Start a chat"
   },
   "openProject": {
     "title": "Open folder",
@@ -678,7 +679,11 @@
     "projectAwaitingAnswer": "Project awaiting your answer",
     "projectFinishedProcessing": "Project finished processing",
     "projects": "Projects",
-    "searchHistory": "Search history..."
+    "searchHistory": "Search history...",
+    "chats": "Chats",
+    "unableToStartChat": "Unable to start a chat.",
+    "noStandaloneChats": "No chats yet.",
+    "newChatOn": "New chat on…"
   },
   "worktrees": {
     "baseRef": "Base ref",
@@ -1098,6 +1103,7 @@
       "nextProject": "Next project",
       "previousProject": "Previous project",
       "newChat": "New chat",
+      "newStandaloneChat": "New chat without a project",
       "focusChatInput": "Focus chat input",
       "toggleChatHistory": "Toggle chat history",
       "toggleSideBySide": "Toggle side-by-side chats",

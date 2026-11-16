@@ -70,6 +70,11 @@ export const SHORTCUT_ACTIONS = [
     id: "previousProject",
   },
   { category: "chat", defaults: same("Mod+N"), id: "newChat" },
+  {
+    category: "chat",
+    defaults: same("Mod+Shift+N"),
+    id: "newStandaloneChat",
+  },
   { category: "chat", defaults: same("Mod+L"), id: "focusChatInput" },
   {
     category: "chat",

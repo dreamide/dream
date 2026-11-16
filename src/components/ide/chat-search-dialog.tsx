@@ -108,6 +108,11 @@ const openChat = ({ chat, project }: ChatSearchRow) => {
     state.restoreChats([chat.id]);
   }
   state.setSettingsOpen(false);
+  // A standalone chat opens behind the Chats tab, closing the one there.
+  if (project.standalone) {
+    void state.showStandaloneChat(chat.id);
+    return;
+  }
   const show = () => {
     const current = useIdeStore.getState();
     current.setActiveProjectId(project.id);
@@ -130,6 +135,7 @@ export const ChatSearchDialog = () => {
   const locale = useLocale();
   const t = useTranslations("workspace");
   const commonT = useTranslations("common");
+  const projectsT = useTranslations("projects");
   const open = useChatSearchStore((s) => s.open);
   const setOpen = useChatSearchStore((s) => s.setOpen);
   const chats = useIdeStore((s) => s.chats);
@@ -209,7 +215,9 @@ export const ChatSearchDialog = () => {
                   </Badge>
                 ) : null}
                 <span className="ml-auto shrink-0 text-muted-foreground text-xs">
-                  {row.project.name}
+                  {row.project.standalone
+                    ? projectsT("chats")
+                    : row.project.name}
                   {" · "}
                   {formatLastActiveTime(
                     row.chat.updatedAt || row.chat.createdAt,
