@@ -303,6 +303,24 @@ export interface IdeState {
   ) => void;
   closeProject: (projectId: string) => void;
   /**
+   * Starts a standalone chat on a Host (the local one by default): shows
+   * that Host's empty one again, or creates a chat folder there and a
+   * standalone project for it. Not `ok` when the Host could not be reached
+   * (`error` null) or refused the folder (`error` as the API threw it).
+   */
+  createStandaloneChat: (options?: {
+    hostId?: string;
+  }) => Promise<
+    | { ok: true; chatId: string | null; projectId: string }
+    | { ok: false; error: unknown }
+  >;
+  /**
+   * Shows a standalone chat, restoring it when deleted. Its project opens
+   * and the standalone project that was open closes. False when the chat
+   * is not a standalone chat or its Host could not be reached.
+   */
+  showStandaloneChat: (chatId: string) => Promise<boolean>;
+  /**
    * Removes a closed project for good, with its chats: from this window and
    * from its host's catalog. Its folder is not touched.
    */

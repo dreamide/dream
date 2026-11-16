@@ -45,6 +45,7 @@ import {
   createSettingsActions,
   settleSettings,
 } from "./store/settings-actions";
+import { createStandaloneChatActions } from "./store/standalone-chat-actions";
 import { createStashActions } from "./store/stash-actions";
 import {
   createTerminalActions,
@@ -187,6 +188,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   // ── Actions: projects and chats ─────────────────────────────────────
   ...createProjectLifecycleActions(set, get, terminalSessionOwner),
   ...createWorktreeActions(set, get),
+  ...createStandaloneChatActions(set, get),
   ...createGitWriteActions(set, get),
   ...createChatActions(set, get),
   ...createStashActions(set, get),

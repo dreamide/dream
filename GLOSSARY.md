@@ -70,6 +70,19 @@ delete preview) and when it may merge. It purges a worktree only after git
 has removed it. The dialogs differ only in when they purge: on closing, or at
 once.
 
+## Standalone chat
+
+A Chat not tied to a folder the user picked. Its Project is a **standalone
+project** (`ProjectConfig.standalone` non-null) whose folder is a **chat
+folder** Dream made on the chat's Host, `~/.dream/chats/<date>-<id8>`
+(`electron/host/chat-folders.js`). The folder is created with the Project and
+refused when the root is inside a git checkout; otherwise it is an ordinary
+Project folder, so agents, terminals and checkpoints work in it unchanged.
+At most one standalone project is open.
+Showing another closes it (`store/standalone-chat-actions.ts`). A standalone
+project closes when its last live chat is deleted, and is removed when its
+chats are purged.
+
 ## Branch deletion
 
 Deleting a local branch (`electron/api/project-git/branches.js`). A branch is

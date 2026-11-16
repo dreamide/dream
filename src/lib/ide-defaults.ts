@@ -95,6 +95,7 @@ export const createProjectConfig = (
       stashItems: [],
     },
     worktree: null,
+    standalone: null,
   };
 };
 

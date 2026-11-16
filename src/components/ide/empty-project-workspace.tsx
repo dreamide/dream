@@ -167,6 +167,8 @@ export const EmptyProjectWorkspace = () => {
   const recentProjects = useMemo(
     () =>
       closedProjects
+        // Standalone chats are listed under Chats, not as projects.
+        .filter((project) => !project.standalone)
         .map((project, index) => ({
           index,
           lastUsedAt:

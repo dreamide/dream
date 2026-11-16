@@ -52,6 +52,7 @@ import {
 /** @typedef {import("../../src/types/ide").ProjectReference} ProjectReference */
 /** @typedef {import("../../src/types/ide").ProjectUiState} ProjectUiState */
 /** @typedef {import("../../src/types/ide").ProjectWorktreeInfo} ProjectWorktreeInfo */
+/** @typedef {import("../../src/types/ide").ProjectStandaloneInfo} ProjectStandaloneInfo */
 /** @typedef {import("../../src/types/ide").RightPanelView} RightPanelView */
 /** @typedef {import("../../src/types/ide").SavedPrompt} SavedPrompt */
 /** @typedef {import("../../src/types/ide").StashItem} StashItem */
@@ -608,6 +609,18 @@ const normalizeProjectWorktree = (value) => {
 
 /**
  * @param {unknown} value
+ * @returns {ProjectStandaloneInfo | null}
+ */
+const normalizeProjectStandalone = (value) =>
+  isRecord(value)
+    ? {
+        createdAt:
+          asNullableString(value.createdAt) ?? new Date(0).toISOString(),
+      }
+    : null;
+
+/**
+ * @param {unknown} value
  * @returns {ProjectUiState}
  */
 const normalizeProjectUi = (value) => {
@@ -680,6 +693,7 @@ const normalizeProject = (value, settings) => {
     reasoningEffort: normalizeReasoningEffort(value.reasoningEffort),
     ui: normalizeProjectUi(value.ui),
     worktree: normalizeProjectWorktree(value.worktree),
+    standalone: normalizeProjectStandalone(value.standalone),
   };
 };
 
@@ -1465,6 +1479,7 @@ export const projectToCatalogRow = (project) => {
       },
       runCommand: asString(project.runCommand, "pnpm dev"),
       worktree: isRecord(project.worktree) ? project.worktree : null,
+      standalone: isRecord(project.standalone) ? project.standalone : null,
     },
   };
 };
@@ -1557,6 +1572,7 @@ export const projectFromRow = (row, workspace = null) => {
     runCommand: metadata.runCommand,
     ui: workspace ? workspace.ui : metadata.ui,
     worktree: metadata.worktree,
+    standalone: metadata.standalone,
   };
 };
 

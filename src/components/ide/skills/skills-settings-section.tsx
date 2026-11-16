@@ -44,7 +44,12 @@ const NO_PROJECT_VALUE = "__none__";
  */
 export const SkillsSettingsSection = () => {
   const t = useTranslations("skills");
-  const projects = useIdeStore((state) => state.projects);
+  const openProjects = useIdeStore((state) => state.projects);
+  // A standalone chat's folder is not a project anyone picks.
+  const projects = useMemo(
+    () => openProjects.filter((project) => !project.standalone),
+    [openProjects],
+  );
   const activeProjectId = useIdeStore((state) => state.activeProjectId);
   const [provider, setProvider] = useState<AiProvider>("anthropic");
   const [projectId, setProjectId] = useState<string | null>(activeProjectId);

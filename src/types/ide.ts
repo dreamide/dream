@@ -171,6 +171,11 @@ export interface ProjectConfig {
   reasoningEffort: ReasoningEffort | null;
   ui: ProjectUiState;
   worktree: ProjectWorktreeInfo | null;
+  /**
+   * Set on a standalone chat's Project: its folder is a chat folder Dream
+   * made (`~/.dream/chats` on its Host), not one the user opened.
+   */
+  standalone: ProjectStandaloneInfo | null;
 }
 
 export type McpServerTransport = "stdio" | "http" | "sse";
@@ -193,6 +198,10 @@ export interface ProjectIconInfo {
   mimeType: string;
   source: string;
   mtimeMs: number;
+}
+
+export interface ProjectStandaloneInfo {
+  createdAt: string;
 }
 
 export interface ProjectWorktreeInfo {

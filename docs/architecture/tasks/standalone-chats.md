@@ -104,7 +104,7 @@ Remaining/deferred: a setting for the root (Codex has one).
 
 ## SC-02: Standalone projects in the workspace document
 
-Status: proposed
+Status: implemented
 
 Problem and trigger: the workspace document treats every Project as a tab
 the user opened. It seeds a default chat into any open Project with no live
@@ -114,25 +114,35 @@ the recent list.
 Scope: the workspace document, the codec and the store actions.
 
 - `ProjectConfig.standalone: { createdAt: string } | null`, persisted in the
-  project metadata like `worktree` (`electron/shared/persisted-state-codec.js`)
-  and declared once in the codec's persisted-field table. The host catalog
-  can then read it.
-- `createStandaloneChat(hostId)` asks SC-01 to create a chat folder, then adds
-  the Project through the existing `addProject` path with `standalone` set
-  and `name` "New chat". Before creating one, it reuses an existing standalone
-  project on that Host whose only chat is still an empty draft, so at most
-  one empty chat folder per Host is in use.
-- At most one standalone project is open in the whole workspace. Opening one
-  closes the one that was open.
-- `settle` does not seed a default chat into a standalone project. A
-  standalone project with no live chat is closed. When its chats are purged,
-  the project is removed too.
-- A standalone project's display name follows its first chat's title.
+  project metadata like `worktree` (`electron/shared/persisted-state-codec.js`).
+  The host catalog can then read it.
+- `createStandaloneChat({ hostId })` asks SC-01 to create a chat folder for a
+  new Project id, then opens the Project with `standalone` set. Before
+  creating one, it reuses an existing standalone project on that Host whose
+  only chat is still empty, so at most one empty chat folder per Host is in
+  use.
+- At most one standalone project is open in the whole workspace. Showing one
+  (`showStandaloneChat`, or creating one) closes the one that was open
+  through the close action, terminals included.
+- `settle` closes a standalone project whose chats were all deleted, rather
+  than seeding a default chat. A new standalone project, with no chats yet,
+  still gets its first one. When its chats are purged, the project is
+  removed too.
 - Standalone projects are left out of the recent/closed project list
-  (`empty-project-workspace.tsx`), the project switcher and project pickers.
-- The client hides git for them by the flag, not by `isRepo`: the branch
-  switcher, Git panel, Changes, worktree creation and "Continue in a
-  worktree".
+  (`empty-project-workspace.tsx`) and the Skills settings project picker.
+
+Changed from the original scope:
+
+- **Git is not hidden by the flag.** SC-01 refuses chat folders inside a
+  git checkout, so a chat folder reads as "not a repository" and the
+  existing `isRepo` gating already hides branches, worktree creation and
+  "Continue in a worktree". A user who runs `git init` in a chat folder gets
+  git features, as SC-04 intends after promotion. Hiding the Git panel's
+  entry for standalone projects is SC-03's.
+- **The project name is not kept in step with the chat title.** Nothing
+  shows a standalone project's name (the Chats list shows chat titles).
+  SC-04 names a promoted Project after its chat.
+- **The project switcher** is the tab strip, which is SC-03's.
 
 Excluded: the Chats tab UI (SC-03).
 
@@ -151,7 +161,27 @@ Completion criteria:
 - The codec round-trips `standalone`, and older rows read as `null`.
 - `GLOSSARY.md` gains Standalone chat and Chat folder.
 
-Validation: not started.
+Implementation: `store/standalone-chat-actions.ts` (`createStandaloneChat`,
+`showStandaloneChat`); `showStandaloneProject`, `findStandaloneDraft` and
+`standaloneProjectsWithoutChats` in `store/workspace-document.ts`, and the
+`settle` rule; `deleteChat` and `permanentlyDeleteChats` in
+`store/chat-actions.ts` close and remove what `settle` took out.
+
+Validation:
+
+- `workspace-document.test.ts`: six new tests, all under the document
+  invariant check.
+- `standalone-chat-actions.test.ts` (fake API): creation, draft reuse, the
+  swap stopping the closed project's terminals, refusal, deletion closing,
+  and purge removing.
+- `persisted-state-codec.test.js` and `electron/persisted-state.test.js`:
+  `standalone` round-trips through the codec and the relational store, and
+  an older row reads as `null`.
+- `pnpm check` passed.
+- By code reading, not in the running app: closing a project does not stop
+  its turns (they run on the host, and `chat-runtime.ts` finishes a turn
+  against open or closed projects), and branching adds the chat to the same
+  project (`branchChat`).
 
 Remaining/deferred: keeping terminals alive when switching between
 standalone chats would need several standalone projects open at once behind

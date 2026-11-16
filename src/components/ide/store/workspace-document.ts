@@ -298,7 +298,9 @@ const showOnly = (ui: ProjectUiState, chatId: string): ProjectUiState => ({
 /**
  * Enforces the invariant on every project and returns a document in which
  * anything that already held keeps its identity. An open project without a
- * live chat gets a default one, registered as its draft.
+ * live chat gets a default one, registered as its draft, except a standalone
+ * project whose chats were all deleted: it closes instead, since a new chat
+ * there would share the deleted one's folder.
  */
 export const settle = (
   doc: WorkspaceDocument,
@@ -322,12 +324,18 @@ export const settle = (
   };
 
   let projectsChanged = false;
-  const projects = doc.projects.map((project) => {
+  const closedStandalone: ProjectConfig[] = [];
+  const projects = doc.projects.flatMap((project) => {
     let activeChatId = ensureActiveChatForProject(
       chatsOf(project.id),
       project.id,
       project.ui.activeChatId,
     );
+    if (!activeChatId && project.standalone && chatsOf(project.id).length) {
+      closedStandalone.push(project);
+      projectsChanged = true;
+      return [];
+    }
     if (!activeChatId) {
       const chat = createDefaultChatConfig(project, settings);
       chats = [...chats, chat];
@@ -338,22 +346,24 @@ export const settle = (
     }
     const next = sanitized(project, activeChatId);
     projectsChanged ||= next !== project;
-    return next;
+    return [next];
   });
 
-  let closedChanged = false;
-  const closedProjects = doc.closedProjects.map((project) => {
-    const next = sanitized(
-      project,
-      ensureActiveChatForProject(
-        chatsOf(project.id),
-        project.id,
-        project.ui.activeChatId,
-      ),
-    );
-    closedChanged ||= next !== project;
-    return next;
-  });
+  let closedChanged = closedStandalone.length > 0;
+  const closedProjects = [...doc.closedProjects, ...closedStandalone].map(
+    (project) => {
+      const next = sanitized(
+        project,
+        ensureActiveChatForProject(
+          chatsOf(project.id),
+          project.id,
+          project.ui.activeChatId,
+        ),
+      );
+      closedChanged ||= next !== project;
+      return next;
+    },
+  );
 
   const activeProjectId =
     doc.activeProjectId === null
@@ -507,6 +517,92 @@ export const closeProject = (
     },
     settings,
   );
+};
+
+// ---------------------------------------------------------------------------
+// Standalone projects (GLOSSARY.md, Standalone chat)
+// ---------------------------------------------------------------------------
+
+const isAt = (project: ProjectConfig, path: string, hostId: string) =>
+  getProjectHostId(project) === hostId &&
+  normalizeProjectPathKey(project.path) === normalizeProjectPathKey(path);
+
+/**
+ * Shows the standalone project at `path` on `hostId`, opening it (or
+ * creating it with `create`), and closes every other open standalone
+ * project: at most one is open, and the Chats tab stands for it. The
+ * closed ones are named so the store can drop their runtime state.
+ */
+export const showStandaloneProject = (
+  doc: WorkspaceDocument,
+  settings: AppSettings,
+  path: string,
+  options: {
+    hostId?: string;
+    create?: (project: ProjectConfig) => ProjectConfig;
+  } = {},
+): {
+  doc: WorkspaceDocument;
+  chatId: string | null;
+  projectId: string;
+  closedProjectIds: string[];
+} => {
+  const hostId = options.hostId ?? LOCAL_HOST_ID;
+  const closedProjectIds = doc.projects
+    .filter((project) => project.standalone && !isAt(project, path, hostId))
+    .map((project) => project.id);
+  let next = doc;
+  for (const projectId of closedProjectIds) {
+    next = closeProject(next, settings, projectId);
+  }
+  const opened = openProject(next, settings, path, {
+    create: options.create,
+    hostId,
+  });
+  return { ...opened, closedProjectIds };
+};
+
+/**
+ * The standalone project on `hostId`, open or closed, whose only chat is
+ * still empty: "New chat" shows it again rather than making another folder.
+ */
+export const findStandaloneDraft = (
+  doc: WorkspaceDocument,
+  hostId: string,
+): ProjectConfig | null => {
+  const chatsByProject = chatsByProjectOf(doc.chats);
+  return (
+    allProjectsOf(doc).find((project) => {
+      if (!project.standalone || getProjectHostId(project) !== hostId) {
+        return false;
+      }
+      const chats = chatsByProject.get(project.id) ?? [];
+      const [chat] = chats;
+      return (
+        chats.length === 1 &&
+        chat !== undefined &&
+        chat.deletedAt === null &&
+        chat.messageCount === 0 &&
+        (doc.messagesByChatId[chat.id]?.length ?? 0) === 0
+      );
+    }) ?? null
+  );
+};
+
+/**
+ * Standalone projects left with no chats at all, deleted ones included:
+ * nothing can bring them back, so they are removed with their last chat.
+ */
+export const standaloneProjectsWithoutChats = (
+  doc: WorkspaceDocument,
+): string[] => {
+  const chatsByProject = chatsByProjectOf(doc.chats);
+  return allProjectsOf(doc)
+    .filter(
+      (project) =>
+        project.standalone && !(chatsByProject.get(project.id)?.length ?? 0),
+    )
+    .map((project) => project.id);
 };
 
 /** Replaces the open project list (a reorder, or the shell's sync). */

@@ -871,3 +871,168 @@ test("column widths are kept only for open chats", () => {
     [ids[0] as string]: 320,
   });
 });
+
+// ---------------------------------------------------------------------------
+// Standalone projects
+// ---------------------------------------------------------------------------
+
+const standalone =
+  (createdAt = "2026-11-16T00:00:00.000Z") =>
+  (project: ProjectConfig): ProjectConfig => ({
+    ...project,
+    standalone: { createdAt },
+  });
+
+test("a new standalone project opens with a first chat, its draft", () => {
+  const { doc, projectId, chatId, closedProjectIds } =
+    workspace.showStandaloneProject(
+      emptyDoc(),
+      SETTINGS,
+      "/home/me/.dream/chats/2026-11-16-aaaaaaaa",
+      { create: standalone() },
+    );
+
+  assertInvariant(doc);
+  assert.deepEqual(closedProjectIds, []);
+  assert.ok(projectIn(doc, projectId).standalone);
+  assert.equal(doc.draftChatIdByProject[projectId], chatId);
+  assert.equal(doc.activeProjectId, projectId);
+});
+
+test("showing a standalone project closes the other open one, with its chats", () => {
+  const { doc: base, projectId: plainId } = workspace.openProject(
+    emptyDoc(),
+    SETTINGS,
+    "/workspace/app",
+  );
+  const first = workspace.showStandaloneProject(base, SETTINGS, "/chats/a", {
+    create: standalone(),
+  });
+  const second = workspace.showStandaloneProject(
+    first.doc,
+    SETTINGS,
+    "/chats/b",
+    { create: standalone() },
+  );
+
+  assertInvariant(second.doc);
+  assert.deepEqual(second.closedProjectIds, [first.projectId]);
+  assert.deepEqual(
+    second.doc.projects.map((project) => project.id),
+    [plainId, second.projectId],
+  );
+  assert.ok(
+    second.doc.closedProjects.some((project) => project.id === first.projectId),
+  );
+  assert.equal(liveChatsOf(second.doc, first.projectId).length, 1);
+
+  // Showing the first again reopens it with its chat, closing the second.
+  const again = workspace.showStandaloneProject(
+    second.doc,
+    SETTINGS,
+    "/chats/a",
+  );
+  assertInvariant(again.doc);
+  assert.equal(again.projectId, first.projectId);
+  assert.equal(again.chatId, first.chatId);
+  assert.deepEqual(again.closedProjectIds, [second.projectId]);
+});
+
+test("deleting a standalone project's last live chat closes it instead of seeding one", () => {
+  const shown = workspace.showStandaloneProject(
+    emptyDoc(),
+    SETTINGS,
+    "/chats/a",
+    { create: standalone() },
+  );
+  const doc = workspace.deleteChat(shown.doc, SETTINGS, shown.chatId as string);
+
+  assertInvariant(doc);
+  assert.equal(doc.projects.length, 0);
+  assert.equal(doc.activeProjectId, null);
+  assert.equal(doc.closedProjects[0]?.id, shown.projectId);
+  assert.equal(doc.chats.length, 1, "no default chat was seeded");
+
+  // An ordinary project still gets a fresh chat.
+  const { chat, doc: plain } = seededDoc();
+  const afterPlain = workspace.deleteChat(plain, SETTINGS, chat.id);
+  assert.equal(afterPlain.projects.length, 1);
+  assert.equal(
+    liveChatsOf(afterPlain, afterPlain.projects[0]?.id ?? "").length,
+    1,
+  );
+});
+
+test("the standalone draft is the empty one on that host, open or closed", () => {
+  const first = workspace.showStandaloneProject(
+    emptyDoc(),
+    SETTINGS,
+    "/chats/a",
+    { create: standalone() },
+  );
+  assert.equal(
+    workspace.findStandaloneDraft(first.doc, "local")?.id,
+    first.projectId,
+  );
+  assert.equal(workspace.findStandaloneDraft(first.doc, "ssh-1"), null);
+
+  // Once its chat has a message it is a chat, not a draft.
+  const withMessage = {
+    ...first.doc,
+    messagesByChatId: {
+      ...first.doc.messagesByChatId,
+      [first.chatId as string]: [message("m1")],
+    },
+  };
+  assert.equal(workspace.findStandaloneDraft(withMessage, "local"), null);
+
+  // Closed (another standalone project shown), it is still found.
+  const second = workspace.showStandaloneProject(
+    first.doc,
+    SETTINGS,
+    "/chats/b",
+    { create: standalone() },
+  );
+  assert.ok(workspace.findStandaloneDraft(second.doc, "local"));
+});
+
+test("a standalone project with no chats left is reported for removal", () => {
+  const shown = workspace.showStandaloneProject(
+    emptyDoc(),
+    SETTINGS,
+    "/chats/a",
+    { create: standalone() },
+  );
+  const chatId = shown.chatId as string;
+  const deleted = workspace.deleteChat(shown.doc, SETTINGS, chatId);
+  assert.deepEqual(workspace.standaloneProjectsWithoutChats(deleted), []);
+
+  const purged = workspace.removeChats(deleted, SETTINGS, [chatId]);
+  assert.deepEqual(workspace.standaloneProjectsWithoutChats(purged), [
+    shown.projectId,
+  ]);
+  const removal = workspace.removeProjects(purged, SETTINGS, [shown.projectId]);
+  assertInvariant(removal.doc);
+  assert.deepEqual(removal.removedProjectIds, [shown.projectId]);
+});
+
+test("restore keeps an open standalone project with a live chat", () => {
+  const project = standalone()(createProjectConfig("/chats/a", SETTINGS));
+  const chat = createChatConfig(project, { title: "Question" });
+  const doc = workspace.restore(
+    {
+      activeProjectId: project.id,
+      chats: [{ ...chat, messageCount: 2 }],
+      closedProjects: [],
+      messagesByChatId: {},
+      projects: [project],
+    },
+    SETTINGS,
+  );
+
+  assertInvariant(doc);
+  assert.equal(
+    projectIn(doc, project.id).standalone?.createdAt,
+    "2026-11-16T00:00:00.000Z",
+  );
+});

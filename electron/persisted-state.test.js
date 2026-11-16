@@ -881,6 +881,7 @@ const FULL_PROJECT = {
   provider: "openai",
   reasoningEffort: "high",
   runCommand: "pnpm start",
+  standalone: { createdAt: "2026-07-19T12:00:00.000Z" },
   ui: FULL_PROJECT_UI,
   worktree: {
     baseRef: "main",

@@ -18,6 +18,7 @@ import type {
   IdeStoreSet,
   StoreActionDependencies,
 } from "./ide-store-types";
+import { commitWorkspaceRemoval } from "./project-runtime-state";
 import * as workspace from "./workspace-document";
 
 const withoutCompletedMarks = (
@@ -31,6 +32,18 @@ const withoutCompletedMarks = (
     }
   }
   return next;
+};
+
+/**
+ * Finishes closing the projects a chat removal took out of the tab strip: a
+ * standalone project closes when its last live chat goes (`settle`). The
+ * close action stops their terminals and drops their runtime state.
+ */
+const closeProjectsLeftOpen = (get: IdeStoreGet, openBefore: string[]) => {
+  const open = new Set(get().projects.map((project) => project.id));
+  for (const projectId of openBefore) {
+    if (!open.has(projectId)) get().closeProject(projectId);
+  }
 };
 
 export const createChatActions = (
@@ -261,6 +274,7 @@ export const createChatActions = (
   },
 
   deleteChat: (chatId: string) => {
+    const openBefore = get().projects.map((project) => project.id);
     set((state) => {
       const doc = workspace.deleteChat(state, state.settings, chatId);
       return doc === state
@@ -272,6 +286,7 @@ export const createChatActions = (
             ]),
           };
     });
+    closeProjectsLeftOpen(get, openBefore);
   },
 
   permanentlyDeleteChats: (chatIds: string[]) => {
@@ -290,6 +305,7 @@ export const createChatActions = (
     );
 
     const deletedChatIds = deletedChats.map((chat) => chat.id);
+    const openBefore = get().projects.map((project) => project.id);
     set((state) => {
       const doc = workspace.removeChats(state, state.settings, deletedChatIds);
       return doc === state
@@ -302,6 +318,19 @@ export const createChatActions = (
             ),
           };
     });
+    closeProjectsLeftOpen(get, openBefore);
+
+    // A standalone project goes with its last chat; nothing could show it.
+    const emptied = workspace.standaloneProjectsWithoutChats(get());
+    if (emptied.length > 0) {
+      const state = get();
+      void commitWorkspaceRemoval(
+        set,
+        get,
+        workspace.removeProjects(state, state.settings, emptied),
+      );
+      get().persist();
+    }
   },
 
   restoreChats: (chatIds: string[]) => {

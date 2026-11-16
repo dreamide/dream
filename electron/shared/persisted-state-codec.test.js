@@ -706,6 +706,7 @@ test("a project survives the row round trip", () => {
         modelSpeed: "fast",
         reasoningEffort: "high",
         runCommand: "pnpm start",
+        standalone: { createdAt: "2026-07-19T12:00:00.000Z" },
         ui: { fileEditorWordWrap: true, rightPanelOpen: false },
         worktree: {
           baseRef: "main",
@@ -723,6 +724,9 @@ test("a project survives the row round trip", () => {
   }).projects[0];
 
   // The catalog row holds what the host owns; the workspace row the rest.
+  assert.deepEqual(project.standalone, {
+    createdAt: "2026-07-19T12:00:00.000Z",
+  });
   const row = projectToCatalogRow(project);
   assert.equal(row.normalizedPath, "/home/user/project-one");
   assert.equal(Object.hasOwn(row.metadata, "ui"), false);
@@ -1021,4 +1025,14 @@ test("the same path on two hosts is two projects; a local project names no host"
     projectToWorkspaceRow(state.projects[1], "open", 0).hostId,
     "devbox",
   );
+});
+
+test("a project saved before standalone chats is not standalone", () => {
+  const project = decodePersistedState({
+    projects: [createRawProject()],
+    settings: { openAiSelectedModels: ["gpt-5"] },
+  }).projects[0];
+
+  assert.equal(project.standalone, null);
+  assert.equal(projectToCatalogRow(project).metadata.standalone, null);
 });
