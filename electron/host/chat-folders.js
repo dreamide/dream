@@ -6,10 +6,11 @@
 // The root must not be inside a git checkout: agents would read that
 // repository's instructions and git would report its status, so creating a
 // chat folder there is refused.
-import { mkdir, stat } from "node:fs/promises";
+import { lstat, mkdir, readdir, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { runGitCommand } from "../api/project-git/core.js";
+import { normalizeProjectPathKey } from "../shared/persisted-state-codec.js";
 
 /** How many characters of the Project id name its chat folder. */
 const PROJECT_ID_PREFIX_LENGTH = 8;
@@ -122,4 +123,65 @@ export async function createChatFolder({
     throw error;
   }
   return { path: folder };
+}
+
+/** A folder this young may not have reached the catalog yet. */
+export const CHAT_FOLDER_SWEEP_GRACE_MS = 60 * 60 * 1000;
+
+/** What a folder may hold and still be removed: nothing an agent made. */
+const DISPOSABLE_ENTRIES = new Set(["node_modules"]);
+
+/**
+ * Removes chat folders no Project owns any more and that hold nothing worth
+ * keeping (empty, or only `node_modules`). A folder with anything else in
+ * it is the user's and stays. Folders younger than the grace period are
+ * skipped, since a new chat's folder exists before its Project reaches the
+ * catalog. Only real folders directly under the root are considered;
+ * symlinks are never followed.
+ * @param {{ list: () => Promise<{ projects: unknown[] }> }} catalog
+ * @param {{ home?: string, now?: number, graceMs?: number }} [options]
+ * @returns {Promise<string[]>} the folders removed
+ */
+export async function sweepChatFolders(
+  catalog,
+  {
+    home = os.homedir(),
+    now = Date.now(),
+    graceMs = CHAT_FOLDER_SWEEP_GRACE_MS,
+  } = {},
+) {
+  const root = getChatFoldersRoot(home);
+  const removed = [];
+  try {
+    const entries = await readdir(root, { withFileTypes: true }).catch(
+      (error) => {
+        if (error?.code === "ENOENT") return [];
+        throw error;
+      },
+    );
+    const folders = entries.filter((entry) => entry.isDirectory());
+    if (folders.length === 0) return removed;
+
+    const { projects } = await catalog.list();
+    const owned = new Set(
+      projects.map((project) =>
+        normalizeProjectPathKey(
+          typeof project?.path === "string" ? project.path : "",
+        ),
+      ),
+    );
+    for (const entry of folders) {
+      const folder = path.join(root, entry.name);
+      if (owned.has(normalizeProjectPathKey(folder))) continue;
+      const stats = await lstat(folder);
+      if (!stats.isDirectory() || now - stats.mtimeMs < graceMs) continue;
+      const contents = await readdir(folder);
+      if (!contents.every((name) => DISPOSABLE_ENTRIES.has(name))) continue;
+      await rm(folder, { force: true, recursive: true });
+      removed.push(folder);
+    }
+  } catch (error) {
+    console.warn("Unable to clean up chat folders.", error);
+  }
+  return removed;
 }

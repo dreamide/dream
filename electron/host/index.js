@@ -30,6 +30,7 @@ import { detectAvailableTerminalShells } from "../terminal-shells.js";
 import { createHostAuth } from "./auth/host-auth.js";
 import { createHostCatalog } from "./catalog.js";
 import { sweepChatAttachments } from "./chat-attachments.js";
+import { sweepChatFolders } from "./chat-folders.js";
 import { configureHostDataDirectory } from "./host-paths.js";
 import { createHostProofSigner, loadHostIdentity } from "./identity.js";
 import { HOST_CAPABILITIES, HOST_PROTOCOL_VERSION } from "./protocol.js";
@@ -152,7 +153,11 @@ export function createHost({
     getReader,
     getRunningChatIds: turns.streamingChatIds,
     getWriter,
-    onChatsRemoved: () => void sweepChatAttachments(catalog),
+    onChatsRemoved: () => {
+      void sweepChatAttachments(catalog);
+      // A removed standalone project may leave an empty chat folder.
+      void sweepChatFolders(catalog);
+    },
   });
   // A chat waiting on its user is news to every client, open or not.
   const stopApprovalEvents = onToolApprovalsChange(({ awaiting, chatId }) =>
@@ -290,6 +295,7 @@ export function createHost({
       await scheduler.initialize();
       // Removals a previous run could not finish.
       void sweepChatAttachments(catalog);
+      void sweepChatFolders(catalog);
       // Paired devices' sessions; local work never waits on them. A failed
       // load is tried again by the next remote request, which fails closed.
       await auth.load().catch((error) => {

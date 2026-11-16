@@ -308,23 +308,37 @@ Validation:
 
 ## SC-05: Chat folder cleanup
 
-Status: proposed
+Status: implemented
 
 Problem and trigger: chat folders outlive their chats. Folders are not
 created again once removed, so only a folder whose Project is gone may be
 removed.
 
-Scope: SC-01's Host module, run when the host catalog removes a standalone
-project and once at host startup.
+Scope: `sweepChatFolders` in `electron/host/chat-folders.js`. It runs where
+the chat attachment sweep runs (`electron/host/index.js`): after the host
+catalog removes chats or projects (`onChatsRemoved`), and once when the
+host starts listening.
 
 - A folder directly under the root is removed when it is empty or holds only
   `node_modules`, and no Project in the host catalog has it as its path.
-- At startup, folders younger than one hour are skipped. A folder can exist
-  briefly before its Project reaches the catalog, because the client
+- Folders younger than one hour (by modification time) are skipped. A folder
+  can exist before its Project reaches the catalog, because the client
   registers the Project and the catalog learns of it on the next save.
 - Any other content keeps the folder, even after its chat is purged: those
   files are the user's.
 - A promoted Project (SC-04) still owns its folder, so it is never removed.
+
+Changed from the original scope:
+
+- **The grace period applies to every sweep, not only at startup.** A sweep
+  after an unrelated removal could otherwise remove a chat folder created
+  moments before, whose Project was not saved yet. The cost: a purged
+  chat's empty folder younger than an hour waits for a later sweep.
+- **There is no separate check for an active turn, terminal or run
+  command.** Only a folder no Project owns is considered. A Project is
+  removed only after its chats are purged, and the client stops its
+  terminals when it is removed (`commitWorkspaceRemoval`). The grace period
+  covers what is left.
 
 Completion criteria:
 
@@ -338,13 +352,31 @@ Completion criteria:
     the grace period.
 - Removal never follows symlinks out of the root.
 
-Validation: not started.
+Validation: `chat-folder-routes.test.js`, "sweeping chat folders", uses a
+temporary home and a stub catalog. It covers:
+
+- empty and `node_modules`-only folders without a Project are removed;
+- a folder with a file is kept;
+- an owned folder is kept;
+- a folder younger than the grace period is kept;
+- a junction to a folder outside the root is not followed;
+- a missing root is nothing to sweep.
+
+The triggers themselves (removal and startup) are covered by reading
+`index.js`; they sit beside the attachment sweep's. `pnpm check` passed.
 
 Remaining/deferred: a way to browse or delete folders that outlived their
 chats.
 
 ## Recovery
 
-Document: `docs/architecture/tasks/standalone-chats.md`. Order: SC-01, SC-02,
-SC-03, then SC-04 and SC-05 in either order. All five are proposed; none is
-implemented or validated. User constraints: the five decisions above.
+Document: `docs/architecture/tasks/standalone-chats.md`. SC-01 to SC-05 are
+implemented and committed on `main`. Remaining:
+
+- SC-03's end-to-end check in the running app after a restart (creating,
+  listing, swapping and deleting, the composer's focus after each entry
+  point, the refusal toast, two Hosts in one list);
+- SC-04's git features after `git init`, in the running app.
+
+User constraints: the five decisions above; commit after each task; no new
+branches; do not start or restart the dev server.
