@@ -1264,15 +1264,19 @@ export const createBrowserMcpServer = ({ projectId }) => {
 
 /**
  * Append Dream's browser MCP endpoint to a user-configured MCP server list,
- * for providers that consume external (HTTP) MCP servers.
+ * for providers that consume external (HTTP) MCP servers (attachBrowser in
+ * browser-attach.js chooses the scope from the Provider's mechanism).
  *
- * - `scope: "project"` (OpenCode, ACP): per-session config, so the URL
+ * - `scope: "project"` (project-url): per-session config, so the URL
  *   carries the project id. Skipped when there is no project.
- * - `scope: "shared"` (Codex): one long-lived app-server whose config must
- *   stay stable, so the URL is project-agnostic and the endpoint resolves the
- *   project from the running Codex turn.
+ * - `scope: "shared"` (shared-url): one long-lived agent process whose
+ *   config must stay stable, so the URL is project-agnostic and the endpoint
+ *   resolves the project per call (resolveSharedBrowserProject).
  *
  * Returns the input list unchanged when the endpoint or bridge is missing.
+ * @param {any[]} mcpServers
+ * @param {{ projectId?: string | null, scope?: "project" | "shared" }} [options]
+ * @returns {any[]}
  */
 export const appendBrowserMcpServer = (
   mcpServers,

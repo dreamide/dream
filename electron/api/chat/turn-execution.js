@@ -10,7 +10,8 @@ const HOST_ORIGIN = "host";
  * writes it (at most once a second, whichever provider runs it) and at the
  * end. The turn's Provider session (provider-session.js) hears how the turn
  * started and keeps, at the end, the session it reported, so a turn nobody
- * watched can still be resumed later. The transcript is the
+ * watched can still be resumed later; `onSessionId` hears each session id
+ * the turn reports as it reports it. The transcript is the
  * client's own request (not what a provider made of it) with the assistant
  * message being written in place of, or after, its last message.
  *
@@ -27,6 +28,7 @@ export const createTurnRecorder = ({
   transcript = prepareTurnTranscript(requestMessages),
   saveIntervalMs,
   onChunk,
+  onSessionId,
   providerSession,
 }) => {
   let resolveDone;
@@ -67,6 +69,7 @@ export const createTurnRecorder = ({
     },
     onEnd: () => resolveDone(saveError),
     onSessionStart: (start) => providerSession?.started(start) ?? {},
+    onSessionId,
     saveIntervalMs,
     async onMessage(message, { final }) {
       if (final)
@@ -84,8 +87,9 @@ export const createTurnRecorder = ({
 };
 
 /**
- * Runs a provider behind the production completion seam. Checkpoint capture is
- * best-effort, but its work settles before EOF (also after Stop or stream error).
+ * Runs a provider behind the production completion seam. `finalize` runs once
+ * the turn settles, however it ends: checkpoint capture is best-effort, but
+ * its work settles before EOF (also after Stop or stream error).
  * The registry owns consumption, so a disconnected subscriber cannot cancel it.
  */
 export const executeAgentTurn = async (
@@ -96,6 +100,7 @@ export const executeAgentTurn = async (
     transcript,
     providerSession,
     onChunk,
+    onSessionId,
     finalize,
     saveIntervalMs,
   },
@@ -110,6 +115,7 @@ export const executeAgentTurn = async (
           transcript,
           providerSession,
           onChunk,
+          onSessionId,
           saveIntervalMs,
         })
       : null;

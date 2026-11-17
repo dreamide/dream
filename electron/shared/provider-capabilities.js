@@ -39,10 +39,20 @@
  * @property {boolean} nativeFork The adapter can fork from an exact recorded native boundary.
  * @property {boolean} toolsFixedAtSessionStart Tools registered when a native
  *   session starts cannot change when it resumes (Codex's dynamic tools).
- * @property {"shared" | "project" | null} browserMcpScope How Dream's browser
- *   tools are exposed over MCP: one shared endpoint (a single long-lived
- *   agent process), a per-project endpoint, or not over MCP at all (Claude
- *   gets an in-process server; Cursor gets none).
+ * @property {BrowserToolsMechanism} browserTools How an Agent turn gets
+ *   Dream's browser tools (browser-attach.js).
+ */
+
+/**
+ * How an Agent turn gets Dream's browser tools.
+ * - in-process: an MCP server object handed to the adapter (Claude's SDK).
+ * - project-url: the browser MCP endpoint with the project in its URL, in the
+ *   turn's MCP servers (a per-session MCP config).
+ * - shared-url: the endpoint without a project, in the turn's MCP servers,
+ *   for an agent process whose MCP config is fixed when it starts (Codex's
+ *   app server); each call names its project by the session it carries.
+ * - none: no browser tools.
+ * @typedef {"in-process" | "project-url" | "shared-url" | "none"} BrowserToolsMechanism
  */
 
 /** @type {AiProvider[]} */
@@ -67,7 +77,7 @@ export const PROVIDER_CAPABILITIES = {
     mcp: true,
     skills: { dispatch: "native" },
     usageLimits: true,
-    browserMcpScope: "shared",
+    browserTools: "shared-url",
   },
   anthropic: {
     label: "Claude Code",
@@ -84,7 +94,7 @@ export const PROVIDER_CAPABILITIES = {
       readUserInvocationOnly: true,
     },
     usageLimits: true,
-    browserMcpScope: null,
+    browserTools: "in-process",
   },
   opencode: {
     label: "OpenCode",
@@ -100,7 +110,7 @@ export const PROVIDER_CAPABILITIES = {
       toolLabel: "the skill tool",
     },
     usageLimits: true,
-    browserMcpScope: "project",
+    browserTools: "project-url",
   },
   cursor: {
     label: "Cursor Agent",
@@ -112,7 +122,7 @@ export const PROVIDER_CAPABILITIES = {
     mcp: false,
     skills: { dispatch: "slash" },
     usageLimits: false,
-    browserMcpScope: null,
+    browserTools: "none",
   },
   grok: {
     label: "Grok Build",
@@ -124,7 +134,7 @@ export const PROVIDER_CAPABILITIES = {
     mcp: true,
     skills: null,
     usageLimits: true,
-    browserMcpScope: "project",
+    browserTools: "project-url",
   },
   antigravity: {
     label: "Antigravity",
@@ -136,7 +146,7 @@ export const PROVIDER_CAPABILITIES = {
     mcp: false,
     skills: { dispatch: "slash" },
     usageLimits: true,
-    browserMcpScope: null,
+    browserTools: "none",
   },
 };
 

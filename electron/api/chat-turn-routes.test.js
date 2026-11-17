@@ -8,17 +8,24 @@ import path from "node:path";
 import { Hono } from "hono";
 import { afterEach, test, vi } from "vitest";
 
-const gate = vi.hoisted(() => ({ release: null, signal: null }));
+const gate = vi.hoisted(() => ({
+  browserTools: "none",
+  options: null,
+  release: null,
+  signal: null,
+}));
 
 vi.mock("./providers/registry.js", async () => {
   const { streamAgentTurn } = await import("./chat/agent-turn.js");
   return {
     getProvider: () => ({
       id: "openai",
-      browserMcpScope: null,
+      browserTools: gate.browserTools,
       checkReady: async () => null,
-      stream: ({ abortSignal, messages, responseMessageMetadata }) =>
-        streamAgentTurn({
+      stream: (options) => {
+        const { abortSignal, messages, responseMessageMetadata } = options;
+        gate.options = options;
+        return streamAgentTurn({
           abortSignal,
           execute: async (turn) => {
             gate.signal = abortSignal;
@@ -37,12 +44,21 @@ vi.mock("./providers/registry.js", async () => {
           projectPath: "/p",
           provider: "openai",
           responseMessageMetadata,
-        }),
+        });
+      },
     }),
   };
 });
 
 const { createTurnRegistry } = await import("./chat/turn-registry.js");
+const { setBrowserBridge, setBrowserMcpEndpoint } = await import(
+  "./browser-bridge.js"
+);
+const {
+  attachBrowser,
+  resetSharedBrowserTurnsForTests,
+  resolveSharedBrowserProject,
+} = await import("./chat/browser-attach.js");
 const { registerChatRoutes } = await import("./chat-routes.js");
 const { createHostCatalog } = await import("../host/catalog.js");
 const { configureHostDataDirectory } = await import("../host/host-paths.js");
@@ -77,6 +93,8 @@ afterEach(async () => {
   gate.release?.();
   gate.release = null;
   gate.signal = null;
+  gate.browserTools = "none";
+  gate.options = null;
   // A write after the database closes would reopen it and keep it locked.
   if (turns) await waitFor(() => !turns.isRunning("c1"));
   await waitFor(writesSettled);
@@ -87,6 +105,9 @@ afterEach(async () => {
     await rm(directory, { force: true, maxRetries: 5, recursive: true });
   }
   directory = null;
+  setBrowserBridge(null);
+  setBrowserMcpEndpoint(null);
+  resetSharedBrowserTurnsForTests();
 });
 
 const setup = async () => {
@@ -118,9 +139,11 @@ const setup = async () => {
     messages = [
       { id: "u1", parts: [{ text: "Go", type: "text" }], role: "user" },
     ],
+    extra = {},
   ) =>
     app.request("/api/chat", {
       body: JSON.stringify({
+        ...extra,
         chatId: "c1",
         checkpointsEnabled: false,
         messages,
@@ -220,6 +243,68 @@ test("only the stop route ends a turn early", async () => {
   assert.deepEqual(await stopped.json(), { stopped: true });
   assert.equal(gate.signal.aborted, true);
   await waitFor(() => !turns.isRunning("c1"));
+});
+
+test("a turn gets its browser by the Provider's mechanism, names it by the session it reports, and releases it when it settles", async () => {
+  gate.browserTools = "shared-url";
+  setBrowserBridge({ sendCommand: async () => ({ tabs: [] }) });
+  setBrowserMcpEndpoint({
+    headers: {},
+    url: "http://127.0.0.1:4000/api/mcp/browser",
+  });
+  // Another shared-url turn, already running in another project.
+  const other = attachBrowser({ mechanism: "shared-url", projectId: "p2" });
+  const { startTurn, turns } = await setup();
+
+  const response = await startTurn(undefined, { projectId: "p1" });
+  await response.body.cancel();
+  await waitFor(() => gate.release !== null);
+  assert.equal(gate.options.browserMcpServer, null);
+  assert.equal(
+    gate.options.mcpServers.at(-1).url,
+    "http://127.0.0.1:4000/api/mcp/browser",
+  );
+  assert.equal(resolveSharedBrowserProject(), "p1");
+
+  gate.release();
+  await waitFor(() => !turns.isRunning("c1"));
+  // Released: the guess is the turn still running; the session it reported
+  // (`turn.session("session-42")`) still names its project.
+  assert.equal(resolveSharedBrowserProject(), "p2");
+  assert.equal(resolveSharedBrowserProject({ sessionId: "session-42" }), "p1");
+  other.end();
+});
+
+test("a stopped turn releases its browser too", async () => {
+  gate.browserTools = "shared-url";
+  const other = attachBrowser({ mechanism: "shared-url", projectId: "p2" });
+  const { app, startTurn, turns } = await setup();
+  const response = await startTurn(undefined, { projectId: "p1" });
+  await response.body.cancel();
+  await waitFor(() => gate.signal !== null);
+  assert.equal(resolveSharedBrowserProject(), "p1");
+
+  await app.request("/api/chat/stop", {
+    body: JSON.stringify({ chatId: "c1" }),
+    headers: { "Content-Type": "application/json" },
+    method: "POST",
+  });
+  await waitFor(() => !turns.isRunning("c1"));
+  assert.equal(resolveSharedBrowserProject(), "p2");
+  other.end();
+});
+
+test("an in-process turn gets the server object and no endpoint", async () => {
+  gate.browserTools = "in-process";
+  setBrowserBridge({ sendCommand: async () => ({ tabs: [] }) });
+  const { startTurn } = await setup();
+  const response = await startTurn(undefined, { projectId: "p1" });
+  await waitFor(() => gate.release !== null);
+  assert.ok(gate.options.browserMcpServer);
+  assert.deepEqual(gate.options.mcpServers, []);
+  assert.equal(resolveSharedBrowserProject(), null);
+  gate.release();
+  await response.text();
 });
 
 test("a running turn is saved as it goes, the request once, then only the message it is writing", async () => {

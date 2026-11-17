@@ -860,7 +860,7 @@ Each has a record in the **provider registry**
 (`electron/api/providers/registry.js`: readiness, stream, one-shot text,
 title model, model and usage fetchers, native fork) built on its row in the
 shared **provider capabilities** (`electron/shared/provider-capabilities.js`:
-MCP, skill dispatch style, usage limits, browser-MCP scope, whether a
+MCP, skill dispatch style, usage limits, how a turn gets browser tools, whether a
 session keeps across models and whether its tools are fixed when it starts,
 the setting holding its picked models, how its model ids are spelt), which the
 renderer reads too. How the renderer shows it is its **provider
@@ -964,6 +964,21 @@ Closing the active tab selects its neighbor; closing the final tab leaves a
 blank replacement. The panel also closes itself on final-tab close, while an
 agent's close command leaves the panel open. An agent opening a URL can reuse
 the active blank tab; the panel's Add tab always adds one.
+
+## Browser tools for an Agent turn
+
+How a turn's agent reaches the project's Browser tabs, attached once per
+turn by `attachBrowser` (`electron/api/chat/browser-attach.js`) in
+`chat-routes.js` and ended when the turn settles. The Provider's
+`browserTools` capability names the mechanism: **in-process** (an MCP server
+object handed to the adapter; Claude Code), **project-url** (the browser MCP
+endpoint with the project in its URL, among the turn's MCP servers;
+OpenCode, Grok), **shared-url** (one endpoint for every turn, for an agent
+process whose MCP config is fixed when it starts; Codex) or **none**. A
+shared-url call names its turn by the Provider session it carries (Codex's
+`_meta.threadId`); one that names none goes to the most recently started
+shared-url turn (`resolveSharedBrowserProject`). Adapters only use what they
+are given.
 
 ## File editor session
 

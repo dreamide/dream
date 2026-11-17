@@ -15,7 +15,7 @@ vi.mock("./providers/registry.js", async () => {
     getProvider: () => ({
       id: "openai",
       modelSwitchInSession: true,
-      browserMcpScope: null,
+      browserTools: "none",
       checkReady: async () => null,
       stream: ({
         abortSignal,

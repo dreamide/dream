@@ -9,9 +9,9 @@ import {
   registerBrowserMcpRoutes,
 } from "./browser-mcp-routes.js";
 import {
-  beginBrowserTurn,
-  resetBrowserTurnsForTests,
-} from "./chat/active-browser-turns.js";
+  attachBrowser,
+  resetSharedBrowserTurnsForTests,
+} from "./chat/browser-attach.js";
 import { appendBrowserMcpServer } from "./chat/browser-tools.js";
 
 const createFakeBridge = () => {
@@ -54,7 +54,7 @@ const connectClient = async (app, path) => {
 afterEach(() => {
   setBrowserBridge(null);
   setBrowserMcpEndpoint(null);
-  resetBrowserTurnsForTests();
+  resetSharedBrowserTurnsForTests();
 });
 
 test("serves the browser tools over Streamable HTTP, scoped by project", async () => {
@@ -85,7 +85,7 @@ test("serves the browser tools over Streamable HTTP, scoped by project", async (
   await client.close();
 });
 
-test("shared endpoint resolves the project from the running Codex turn", async () => {
+test("shared endpoint resolves the project from the running shared-url turn, with no provider named", async () => {
   const bridge = createFakeBridge();
   setBrowserBridge(bridge);
   const app = new Hono();
@@ -99,14 +99,62 @@ test("shared endpoint resolves the project from the running Codex turn", async (
   assert.equal(noTurn.isError, true);
   assert.match(noTurn.content[0].text, /No Dream project/);
 
-  const end = beginBrowserTurn({ projectId: "codex-proj", provider: "openai" });
+  const browser = attachBrowser({
+    mechanism: "shared-url",
+    projectId: "shared-proj",
+  });
   const result = await client.callTool({
     arguments: {},
     name: "browser_list_tabs",
   });
-  end();
+  browser.end();
   assert.equal(result.isError, undefined);
-  assert.equal(bridge.commands.at(-1).projectId, "codex-proj");
+  assert.equal(bridge.commands.at(-1).projectId, "shared-proj");
+  await client.close();
+});
+
+test("two concurrent shared-url turns in different projects: a call naming its thread reaches its own project, one naming none the newest", async () => {
+  const bridge = createFakeBridge();
+  setBrowserBridge(bridge);
+  const app = new Hono();
+  registerBrowserMcpRoutes(app);
+  const client = await connectClient(app, BROWSER_MCP_PATH);
+
+  const a = attachBrowser({ mechanism: "shared-url", projectId: "proj-a" });
+  const b = attachBrowser({ mechanism: "shared-url", projectId: "proj-b" });
+  // What each turn's adapter reported (`turn.session`): its Codex thread.
+  a.session("thread-a");
+  b.session("thread-b");
+
+  // Codex puts the calling thread in a tool call's `_meta`.
+  const callAs = async (_meta) => {
+    await client.callTool({
+      arguments: {},
+      name: "browser_list_tabs",
+      ...(_meta ? { _meta } : {}),
+    });
+    return bridge.commands.at(-1).projectId;
+  };
+  assert.equal(await callAs({ threadId: "thread-a" }), "proj-a");
+  assert.equal(await callAs({ threadId: "thread-b" }), "proj-b");
+  // Or inside its turn metadata, as an object or as JSON text.
+  assert.equal(
+    await callAs({ "x-codex-turn-metadata": { thread_id: "thread-a" } }),
+    "proj-a",
+  );
+  assert.equal(
+    await callAs({
+      "x-codex-turn-metadata": JSON.stringify({ thread_id: "thread-a" }),
+    }),
+    "proj-a",
+  );
+  // No thread, or one no turn reported (a Codex subagent's): the guess.
+  assert.equal(await callAs(null), "proj-b");
+  assert.equal(await callAs({ threadId: "subagent-thread" }), "proj-b");
+
+  b.end();
+  assert.equal(await callAs(null), "proj-a");
+  a.end();
   await client.close();
 });
 

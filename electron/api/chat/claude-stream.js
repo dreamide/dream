@@ -29,7 +29,6 @@ import { streamAgentTurn } from "./agent-turn.js";
 import {
   BROWSER_MCP_SERVER_NAME,
   BROWSER_READ_ONLY_TOOL_IDS,
-  createBrowserMcpServer,
 } from "./browser-tools.js";
 import { formatStreamError } from "./errors.js";
 import { toClaudeMcpServers } from "./mcp-servers.js";
@@ -486,13 +485,13 @@ const parseAskUserQuestionApproval = (reason) => {
 
 export const streamClaudeResponse = async ({
   abortSignal,
+  browserMcpServer = null,
   chatId,
   permissionMode,
   mcpServers = [],
   messages,
   model,
   modelSpeed,
-  projectId,
   projectReferencesPrompt,
   projectPath,
   reasoningEffort,
@@ -509,10 +508,9 @@ export const streamClaudeResponse = async ({
         ? "bypass"
         : "ask";
   const claudeExecutablePath = await resolveCliCommandPath("claude");
-  // Dream's built-in browser is exposed as an in-process MCP server so the
-  // agent can open tabs, navigate, inspect and interact with the same
-  // <webview> tabs the user sees. Absent when there is no project context.
-  const browserMcpServer = createBrowserMcpServer({ projectId });
+  // `browserMcpServer`: Dream's built-in browser as an in-process MCP server
+  // (browser-attach.js), so the agent drives the same <webview> tabs the
+  // user sees. Null when the turn has no project or no browser.
   const { directory: attachmentDirectory, filePaths: attachmentPaths } =
     await saveChatAttachments({ chatId, messages });
   // The session the host said to resume, if Claude Code still has it.

@@ -181,6 +181,7 @@ export const createAgentTurn = ({
   maxTextChars = DEFAULT_MAX_TEXT_CHARS,
   chatId = null,
   onSessionStart,
+  onSessionId,
 }) => {
   let sessionId = null;
   // What the host records about how the turn started (provider-session.js),
@@ -473,6 +474,7 @@ export const createAgentTurn = ({
       if (nextId && nextId !== sessionId) {
         sessionId = nextId;
         changed = true;
+        onSessionId?.(nextId);
       }
       if (changed && emit) {
         metadata();
@@ -506,10 +508,12 @@ export const createAgentTurn = ({
  * and once at the end (turn-message.js), and sees each chunk first.
  * Its `chatId` names the chat (a turn waiting on an approval is announced
  * under it, api/tool-approvals.js); its `onSessionStart` hears how the turn
- * started (`turn.session`) and answers the metadata that records it.
+ * started (`turn.session`) and answers the metadata that records it, and its
+ * `onSessionId` hears each Provider session id the turn reports.
  * @type {AsyncLocalStorage<{
  *   chatId?: string,
  *   onSessionStart?: (start: { resumed: boolean, reason?: string }) => Record<string, unknown>,
+ *   onSessionId?: (sessionId: string) => void,
  *   saveIntervalMs?: number,
  *   onChunk?: (chunk: unknown) => Promise<unknown> | unknown,
  *   onMessage: (message: unknown, options: { final: boolean }) => Promise<unknown> | unknown,
@@ -581,6 +585,7 @@ export const streamAgentTurn = ({
         writer,
         chatId: observer?.chatId ?? null,
         onSessionStart: observer?.onSessionStart,
+        onSessionId: observer?.onSessionId,
         ...turnOptions,
       });
       // Establish the response identity before metadata can create a temporary

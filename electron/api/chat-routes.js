@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import { z } from "zod";
-import { appendBrowserMcpServer } from "./chat/browser-tools.js";
+import { attachBrowser } from "./chat/browser-attach.js";
 import { startProviderSession } from "./chat/provider-session.js";
 import {
   chatQueueControlSchema,
@@ -284,24 +284,24 @@ export async function executeChatRequest(
   });
 
   const runTurn = async (abortSignal) => {
+    // The turn's browser tools, by the Provider's mechanism (browser-attach.js):
+    // ended once the turn settles, however it ends.
+    const browser = attachBrowser({
+      mechanism: provider.browserTools,
+      mcpServers,
+      projectId,
+    });
     const streamTurn = () =>
       provider.stream({
         orchestrationTools: orchestration?.tools,
         abortSignal,
+        browserMcpServer: browser.inProcessServer,
         chatId: resolvedChatId,
-        // Dream's browser tools reach the agent over MCP where the provider
-        // takes MCP config per session; Claude gets them in-process instead.
-        mcpServers: provider.browserMcpScope
-          ? appendBrowserMcpServer(mcpServers, {
-              projectId,
-              scope: provider.browserMcpScope,
-            })
-          : mcpServers,
+        mcpServers: browser.mcpServers,
         messages: applySkillDispatchToMessages(messages, skillDispatch),
         model,
         modelSpeed,
         permissionMode,
-        projectId,
         projectPath: resolvedProjectPath,
         projectReferencesPrompt:
           formatProjectReferencesForPrompt(projectReferences) || null,
@@ -319,14 +319,16 @@ export async function executeChatRequest(
         transcript,
         providerSession,
         onChunk,
-        finalize: checkpointId
-          ? () =>
-              finalizeCheckpoint({
-                chatId: resolvedChatId,
-                checkpointId,
-                projectPath: resolvedProjectPath,
-              })
-          : undefined,
+        onSessionId: browser.session,
+        finalize: async () => {
+          browser.end();
+          if (checkpointId)
+            await finalizeCheckpoint({
+              chatId: resolvedChatId,
+              checkpointId,
+              projectPath: resolvedProjectPath,
+            });
+        },
       },
       streamTurn,
     );
