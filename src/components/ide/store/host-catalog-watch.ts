@@ -8,17 +8,17 @@
 import { getCatalogEventsClient } from "@/lib/catalog-events";
 import { refreshChatQueue, useChatQueueStore } from "@/lib/chat-queue";
 import { CLIENT_ID } from "@/lib/client-id";
-import { useIdeStore } from "../ide-store";
+import type { FollowedStore } from "./host-reach";
 
-export const watchHostCatalog = (hostId: string) => {
+export const watchHostCatalog = (hostId: string, store: FollowedStore) => {
   const client = getCatalogEventsClient(hostId);
 
   let stopWaiting: (() => void) | null = null;
   const reload = () => {
     for (const chatId of Object.keys(useChatQueueStore.getState().queues))
       void refreshChatQueue(chatId);
-    if (useIdeStore.getState().stateHydrated) {
-      void useIdeStore
+    if (store.getState().stateHydrated) {
+      void store
         .getState()
         .refreshHostCatalog(hostId)
         .catch((error: unknown) => {
@@ -30,7 +30,7 @@ export const watchHostCatalog = (hostId: string) => {
       return;
     }
     if (stopWaiting) return;
-    stopWaiting = useIdeStore.subscribe((state) => {
+    stopWaiting = store.subscribe((state) => {
       if (!state.stateHydrated) return;
       stopWaiting?.();
       stopWaiting = null;
@@ -42,29 +42,29 @@ export const watchHostCatalog = (hostId: string) => {
 
   const removeEvents = client.onEvent((event) => {
     if (event.origin === CLIENT_ID) return;
-    const store = useIdeStore.getState();
+    const state = store.getState();
     if (event.kind === "queue" && typeof event.chatId === "string") {
       void refreshChatQueue(event.chatId);
       return;
     }
     if (event.kind === "changes") {
-      store.applyCatalogChanges(
-        event as Parameters<typeof store.applyCatalogChanges>[0],
+      state.applyCatalogChanges(
+        event as Parameters<typeof state.applyCatalogChanges>[0],
         hostId,
       );
     } else if (
       event.kind === "transcript" &&
       typeof event.chatId === "string"
     ) {
-      void store.applyCatalogTranscript(event.chatId, {
+      void state.applyCatalogTranscript(event.chatId, {
         ...(typeof event.messageCount === "number"
           ? { messageCount: event.messageCount }
           : {}),
       });
     } else if (event.kind === "turn" && typeof event.chatId === "string") {
-      store.setHostTurnRunning(event.chatId, event.running === true);
+      state.setHostTurnRunning(event.chatId, event.running === true);
     } else if (event.kind === "approval" && typeof event.chatId === "string") {
-      store.setHostChatAwaitingApproval(event.chatId, event.awaiting === true);
+      state.setHostChatAwaitingApproval(event.chatId, event.awaiting === true);
     }
   });
   const removeResets = client.onReset(reload);

@@ -3,6 +3,8 @@
 // that fails.
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test, vi } from "vitest";
+import { connectionSupervisor } from "@/lib/connections/runtime";
+import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import {
   ALL_PROVIDERS,
   createChatConfig,
@@ -63,7 +65,10 @@ const setUp = () => {
       anthropic: { ...initialState.providerModels.anthropic, installed: true },
     },
     settings,
+    // The home host is ready: hydrated, its connection up.
+    stateHydrated: true,
   });
+  connectionSupervisor.set(LOCAL_HOST_ID, "ready");
   stopRuntime = startChatRuntime();
   return { chat, project };
 };
@@ -138,6 +143,7 @@ afterEach(() => {
   }
   chatIds = [];
   useIdeStore.setState(initialState, true);
+  connectionSupervisor.forget(LOCAL_HOST_ID);
   clearGeneratedGitText();
 });
 
@@ -234,6 +240,12 @@ test("each refusal is a value, says why on the banner, and sends nothing", async
           projects: [{ ...project, hostId: "ssh-box" }],
         }),
       "ssh-box is not connected. Send again once it is back.",
+    ],
+    [
+      // The home host answers by the same rule (store/host-reach.ts).
+      "host-away",
+      () => connectionSupervisor.set(LOCAL_HOST_ID, "reconnecting"),
+      "This host is not connected. Send again once it is back.",
     ],
     [
       "provider-unavailable",

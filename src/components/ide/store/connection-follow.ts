@@ -5,13 +5,13 @@ import {
   connectionRecovery,
   connectionSupervisor,
 } from "@/lib/connections/runtime";
-import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import { reattachChatStreams } from "../chat/chat-runtime";
 import { catalogBaselines } from "./catalog-baselines";
 import {
   HostIdentityError,
   hostCatalogLifecycle,
 } from "./host-catalog-lifecycle";
+import { recoverableHostIds } from "./host-reach";
 import type { IdeState, IdeStoreSet } from "./ide-store-types";
 
 export const followConnections = (
@@ -23,15 +23,8 @@ export const followConnections = (
 ) => {
   const catalogs = hostCatalogLifecycle(store.setState, store.getState);
   return recovery.bindWorkspace({
-    hosts: () =>
-      store.getState().stateHydrated
-        ? [
-            LOCAL_HOST_ID,
-            ...Object.entries(store.getState().hosts)
-              .filter(([, host]) => host.state === "connected")
-              .map(([id]) => id),
-          ]
-        : [],
+    // Transport, not readiness: recovery is what brings the catalog in.
+    hosts: () => recoverableHostIds(store.getState()),
     isLoaded: catalogBaselines.hasBaseline,
     catalogs: {
       suspend: catalogs.suspend,

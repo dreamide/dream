@@ -6,17 +6,35 @@ const settings = {
   ...DEFAULT_SETTINGS,
   sshHosts: [{ id: "devbox", label: "Devbox", target: "me@devbox" }],
 };
+const ready = { error: null, status: "ready" as const };
 
-test("a local project's host is never away", () => {
-  expect(isHostAway({ hosts: {}, settings }, {})).toBeNull();
+test("a home project's host is away only while the home host is not ready", () => {
+  const state = { hosts: {}, settings, stateHydrated: true };
+  expect(isHostAway(state, {}, ready)).toBeNull();
+  expect(
+    isHostAway(state, {}, { error: null, status: "reconnecting" }),
+  ).toMatchObject({ hostId: "local", state: "reconnecting" });
+  expect(
+    isHostAway(state, {}, { error: "Another host.", status: "incompatible" }),
+  ).toMatchObject({ error: "Another host.", state: "failed" });
+  // Its catalog comes in with hydration.
+  expect(
+    isHostAway({ ...state, stateHydrated: false }, {}, ready),
+  ).toMatchObject({ state: "connected" });
 });
 
 test("an SSH host is away until it is connected with its catalog loaded", () => {
   const project = { hostId: "devbox" };
   const at = (runtime: Parameters<typeof isHostAway>[0]["hosts"][string]) =>
-    isHostAway({ hosts: { devbox: runtime }, settings }, project);
+    isHostAway(
+      { hosts: { devbox: runtime }, settings, stateHydrated: true },
+      project,
+      ready,
+    );
 
-  expect(isHostAway({ hosts: {}, settings }, project)).toMatchObject({
+  expect(
+    isHostAway({ hosts: {}, settings, stateHydrated: true }, project, ready),
+  ).toMatchObject({
     label: "Devbox",
     state: "idle",
   });

@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { dismissBootScreen } from "@/lib/boot-screen";
 import { getDesktopApi, hasDesktopApi } from "@/lib/electron";
-import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import { terminalClient } from "@/lib/terminal-client";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
@@ -17,15 +16,13 @@ import { ChatSearchDialog } from "./chat-search-dialog";
 import { chatTurnOutcomes } from "./chat-turn-outcome";
 import { EmptyProjectWorkspace } from "./empty-project-workspace";
 import { IdeHeader } from "./ide-header";
-import { terminalSessionOwner, useIdeStore } from "./ide-store";
+import { hostReach, terminalSessionOwner, useIdeStore } from "./ide-store";
 import { OpenProjectDialog } from "./open-project/open-project-dialog";
 import { flushProjectPanelRefresh } from "./project-panel-refresh";
 import { ProjectWorkspace } from "./project-workspace";
 import { watchRendererUnload } from "./renderer-unload-guard";
 import { GlobalShortcuts } from "./shortcuts/global-shortcuts";
 import { SshPromptDialog } from "./ssh/ssh-prompt-dialog";
-import { watchHostBrowser } from "./store/host-browser-watch";
-import { watchHostCatalog } from "./store/host-catalog-watch";
 import { useBrowserAgentCommands } from "./use-browser-agent-commands";
 import { watchWindowReturn } from "./window-return";
 
@@ -172,68 +169,9 @@ export const IdeShell = () => {
   }, []);
 
   // Each host's catalog changes made elsewhere (another window, the host
-  // itself): the home host's always, an SSH host's once it is loaded. A
-  // browser client follows its home host the same way; it lends no browser
-  // and has no SSH hosts, which are the desktop's.
-  useEffect(() => {
-    const desktop = getDesktopApi();
-    const watching = new Map<string, () => void>();
-    const routes = new Map<string, string | null | undefined>();
-    const follow = (
-      hosts: ReturnType<typeof useIdeStore.getState>["hosts"],
-    ) => {
-      const wanted = new Set([
-        LOCAL_HOST_ID,
-        ...Object.entries(hosts)
-          .filter(([, host]) => host.loaded)
-          .map(([hostId]) => hostId),
-      ]);
-      for (const hostId of wanted) {
-        const routeId = hosts[hostId]?.routeId;
-        if (watching.has(hostId) && routes.get(hostId) === routeId) continue;
-        watching.get(hostId)?.();
-        routes.set(hostId, routeId);
-        const stopCatalog = watchHostCatalog(hostId);
-        const route = useIdeStore
-          .getState()
-          .hostConnections.find((host) => host.id === hostId)
-          ?.routes.find((item) => item.id === routeId);
-        // SSH and detached hosts' agents use this window's browser.
-        const stopBrowser =
-          !desktop ||
-          route?.kind === "https" ||
-          (hostId === LOCAL_HOST_ID && desktop.hostMode !== "detached")
-            ? null
-            : watchHostBrowser(hostId);
-        watching.set(hostId, () => {
-          stopCatalog();
-          stopBrowser?.();
-        });
-      }
-      for (const [hostId, stop] of watching) {
-        if (!wanted.has(hostId)) {
-          stop();
-          watching.delete(hostId);
-          routes.delete(hostId);
-        }
-      }
-    };
-    follow(useIdeStore.getState().hosts);
-    const unsubscribe = useIdeStore.subscribe((state, previous) => {
-      if (state.hosts !== previous.hosts) follow(state.hosts);
-    });
-
-    // What main says about SSH hosts' connections.
-    const removeHostStatus = getDesktopApi()?.onHostStatus((event) =>
-      useIdeStore.getState().setHostStatus(event),
-    );
-
-    return () => {
-      unsubscribe();
-      removeHostStatus?.();
-      for (const stop of watching.values()) stop();
-    };
-  }, []);
+  // itself), this window's browser lent to hosts' agents, and what main
+  // says about hosts' connections (store/host-reach.ts).
+  useEffect(() => hostReach.follow(useIdeStore), []);
 
   // Desktop event listeners
   // Terminal output and status, from every host's socket (a browser client

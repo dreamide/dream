@@ -9,7 +9,7 @@ import { fromLoadedText, toLoadableUrl } from "@/lib/host-ports";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import { getHostSocketClient } from "@/lib/host-socket";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
-import { useIdeStore } from "../ide-store";
+import type { FollowedStore } from "./host-reach";
 
 /**
  * A tool result with the forwarded addresses in its text written as the
@@ -35,12 +35,12 @@ const asHostSees = (hostId: string, result: unknown): unknown => {
   };
 };
 
-export const watchHostBrowser = (hostId: string) => {
+export const watchHostBrowser = (hostId: string, store: FollowedStore) => {
   const relay = createHostBrowserRelay({
     describeError: (error) =>
       getApiErrorMessage(error, "The browser tool failed."),
     getProjectIds: () =>
-      useIdeStore
+      store
         .getState()
         .projects.filter((project) => getProjectHostId(project) === hostId)
         .map((project) => project.id),
@@ -68,7 +68,7 @@ export const watchHostBrowser = (hostId: string) => {
   });
 
   relay.announce();
-  const unsubscribe = useIdeStore.subscribe((state, previous) => {
+  const unsubscribe = store.subscribe((state, previous) => {
     if (state.projects !== previous.projects) relay.announce();
   });
 

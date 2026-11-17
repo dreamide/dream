@@ -1,6 +1,7 @@
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { ProjectConfig, ProjectWorktreeInfo } from "@/types/ide";
 import { chatTurnOutcomes } from "../chat-turn-outcome";
+import { createHostReach, type HostReach } from "./host-reach";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 import {
   commitWorkspaceRemoval,
@@ -16,6 +17,7 @@ export const createProjectLifecycleActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
   terminals: TerminalSessionOwner = createTerminalSessionOwner(set, get),
+  hosts: Pick<HostReach, "reach"> = createHostReach(get),
 ): Pick<
   IdeState,
   | "setProjects"
@@ -73,13 +75,8 @@ export const createProjectLifecycleActions = (
       options?.hostId === LOCAL_HOST_ID ? undefined : options?.hostId;
     // An SSH host's projects must be here first: one already at this path
     // opens as itself, not as a second project the host would refuse.
-    // A local (or home) host is already here, so this stays synchronous.
-    if (hostId) {
-      const runtime = get().hosts[hostId];
-      if (runtime?.state !== "connected" || !runtime.loaded) {
-        if (!(await get().connectHost(hostId))) return false;
-      }
-    }
+    // The home host needs no reaching, so this stays synchronous.
+    if (hostId && !(await hosts.reach(hostId))) return false;
     if (options?.signal?.aborted) return false;
     get().addProject(trimmed, { activate: options?.activate, hostId });
     return true;

@@ -23,7 +23,7 @@ import {
   type ChatSearchRow,
   useChatSearchStore,
 } from "./chat-search";
-import { useIdeStore } from "./ide-store";
+import { hostReach, useIdeStore } from "./ide-store";
 
 const SEARCH_DEBOUNCE_MS = 200;
 
@@ -59,14 +59,13 @@ const useTranscriptSearch = (query: string, enabled: boolean) => {
     const controller = new AbortController();
     setSearching(true);
     const timer = window.setTimeout(async () => {
-      const hosts = useIdeStore.getState().hosts;
+      // The home host is always asked, so a failure there shows.
+      const state = useIdeStore.getState();
       const hostIds = [
         LOCAL_HOST_ID,
-        ...Object.keys(hosts).filter(
+        ...Object.keys(state.hosts).filter(
           (hostId) =>
-            hostId !== LOCAL_HOST_ID &&
-            hosts[hostId].state === "connected" &&
-            hosts[hostId].loaded,
+            hostId !== LOCAL_HOST_ID && hostReach.isReady(state, hostId),
         ),
       ];
       const answers = await Promise.allSettled(

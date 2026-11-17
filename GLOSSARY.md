@@ -278,6 +278,22 @@ over HTTPS with a device session. Not to be
 confused with a provider session, which lives on the provider's side
 whatever the host.
 
+**Host reach** (`src/components/ide/store/host-reach.ts`; the app's owner is
+`hostReach`) answers whether a host is **ready**: connected with its catalog
+in this window. An SSH or paired host is ready when main reports it
+connected and its catalog is loaded; the home host, which is not in the
+store's `hosts`, when the connection supervisor says `ready` and the
+workspace is hydrated. Every "is the host there" asks it (`isHostReady`):
+a host away, opening a project, standalone chats, chat search. **Reaching**
+a host resolves at once for the home host and a ready one, and otherwise
+connects it and waits for its catalog. A host is **connected** when only its
+transport is up: what listing its folders needs, and, with the home host
+always, what connection recovery picks (`recoverableHostIds`). The owner
+also follows host state: catalog events from the home host and every host
+with its catalog loaded, watched again when its route changes; this
+window's browser lent to SSH hosts and a detached home host, never over
+HTTPS or in a browser client; and main's host status reports.
+
 An **SSH prompt** belongs to the connection attempt that asked it, even when
 several Hosts connect at once. Declining it cancels that attempt alone;
 replacing or disconnecting the attempt makes its late answers ineligible.

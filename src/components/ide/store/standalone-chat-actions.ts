@@ -9,6 +9,7 @@ import {
   getProjectHostId,
   normalizeProjectPathKey,
 } from "../../../../electron/shared/persisted-state-codec.js";
+import { createHostReach, type HostReach } from "./host-reach";
 import type {
   IdeState,
   IdeStoreGet,
@@ -20,18 +21,16 @@ import * as workspace from "./workspace-document";
 export const createStandaloneChatActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
-  { api = apiClient }: StoreActionDependencies = {},
+  {
+    api = apiClient,
+    reach = createHostReach(get),
+  }: StoreActionDependencies & { reach?: Pick<HostReach, "reach"> } = {},
 ): Pick<
   IdeState,
   "createStandaloneChat" | "showStandaloneChat" | "promoteStandaloneChat"
 > => {
   /** A Host other than this machine is connected and loaded first. */
-  const reachHost = async (hostId: string) => {
-    if (hostId === LOCAL_HOST_ID) return true;
-    const runtime = get().hosts[hostId];
-    if (runtime?.state === "connected" && runtime.loaded) return true;
-    return get().connectHost(hostId);
-  };
+  const reachHost = (hostId: string) => reach.reach(hostId);
 
   /** Closes the other open standalone project, then shows this one. */
   const show = (

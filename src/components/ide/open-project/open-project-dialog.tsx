@@ -31,13 +31,14 @@ import { useConnectionState } from "@/lib/connections/use-connection-state";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { SshHostConfig } from "@/types/ide";
 import { connectionOfSshHost } from "../../../../electron/shared/routes-to-dial.js";
-import { useIdeStore } from "../ide-store";
+import { hostReach, useIdeStore } from "../ide-store";
 import {
   EMPTY_HOST_FORM,
   SshHostDialog,
   useAddSshHost,
 } from "../ssh/ssh-hosts-settings-section";
 import { useHostChoices } from "../ssh/use-host-choices";
+import { isHostConnected } from "../store/host-reach";
 import { HOME_FOLDER_INPUT } from "./folder-path";
 import { FolderPathField } from "./folder-path-field";
 import { createOpenProjectAttempt } from "./open-project-attempt";
@@ -73,11 +74,11 @@ const OpenProjectForm = ({ onClose }: { onClose: () => void }) => {
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addingHost, setAddingHost] = useState(false);
-  const dependencies = useRef({ connectHost, desktop, openProject });
-  dependencies.current = { connectHost, desktop, openProject };
+  const dependencies = useRef({ desktop, openProject });
+  dependencies.current = { desktop, openProject };
   const [attempt] = useState(() =>
     createOpenProjectAttempt({
-      connect: (id) => dependencies.current.connectHost(id),
+      connect: (id) => hostReach.reach(id),
       resolveFolder: async (id, folder, signal) =>
         (
           await apiClient.hostDirectories(
@@ -106,9 +107,8 @@ const OpenProjectForm = ({ onClose }: { onClose: () => void }) => {
   const home = hostId === LOCAL_HOST_ID;
   const sshHost = sshHosts.find((host) => host.id === hostId);
   const runtime = home ? undefined : hosts[hostId];
-  const reachable = home
-    ? homeState.status === "ready"
-    : runtime?.state === "connected";
+  // Listing folders needs the connection, not the catalog.
+  const reachable = isHostConnected({ hosts }, hostId, homeState);
   const hostLabel = home ? platform.homeLabel : (sshHost?.label ?? hostId);
   const HostIcon = home ? Laptop : Server;
 

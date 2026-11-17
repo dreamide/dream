@@ -2,28 +2,31 @@ import { PlugZap, WifiOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { useConnectionState } from "@/lib/connections/use-connection-state";
+import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { ProjectConfig } from "@/types/ide";
 import { useIdeStore } from "../ide-store";
-import type { HostAway } from "./host-away";
+import { awayHost, type HostAway } from "./host-away";
 import { useHostChoices } from "./use-host-choices";
 
 /** `project`'s host while it is away (see isHostAway), or null. */
 export const useHostAway = (
   project: Pick<ProjectConfig, "hostId"> | null | undefined,
 ): HostAway | null => {
-  const hostId = project?.hostId;
+  const hostId = project ? (project.hostId ?? LOCAL_HOST_ID) : null;
   const runtime = useIdeStore((state) =>
     hostId ? state.hosts[hostId] : undefined,
   );
+  const stateHydrated = useIdeStore((state) => state.stateHydrated);
+  const home = useConnectionState(LOCAL_HOST_ID);
   const label = useHostChoices().find((host) => host.id === hostId)?.label;
   if (!hostId) return null;
-  if (runtime?.state === "connected" && runtime.loaded) return null;
-  return {
-    error: runtime?.error ?? null,
+  return awayHost(
+    { hosts: runtime ? { [hostId]: runtime } : {}, stateHydrated },
     hostId,
-    label: label ?? hostId,
-    state: runtime?.state ?? "idle",
-  };
+    () => label ?? hostId,
+    home,
+  );
 };
 
 /**
@@ -57,7 +60,8 @@ export const HostAwayNotice = ({ away }: { away: HostAway }) => {
               : t("disconnectedFrom", { host: away.label })}
           {!pending && !loading && away.error ? ` ${away.error}` : null}
         </span>
-        {pending || loading ? null : (
+        {/* The home host's connection comes back by itself. */}
+        {pending || loading || away.hostId === LOCAL_HOST_ID ? null : (
           <Button
             className="shrink-0"
             onClick={() => void connectHost(away.hostId)}

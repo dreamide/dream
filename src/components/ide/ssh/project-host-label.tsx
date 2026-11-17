@@ -7,6 +7,7 @@ import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import { cn } from "@/lib/utils";
 import type { HostConnectionState, ProjectConfig } from "@/types/ide";
 import { useIdeStore } from "../ide-store";
+import { HOME_HOST_STATE } from "../store/host-reach";
 import { useHostStateLabel } from "./ssh-hosts-settings-section";
 import { useHostChoices } from "./use-host-choices";
 
@@ -17,16 +18,6 @@ const STATE_DOT: Record<HostConnectionState, string> = {
   failed: "bg-destructive",
   idle: "bg-muted-foreground/50",
   reconnecting: "bg-amber-500",
-};
-
-/** The home host's connection, in the words used for SSH hosts. */
-const HOME_STATE: Record<ConnectionStatus, HostConnectionState> = {
-  connecting: "connecting",
-  incompatible: "failed",
-  offline: "disconnected",
-  ready: "connected",
-  reconnecting: "reconnecting",
-  unauthorized: "failed",
 };
 
 const HOME_DOT: Record<ConnectionStatus, string> = {
@@ -75,7 +66,7 @@ export const ProjectHostLabel = ({
         <Server className="size-3.5 shrink-0" />
         <span className="truncate text-foreground">{platform.homeLabel}</span>
         <span
-          aria-label={stateLabel(HOME_STATE[home.status])}
+          aria-label={stateLabel(HOME_HOST_STATE[home.status])}
           className={cn(
             "size-1.5 shrink-0 rounded-full",
             HOME_DOT[home.status],

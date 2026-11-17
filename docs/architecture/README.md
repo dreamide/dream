@@ -163,9 +163,12 @@ Module names and current ownership live in ../../GLOSSARY.md.
   actions, the agent CLI run, the Terminal session, desktop launch, the turn
   prompt and Provider presentation.
 
-- `tasks/review-20261117.md` tracks ARC17-01 to ARC17-06 from the November 17
+- `tasks/review-20261117.md` tracks ARC17-01 to ARC17-14 from the November 17
   architecture review: Chat turn outcome, Chat submission, a branch's base,
-  route adapters, routes to dial and browser tools for an Agent turn.
+  route adapters, routes to dial, browser tools for an Agent turn, reaching a
+  Host, the remote access phase, turn lifetime in Provider adapters,
+  generated git text on the host, store slices, the home host interface,
+  Provider credentials and one route table.
 
 - `tasks/standalone-chats.md` tracks SC-01 to SC-05: chats not tied to a
   user-picked folder, each an ordinary Project with a chat folder under

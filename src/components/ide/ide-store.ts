@@ -25,6 +25,7 @@ import {
 } from "./store/helpers";
 import { createHostActions } from "./store/host-actions";
 import { hostCatalogLifecycle } from "./store/host-catalog-lifecycle";
+import { createHostReach } from "./store/host-reach";
 import {
   getLoadedWorkspace,
   loadPersistedIdeState,
@@ -78,6 +79,9 @@ export const terminalSessionOwner = createTerminalSessionOwner(
   (update) => useIdeStore.setState(update),
   () => useIdeStore.getState(),
 );
+
+/** Reaching each Host and following host state (store/host-reach.ts). */
+export const hostReach = createHostReach(() => useIdeStore.getState());
 
 // ---------------------------------------------------------------------------
 // Store
@@ -185,9 +189,9 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
 
   // ── Actions: projects and chats ─────────────────────────────────────
-  ...createProjectLifecycleActions(set, get, terminalSessionOwner),
+  ...createProjectLifecycleActions(set, get, terminalSessionOwner, hostReach),
   ...createWorktreeActions(set, get),
-  ...createStandaloneChatActions(set, get),
+  ...createStandaloneChatActions(set, get, { reach: hostReach }),
   ...createGitWriteActions(set, get),
   ...createChatActions(set, get),
   ...createStashActions(set, get),
