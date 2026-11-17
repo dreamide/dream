@@ -24,14 +24,18 @@ export function FileChangeHeader({
   change,
   expanded,
   onToggle,
+  onOpenFile,
   actions,
 }: {
   change: ProjectGitStatusEntry;
   expanded: boolean;
   onToggle: () => void;
+  /** Opens the file in the Files panel; the path is plain text without it. */
+  onOpenFile?: () => void;
   actions?: ReactNode;
 }) {
   const panelsT = useTranslations("panels");
+  const assistantT = useTranslations("assistant");
   const statusLabel =
     change.status === "deleted"
       ? panelsT("removed")
@@ -67,9 +71,20 @@ export function FileChangeHeader({
 
       <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-center gap-2">
         <MaterialFileIcon className="size-4 shrink-0" path={change.path} />
-        <span className="min-w-0 truncate font-mono text-xs">
-          {change.path}
-        </span>
+        {onOpenFile ? (
+          <button
+            className="pointer-events-auto min-w-0 cursor-pointer truncate rounded-sm text-left font-mono text-xs hover:underline focus-visible:outline-2 focus-visible:outline-surface-400 dark:focus-visible:outline-surface-500"
+            onClick={onOpenFile}
+            title={assistantT("openInFiles")}
+            type="button"
+          >
+            {change.path}
+          </button>
+        ) : (
+          <span className="min-w-0 truncate font-mono text-xs">
+            {change.path}
+          </span>
+        )}
         {statusLabel ? (
           <span
             className={cn(

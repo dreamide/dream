@@ -18,6 +18,7 @@ import {
   IdeDiffViewer,
   LargeDiffGuard,
 } from "../diff-viewer";
+import { useIdeStore } from "../ide-store";
 import { FileChangeHeader } from "./file-change-header";
 
 export type DiffViewMode = "unified" | "split";
@@ -303,12 +304,21 @@ export const ChangesRow = ({
   wordWrap: boolean;
 }) => {
   const panelsT = useTranslations("panels");
+  // A deleted file is no longer in the working tree, so there is nothing to
+  // open. `change.path` is relative to the project.
+  const handleOpenFile =
+    change.status === "deleted"
+      ? undefined
+      : () => {
+          useIdeStore.getState().openProjectFile(projectId, change.path);
+        };
 
   return (
     <div className="border-b border-surface-200 dark:border-surface-700 bg-background">
       <FileChangeHeader
         change={change}
         expanded={expanded}
+        onOpenFile={handleOpenFile}
         onToggle={onToggle}
         actions={
           <button
