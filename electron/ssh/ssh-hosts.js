@@ -5,7 +5,6 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import getPort from "get-port";
-import { matchesPinnedIdentity } from "../shared/host-verification.js";
 import { startAskpassServer } from "./askpass-server.js";
 import {
   createSshHostConnection,
@@ -102,44 +101,26 @@ export function createSshHostManager({
 
   return {
     /**
-     * Connects host `hostId` at `target` (an ~/.ssh/config alias or
-     * user@host). `hostId` is the app's name for the host, which requests
-     * are routed by; it defaults to the target. `expectedIdentity` is the
-     * persistent host the app saved for it: no other host is connected.
+     * Connects `hostId` at `target` (an ~/.ssh/config alias or user@host),
+     * replacing any connection under that id. `hostId` is the caller's key
+     * for this one connection; it defaults to the target. Which host it
+     * reaches is the caller's to check: the route supervisor pins it.
      * @param {{
      *   hostId?: string,
      *   target: string,
-     *   expectedIdentity?: { hostId: string, fingerprint?: string | null } | null,
      *   signal?: AbortSignal,
-     *   autoReconnect?: boolean,
      *   interactive?: boolean,
      * }} options
      */
     async connect({
       hostId: requestedHostId,
       target,
-      expectedIdentity = null,
       signal,
-      autoReconnect = true,
       interactive = true,
     }) {
       signal?.throwIfAborted();
       const hostId = requestedHostId ?? target;
-      const existing = connections.get(hostId);
-      if (existing?.getState() === "connected") {
-        const endpoint = existing.getEndpoint();
-        if (
-          !expectedIdentity?.hostId ||
-          matchesPinnedIdentity(expectedIdentity, endpoint)
-        ) {
-          return endpoint;
-        }
-        throw new SshHostError(
-          `${target} is connected to a different Dream host than the one saved for it.`,
-          { fatal: true },
-        );
-      }
-      existing?.disconnect();
+      connections.get(hostId)?.disconnect();
       connections.delete(hostId);
       retire(hostId);
       // Register before the first await: replacement and disconnect retire
@@ -171,7 +152,6 @@ export function createSshHostManager({
         if (!current())
           throw new SshHostError("Disconnected while connecting.");
         const connection = createSshHostConnection({
-          autoReconnect,
           interactive,
           controlPath: getControlPath(hostId, target),
           // A silent probe keeps askpass forced but without its secret, so the
@@ -183,13 +163,12 @@ export function createSshHostManager({
             DREAM_ASKPASS_ATTEMPT: attempt.id,
             ...(interactive ? {} : { DREAM_ASKPASS_SECRET: "" }),
           },
-          expectedIdentity,
           getLocalPort: () => getPort({ host: "127.0.0.1" }),
           runtimeCacheDirectory: path.join(stateDirectory, "runtime"),
           runtimeVersion,
           onStatus: (status) => {
             if (!current()) return;
-            // A question from an earlier state must not answer a later retry.
+            // A question from an earlier state must not answer a later one.
             attempt.epoch += 1;
             if (status.state === "failed" || status.state === "disconnected") {
               prompts.delete(attempt.id);

@@ -58,12 +58,12 @@ const waitFor = async (check, timeoutMs = 20_000) => {
   }
 };
 
-test("connects, survives a dropped link, and leaves the daemon running", {
+test("connects; a dropped link ends it without dialing again, and the daemon keeps running", {
   timeout: 90_000,
 }, async () => {
   const states = [];
   const connection = fakeSshConnection({
-    onStatus: (status) => states.push(status.state),
+    onStatus: (status) => states.push(status),
   });
 
   const endpoint = await connection.connect();
@@ -73,20 +73,27 @@ test("connects, survives a dropped link, and leaves the daemon running", {
   // Drop the link: kill the process holding the forward.
   const [forward] = readdirSync(pidDirectory);
   process.kill(Number(forward.replace("forward-", "")));
-  await waitFor(() => states.includes("reconnecting"));
-  await waitFor(() => states.at(-1) === "connected");
+  await waitFor(() => connection.getState() === "disconnected");
 
-  const again = connection.getEndpoint();
-  expect(again.baseUrl).not.toBe(endpoint.baseUrl);
-  expect((await hostInfo(again)).pid).toBe(endpoint.pid);
-
-  connection.disconnect();
-  expect(connection.getState()).toBe("disconnected");
+  expect(states.at(-1)).toMatchObject({
+    state: "disconnected",
+    error: "The SSH connection closed.",
+  });
+  expect(connection.getEndpoint()).toBeNull();
+  await expect(connection.forwardPort(3000)).rejects.toThrow(
+    "The host is not connected.",
+  );
   const status = await runDaemonCli(["status", "--home", hostHome], {
     stderr: quiet,
     stdout: quiet,
   });
   expect(status).toBe(0);
+
+  // A new connect is a new link to the same daemon.
+  const again = await connection.connect();
+  expect((await hostInfo(again)).pid).toBe(endpoint.pid);
+  connection.disconnect();
+  expect(connection.getState()).toBe("disconnected");
 });
 
 test("a refused key fails without retrying", { timeout: 30_000 }, async () => {
@@ -169,9 +176,11 @@ test("multiplexed: one master, ensure and forward through it", async () => {
   expect(kinds).toEqual(["master", "check", "ensure", "forward"]);
   expect(calls[3].args).toContain("127.0.0.1:5555:127.0.0.1:7000");
 
-  // The master is the link: when it goes, the connection reconnects.
+  // The master is the link: when it goes, the link has ended.
   calls[0].child.kill();
-  expect(states.at(-1)).toBe("reconnecting");
+  expect(states.at(-1)).toBe("disconnected");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(calls).toHaveLength(4);
   connection.disconnect();
   expect(states.at(-1)).toBe("disconnected");
 });
@@ -244,14 +253,15 @@ test("a port of the host is forwarded here (direct shape, real traffic)", {
   }
 });
 
-test("multiplexed: a forwarded port is re-added after a reconnect, same local port", async () => {
-  let localPorts = [5555, 6001, 7777];
+test("multiplexed: one forward per port while the link lasts, ended with it", async () => {
+  const localPorts = [5555, 6001];
   const { calls, spawnProcess } = createScriptedSpawn((args) => {
     if (args.includes("-M")) return null;
     if (args.includes("check")) return { code: 0 };
     if (args.includes("forward")) return { code: 0 };
     return {
-      stdout: `${JSON.stringify({ hostProtocolVersion: 1, pid: 9, port: 7000, token: "t" })}\n`,
+      stdout: `${JSON.stringify({ hostProtocolVersion: 1, pid: 9, port: 7000, token: "t" })}
+`,
     };
   });
   const connection = createSshHostConnection({
@@ -268,19 +278,26 @@ test("multiplexed: a forwarded port is re-added after a reconnect, same local po
       .map(({ args }) => args[args.indexOf("-L") + 1]);
 
   await connection.connect();
+  // A page's parallel connections share one forward.
+  expect(
+    await Promise.all([
+      connection.forwardPort(3000),
+      connection.forwardPort(3000),
+    ]),
+  ).toEqual([6001, 6001]);
   expect(await connection.forwardPort(3000)).toBe(6001);
-
-  // The master drops; the reconnect re-adds the API forward and this one.
-  calls.find(({ args }) => args.includes("-M")).child.kill();
-  await waitFor(() => connection.getState() === "connected");
-  await waitFor(() => forwards().length === 4);
-  localPorts = [];
-
   expect(forwards()).toEqual([
     "127.0.0.1:5555:127.0.0.1:7000",
     "127.0.0.1:6001:127.0.0.1:3000",
-    "127.0.0.1:7777:127.0.0.1:7000",
-    "127.0.0.1:6001:127.0.0.1:3000",
   ]);
+
+  // The master drops: its forwards are gone and nothing re-adds them.
+  calls.find(({ args }) => args.includes("-M")).child.kill();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(connection.getState()).toBe("disconnected");
+  await expect(connection.forwardPort(3000)).rejects.toThrow(
+    "The host is not connected.",
+  );
+  expect(forwards()).toHaveLength(2);
   connection.disconnect();
 });

@@ -398,12 +398,18 @@ replaced, catalogs refetched, running turns followed again.
 
 A connection's **selected route** is the verified route currently carrying its
 requests; a **fallback route** carries them while a more preferred route is
-unavailable. Its **route supervisor** (`electron/shared/route-supervisor.js`)
-owns that selection, and the **desktop connection adapter**
-(`electron/connections/desktop-connections.js`) owns its SSH endpoints and
-paired HTTPS transports and stable local port forwards, independently of the
-host's process lifetime. A native **device credential** is a private grant for
-one verified host and HTTPS origin, separate from exported connection metadata.
+unavailable. A **route adapter** opens one link over one route and reports it
+lost; it never reconnects (`electron/connections/ssh-route.js`,
+`electron/connections/https-route.js`). The **route supervisor**
+(`electron/shared/route-supervisor.js`) owns everything above the link: the
+readiness sequence (authorize, pinned host, catalog probe, protocol check,
+catalog names the host), which failures are fatal (a 401 or 403 is), the
+pinned host identity, selection, and retry with backoff. The **desktop
+connection adapter** (`electron/connections/desktop-connections.js`) holds one
+supervisor per host and the stable local port relays for its forwards,
+independently of the host's process lifetime. A native **device credential**
+is a private grant for one verified host and HTTPS origin, separate from
+exported connection metadata.
 
 **Connection recovery** coordinates those resumes per host. Refused hosts
 remain quiet until their credential or route changes. Replacing a connection

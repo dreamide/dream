@@ -1,128 +1,42 @@
-// The desktop's route adapter. SSH launching, installation and prompts stay
-// in ssh/. A logical connection owns selection and stable local port relays;
-// closing a route ends its forward, never the host service or its work.
+// The desktop's logical host connections: one route supervisor per host
+// over the SSH and paired HTTPS route adapters, and the stable local port
+// relays its forwards are reached by. Closing a route ends its forward,
+// never the host service or its work.
 import net from "node:net";
-import { API_SESSION_TOKEN_HEADER } from "../api/shared/session-token.js";
-import {
-  catalogMatchesHost,
-  hostProtocolProblem,
-  matchesPinnedIdentity,
-  requestCatalogProbe,
-} from "../shared/host-verification.js";
+import { matchesPinnedIdentity } from "../shared/host-verification.js";
 import { createRouteSupervisor } from "../shared/route-supervisor.js";
-import { createSshHostManager } from "../ssh/ssh-hosts.js";
+import { createSshRoutes } from "./ssh-route.js";
 
 export function createDesktopHostConnections({
   onStatus = () => {},
   onPrompt,
-  createSsh = createSshHostManager,
-  fetchImpl = (...args) => fetch(...args),
+  createSsh,
+  fetchImpl,
   supervisorOptions = {},
   httpsRoutes = null,
   ...sshOptions
 }) {
   const hosts = new Map();
-  const attempts = new Map();
-  let sequence = 0;
-  const ssh = createSsh({
+  const ssh = createSshRoutes({
     ...sshOptions,
-    onPrompt: (prompt) =>
-      onPrompt({
-        ...prompt,
-        hostId: attempts.get(prompt.hostId)?.hostId ?? null,
-      }),
-    onStatus: (event) => {
-      const attempt = attempts.get(event.hostId);
-      if (
-        attempt?.ready &&
-        event.state !== "connected" &&
-        event.state !== "connecting"
-      ) {
-        attempt.onLost(new Error(event.error ?? "The SSH route disconnected."));
-      }
-    },
+    // Undefined takes the adapter's own defaults.
+    createSsh,
+    fetchImpl,
+    onPrompt,
   });
 
-  const open = async (
-    hostId,
-    route,
-    { signal, background, expectedIdentity, onLost },
-  ) => {
-    signal.throwIfAborted();
-    if (route.kind === "https") {
-      if (!httpsRoutes)
-        throw Object.assign(new Error("HTTPS pairing is unavailable."), {
-          fatal: true,
-        });
-      return httpsRoutes.open(route, { signal, expectedIdentity, onLost });
-    }
-    const key = `${hostId}:${++sequence}`;
-    const attempt = { hostId, ready: false, onLost };
-    attempts.set(key, attempt);
-    const close = () => {
-      signal.removeEventListener("abort", close);
-      attempts.delete(key);
-      ssh.disconnect(key);
-    };
-    signal.addEventListener("abort", close, { once: true });
-    try {
-      const endpoint = await ssh.connect({
-        autoReconnect: false,
-        interactive: !background,
-        signal,
-        expectedIdentity,
-        hostId: key,
-        target: route.target,
+  /** @type {(hostId: string) => import("../shared/route-supervisor.js").RouteAdapter} */
+  const adapterFor = (hostId) => (route, options) => {
+    if (route.kind !== "https") return ssh.open(hostId, route, options);
+    if (!httpsRoutes)
+      throw Object.assign(new Error("HTTPS pairing is unavailable."), {
+        fatal: true,
       });
-      signal.throwIfAborted();
-      const response = await requestCatalogProbe({
-        baseUrl: endpoint.baseUrl,
-        headers: { [API_SESSION_TOKEN_HEADER]: endpoint.token },
-        signal,
-        fetchImpl,
-      });
-      if (!response.ok) {
-        const reason = new Error(
-          `The SSH route refused catalog access (${response.status}).`,
-        );
-        reason.fatal = response.status === 401 || response.status === 403;
-        throw reason;
-      }
-      const catalog = await response.json();
-      const problem = hostProtocolProblem(
-        catalog.host?.hostProtocolVersion ?? endpoint.hostProtocolVersion,
-      );
-      if (problem) {
-        const reason = new Error(problem);
-        reason.fatal = true;
-        throw reason;
-      }
-      if (endpoint.hostId && !catalogMatchesHost(catalog, endpoint)) {
-        const reason = new Error(
-          "The SSH route's catalog does not match its verified host identity.",
-        );
-        reason.fatal = true;
-        throw reason;
-      }
-      signal.throwIfAborted();
-      if (ssh.getState(key) !== "connected")
-        throw new Error(
-          "The SSH route disconnected before its catalog was ready.",
-        );
-      attempt.ready = true;
-      return {
-        endpoint: { ...endpoint, routeId: route.id },
-        forwardPort: (port) => ssh.forwardPort(key, port),
-        close,
-      };
-    } catch (reason) {
-      close();
-      throw reason;
-    }
+    return httpsRoutes.open(route, options);
   };
 
   const forward = async (host, port) => {
-    const selected = host.supervisor.getHandle();
+    const selected = host.supervisor.getLink();
     if (!selected) throw new Error("The host is not connected.");
     // Confirm the target can forward before reporting a stable local URL.
     if (!selected.forwardPort)
@@ -130,7 +44,7 @@ export function createDesktopHostConnections({
         "This route cannot forward arbitrary ports. Add an SSH route to view this site.",
       );
     await selected.forwardPort(port);
-    if (host.closed || host.supervisor.getHandle() !== selected)
+    if (host.closed || host.supervisor.getLink() !== selected)
       throw new Error(
         "The route changed while forwarding the port. Try again.",
       );
@@ -138,19 +52,19 @@ export function createDesktopHostConnections({
       host.sockets.add(client);
       client.on("error", () => {});
       client.once("close", () => host.sockets.delete(client));
-      const handle = host.supervisor.getHandle();
-      if (!handle) {
+      const link = host.supervisor.getLink();
+      if (!link) {
         client.destroy();
         return;
       }
       try {
-        if (!handle.forwardPort)
+        if (!link.forwardPort)
           throw new Error("This route cannot forward ports.");
-        const remotePort = await handle.forwardPort(port);
+        const remotePort = await link.forwardPort(port);
         if (
           client.destroyed ||
           host.closed ||
-          handle !== host.supervisor.getHandle()
+          link !== host.supervisor.getLink()
         ) {
           client.destroy();
           return;
@@ -198,10 +112,11 @@ export function createDesktopHostConnections({
         sshRoutes ?? [{ id: `ssh:${hostId}`, target }];
       const config = JSON.stringify(routes);
       let host = hosts.get(hostId);
+      const pinned = host?.supervisor.getPinnedIdentity();
       if (
-        host?.identity &&
+        pinned &&
         expectedIdentity &&
-        !matchesPinnedIdentity(expectedIdentity, host.identity)
+        !matchesPinnedIdentity(expectedIdentity, pinned)
       ) {
         throw new Error(
           "This connection is pinned to a different host identity. Disconnect it before changing the saved host.",
@@ -216,7 +131,6 @@ export function createDesktopHostConnections({
       if (!host) {
         host = {
           config,
-          identity: expectedIdentity,
           closed: false,
           sockets: new Set(),
           servers: new Set(),
@@ -229,20 +143,17 @@ export function createDesktopHostConnections({
           ...supervisorOptions,
           routes,
           expectedIdentity,
-          open: (route, options) => open(hostId, route, options),
+          open: adapterFor(hostId),
           onStatus: (status) => {
             if (record.routeId !== status.routeId) {
               for (const socket of record.sockets) socket.destroy();
               record.routeId = status.routeId;
             }
-            const endpoint = record.supervisor?.getEndpoint() ?? null;
-            if (endpoint?.hostId)
-              record.identity = {
-                hostId: endpoint.hostId,
-                fingerprint:
-                  record.identity?.fingerprint ?? endpoint.fingerprint,
-              };
-            onStatus({ ...status, hostId, endpoint });
+            onStatus({
+              ...status,
+              hostId,
+              endpoint: record.supervisor?.getEndpoint() ?? null,
+            });
           },
         });
         hosts.set(hostId, record);

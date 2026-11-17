@@ -9,11 +9,10 @@ import tls from "node:tls";
 import { fingerprintOf } from "../host/identity.js";
 import { hostProofMessage } from "../shared/host-proof.js";
 import {
-  catalogMatchesHost,
   hostProtocolProblem,
   matchesPinnedIdentity,
-  requestCatalogProbe,
 } from "../shared/host-verification.js";
+import { routeRefusal } from "../shared/route-supervisor.js";
 
 const fatal = (message) => Object.assign(new Error(message), { fatal: true });
 
@@ -353,6 +352,15 @@ export function createHttpsRoutes({
         transport.close();
       }
     },
+    /**
+     * The HTTPS route adapter: one link over a paired route. The device
+     * credential and its host are checked against `expectedIdentity`
+     * before the credential is sent, and every socket proves its host
+     * before a request uses it. Readiness is the route supervisor's; once
+     * authorized, the link renews its session every 15 s and reports it
+     * lost when that fails.
+     * @type {import("../shared/route-supervisor.js").RouteAdapter}
+     */
     async open(route, { signal, expectedIdentity, onLost }) {
       let grant;
       try {
@@ -369,6 +377,7 @@ export function createHttpsRoutes({
         throw fatal(
           "This route's device credential belongs to another origin or host. Pair it again.",
         );
+      signal.throwIfAborted();
       const transport = createVerifiedHttps({
         origin,
         expectedIdentity: grant,
@@ -376,7 +385,9 @@ export function createHttpsRoutes({
         ca,
       });
       let timer;
+      let closed = false;
       const close = () => {
+        closed = true;
         clearTimer(timer);
         signal.removeEventListener("abort", close);
         transport.close();
@@ -396,57 +407,45 @@ export function createHttpsRoutes({
           );
         return response;
       };
-      const check = async () => {
-        const response = await request(`${origin}/api/remote/session/renew`, {
+      const renew = (renewSignal) =>
+        request(`${origin}/api/remote/session/renew`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: "{}",
-          signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+          signal: AbortSignal.any([renewSignal, AbortSignal.timeout(15_000)]),
         });
-        if (!response.ok)
-          throw Object.assign(
-            new Error(`The HTTPS route refused access (${response.status}).`),
-            { fatal: response.status === 401 || response.status === 403 },
-          );
-        await response.body?.cancel();
+      const poll = () => {
+        if (closed) return;
+        timer = setTimer(() => {
+          void renew(signal).then(async (response) => {
+            await response.body?.cancel();
+            if (response.ok) poll();
+            else
+              onLost(
+                routeRefusal("The HTTPS route refused access", response.status),
+              );
+          }, onLost);
+        }, 15_000);
+        timer.unref?.();
       };
-      try {
-        signal.throwIfAborted();
-        await check();
-        const response = await requestCatalogProbe({
-          baseUrl: origin,
-          signal,
-          fetchImpl: request,
-        });
-        if (!response.ok)
-          throw new Error(
-            `The HTTPS route's catalog is unavailable (${response.status}).`,
-          );
-        const catalog = await response.json();
-        if (!catalogMatchesHost(catalog, grant))
-          throw fatal("The HTTPS catalog does not match its verified host.");
-        const poll = () => {
-          timer = setTimer(() => {
-            void check().then(poll, onLost);
-          }, 15_000);
-          timer.unref?.();
-        };
-        poll();
-        const host = transport.getDescriptor();
-        return {
-          endpoint: {
-            ...host,
+      return {
+        // Known once the first socket proved its host, during `authorize`.
+        get endpoint() {
+          return {
+            ...transport.getDescriptor(),
             baseUrl: origin,
-            routeId: route.id,
             fetch: request,
             socketOptions: { agent: transport.agent },
-          },
-          close,
-        };
-      } catch (error) {
-        close();
-        throw error;
-      }
+          };
+        },
+        request,
+        async authorize(authorizeSignal) {
+          const response = await renew(authorizeSignal);
+          if (response.ok) poll();
+          return response;
+        },
+        close,
+      };
     },
     forget: (credentialId) => credentials.remove(credentialId),
   };

@@ -1,22 +1,21 @@
-// One connection from this machine to the host daemon on an SSH host: run
-// `dream-host ensure` there, forward a loopback port to the daemon, check
-// it answers, and keep it that way.
+// One link from this machine to the host daemon on an SSH host: run
+// `dream-host ensure` there, forward a loopback port to the daemon and check
+// it answers.
 //
-//   connect()     first attempt; resolves with the endpoint or rejects with
-//                 why (no automatic retry: the user is watching).
-//   (dropped)     once connected, a lost session is re-established with
-//                 capped, jittered backoff; ensure runs again, since the
-//                 daemon may have restarted on a new port.
+//   connect()     resolves with the endpoint or rejects with why. A failure
+//                 on authentication, the host key or the protocol is
+//                 `fatal`: trying again cannot help.
+//   (dropped)     a lost session ends the link: the state becomes
+//                 `disconnected` with its error. It is not re-established
+//                 here; the route supervisor dials a new link.
 //   disconnect()  ends the session. The daemon is never stopped: its
 //                 terminals and turns keep running for the next connect.
 //   cancel()      stops an attempt in flight (the user declined an ssh
 //                 prompt): its ssh processes end, so ssh cannot ask again.
 //
-// An attempt that fails on authentication or the host key stops retrying:
-// asking for a password again every minute helps nobody. Nor does one that
-// reaches a different Dream host than the one this connection is for: the
-// first host it reaches (or the one it was told to expect) is the only one
-// it will connect to, so a reassigned address never silently swaps hosts.
+// Which host the link reached (the host-info's identity) is reported in the
+// endpoint; whether it is the host a connection expects is the route
+// supervisor's question.
 //
 // Electron-free: the process spawner, port picker, fetch and timers are
 // injected, so it runs under plain Node and in tests.
@@ -26,7 +25,6 @@ import net from "node:net";
 import { API_SESSION_TOKEN_HEADER } from "../api/shared/session-token.js";
 import {
   hostProtocolProblem,
-  matchesPinnedIdentity,
   requestHostInfo,
 } from "../shared/host-verification.js";
 import {
@@ -47,8 +45,6 @@ import {
   buildUploadArgs,
 } from "./ssh-args.js";
 
-const RETRY_DELAYS_MS = [2_000, 4_000, 8_000, 16_000, 30_000, 60_000];
-const STABLE_AFTER_MS = 60_000;
 const MASTER_READY_TIMEOUT_MS = 5 * 60_000;
 const VERIFY_TIMEOUT_MS = 15_000;
 const POLL_MS = 200;
@@ -89,15 +85,11 @@ const lastLine = (text) =>
  *   spawnProcess?: typeof spawnChildProcess,
  *   fetchImpl?: typeof fetch,
  *   setTimer?: (callback: () => void, ms: number) => unknown,
- *   clearTimer?: (timer: unknown) => void,
  *   now?: () => number,
- *   random?: () => number,
  *   isLocalPortOpen?: (port: number) => Promise<boolean>,
  *   runtimeVersion?: string | null,
  *   runtimeBaseUrl?: string,
  *   runtimeCacheDirectory?: string | null,
- *   expectedIdentity?: { hostId: string, fingerprint?: string | null } | null,
- *   autoReconnect?: boolean,
  *   interactive?: boolean,
  * }} options
  *   `target`: what the user would type after `ssh` (an alias from
@@ -110,16 +102,12 @@ const lastLine = (text) =>
  *   `controlPath`: a ControlMaster socket path to multiplex through; null
  *   where the client cannot (Windows).
  *   `env`: the ssh processes' environment (askpass variables included).
- *   `expectedIdentity`: the persistent host this target was verified to
- *   reach before; without it, the first host reached is pinned.
  */
 export function createSshHostConnection({
   target,
   runtimeVersion = null,
   runtimeBaseUrl,
   runtimeCacheDirectory = null,
-  expectedIdentity = null,
-  autoReconnect = true,
   interactive = true,
   sshPath = "ssh",
   controlPath = null,
@@ -129,9 +117,7 @@ export function createSshHostConnection({
   spawnProcess = spawnChildProcess,
   fetchImpl = (...args) => fetch(...args),
   setTimer = (callback, ms) => setTimeout(callback, ms),
-  clearTimer = (timer) => clearTimeout(timer),
   now = () => Date.now(),
-  random = Math.random,
   isLocalPortOpen = (port) =>
     new Promise((resolve) => {
       const socket = net.connect(port, "127.0.0.1");
@@ -144,19 +130,14 @@ export function createSshHostConnection({
 }) {
   /**
    * Ports of the host forwarded to this machine (a dev server, for the
-   * browser panel): remote port -> { localPort, held, active }. A forward
-   * keeps its local port across reconnects, so a page loaded through it
-   * comes back at the same address.
+   * browser panel) over this link: remote port -> { localPort, held,
+   * active }. They end with the link; a stable local address is the
+   * connection's relay, above the route.
    */
   const portForwards = new Map();
   let state = "idle";
   let endpoint = null;
-  /** The host this connection is for, once known. */
-  let pinnedIdentity = expectedIdentity?.hostId ? expectedIdentity : null;
   let session = null; // the ssh process whose exit means the link is gone
-  let retryTimer = null;
-  let retryIndex = 0;
-  let connectedAt = 0;
   let generation = 0; // bumps on disconnect, so a stale attempt stands down
   // The ssh processes of the attempt in flight, ended by cancel(); and the
   // error a cancelled attempt rejects with.
@@ -381,23 +362,6 @@ export function createSshHostConnection({
     }
   };
 
-  /**
-   * Why the host that answered (its host-info) is not the one this
-   * connection is for, or null. A host too old to name itself cannot be
-   * told apart from another, so it is refused once one has been pinned.
-   */
-  const identityProblem = (info) => {
-    if (!pinnedIdentity) return null;
-    const hostId = typeof info?.hostId === "string" ? info.hostId : null;
-    if (!hostId) {
-      return `The Dream host at ${target} did not identify itself, so it cannot be confirmed as the host saved for it. Reconnect so Dream installs a matching one.`;
-    }
-    if (!matchesPinnedIdentity(pinnedIdentity, info)) {
-      return `${target} now reaches a different Dream host than the one saved for it, so its projects were not loaded from there. If that machine was replaced, remove this host in Settings and add it again.`;
-    }
-    return null;
-  };
-
   /** One attempt. Resolves with { endpoint, session } or rejects. */
   const establish = async () => {
     let master = null;
@@ -450,15 +414,9 @@ export function createSshHostConnection({
         );
       }
 
-      const problem = identityProblem(info);
-      if (problem) {
-        if (held !== master) held.kill();
-        throw new SshHostError(problem, { fatal: true });
-      }
       const hostId = typeof info?.hostId === "string" ? info.hostId : null;
       const fingerprint =
         typeof info?.fingerprint === "string" ? info.fingerprint : null;
-      if (hostId) pinnedIdentity ??= { fingerprint, hostId };
 
       return {
         endpoint: {
@@ -511,7 +469,7 @@ export function createSshHostConnection({
     const opening = openingForwards.get(remotePort);
     if (opening) return opening;
     const next = (async () => {
-      const localPort = existing?.localPort ?? (await getLocalPort());
+      const localPort = await getLocalPort();
       const held = await openPortForward(remotePort, localPort);
       const entry = { active: true, held, localPort };
       portForwards.set(remotePort, entry);
@@ -525,21 +483,6 @@ export function createSshHostConnection({
     });
     openingForwards.set(remotePort, next);
     return next;
-  };
-
-  /** After a reconnect: the forwards the old link carried, again. */
-  const restorePortForwards = async () => {
-    for (const [remotePort, entry] of portForwards) {
-      if (entry.active) continue;
-      try {
-        await forwardPort(remotePort);
-      } catch (error) {
-        console.warn(
-          `[ssh] ${target}: port ${remotePort} not restored.`,
-          error,
-        );
-      }
-    }
   };
 
   const closePortForwards = () => {
@@ -556,45 +499,19 @@ export function createSshHostConnection({
     }
     endpoint = next;
     session = held;
-    connectedAt = now();
-    void restorePortForwards();
     held.once("exit", () => {
       if (session !== held) return;
       session = null;
       endpoint = null;
-      // Forwards through the master went with it; held ones are closed so
-      // the reconnect opens them all again on the new link.
+      // Forwards through the master went with it; held ones end too.
       closePortForwards();
+      portForwards.clear();
+      openingForwards.clear();
       if (attempt !== generation) return;
-      if (now() - connectedAt >= STABLE_AFTER_MS) retryIndex = 0;
-      setState("reconnecting");
-      if (autoReconnect) scheduleRetry(attempt);
+      setState("disconnected", { error: "The SSH connection closed." });
     });
     setState("connected", { endpoint: next });
     return true;
-  };
-
-  const scheduleRetry = (attempt) => {
-    const base =
-      RETRY_DELAYS_MS[Math.min(retryIndex, RETRY_DELAYS_MS.length - 1)];
-    retryIndex += 1;
-    const delay = Math.round(base * (0.8 + random() * 0.4));
-    retryTimer = setTimer(async () => {
-      retryTimer = null;
-      if (attempt !== generation) return;
-      attemptProcesses = new Set();
-      try {
-        adopt(attempt, await establish());
-      } catch (error) {
-        if (attempt !== generation) return;
-        if (error instanceof SshHostError && error.fatal) {
-          setState("failed", { error: error.message });
-          return;
-        }
-        setState("reconnecting", { error: error.message });
-        scheduleRetry(attempt);
-      }
-    }, delay);
   };
 
   return {
@@ -603,8 +520,8 @@ export function createSshHostConnection({
     getEndpoint: () => endpoint,
 
     /**
-     * Forwards the host's `remotePort` (on its loopback) to this machine;
-     * resolves with the local port. Kept across reconnects.
+     * Forwards the host's `remotePort` (on its loopback) to this machine
+     * over this link; resolves with the local port.
      * @param {number} remotePort
      */
     async forwardPort(remotePort) {
@@ -620,7 +537,6 @@ export function createSshHostConnection({
       }
       generation += 1;
       const attempt = generation;
-      retryIndex = 0;
       attemptProcesses = new Set();
       setState("connecting");
       try {
@@ -639,17 +555,15 @@ export function createSshHostConnection({
     },
 
     /**
-     * Stops the attempt in flight, connecting or reconnecting: its ssh
-     * processes end and it fails with `reason`. Without one, nothing.
+     * Stops the attempt in flight: its ssh processes end and it fails with
+     * `reason`. Without one, nothing.
      * @param {string} [reason]
      */
     cancel(reason = "Cancelled.") {
-      if (state !== "connecting" && state !== "reconnecting") return false;
+      if (state !== "connecting") return false;
       const error = new SshHostError(reason, { fatal: true, cancelled: true });
       cancellation = { attempt: generation, error };
       generation += 1;
-      if (retryTimer !== null) clearTimer(retryTimer);
-      retryTimer = null;
       for (const child of attemptProcesses) child.kill();
       attemptProcesses = new Set();
       setState("failed", { error: reason });
@@ -659,8 +573,6 @@ export function createSshHostConnection({
     /** Ends the session. The daemon and its work keep running. */
     disconnect() {
       generation += 1;
-      if (retryTimer !== null) clearTimer(retryTimer);
-      retryTimer = null;
       const held = session;
       session = null;
       endpoint = null;

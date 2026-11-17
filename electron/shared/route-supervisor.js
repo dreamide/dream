@@ -1,21 +1,164 @@
-// One logical host, several ordered routes. Transport adapters own credentials
-// and identity proof; this owner selects only verified, ready handles. It
-// never retries requests or knows how a host process is started or stopped.
+// One logical host, several ordered routes. A route adapter opens one link
+// over one route and reports it lost; this owner makes every link ready the
+// same way (Host verification's readiness sequence and one rule for what is
+// fatal), pins the host, selects among ready links and retries. It never
+// retries requests or knows how a host process is started or stopped.
 import { MAX_HOST_ROUTES } from "./host-connections.js";
-import { matchesPinnedIdentity } from "./host-verification.js";
+import {
+  catalogMatchesHost,
+  hostProtocolProblem,
+  matchesPinnedIdentity,
+  requestCatalogProbe,
+} from "./host-verification.js";
 
 const RETRY_MS = [2_000, 4_000, 8_000, 16_000, 30_000, 60_000];
 
 /**
- * `open(route, {signal, background, expectedIdentity, onLost})` must verify
- * the host, authorization and readiness before returning a handle. A public
- * descriptor is not proof for an untrusted route. `background` is a probe
- * made while another route is serving, and must not prompt; recovering a
- * connection with no serving route may prompt, as its first connect did.
- * A handle supplies `endpoint` and idempotent `close()`, which detaches only
- * that transport. `onLost(error)` reports a later disconnect. Fatal failures
- * block that route until an explicit connect; cancellation stops the whole
- * attempt. Timers, time and jitter are injectable for every client.
+ * What a link reached: the host's descriptor (`hostId`, `fingerprint`,
+ * `hostProtocolVersion`, `version`) and how to reach it (`baseUrl`, plus the
+ * transport's own fields: an SSH `token`, an HTTPS `fetch` and
+ * `socketOptions`). The supervisor adds the `routeId`.
+ * @typedef {{
+ *   baseUrl: string,
+ *   hostId?: string | null,
+ *   fingerprint?: string | null,
+ *   hostProtocolVersion?: number,
+ *   version?: string | null,
+ *   routeId?: string,
+ *   [field: string]: unknown,
+ * }} RouteEndpoint
+ */
+
+/**
+ * One link a route adapter opened over one route. Opening stops at the
+ * transport: the SSH session and its forward, or the HTTPS transport that
+ * checks each socket's host proof. Readiness is the supervisor's.
+ * @typedef {{
+ *   endpoint: RouteEndpoint,
+ *   request: (url: string, init: RequestInit) => Promise<Response>,
+ *   authorize?: (signal: AbortSignal) => Promise<Response>,
+ *   forwardPort?: (remotePort: number) => Promise<number>,
+ *   close: () => void,
+ * }} RouteLink
+ *   `endpoint` is read after `authorize` (an HTTPS link learns its host
+ *   from its first verified socket, so it may be a getter).
+ *   `request` is a fetch that carries the link's credential.
+ *   `authorize` shows the host this desktop's credential and answers with
+ *   the host's response (HTTPS renews its device session); absent where
+ *   opening already proved it (an SSH link's token came from the host).
+ *   `forwardPort` forwards a port of the host here, when the transport can.
+ *   `close` is idempotent and detaches only this transport.
+ */
+
+/**
+ * A route adapter. `open(route, {signal, background, expectedIdentity,
+ * onLost})` resolves with one link or rejects with why; `fatal` on the
+ * error marks a refusal retrying cannot change (authentication, a host
+ * key, a certificate), `cancelled` one the user made. `expectedIdentity`
+ * is the connection's pinned host, for a transport that refuses before
+ * sending a credential. `background` is a probe made while another route
+ * is serving, and must not prompt; recovering a connection with no serving
+ * route may prompt, as its first connect did. `onLost(error)` reports that
+ * the link went away, at any time after `open` was called. An adapter never
+ * reconnects: the supervisor dials again.
+ * @typedef {(
+ *   route: { id: string, [field: string]: unknown },
+ *   options: {
+ *     signal: AbortSignal,
+ *     background: boolean,
+ *     expectedIdentity: { hostId: string, fingerprint?: string | null } | null,
+ *     onLost: (error?: Error) => void,
+ *   },
+ * ) => Promise<RouteLink>} RouteAdapter
+ */
+
+const fatal = (message) => Object.assign(new Error(message), { fatal: true });
+
+/**
+ * The one rule for a host's refusal: 401 or 403 means the credential is
+ * refused, which retrying cannot change until an explicit connect; any
+ * other status may pass. Used for authorization, the catalog probe and an
+ * HTTPS link's later session checks alike.
+ * @param {string} what
+ * @param {number} status
+ */
+export function routeRefusal(what, status) {
+  return Object.assign(new Error(`${what} (${status}).`), {
+    fatal: status === 401 || status === 403,
+    status,
+  });
+}
+
+/**
+ * Host verification's readiness sequence for a link, the same for every
+ * route: authorize; the pinned host (and, beside other routes, a
+ * persistent identity); the catalog probe; the protocol check; the catalog
+ * naming the host the link reached. Resolves with the link's endpoint.
+ * @param {RouteLink} link
+ * @param {{
+ *   signal: AbortSignal,
+ *   pinned: { hostId: string, fingerprint?: string | null } | null,
+ *   needsIdentity: boolean,
+ * }} options
+ * @returns {Promise<RouteEndpoint>}
+ */
+export async function readyLink(link, { signal, pinned, needsIdentity }) {
+  if (link.authorize) {
+    const response = await link.authorize(signal);
+    await response.body?.cancel();
+    if (!response.ok)
+      throw routeRefusal("The route refused access", response.status);
+  }
+  signal.throwIfAborted();
+  const endpoint = link.endpoint;
+  if (pinned && !matchesPinnedIdentity(pinned, endpoint))
+    throw fatal(
+      "This route reaches a different host than the saved connection.",
+    );
+  if (needsIdentity && (!endpoint.hostId || !endpoint.fingerprint))
+    throw fatal(
+      "Multiple routes require a host with a persistent identity and key fingerprint.",
+    );
+  const response = await requestCatalogProbe({
+    baseUrl: endpoint.baseUrl,
+    signal,
+    fetchImpl: link.request,
+  });
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw routeRefusal("The route refused catalog access", response.status);
+  }
+  const catalog = await response.json();
+  const problem = hostProtocolProblem(
+    catalog?.host?.hostProtocolVersion ?? endpoint.hostProtocolVersion,
+  );
+  if (problem) throw fatal(problem);
+  if (endpoint.hostId && !catalogMatchesHost(catalog, endpoint))
+    throw fatal("The route's catalog does not match its verified host.");
+  signal.throwIfAborted();
+  return endpoint;
+}
+
+/**
+ * Supervises one connection's ordered routes over `open`, a route adapter.
+ * Each attempt opens a link and makes it ready with `readyLink`; only a
+ * ready link is selected. A lost or failed route cools down with jittered
+ * backoff; a fatal failure blocks that route until an explicit connect;
+ * cancellation stops the whole attempt. The first host reached (or
+ * `expectedIdentity`) is pinned for the connection's life. Timers, time
+ * and jitter are injectable for every client.
+ * @param {{
+ *   routes: Array<{ id: string, [field: string]: unknown }>,
+ *   open: RouteAdapter,
+ *   expectedIdentity?: { hostId: string, fingerprint?: string | null } | null,
+ *   onStatus?: (status: object) => void,
+ *   now?: () => number,
+ *   setTimer?: (callback: () => void, ms: number) => unknown,
+ *   clearTimer?: (timer: any) => void,
+ *   random?: () => number,
+ *   attemptTimeoutMs?: number,
+ *   preferredCooldownMs?: number,
+ * }} options
  */
 export function createRouteSupervisor({
   routes,
@@ -137,7 +280,7 @@ export function createRouteSupervisor({
   const lose = (selected, reason = new Error("The route disconnected.")) => {
     if (active !== selected || stopped) return;
     active = null;
-    selected.handle.close();
+    selected.link.close();
     fail(selected.route, reason);
     state = "reconnecting";
     error = reason.message;
@@ -156,70 +299,58 @@ export function createRouteSupervisor({
     // serving may prompt again, as the connection's first attempt could.
     const background = active !== null;
     const controller = new AbortController();
+    const { signal } = controller;
     const candidate = { route, controller };
     attempt = candidate;
     emit();
     let selected = null;
-    let lost = null;
+    let link = null;
     let timeout;
     const aborted = new Promise((_, reject) => {
-      controller.signal.addEventListener(
-        "abort",
-        () => reject(controller.signal.reason),
-        { once: true },
-      );
+      signal.addEventListener("abort", () => reject(signal.reason), {
+        once: true,
+      });
       timeout = setTimer(
         () => controller.abort(new Error("Timed out connecting to the route.")),
         attemptTimeoutMs,
       );
     });
-    // Even a transport that ignores cancellation cannot publish a late handle.
+    // Even a transport that ignores cancellation cannot publish a late link.
     const opening = Promise.resolve()
       .then(() =>
         open(route, {
           background,
-          signal: controller.signal,
+          signal,
           expectedIdentity: pinned,
-          onLost: (reason) => {
-            lost = reason ?? new Error("The route disconnected.");
-            if (selected) lose(selected, lost);
+          // Lost before it was selected, the attempt fails with the reason.
+          onLost: (reason = new Error("The route disconnected.")) => {
+            if (selected) lose(selected, reason);
+            else controller.abort(reason);
           },
         }),
       )
-      .then((handle) => {
-        if (controller.signal.aborted || !current(epoch)) {
-          handle.close();
+      .then(async (opened) => {
+        if (signal.aborted || !current(epoch)) {
+          opened.close();
           throw new Error("Route attempt superseded.");
         }
-        return handle;
+        link = opened;
+        return readyLink(opened, {
+          signal,
+          pinned,
+          needsIdentity: routes.length > 1,
+        });
       });
-    let handle = null;
     try {
-      handle = await Promise.race([opening, aborted]);
-      if (lost) throw lost;
-      const endpoint = handle.endpoint;
-      if (pinned && !matchesPinnedIdentity(pinned, endpoint)) {
-        const refusal = new Error(
-          "This route reaches a different host than the saved connection.",
-        );
-        refusal.fatal = true;
-        throw refusal;
-      }
-      if (routes.length > 1 && (!endpoint.hostId || !endpoint.fingerprint)) {
-        const refusal = new Error(
-          "Multiple routes require a host with a persistent identity and key fingerprint.",
-        );
-        refusal.fatal = true;
-        throw refusal;
-      }
+      const endpoint = await Promise.race([opening, aborted]);
       if (!current(epoch)) throw new Error("Route attempt superseded.");
       if (endpoint.hostId)
         pinned = {
           hostId: endpoint.hostId,
-          fingerprint: pinned?.fingerprint ?? endpoint.fingerprint,
+          fingerprint: pinned?.fingerprint ?? endpoint.fingerprint ?? null,
         };
       const previous = active;
-      selected = { route, handle };
+      selected = { route, link, endpoint: { ...endpoint, routeId: route.id } };
       active = selected;
       wasReady = true;
       preferredAfter = now() + preferredCooldownMs;
@@ -228,11 +359,14 @@ export function createRouteSupervisor({
       state = "connected";
       error = null;
       emit();
-      previous?.handle.close();
-      return handle.endpoint;
+      previous?.link.close();
+      return selected.endpoint;
     } catch (reason) {
-      handle?.close();
-      controller.abort();
+      // A late link from a transport that ignored the abort closes itself
+      // above; one already opened closes here.
+      opening.catch(() => {});
+      controller.abort(reason);
+      link?.close();
       throw reason;
     } finally {
       clearTimer(timeout);
@@ -267,7 +401,7 @@ export function createRouteSupervisor({
             emit();
           }
         }
-        if (active) return active.handle.endpoint;
+        if (active) return active.endpoint;
         if (current(epoch)) {
           state =
             wasReady &&
@@ -290,8 +424,11 @@ export function createRouteSupervisor({
 
   return {
     getState: snapshot,
-    getEndpoint: () => active?.handle.endpoint ?? null,
-    getHandle: () => active?.handle ?? null,
+    getEndpoint: () => active?.endpoint ?? null,
+    /** The selected link, for transport services such as port forwards. */
+    getLink: () => active?.link ?? null,
+    /** The host this connection is pinned to, once known. */
+    getPinnedIdentity: () => pinned,
     updateRoutes(next) {
       if (
         !next.length ||
@@ -315,7 +452,7 @@ export function createRouteSupervisor({
       if (active && !unchanged(active.route)) {
         const previous = active;
         active = null;
-        previous.handle.close();
+        previous.link.close();
       }
       if (!stopped) {
         preferredAfter = 0;
@@ -327,13 +464,13 @@ export function createRouteSupervisor({
       return Promise.resolve(null);
     },
     connect() {
-      if (active) return Promise.resolve(active.handle.endpoint);
+      if (active) return Promise.resolve(active.endpoint);
       if (explicit) return explicit;
       const opened = session;
       const start = () => {
         if (opened !== session)
           throw new Error("Disconnected while connecting.");
-        if (active) return active.handle.endpoint;
+        if (active) return active.endpoint;
         stopped = false;
         failures.clear();
         state = wasReady ? "reconnecting" : "connecting";
@@ -361,7 +498,7 @@ export function createRouteSupervisor({
       pending = null;
       const previous = active;
       active = null;
-      previous?.handle.close();
+      previous?.link.close();
       state = "disconnected";
       error = null;
       emit();
