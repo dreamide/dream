@@ -14,6 +14,7 @@ import { startActivityNotifications } from "./activity-notifications";
 import { AppScreenshotToast } from "./app-screenshot-toast";
 import { ChatRuntimeHost } from "./chat/chat-runtime-host";
 import { ChatSearchDialog } from "./chat-search-dialog";
+import { chatTurnOutcomes } from "./chat-turn-outcome";
 import { EmptyProjectWorkspace } from "./empty-project-workspace";
 import { IdeHeader } from "./ide-header";
 import { terminalSessionOwner, useIdeStore } from "./ide-store";
@@ -88,6 +89,10 @@ export const IdeShell = () => {
 
   // Agent browser tools (main process) ask the renderer to open/show tabs.
   useBrowserAgentCommands();
+
+  // What each chat's turns come to, counting turns on the host this window
+  // does not follow.
+  useEffect(() => chatTurnOutcomes.watch(useIdeStore), []);
 
   // Desktop notifications for chats that finish, fail or wait in the
   // background.

@@ -36,6 +36,7 @@ import {
   isChatWaitingOnUser,
   selectChatActivity,
 } from "./chat-activity";
+import { useChatTurnOutcomes } from "./chat-turn-outcome";
 import { RemoveWorktreeDialog } from "./git-actions/remove-worktree-dialog";
 import { normalizeProjectPathKey } from "./ide-state";
 import { useIdeStore } from "./ide-store";
@@ -135,7 +136,7 @@ export const ProjectSidebar = ({
     [hostChoices, hosts],
   );
   const activity = useIdeStore(useShallow(selectChatActivity));
-  const completedChatIds = useIdeStore((s) => s.completedChatIds);
+  const unreadChatIds = useChatTurnOutcomes((s) => s.unread);
   const titleGeneratingChatIds = useIdeStore((s) => s.titleGeneratingChatIds);
   const deleteChat = useIdeStore((s) => s.deleteChat);
   const toggleChatPinned = useIdeStore((s) => s.toggleChatPinned);
@@ -378,8 +379,7 @@ export const ProjectSidebar = ({
                 const isAwaiting = isChatWaitingOnUser(activity, chat.id);
                 const isTitleGenerating = !!titleGeneratingChatIds[chat.id];
                 const isCompleted =
-                  Boolean(completedChatIds[chat.id]) &&
-                  chat.id !== activeChatId;
+                  Boolean(unreadChatIds[chat.id]) && chat.id !== activeChatId;
                 const lastActiveAt = chat.updatedAt || chat.createdAt;
                 // Standalone chats of every Host share one list: a chat on
                 // another Host says which.

@@ -1,7 +1,7 @@
 // Chats within a project. The document operations live in
 // workspace-document.ts; these wrappers add the runtime side (streaming
-// guards, the "finished while away" marks, transcript persistence,
-// checkpoint cleanup).
+// guards, seeing a chat's "finished while away" mark, transcript
+// persistence, checkpoint cleanup).
 import type { UIMessage } from "ai";
 import type { ChatConfig, ChatSortOrder } from "@/types/ide";
 import { isChatRunning } from "../chat-activity";
@@ -10,6 +10,7 @@ import {
   getMessagesThroughBranchPoint,
 } from "../chat-branching";
 import { mergeChatMessageHistories } from "../chat-message-history";
+import { chatTurnOutcomes } from "../chat-turn-outcome";
 import { requestChatCheckpointCleanup } from "./checkpoint-cleanup";
 import { areMessagesEqual, shouldTouchChatUpdatedAt } from "./helpers";
 import type {
@@ -20,19 +21,6 @@ import type {
 } from "./ide-store-types";
 import { commitWorkspaceRemoval } from "./project-runtime-state";
 import * as workspace from "./workspace-document";
-
-const withoutCompletedMarks = (
-  completedChatIds: IdeState["completedChatIds"],
-  chatIds: Iterable<string | null | undefined>,
-) => {
-  const next = { ...completedChatIds };
-  for (const chatId of chatIds) {
-    if (chatId) {
-      delete next[chatId];
-    }
-  }
-  return next;
-};
 
 /**
  * Finishes closing the projects a chat removal took out of the tab strip: a
@@ -213,20 +201,13 @@ export const createChatActions = (
   },
 
   setActiveChatId: (projectId: string, chatId: string | null) => {
-    set((state) => {
-      const doc = workspace.focusChat(state, state.settings, projectId, chatId);
-      const activeChatId = doc.projects.find(
-        (project) => project.id === projectId,
-      )?.ui.activeChatId;
-      return activeChatId && state.completedChatIds[activeChatId]
-        ? {
-            ...doc,
-            completedChatIds: withoutCompletedMarks(state.completedChatIds, [
-              activeChatId,
-            ]),
-          }
-        : doc;
-    });
+    set((state) =>
+      workspace.focusChat(state, state.settings, projectId, chatId),
+    );
+    const activeChatId = get().projects.find(
+      (project) => project.id === projectId,
+    )?.ui.activeChatId;
+    if (activeChatId) chatTurnOutcomes.seen([activeChatId]);
   },
 
   updateChat: (chatId: string, updater: (chat: ChatConfig) => ChatConfig) => {
@@ -275,17 +256,8 @@ export const createChatActions = (
 
   deleteChat: (chatId: string) => {
     const openBefore = get().projects.map((project) => project.id);
-    set((state) => {
-      const doc = workspace.deleteChat(state, state.settings, chatId);
-      return doc === state
-        ? state
-        : {
-            ...doc,
-            completedChatIds: withoutCompletedMarks(state.completedChatIds, [
-              chatId,
-            ]),
-          };
-    });
+    // The Chat turn outcome forgets its mark (chat-turn-outcome.ts).
+    set((state) => workspace.deleteChat(state, state.settings, chatId));
     closeProjectsLeftOpen(get, openBefore);
   },
 
@@ -306,18 +278,9 @@ export const createChatActions = (
 
     const deletedChatIds = deletedChats.map((chat) => chat.id);
     const openBefore = get().projects.map((project) => project.id);
-    set((state) => {
-      const doc = workspace.removeChats(state, state.settings, deletedChatIds);
-      return doc === state
-        ? state
-        : {
-            ...doc,
-            completedChatIds: withoutCompletedMarks(
-              state.completedChatIds,
-              deletedChatIds,
-            ),
-          };
-    });
+    set((state) =>
+      workspace.removeChats(state, state.settings, deletedChatIds),
+    );
     closeProjectsLeftOpen(get, openBefore);
 
     // A standalone project goes with its last chat; nothing could show it.

@@ -1,13 +1,13 @@
 import { expect, test } from "vitest";
 import { getActivityNotificationKind } from "./activity-notifications";
-import type { ActivityStatus, ChatActivity } from "./activity-store";
+import type { ChatTurn, TurnStatus } from "./chat-turn-outcome";
 
-const activity = (status: ActivityStatus): ChatActivity => ({
+const activity = (status: TurnStatus): ChatTurn => ({
   detail: "",
   status,
   updatedAt: 0,
 });
-const kind = (previous: ActivityStatus | null, next: ActivityStatus) =>
+const kind = (previous: TurnStatus | null, next: TurnStatus) =>
   getActivityNotificationKind(
     previous ? activity(previous) : undefined,
     activity(next),

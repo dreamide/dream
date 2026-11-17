@@ -102,7 +102,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   hostAwaitingApprovalChatIds: {},
   hosts: {},
   awaitingAnswerChatIds: {},
-  completedChatIds: {},
   titleGeneratingChatIds: {},
   draftChatIdByProject: {},
   terminalStatus: {},

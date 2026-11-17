@@ -50,10 +50,8 @@ import { ChatQueue } from "./chat/chat-queue";
 import {
   dismissChatError,
   respondToToolApproval,
-  setChatError,
   stopChatTurn,
   submitChatPrompt,
-  useChatRuntimeStore,
 } from "./chat/chat-runtime";
 import type { ContinueChatPopoverContext } from "./chat/continue-chat-popover";
 import { EditChatDialog } from "./chat/edit-chat-dialog";
@@ -68,6 +66,7 @@ import {
   CHAT_TRANSCRIPT_WINDOW_SIZE,
   getTranscriptWindow,
 } from "./chat/transcript-window";
+import { chatTurnOutcomes, useChatTurnOutcomes } from "./chat-turn-outcome";
 import { useIdeStore } from "./ide-store";
 import { ProjectBranchFooter } from "./project-status-bar";
 import { RunSavedPromptSubmenu } from "./saved-prompts/run-saved-prompt-submenu";
@@ -174,11 +173,9 @@ export const ChatPanel = ({
   const deleteChat = useIdeStore((s) => s.deleteChat);
   const toggleChatPinned = useIdeStore((s) => s.toggleChatPinned);
   const addProjectTerminal = useIdeStore((s) => s.addProjectTerminal);
-  const localError = useChatRuntimeStore(
-    (s) => s.errorByChatId[chat.id] ?? null,
-  );
+  const localError = useChatTurnOutcomes((s) => s.errors[chat.id] ?? null);
   const setLocalError = useCallback(
-    (message: string | null) => setChatError(chat.id, message),
+    (message: string | null) => chatTurnOutcomes.reportError(chat.id, message),
     [chat.id],
   );
   const { branch: currentGitBranch, isRepo } = useProjectGitStatus(
@@ -414,7 +411,7 @@ export const ChatPanel = ({
       if (!(await submitChatPrompt(chat.id, prompt))) {
         // Rejecting keeps the composer's text, references and attachments.
         throw new Error(
-          useChatRuntimeStore.getState().errorByChatId[chat.id] ||
+          chatTurnOutcomes.store.getState().errors[chat.id] ||
             "Unable to submit prompt.",
         );
       }

@@ -6,7 +6,7 @@ import {
   DEFAULT_SETTINGS,
 } from "@/lib/ide-defaults";
 import type { ChatConfig, ProjectConfig } from "@/types/ide";
-import { useActivityStore } from "../activity-store";
+import { chatTurnOutcomes } from "../chat-turn-outcome";
 import { clearGeneratedGitText } from "../git-generated-text";
 import { useIdeStore } from "../ide-store";
 import { CHAT_STREAM_UPDATE_THROTTLE_MS } from "./chat-constants";
@@ -20,7 +20,6 @@ import {
   startChatRuntime,
   submitChatPrompt,
   subscribeLiveTranscript,
-  useChatRuntimeStore,
   watchChatSessionView,
 } from "./chat-runtime";
 import { ENDED_STREAM_GRACE_MS } from "./turn-following";
@@ -131,7 +130,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
   useIdeStore.setState(initialState, true);
   clearGeneratedGitText();
-  useChatRuntimeStore.setState({ errorByChatId: {} });
 });
 
 test("a queued submission is sent and saved with no chat panel mounted", async () => {
@@ -185,10 +183,10 @@ test("a queued submission that cannot be sent returns to the draft", async () =>
   });
 
   await waitFor(() =>
-    Boolean(useChatRuntimeStore.getState().errorByChatId[chat.id]),
+    Boolean(chatTurnOutcomes.store.getState().errors[chat.id]),
   );
   assert.match(
-    useChatRuntimeStore.getState().errorByChatId[chat.id],
+    chatTurnOutcomes.store.getState().errors[chat.id],
     /Anthropic CLI is not available/,
   );
   // Back in the chat's draft, though no panel shows the chat.
@@ -375,10 +373,7 @@ test("a dropped response body reconnects to the host turn without a refresh or r
       ?.parts.map((part) => (part.type === "text" ? part.text : part.type)),
     ["Done."],
   );
-  assert.equal(
-    useChatRuntimeStore.getState().errorByChatId[chat.id],
-    undefined,
-  );
+  assert.equal(chatTurnOutcomes.store.getState().errors[chat.id], undefined);
   assert.equal(useIdeStore.getState().streamingChatIds[chat.id], undefined);
   assert.equal(
     requests.some((request) => request.url === "/api/chat/submit"),
@@ -448,7 +443,7 @@ test("a stream that stalls after its turn ends settles on the saved transcript",
   assert.equal(session.chat.status, "ready");
   assert.equal(useIdeStore.getState().streamingChatIds[chat.id], undefined);
   assert.equal(
-    useActivityStore.getState().entries[chat.id]?.status,
+    chatTurnOutcomes.store.getState().turns[chat.id]?.status,
     "finished",
   );
   await vi.advanceTimersByTimeAsync(10_000);
@@ -504,10 +499,7 @@ test.each([
   assert.equal(streamRequests, 2);
   assert.equal(session.chat.status, "ready");
   assert.equal(useIdeStore.getState().hostRunningChatIds[chat.id], undefined);
-  assert.equal(
-    useChatRuntimeStore.getState().errorByChatId[chat.id],
-    undefined,
-  );
+  assert.equal(chatTurnOutcomes.store.getState().errors[chat.id], undefined);
   await vi.advanceTimersByTimeAsync(10_000);
   assert.equal(streamRequests, 2);
 });
@@ -541,7 +533,7 @@ test.each([
   await vi.advanceTimersByTimeAsync(10_000);
   assert.equal(streamRequests, 1);
   assert.match(
-    useChatRuntimeStore.getState().errorByChatId[chat.id],
+    chatTurnOutcomes.store.getState().errors[chat.id],
     failure === "refused" ? /Pair this device/ : /Provider quota/,
   );
 });

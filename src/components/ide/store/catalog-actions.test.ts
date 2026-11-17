@@ -121,9 +121,8 @@ test("a removed project takes its chats with it", () => {
 });
 
 test("a project its host removed has its terminals stopped and leaves no runtime state behind", () => {
-  const { open, openChat, stoppedSessions, store } = createTestStore();
+  const { open, stoppedSessions, store } = createTestStore();
   store.setState({
-    completedChatIds: { [openChat.id]: true },
     projectGitRefreshKeys: { [open.id]: 3 },
     projectTerminalSessionIds: { [open.id]: ["session-1"] },
     terminalStatus: { "session-1": "running" },
@@ -138,5 +137,4 @@ test("a project its host removed has its terminals stopped and leaves no runtime
   expect(state.projectGitRefreshKeys).toEqual({});
   expect(state.projectTerminalSessionIds).toEqual({});
   expect(state.terminalStatus).toEqual({});
-  expect(state.completedChatIds).toEqual({});
 });

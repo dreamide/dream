@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { BrowserTabState, GitPanelTab, ProjectConfig } from "@/types/ide";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
+import { useChatTurnOutcomes } from "../chat-turn-outcome";
 import { areProjectsEqualExceptLastUsedAt } from "../ide-state";
 import { useIdeStore } from "../ide-store";
 import type { RightPanelView } from "../ide-types";
@@ -49,7 +50,7 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
   const chats = useIdeStore(
     useShallow((s) => s.chats.filter((chat) => chat.projectId === projectId)),
   );
-  const completedChatIds = useIdeStore((s) => s.completedChatIds);
+  const unreadChatIds = useChatTurnOutcomes((s) => s.unread);
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds[projectId] ?? EMPTY_TERMINAL_SESSION_IDS,
   );
@@ -102,7 +103,7 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
     (chat) =>
       chat.projectId === projectId &&
       chat.deletedAt === null &&
-      Boolean(completedChatIds[chat.id]),
+      Boolean(unreadChatIds[chat.id]),
   );
   const hasProjectTerminalSessions = projectTerminalSessionIds.length > 0;
   const terminalPanelVisible =

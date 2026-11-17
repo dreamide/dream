@@ -1,5 +1,4 @@
 import { getDesktopApi } from "@/lib/electron";
-import { useActivityStore } from "../activity-store";
 import type { IdeState, IdeStoreSet } from "./ide-store-types";
 
 export const createRuntimeActions = (
@@ -41,54 +40,26 @@ export const createRuntimeActions = (
     });
   },
 
-  setChatStreaming: (chatId, streaming) => {
+  // Whether this window's session streams the chat. What its turn came to
+  // is the Chat turn outcome's (chat-turn-outcome.ts).
+  setChatStreaming: (chatId, streaming) =>
     set((state) => {
-      const nextStreamingChatIds = { ...state.streamingChatIds };
-      const nextAwaitingAnswerChatIds = { ...state.awaitingAnswerChatIds };
-      const nextCompletedChatIds = { ...state.completedChatIds };
-
+      const streamingChatIds = { ...state.streamingChatIds };
       if (streaming) {
-        if (!state.streamingChatIds[chatId])
-          useActivityStore.getState().start(chatId);
-        nextStreamingChatIds[chatId] = true;
-        delete nextCompletedChatIds[chatId];
-      } else {
-        const wasStreaming = Boolean(state.streamingChatIds[chatId]);
-        const activity = useActivityStore.getState().entries[chatId];
-        if (wasStreaming && activity?.status === "running") {
-          useActivityStore.getState().finish(chatId, "interrupted");
-        }
-        delete nextStreamingChatIds[chatId];
-        delete nextAwaitingAnswerChatIds[chatId];
-
-        const chat = state.chats.find((item) => item.id === chatId);
-        const project = chat
-          ? state.projects.find((item) => item.id === chat.projectId)
-          : null;
-        const isActiveVisibleChat =
-          chat &&
-          state.activeProjectId === chat.projectId &&
-          project?.ui.activeChatId === chatId;
-
-        if (
-          wasStreaming &&
-          chat &&
-          chat.deletedAt === null &&
-          !isActiveVisibleChat
-        ) {
-          nextCompletedChatIds[chatId] = true;
-        } else {
-          delete nextCompletedChatIds[chatId];
-        }
+        if (state.streamingChatIds[chatId]) return state;
+        streamingChatIds[chatId] = true;
+        return { streamingChatIds };
       }
-
-      return {
-        awaitingAnswerChatIds: nextAwaitingAnswerChatIds,
-        completedChatIds: nextCompletedChatIds,
-        streamingChatIds: nextStreamingChatIds,
-      };
-    });
-  },
+      if (
+        !state.streamingChatIds[chatId] &&
+        !state.awaitingAnswerChatIds[chatId]
+      )
+        return state;
+      delete streamingChatIds[chatId];
+      const awaitingAnswerChatIds = { ...state.awaitingAnswerChatIds };
+      delete awaitingAnswerChatIds[chatId];
+      return { awaitingAnswerChatIds, streamingChatIds };
+    }),
 
   setChatAwaitingAnswer: (chatId, awaiting) =>
     set((state) => {

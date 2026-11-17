@@ -16,7 +16,6 @@ const createTestStore = () => {
         chats: [],
         chatSort: "recent",
         closedProjects: [],
-        completedChatIds: {},
         draftChatIdByProject: {},
         messagesByChatId: {},
         pendingChatSubmitByChatId: {},

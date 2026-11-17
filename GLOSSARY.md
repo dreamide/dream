@@ -163,6 +163,20 @@ Whether this window's own session is busy, and which transcripts it keeps, are
 about this window rather than the chat, so the chat runtime and the
 transcript cache answer them.
 
+## Chat turn outcome
+
+What a Chat's last turn came to (`src/components/ide/chat-turn-outcome.ts`):
+its **turn status** (running, waiting on its user, finished, failed or
+interrupted, kept across reloads), its **unread mark** (the turn ended while
+the chat was not shown, until the user sees it) and the message on its
+banner. Two sources report turns: this window's session while it follows one
+(how it ended, what it asks), and the host catalog's `turn` and `approval`
+events, as the store's host sets hold them, for every turn whoever started
+it. A turn both report is one turn: it ends when the last source does, with
+the most telling ending either gave. A session that only stops following
+leaves the end to the host. Notifications watch the turn status.
+Chat activity, not this, answers whether a chat runs or waits now.
+
 ## Live transcript
 
 What a chat panel shows of its Chat's runtime session while a turn streams

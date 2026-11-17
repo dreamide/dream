@@ -14,7 +14,6 @@
  */
 import { Chat } from "@ai-sdk/react";
 import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai";
-import { create } from "zustand";
 import { ApiError, apiClient } from "@/lib/api-client";
 import {
   forgetChatQueue,
@@ -43,9 +42,9 @@ import { isAiSdkApproval } from "../../../../electron/shared/agent-turn-contract
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { getProviderCapabilities } from "../../../../electron/shared/provider-capabilities.js";
 import { getActivityAttention } from "../activity-status";
-import { useActivityStore } from "../activity-store";
 import { getChipToolKind } from "../assistant-message-tools";
 import { mergeChatMessageHistories } from "../chat-message-history";
+import { chatTurnOutcomes } from "../chat-turn-outcome";
 import { warmProjectCommitMessage } from "../git-generated-text";
 import { chatIsAwaitingAnswer } from "../header/project-tab-status";
 import { useIdeStore } from "../ide-store";
@@ -128,34 +127,11 @@ const chatT: Translate = (key, values) => {
 const modelT: Translate = (key) => translators?.models(key) ?? key;
 
 // ── Errors shown in a chat's banner ─────────────────────────────────────
-
-interface ChatRuntimeState {
-  errorByChatId: Record<string, string>;
-}
-
-export const useChatRuntimeStore = create<ChatRuntimeState>(() => ({
-  errorByChatId: {},
-}));
-
-const withoutKey = <Value>(record: Record<string, Value>, key: string) => {
-  if (!Object.hasOwn(record, key)) {
-    return record;
-  }
-  const { [key]: _removed, ...rest } = record;
-  return rest;
-};
-
-export const setChatError = (chatId: string, message: string | null) => {
-  useChatRuntimeStore.setState((state) => ({
-    errorByChatId: message
-      ? { ...state.errorByChatId, [chatId]: message }
-      : withoutKey(state.errorByChatId, chatId),
-  }));
-};
+// The banner's message is the Chat turn outcome's (chat-turn-outcome.ts).
 
 /** Clears the banner and the `Chat`'s own error state. */
 export const dismissChatError = (chatId: string) => {
-  setChatError(chatId, null);
+  chatTurnOutcomes.reportError(chatId, null);
   sessions.get(chatId)?.chat.clearError();
 };
 
@@ -327,7 +303,7 @@ const handleSessionError = (session: InternalChatSession, error: Error) => {
     (error instanceof ApiError && isTransientHostStatus(error.status))
   ) {
     turnFollowing.lost(session.chatId);
-    setChatError(session.chatId, error.message);
+    chatTurnOutcomes.reportError(session.chatId, error.message);
     connectionSupervisor.report(
       resolveRequestHost({ chatId: session.chatId }),
       "unreachable",
@@ -340,24 +316,19 @@ const handleSessionError = (session: InternalChatSession, error: Error) => {
 };
 
 const handleChatError = (chatId: string, error: Error) => {
-  useActivityStore.getState().finish(chatId, "failed", error.message);
   console.error("[chat error]", error);
 
   // The server-side onError already enriches the message, so error.message
   // should be descriptive. Guard against edge cases where only the generic
   // class name "Error" comes through.
-  const message = error.message;
-  if (message && message !== "Error") {
-    setChatError(chatId, message);
-    return;
-  }
-
-  if (error.cause instanceof Error && error.cause.message) {
-    setChatError(chatId, error.cause.message);
-    return;
-  }
-
-  setChatError(chatId, chatT("unexpectedError"));
+  const message =
+    error.message && error.message !== "Error"
+      ? error.message
+      : error.cause instanceof Error && error.cause.message
+        ? error.cause.message
+        : chatT("unexpectedError");
+  // On the banner at once; the turn's status once it has ended.
+  chatTurnOutcomes.ended(chatId, "failed", message);
 };
 
 const handleChatFinish = (
@@ -383,20 +354,12 @@ const handleChatFinish = (
   // A stream that stalled after its turn ended was dropped: the turn is
   // done, and the follow settles on the saved transcript (onSettled).
   if (isAbort && turnFollowing.isEnded(chatId)) return;
-  const attention = getActivityAttention([message]);
-  if (!isAbort && !isError && !isDisconnect && attention !== null) {
-    useActivityStore.getState().attention(chatId, attention);
-  } else {
-    useActivityStore
-      .getState()
-      .finish(
-        chatId,
-        isError
-          ? "failed"
-          : isAbort || isDisconnect
-            ? "interrupted"
-            : "finished",
-      );
+  if (isError) chatTurnOutcomes.ended(chatId, "failed");
+  else if (isAbort) chatTurnOutcomes.ended(chatId, "interrupted");
+  else {
+    // A turn that ends asking its user something waits on them.
+    chatTurnOutcomes.attention(chatId, getActivityAttention([message]));
+    chatTurnOutcomes.ended(chatId, "finished");
   }
 
   const metadata = message.metadata as ChatMessageMetadata | undefined;
@@ -501,7 +464,7 @@ const observeSessionMessages = (session: InternalChatSession) => {
   useIdeStore
     .getState()
     .setChatAwaitingAnswer(chatId, chatIsAwaitingAnswer(messages));
-  useActivityStore.getState().attention(chatId, getActivityAttention(messages));
+  chatTurnOutcomes.attention(chatId, getActivityAttention(messages));
 
   const config = findChatConfig(chatId);
 
@@ -559,7 +522,7 @@ const disposeSession = (session: InternalChatSession) => {
   flushSession(session);
   session.releaseTranscript();
   useIdeStore.getState().setChatAwaitingAnswer(session.chatId, false);
-  setChatError(session.chatId, null);
+  chatTurnOutcomes.reportError(session.chatId, null);
 };
 
 const scheduleEviction = (session: InternalChatSession) => {
@@ -689,6 +652,7 @@ const turnFollowing = createTurnFollowing<InternalChatSession>({
       messages,
     );
     useIdeStore.getState().setChatStreaming(chatId, true);
+    chatTurnOutcomes.started(chatId);
     await session.chat.resumeStream();
     if (session.chat.status !== "ready") return false;
     dismissChatError(chatId);
@@ -703,9 +667,12 @@ const turnFollowing = createTurnFollowing<InternalChatSession>({
   onError: (session, error) => handleSessionError(session, error),
   onSettled: (session) => {
     const { chatId } = session;
-    // Dropped after its turn ended: finished, not interrupted.
-    if (turnFollowing.isEnded(chatId))
-      useActivityStore.getState().finish(chatId, "finished");
+    // Dropped after its turn ended: finished. Otherwise this window only
+    // stopped following, and the host says how the turn ends.
+    chatTurnOutcomes.ended(
+      chatId,
+      turnFollowing.isEnded(chatId) ? "finished" : undefined,
+    );
     useIdeStore.getState().setChatStreaming(chatId, false);
     const projectId = findChatConfig(chatId)?.projectId;
     if (projectId) flushProjectPanelRefresh(projectId);
@@ -893,7 +860,7 @@ export const submitChatPrompt = (
   const session = getChatSession(chatId) as InternalChatSession;
   const { chat } = session;
 
-  setChatError(chatId, null);
+  chatTurnOutcomes.reportError(chatId, null);
   chat.clearError();
 
   const state = useIdeStore.getState();
@@ -908,7 +875,7 @@ export const submitChatPrompt = (
     state.activeProjectId !== submittedProject.id
   ) {
     const message = chatT("notInActiveProject");
-    setChatError(chatId, message);
+    chatTurnOutcomes.reportError(chatId, message);
     throw new Error(message);
   }
 
@@ -916,7 +883,7 @@ export const submitChatPrompt = (
   const away = isHostAway(state, submittedProject);
   if (away) {
     const message = chatT("hostNotConnected", { host: away.label });
-    setChatError(chatId, message);
+    chatTurnOutcomes.reportError(chatId, message);
     throw new Error(message);
   }
 
@@ -934,7 +901,7 @@ export const submitChatPrompt = (
   );
 
   if (!(providerModels[activeProvider]?.installed ?? false)) {
-    setChatError(
+    chatTurnOutcomes.reportError(
       chatId,
       chatT("providerCliUnavailable", {
         provider: PROVIDER_PRESENTATION[activeProvider].label,
@@ -944,7 +911,7 @@ export const submitChatPrompt = (
   }
 
   if (!activeModel) {
-    setChatError(chatId, chatT("enableModelFirst"));
+    chatTurnOutcomes.reportError(chatId, chatT("enableModelFirst"));
     return false;
   }
 
@@ -1046,7 +1013,7 @@ export const submitChatPrompt = (
       return true;
     })
     .catch((error: unknown) => {
-      setChatError(
+      chatTurnOutcomes.reportError(
         chatId,
         error instanceof Error ? error.message : chatT("unexpectedError"),
       );
@@ -1139,13 +1106,13 @@ const drainPendingSubmit = async (chatId: string) => {
       }
     } catch (error) {
       restoreDraft(chatId, submission);
-      setChatError(
+      chatTurnOutcomes.reportError(
         chatId,
         error instanceof Error ? error.message : "Unable to send the message.",
       );
     }
   } catch {
-    setChatError(chatId, chatT("unexpectedError"));
+    chatTurnOutcomes.reportError(chatId, chatT("unexpectedError"));
   } finally {
     draining.delete(chatId);
     const session = sessions.get(chatId);

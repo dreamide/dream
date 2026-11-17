@@ -60,7 +60,6 @@ const createTestStore = (handlers: FakeApiHandlers = {}) => {
         chats: [worktreeChat, parentChat],
         chatSort: "recent",
         closedProjects: [staleClosedWorktree],
-        completedChatIds: {},
         draftChatIdByProject: {},
         messagesByChatId: {
           [parentChat.id]: messages,
@@ -260,7 +259,6 @@ test("purging a worktree leaves no state keyed by it, its sessions, tabs or chat
     awaitingAnswerChatIds: { [worktreeChat.id]: true },
     browserLoading: { [tab.id]: true },
     browserTabsByProject: { [worktree.id]: [tab] },
-    completedChatIds: { [worktreeChat.id]: true },
     draftChatIdByProject: { [worktree.id]: null },
     nextTerminalOrdinalByProject: { [worktree.id]: 2 },
     pendingChatSubmitByChatId: {

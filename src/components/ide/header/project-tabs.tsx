@@ -20,6 +20,7 @@ import {
   projectIdsWithRunningChats,
   selectChatActivity,
 } from "../chat-activity";
+import { useChatTurnOutcomes } from "../chat-turn-outcome";
 import { useIdeStore } from "../ide-store";
 import { useHostChoices } from "../ssh/use-host-choices";
 import { CHATS_TAB_ID, useOpenChatsTab } from "../standalone-chats";
@@ -221,7 +222,7 @@ export const ProjectTabs = () => {
   // Running and waiting, here or on the host, whether or not this window
   // follows the turn (chat-activity.ts).
   const activity = useIdeStore(useShallow(selectChatActivity));
-  const completedChatIds = useIdeStore((s) => s.completedChatIds);
+  const unreadChatIds = useChatTurnOutcomes((s) => s.unread);
   const accentColor = useUiStore((s) => s.accentColor);
   const accentSparklesPalette = useMemo(
     () => createAccentSparklesPalette(accentColor),
@@ -235,12 +236,10 @@ export const ProjectTabs = () => {
     () =>
       new Set(
         chats
-          .filter(
-            (chat) => chat.deletedAt === null && completedChatIds[chat.id],
-          )
+          .filter((chat) => chat.deletedAt === null && unreadChatIds[chat.id])
           .map((chat) => chat.projectId),
       ),
-    [chats, completedChatIds],
+    [chats, unreadChatIds],
   );
   const awaitingAnswerProjectIds = useMemo(
     () =>

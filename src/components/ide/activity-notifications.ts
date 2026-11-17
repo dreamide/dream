@@ -1,9 +1,10 @@
-// Notifications for chat activity: a turn that finished, failed or stopped
-// to ask something. A desktop notification while the window is in the
-// background (in the window itself the project tabs and chat history already
-// show it), and, as its own setting, a sound wherever the user is looking.
+// Notifications for chat turn outcomes (chat-turn-outcome.ts): a turn that
+// finished, failed or stopped to ask something, followed here or not. A
+// desktop notification while the window is in the background (in the window
+// itself the project tabs and chat history already show it), and, as its own
+// setting, a sound wherever the user is looking.
 import { getDesktopApi } from "@/lib/electron";
-import { type ChatActivity, useActivityStore } from "./activity-store";
+import { type ChatTurn, chatTurnOutcomes } from "./chat-turn-outcome";
 import { useIdeStore } from "./ide-store";
 import { playNotificationSound } from "./notification-sound";
 
@@ -12,14 +13,14 @@ export type ActivityNotificationKind = "finished" | "failed" | "waiting";
 const NOTIFICATION_DETAIL_MAX_LENGTH = 200;
 
 /**
- * What a change of a chat's activity is worth telling the user, if anything:
+ * What a change of a chat's turn is worth telling the user, if anything:
  * a running turn that started waiting on them, or a running or waiting turn
  * that ended on its own. An interrupted turn was stopped by the user (or
  * lost with its connection) and says nothing.
  */
 export const getActivityNotificationKind = (
-  previous: ChatActivity | undefined,
-  next: ChatActivity | undefined,
+  previous: ChatTurn | undefined,
+  next: ChatTurn | undefined,
 ): ActivityNotificationKind | null => {
   if (!previous || !next || previous.status === next.status) return null;
   if (next.status === "waiting") {
@@ -50,17 +51,17 @@ const showChat = (chatId: string) => {
 };
 
 /**
- * Watches chat activity and tells the user, as their settings ask: a desktop
- * notification while the window is unfocused, and a sound whether or not it
- * is. Returns how to stop.
+ * Watches chat turn outcomes and tells the user, as their settings ask: a
+ * desktop notification while the window is unfocused, and a sound whether or
+ * not it is. Returns how to stop.
  */
 export const startActivityNotifications = (
   translate: TranslateActivityNotification,
 ): (() => void) => {
   const desktopApi = getDesktopApi();
 
-  const stopWatching = useActivityStore.subscribe((state, previous) => {
-    if (state.entries === previous.entries) return;
+  const stopWatching = chatTurnOutcomes.store.subscribe((state, previous) => {
+    if (state.turns === previous.turns) return;
     const ide = useIdeStore.getState();
     const { chatNotificationSound, chatNotifications } = ide.settings;
     const showNotifications =
@@ -68,8 +69,8 @@ export const startActivityNotifications = (
     if (!showNotifications && !chatNotificationSound) return;
 
     let notified = false;
-    for (const [chatId, entry] of Object.entries(state.entries)) {
-      const kind = getActivityNotificationKind(previous.entries[chatId], entry);
+    for (const [chatId, entry] of Object.entries(state.turns)) {
+      const kind = getActivityNotificationKind(previous.turns[chatId], entry);
       if (!kind) continue;
       const chat = ide.chats.find((item) => item.id === chatId);
       const project =

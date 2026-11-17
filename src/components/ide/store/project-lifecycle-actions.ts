@@ -1,5 +1,6 @@
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { ProjectConfig, ProjectWorktreeInfo } from "@/types/ide";
+import { chatTurnOutcomes } from "../chat-turn-outcome";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 import {
   commitWorkspaceRemoval,
@@ -33,26 +34,17 @@ export const createProjectLifecycleActions = (
   setActiveProjectId: (id: string | null) => {
     set((state) => {
       const next = workspace.activateProject(state, id);
-      // Chats that finished while the user was elsewhere lose their mark
-      // once their project is in front.
-      const completedChatIds = { ...state.completedChatIds };
-      let marksCleared = false;
-      if (next.activeProjectId) {
-        for (const chat of state.chats) {
-          if (
-            chat.projectId === next.activeProjectId &&
-            completedChatIds[chat.id]
-          ) {
-            delete completedChatIds[chat.id];
-            marksCleared = true;
-          }
-        }
-      }
-      if (next.activeProjectId === state.activeProjectId && !marksCleared) {
-        return state;
-      }
-      return marksCleared ? { ...next, completedChatIds } : next;
+      return next.activeProjectId === state.activeProjectId ? state : next;
     });
+    // Chats that finished while the user was elsewhere lose their mark
+    // once their project is in front.
+    const { activeProjectId, chats } = get();
+    if (activeProjectId)
+      chatTurnOutcomes.seen(
+        chats
+          .filter((chat) => chat.projectId === activeProjectId)
+          .map((chat) => chat.id),
+      );
   },
 
   addProject: (

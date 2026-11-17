@@ -161,7 +161,6 @@ export interface IdeState {
     patch: Partial<Pick<SshHostConfig, "label" | "target">>,
   ) => Promise<void>;
   awaitingAnswerChatIds: Record<string, boolean>;
-  completedChatIds: Record<string, boolean>;
   titleGeneratingChatIds: Record<string, boolean>;
   draftChatIdByProject: Record<string, string | null>;
   terminalStatus: Record<string, "running" | "stopped">;
