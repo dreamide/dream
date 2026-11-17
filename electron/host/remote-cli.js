@@ -21,6 +21,7 @@
 // `--json` prints the host's answer as one JSON line instead.
 
 import { API_SESSION_TOKEN_HEADER } from "../api/shared/session-token.js";
+import { readRemoteAccess } from "../shared/remote-access-view.js";
 
 const SCOPES = new Set(["view", "operate", "manage"]);
 
@@ -45,35 +46,47 @@ const connect =
   };
 
 const describeAccess = (status) => {
+  // What the host says to show (derived only for an older host).
+  const { phase, address, lockedBy } = readRemoteAccess(status);
   const lines = [];
-  if (!status.enabled) {
+  if (phase === "off") {
     lines.push("Remote access is off.");
     if (status.mode === "cloudflare")
       lines.push(
         "Dream does not run cloudflared; stop your connector separately when needed.",
       );
-    return lines;
-  }
-  const via =
-    status.mode === "cloudflare"
-      ? "Cloudflare Tunnel (your cloudflared)"
-      : `Tailscale Serve (HTTPS port ${status.httpsPort})`;
-  lines.push(`Remote access is on, through ${via}.`);
-  lines.push(
-    status.listening
-      ? `Listening on 127.0.0.1:${status.port} (loopback only).`
-      : "Not listening.",
-  );
-  if (status.ready) lines.push(`Ready at ${status.origin}`);
-  if (status.mode === "cloudflare") {
+  } else {
+    const via = lockedBy
+      ? `your reverse proxy (set by ${lockedBy.join(", ")} when the host started)`
+      : status.mode === "cloudflare"
+        ? "Cloudflare Tunnel (your cloudflared)"
+        : `Tailscale Serve (HTTPS port ${status.httpsPort})`;
+    lines.push(`Remote access is on, through ${via}.`);
     lines.push(
-      `Cloudflare hostname: ${status.requestedOrigin ?? "not configured"}.`,
+      status.listening
+        ? `Listening on 127.0.0.1:${status.port} (loopback only).`
+        : "Not listening.",
     );
-    if (status.port)
-      lines.push(`Cloudflare service URL: http://127.0.0.1:${status.port}`);
+    if (phase === "ready") lines.push(`Ready at ${address}`);
+    else if (phase === "checking")
+      lines.push(`Checking${address ? ` ${address}` : ""}.`);
+    else if (!address && !status.problem)
+      lines.push("Not ready: there is no public address to check.");
+    if (status.mode === "cloudflare") {
+      lines.push(
+        `Cloudflare hostname: ${status.requestedOrigin ?? "not configured"}.`,
+      );
+      if (status.port)
+        lines.push(`Cloudflare service URL: http://127.0.0.1:${status.port}`);
+    }
   }
   if (status.problem) {
-    lines.push(`Not ready: ${status.problem.message}`);
+    const label = status.problem.refused
+      ? "Not changed"
+      : phase === "off"
+        ? "Problem"
+        : "Not ready";
+    lines.push(`${label}: ${status.problem.message}`);
     if (status.problem.url) lines.push(`  ${status.problem.url}`);
   }
   return lines;
@@ -157,7 +170,13 @@ export async function runRemoteCommand({
         return 2;
       }
       show(status, describeAccess(status));
-      return action === "on" && !status.ready ? 1 : 0;
+      // `on` that is not ready, and `off` that was refused or left
+      // something behind, did not do what was asked.
+      const { phase } = readRemoteAccess(status);
+      if (action === "on")
+        return phase !== "ready" || status.problem?.refused ? 1 : 0;
+      if (action === "off") return phase !== "off" || status.problem ? 1 : 0;
+      return 0;
     }
 
     case "pair": {
@@ -175,7 +194,8 @@ export async function runRemoteCommand({
         scopes,
       });
       // Only a verified public address is offered as where to pair.
-      const address = access.ready ? access.origin : null;
+      const view = readRemoteAccess(access);
+      const address = view.phase === "ready" ? view.address : null;
       const lines = [`Pairing code: ${pairing.code}`];
       lines.push(
         address

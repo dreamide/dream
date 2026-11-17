@@ -1209,7 +1209,8 @@
       "quickTunnel": "请使用具有固定主机名的持久 Cloudflare 隧道。Quick Tunnel 不支持聊天流式传输。",
       "portInUse": "这台电脑上的端口 {port} 已被占用。请选择其他本地端口。",
       "unreachableTailscale": "无法通过 {origin} 访问这台电脑。Tailscale 可能仍在获取证书；请一分钟后重新检查。",
-      "unreachableCloudflare": "无法通过 {origin} 访问这台电脑。请确认隧道的 cloudflared 正在运行，且此主机名的服务 URL 为 http://127.0.0.1:{port}。"
+      "unreachableCloudflare": "无法通过 {origin} 访问这台电脑。请确认隧道的 cloudflared 正在运行，且此主机名的服务 URL 为 http://127.0.0.1:{port}。",
+      "unreachableProxy": "无法通过 {origin} 访问这台电脑。请确认你的反向代理将此地址转发到 http://127.0.0.1:{port}。"
     },
     "modeProxy": "你的反向代理",
     "setByOptions": "主机启动时由 {sources} 设置。不带这些选项启动后即可在此更改。",

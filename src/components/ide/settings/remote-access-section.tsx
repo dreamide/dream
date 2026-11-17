@@ -55,6 +55,7 @@ import {
 } from "@/lib/api-client";
 import { getDesktopApi } from "@/lib/electron";
 import { cn } from "@/lib/utils";
+import { readRemoteAccess } from "../../../../electron/shared/remote-access-view.js";
 import { useIdeStore } from "../ide-store";
 import { createRemoteAccessState } from "./remote-access-state";
 import { SettingsGroup } from "./settings-shared";
@@ -85,6 +86,13 @@ const SCOPE_CHOICES = [
   hint: string;
 }[];
 
+/** The words for an unreachable address, by the way in that was tried. */
+const UNREACHABLE_KEYS = {
+  tailscale: "unreachableTailscale",
+  cloudflare: "unreachableCloudflare",
+  proxy: "unreachableProxy",
+} as const satisfies Record<Mode, string>;
+
 /** The words for each problem code the host reports; others use its text. */
 const PROBLEM_KEYS = {
   "not-installed": "notInstalled",
@@ -107,12 +115,7 @@ const useProblemText = () => {
     // A host older than these words sends no values: use its own text.
     if (problem.code === "unreachable")
       return origin && port
-        ? t(
-            mode === "cloudflare"
-              ? "unreachableCloudflare"
-              : "unreachableTailscale",
-            { origin, port: String(port) },
-          )
+        ? t(UNREACHABLE_KEYS[mode], { origin, port: String(port) })
         : problem.message;
     if (
       (problem.code === "port-taken" || problem.code === "port-in-use") &&
@@ -240,21 +243,21 @@ export const RemoteAccessSection = () => {
   const [pendingRevoke, setPendingRevoke] =
     useState<RemoteDeviceSession | null>(null);
   const [pendingRevokeAll, setPendingRevokeAll] = useState(false);
+  // What the host says to show (derived here only for an older host).
+  const view = status ? readRemoteAccess(status) : null;
+  const phase = view?.phase ?? null;
+  const address = view?.address ?? null;
+  const configured = view?.configured ?? false;
+  const on = phase !== null && phase !== "off";
+  const ready = phase === "ready";
   // Set when the host started (`--remote-port`): not Settings' to change.
-  const fixedBy =
-    status?.mode === "proxy"
-      ? Object.values(status.override?.sources ?? {}).join(", ")
-      : null;
-  const locked = fixedBy !== null;
-  const lockReason =
-    fixedBy !== null
-      ? t("setByOptions", { sources: fixedBy || "--remote-port" })
-      : null;
-  const enabled = status?.enabled ?? false;
-  // A host older than `configured` was set up if it is on.
-  const configured = status?.configured ?? status?.enabled ?? false;
+  const locked = Boolean(view?.lockedBy);
+  const lockReason = view?.lockedBy
+    ? t("setByOptions", { sources: view.lockedBy.join(", ") })
+    : null;
   const problemText = useProblemText();
   // A refused save is the setup dialog's to show; it changed nothing here.
+  // Any other problem shows, also once off (a Serve entry left behind).
   const problem = status?.problem?.refused ? null : (status?.problem ?? null);
   const save = async (options: ApiRequestOf<"remoteAccessEnable">) => {
     const changed = await remote.enable(options);
@@ -267,7 +270,6 @@ export const RemoteAccessSection = () => {
       : scopes.includes("operate")
         ? t("scopeOperate")
         : t("scopeView");
-  const address = status?.ready ? status.origin : status?.requestedOrigin;
 
   return (
     <div className="space-y-6">
@@ -276,29 +278,31 @@ export const RemoteAccessSection = () => {
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <div className="font-medium text-sm">{t("accessToggle")}</div>
             <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
-              {status === null ? (
+              {phase === null ? (
                 <Spinner className="size-3" />
-              ) : !enabled ? (
+              ) : phase === "off" ? (
                 t("statusOff")
-              ) : status.ready ? (
+              ) : phase === "ready" ? (
                 <Badge className="gap-1.5" variant="outline">
                   <StatusDot color="green" pulse={false} />
                   {t("statusReady")}
                 </Badge>
+              ) : phase === "checking" ? (
+                <Badge className="gap-1.5" variant="outline">
+                  <StatusDot color="amber" pulse />
+                  {t("statusChecking")}
+                </Badge>
               ) : (
                 <Badge className="gap-1.5" variant="outline">
-                  <StatusDot
-                    color={problem ? "red" : "amber"}
-                    pulse={!problem}
-                  />
-                  {problem ? t("statusNotReady") : t("statusChecking")}
+                  <StatusDot color="red" pulse={false} />
+                  {t("statusNotReady")}
                 </Badge>
               )}
             </div>
           </div>
           <Switch
             aria-label={t("accessToggle")}
-            checked={enabled}
+            checked={on}
             disabled={busy || status === null || locked}
             onCheckedChange={(checked) => {
               if (!checked) void remote.disable();
@@ -330,7 +334,7 @@ export const RemoteAccessSection = () => {
                 )}
               </div>
             </div>
-            {enabled && !locked ? (
+            {on && !locked ? (
               <Button
                 aria-label={t("checkAgain")}
                 disabled={busy}
@@ -356,7 +360,7 @@ export const RemoteAccessSection = () => {
           {lockReason ? (
             <p className="text-muted-foreground text-xs">{lockReason}</p>
           ) : null}
-          {enabled && status && problem ? (
+          {status && problem ? (
             <div className="grid gap-2 rounded-md border border-destructive-border bg-destructive-surface px-3 py-2 text-destructive text-sm">
               <span className="select-text break-words">
                 {problemText(problem, status.mode)}
@@ -408,7 +412,7 @@ export const RemoteAccessSection = () => {
                 {t("devicesCount", { count: devices.length })}
               </span>
             </h3>
-            {status?.ready ? null : (
+            {ready ? null : (
               <p className="text-muted-foreground text-sm">
                 {t("pairNeedsAccess")}
               </p>
@@ -427,7 +431,7 @@ export const RemoteAccessSection = () => {
               </Button>
             ) : null}
             <Button
-              disabled={busy || !status?.ready}
+              disabled={busy || !ready}
               onClick={() => {
                 remote.clearPairing();
                 setPairOpen(true);
@@ -491,11 +495,11 @@ export const RemoteAccessSection = () => {
                 large
                 value={pairing.code}
               />
-              {status?.origin ? (
+              {ready && address ? (
                 <CopyField
                   copyLabel={t("copyAddress")}
                   label={t("hostAddress")}
-                  value={status.origin}
+                  value={address}
                 />
               ) : null}
               <p className="text-muted-foreground text-sm">

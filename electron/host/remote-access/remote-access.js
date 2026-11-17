@@ -32,6 +32,23 @@
 // reached this host (Cloudflare also verifies its signed host-key proof): no address that
 // does not work is shown as one that does. The listener itself stays on
 // loopback; reaching it still requires pairing.
+//
+// Each way in (Tailscale, Cloudflare, the override's reverse proxy) is one
+// adapter below; one apply and one status builder serve all three. The
+// status says what readers show, so the settings view, `dream-host remote`
+// and the daemon's log derive nothing:
+//   phase     off       not serving paired devices
+//             checking  being set up or checked; nothing known yet
+//             ready     a request through `address` reached this host
+//             notReady  on, and not reachable: `problem` says why, or
+//                       there is no address to check (an override
+//                       without --remote-origin)
+//   address   the verified origin when ready; else the one set up or saved
+//   lockedBy  the start-up options that set it (Settings cannot change
+//             it), or null. Separate from `phase`: an override is itself
+//             ready or not.
+// The fields before these stay for older desktops; a newer client reads an
+// older host through electron/shared/remote-access-view.js.
 import {
   mkdirSync,
   readFileSync,
@@ -177,10 +194,13 @@ export function createRemoteAccess({
   let settings = readSettings(file);
   // Where Dream once kept a connector's token and runtime; nothing uses it.
   const retiredConnectorDirectory = `${settingsFile}.cloudflare`;
-  let listening = null; // { port }
+  let listening = null; // { port, origin }
   let origin = null; // the verified public origin
+  let tried = null; // the public origin the last apply set up, verified or not
   let problem = null;
   let checkedAt = null;
+  // Nothing is known until the first apply settles, nor while one runs.
+  let checking = true;
   let monitor = null;
   let closing = false;
   // One change at a time: enable, disable and refresh never interleave.
@@ -196,90 +216,57 @@ export function createRemoteAccess({
     writeSettings(file, settings);
   };
 
-  const status = () =>
-    override
-      ? {
-          checkedAt,
-          enabled: true,
-          httpsPort: settings.httpsPort,
-          listening: listening !== null,
-          mode: "proxy",
-          origin,
-          override: { sources: override.sources },
-          port: listening?.port ?? override.port,
-          problem,
-          ready: listening !== null && origin !== null,
-          requestedOrigin: override.origins[0] ?? null,
-          configured: true,
-          cloudflare: { managed: false, defaultPort: CLOUDFLARE_PORT },
-        }
-      : savedStatus();
-
-  /** Why a change is refused while an override is in effect. */
-  const overridden = () => {
-    const names = Object.values(override.sources).join(", ");
-    problem = {
-      code: "overridden",
-      message: `Remote access is set by ${names} when the host starts. Start the host without those options to change remote access here.`,
-      params: { sources: override.sources },
-      refused: true,
-      url: null,
-    };
-    return status();
-  };
-
-  /** Serves the override's port for the user's own reverse proxy. */
-  const applyOverride = async () => {
-    checkedAt = now();
-    origin = null;
-    problem = null;
+  /** Starts the listener; a busy port is a problem the user can act on. */
+  const listenOn = async ({ port, publicOrigins, trustForwardedHost }) => {
     try {
-      if (!listening) {
-        const started = await listen({
-          port: override.port,
-          publicOrigins: override.origins,
-          trustForwardedHost: override.trustForwardedHost,
-        });
-        listening = { origin: override.origins[0] ?? null, port: started.port };
-      }
-      const candidate = override.origins[0];
-      if (candidate) {
-        const unreachable = await verify(candidate);
-        if (unreachable) {
-          problem = {
-            code: "unreachable",
-            message: `${unreachable} Check that your reverse proxy forwards ${candidate} to http://127.0.0.1:${listening.port}.`,
-            params: {
-              detail: unreachable,
-              origin: candidate,
-              port: listening.port,
-            },
-            url: null,
-          };
-        } else {
-          origin = candidate;
-        }
-      }
+      const started = await listen({ port, publicOrigins, trustForwardedHost });
+      listening = { origin: publicOrigins[0] ?? null, port: started.port };
+      return started.port;
     } catch (error) {
-      problem = asProblem(error);
+      if (error?.code === "EADDRINUSE") {
+        throw Object.assign(
+          new Error(
+            `Port ${port} on this computer is already in use. Choose another port for remote access.`,
+          ),
+          { problemCode: "port-in-use", params: { port } },
+        );
+      }
+      throw error;
     }
-    return status();
   };
 
-  const savedStatus = () => ({
-    checkedAt,
-    enabled: settings.enabled,
-    httpsPort: settings.httpsPort,
-    listening: listening !== null,
-    mode: settings.mode,
-    // Only an address verified to reach this host.
-    origin,
+  const stopListening = async () => {
+    if (!listening) return;
+    listening = null;
+    origin = null;
+    await close();
+  };
+
+  /** Starts (or restarts) the listener on the saved port for `publicOrigin`. */
+  const listenSaved = async (publicOrigin, preferredPort) => {
+    if (listening?.origin === publicOrigin && listening.port === settings.port)
+      return listening.port;
+    await stopListening();
+    let port = settings.port;
+    if (!port) {
+      port = await pickPort(preferredPort);
+      save({ port });
+    }
+    // Both saved fronts are reverse proxies on this machine that may name
+    // the public host in X-Forwarded-Host.
+    return listenOn({
+      port,
+      publicOrigins: [publicOrigin],
+      trustForwardedHost: true,
+    });
+  };
+
+  /** The status fields of a way in that the saved settings choose. */
+  const savedFields = ({ requestedOrigin, configured }) => ({
     port: listening?.port ?? settings.port,
-    problem,
-    ready: settings.enabled && listening !== null && origin !== null,
-    requestedOrigin: settings.mode === "cloudflare" ? settings.origin : null,
+    requestedOrigin,
     // Whether the saved settings can be turned on as they are.
-    configured: settings.mode === "tailscale" || Boolean(settings.origin),
+    configured,
     // `managed: false` keeps a desktop older than 2026-10-28 on its
     // user-run connector form instead of asking for a token. `origin` is the
     // saved address in any mode, so switching back need not retype it.
@@ -290,17 +277,208 @@ export function createRemoteAccess({
     },
   });
 
-  /** Verify reachability; Cloudflare must also prove the installation key. */
-  const verify = async (candidate) => {
-    const secure =
-      !override && settings.mode === "cloudflare"
-        ? createVerifiedHttps({
-            origin: candidate,
-            expectedIdentity: hostIdentity(),
-          })
-        : null;
+  /**
+   * The ways in. Each one supplies:
+   *   mode               the status's `mode`
+   *   candidate()        the public origin to set up, or null when there is
+   *                      none to check; throws a problem when it cannot say
+   *   prepare(candidate) serves paired devices there: the listener and any
+   *                      front door Dream sets up; resolves with its port
+   *   teardown()         removes what `prepare` set up besides the listener
+   *   secure             verifying also needs the host key's signed proof
+   *   unreachable(candidate, port)  { hint, url }: what to check when the
+   *                      candidate did not answer
+   *   monitored          a started route is checked again on a timer
+   *   refuse?(origin)    why an enable request for it would save nothing
+   *   fields()           its part of the status
+   */
+  const tailscaleWay = {
+    mode: "tailscale",
+    secure: false,
+    monitored: false,
+    // The device's name first: it is the origin the listener accepts.
+    candidate: async () => {
+      const device = await tailscale.device();
+      return settings.httpsPort === 443
+        ? `https://${device.dnsName}`
+        : `https://${device.dnsName}:${settings.httpsPort}`;
+    },
+    prepare: async (candidate) => {
+      const port = await listenSaved(candidate);
+      const served = { httpsPort: settings.httpsPort, localPort: port };
+      // A Serve entry Dream made for another port is Dream's to remove.
+      if (
+        settings.servedBy &&
+        (settings.servedBy.httpsPort !== served.httpsPort ||
+          settings.servedBy.localPort !== served.localPort)
+      ) {
+        await tailscale.disable(settings.servedBy).catch(() => false);
+        save({ servedBy: null });
+      }
+      await tailscale.enable(served);
+      save({ servedBy: served });
+      return port;
+    },
+    teardown: async () => {
+      if (!settings.servedBy) return;
+      await tailscale.disable(settings.servedBy);
+      save({ servedBy: null });
+    },
+    unreachable: () => ({
+      hint: "Tailscale may still be provisioning the certificate; check again in a minute.",
+      url: null,
+    }),
+    fields: () => savedFields({ requestedOrigin: null, configured: true }),
+  };
+
+  const cloudflareWay = {
+    mode: "cloudflare",
+    secure: true,
+    monitored: true,
+    refuse: (requested) =>
+      !requested
+        ? {
+            code: "needs-origin",
+            message:
+              "The address must be an https:// origin, such as https://dream.example.com.",
+          }
+        : /(^|\.)trycloudflare\.com$/i.test(new URL(requested).hostname)
+          ? {
+              code: "quick-tunnel",
+              message:
+                "Use a persistent Cloudflare tunnel with a stable hostname. Quick Tunnels do not support chat streaming.",
+            }
+          : null,
+    candidate: async () => {
+      if (!settings.origin) {
+        throw Object.assign(
+          new Error("Enter the HTTPS address of your Cloudflare hostname."),
+          { problemCode: "needs-origin" },
+        );
+      }
+      return settings.origin;
+    },
+    prepare: (candidate) => listenSaved(candidate, CLOUDFLARE_PORT),
+    // The user runs cloudflared; Dream sets up nothing besides the listener.
+    teardown: async () => {},
+    unreachable: (_candidate, port) => ({
+      hint: `Check that cloudflared is running for this tunnel and that the hostname's Cloudflare service URL is http://127.0.0.1:${port}.`,
+      url: "https://one.dash.cloudflare.com/",
+    }),
+    fields: () =>
+      savedFields({
+        requestedOrigin: settings.origin,
+        configured: Boolean(settings.origin),
+      }),
+  };
+
+  // The override's way in: the user's own reverse proxy, on its port.
+  const proxyWay = override && {
+    mode: "proxy",
+    secure: false,
+    monitored: false,
+    candidate: async () => override.origins[0] ?? null,
+    prepare: async () =>
+      listening?.port ??
+      listenOn({
+        port: override.port,
+        publicOrigins: override.origins,
+        trustForwardedHost: override.trustForwardedHost,
+      }),
+    teardown: async () => {},
+    unreachable: (candidate, port) => ({
+      hint: `Check that your reverse proxy forwards ${candidate} to http://127.0.0.1:${port}.`,
+      url: null,
+    }),
+    fields: () => ({
+      port: listening?.port ?? override.port,
+      requestedOrigin: override.origins[0] ?? null,
+      configured: true,
+      override: { sources: override.sources },
+      cloudflare: { managed: false, defaultPort: CLOUDFLARE_PORT },
+    }),
+  };
+
+  const SAVED_WAYS = { tailscale: tailscaleWay, cloudflare: cloudflareWay };
+
+  /**
+   * The way in that is in effect: whether it is on, the saved ways it
+   * replaces (what Dream set up for those goes), and the start-up options
+   * that lock it, if any.
+   */
+  const selected = () => {
+    if (override) {
+      const names = Object.values(override.sources);
+      return {
+        way: proxyWay,
+        on: true,
+        replaced: [],
+        lockedBy: names.length ? names : ["--remote-port"],
+      };
+    }
+    const way = SAVED_WAYS[settings.mode];
+    return {
+      way,
+      on: settings.enabled,
+      replaced: Object.values(SAVED_WAYS).filter((other) => other !== way),
+      lockedBy: null,
+    };
+  };
+
+  /**
+   * What every reader shows. Desktops older than `phase` read the fields
+   * before it; newer readers read `phase`, `address` and `lockedBy`.
+   */
+  const status = () => {
+    const { way, on, lockedBy } = selected();
+    const phase = !on
+      ? "off"
+      : origin
+        ? "ready"
+        : checking
+          ? "checking"
+          : "notReady";
+    const fields = way.fields();
+    return {
+      checkedAt,
+      enabled: on,
+      httpsPort: settings.httpsPort,
+      listening: listening !== null,
+      mode: way.mode,
+      // Only an address verified to reach this host.
+      origin,
+      ...fields,
+      problem,
+      ready: phase === "ready",
+      phase,
+      // Verified when ready; else the one set up, or the one saved.
+      address: origin ?? tried ?? fields.requestedOrigin,
+      lockedBy,
+    };
+  };
+
+  /** Why a change is refused while start-up options set remote access. */
+  const refuseLocked = (lockedBy) => {
+    problem = {
+      code: "overridden",
+      message: `Remote access is set by ${lockedBy.join(", ")} when the host starts. Start the host without those options to change remote access here.`,
+      params: { sources: override.sources },
+      refused: true,
+      url: null,
+    };
+    return status();
+  };
+
+  /** Verify reachability; a secure way must also prove the installation key. */
+  const verify = async (candidate, secure) => {
+    const verified = secure
+      ? createVerifiedHttps({
+          origin: candidate,
+          expectedIdentity: hostIdentity(),
+        })
+      : null;
     try {
-      const response = await (secure?.request ?? fetchImpl)(
+      const response = await (verified?.request ?? fetchImpl)(
         `${candidate}/api/remote/descriptor`,
         {
           redirect: "error",
@@ -317,80 +495,42 @@ export function createRemoteAccess({
     } catch (error) {
       return `${candidate} did not answer from this computer (${error instanceof Error ? error.message : error}).`;
     } finally {
-      secure?.close();
+      verified?.close();
     }
   };
 
-  const stopListening = async () => {
-    if (!listening) return;
-    listening = null;
-    await close();
-  };
-
-  /** Starts (or restarts) the listener for `publicOrigin`. */
-  const startListening = async (publicOrigin) => {
-    if (listening?.origin === publicOrigin && listening.port === settings.port)
-      return listening.port;
-    await stopListening();
-    let port = settings.port;
-    if (!port) {
-      port = await pickPort(
-        settings.mode === "cloudflare" ? CLOUDFLARE_PORT : undefined,
-      );
-      save({ port });
-    }
-    try {
-      const started = await listen({
-        port,
-        publicOrigins: publicOrigin ? [publicOrigin] : [],
-        // Both fronts are reverse proxies on this machine that may name the
-        // public host in X-Forwarded-Host.
-        trustForwardedHost: true,
-      });
-      listening = { port: started.port, origin: publicOrigin };
-      return started.port;
-    } catch (error) {
-      if (error?.code === "EADDRINUSE") {
-        throw Object.assign(
-          new Error(
-            `Port ${port} on this computer is already in use. Choose another port for remote access.`,
-          ),
-          { problemCode: "port-in-use", params: { port } },
-        );
-      }
-      throw error;
-    }
-  };
-
-  const checkCloudflare = async () => {
+  /** Whether `candidate` reaches this host, with what to check when not. */
+  const check = async (way, candidate) => {
     checkedAt = now();
-    const unreachable = await verify(settings.origin);
-    origin = unreachable ? null : settings.origin;
-    problem = unreachable
-      ? {
-          code: "unreachable",
-          message: `${unreachable} Check that cloudflared is running for this tunnel and that the hostname's Cloudflare service URL is http://127.0.0.1:${listening?.port ?? settings.port}.`,
-          url: "https://one.dash.cloudflare.com/",
-          params: {
-            detail: unreachable,
-            origin: settings.origin,
-            port: listening?.port ?? settings.port,
-          },
-        }
-      : null;
+    const unreachable = await verify(candidate, way.secure);
+    origin = unreachable ? null : candidate;
+    if (!unreachable) {
+      problem = null;
+      return;
+    }
+    const port = listening?.port ?? settings.port;
+    const { hint, url } = way.unreachable(candidate, port);
+    problem = {
+      code: "unreachable",
+      message: `${unreachable} ${hint}`,
+      url,
+      params: { detail: unreachable, origin: candidate, port },
+    };
   };
+
   const clearMonitor = () => {
     clearTimeout(monitor);
     monitor = null;
   };
-  // Only a started Cloudflare route is watched: when applying failed, its
-  // problem (a busy port, a missing address) stays until the next change.
-  const watching = () =>
-    !override &&
-    !closing &&
-    settings.enabled &&
-    settings.mode === "cloudflare" &&
-    listening !== null;
+  // Only a started route of a monitored way is watched: when applying
+  // failed, its problem (a busy port, a missing address) stays until the
+  // next change.
+  const watching = () => {
+    const { way, on } = selected();
+    return (
+      !closing && on && way.monitored && listening !== null && tried !== null
+    );
+  };
   const armMonitor = () => {
     clearMonitor();
     if (!watching()) return;
@@ -398,76 +538,36 @@ export function createRemoteAccess({
       monitor = null;
       void serially(async () => {
         if (!watching()) return;
-        await checkCloudflare();
+        await check(selected().way, tried);
         armMonitor();
       }).catch(() => {});
     }, monitorMs);
     monitor.unref?.();
   };
 
-  /** Brings the saved settings into effect. */
+  /** Brings the way in that is in effect into effect, or stops listening. */
   const apply = async () => {
     clearMonitor();
     checkedAt = now();
     origin = null;
+    tried = null;
     problem = null;
-    if (!settings.enabled) {
-      await stopListening();
-      return status();
-    }
+    checking = true;
+    const { way, on, replaced } = selected();
     try {
-      if (settings.mode === "cloudflare") {
-        if (!settings.origin) {
-          throw Object.assign(
-            new Error("Enter the HTTPS address of your Cloudflare hostname."),
-            { problemCode: "needs-origin" },
-          );
-        }
-        // Tailscale is not the way in now: the Serve entry Dream made goes.
-        if (settings.servedBy) {
-          await tailscale.disable(settings.servedBy);
-          save({ servedBy: null });
-        }
-        await startListening(settings.origin);
-        await checkCloudflare();
-        armMonitor();
-        return status();
-      }
-      // Tailscale. The device's name first: it is the origin the listener
-      // accepts.
-      const device = await tailscale.device();
-      const candidate =
-        settings.httpsPort === 443
-          ? `https://${device.dnsName}`
-          : `https://${device.dnsName}:${settings.httpsPort}`;
-      const port = await startListening(candidate);
-      // A Serve entry Dream made for another port is Dream's to remove.
-      if (
-        settings.servedBy &&
-        (settings.servedBy.httpsPort !== settings.httpsPort ||
-          settings.servedBy.localPort !== port)
-      ) {
-        await tailscale.disable(settings.servedBy).catch(() => false);
-        save({ servedBy: null });
-      }
-      await tailscale.enable({
-        httpsPort: settings.httpsPort,
-        localPort: port,
-      });
-      save({ servedBy: { httpsPort: settings.httpsPort, localPort: port } });
-      const unreachable = await verify(candidate);
-      if (unreachable) {
-        problem = {
-          code: "unreachable",
-          message: `${unreachable} Tailscale may still be provisioning the certificate; check again in a minute.`,
-          url: null,
-          params: { detail: unreachable, origin: candidate, port },
-        };
+      if (!on) {
+        await stopListening();
       } else {
-        origin = candidate;
+        const candidate = await way.candidate();
+        tried = candidate;
+        for (const other of replaced) await other.teardown();
+        await way.prepare(candidate);
+        if (candidate) await check(way, candidate);
       }
     } catch (error) {
       problem = asProblem(error);
+    } finally {
+      checking = false;
     }
     armMonitor();
     return status();
@@ -476,7 +576,7 @@ export function createRemoteAccess({
   return {
     status,
 
-    /** Applies the saved settings (at startup). */
+    /** Applies the saved settings, or the override (at startup). */
     start: () =>
       serially(() => {
         closing = false;
@@ -486,11 +586,11 @@ export function createRemoteAccess({
         } catch {
           // A file still held open (Windows) goes on a later start.
         }
-        return override ? applyOverride() : apply();
+        return apply();
       }),
 
     /** Checks again (after the user fixed a setup step). */
-    refresh: () => serially(override ? applyOverride : apply),
+    refresh: () => serially(apply),
 
     /**
      * Turns remote access on with these settings.
@@ -498,36 +598,18 @@ export function createRemoteAccess({
      */
     enable: (options = {}) =>
       serially(async () => {
-        if (override) return overridden();
-        const mode = ["tailscale", "cloudflare"].includes(options.mode)
+        const { lockedBy } = selected();
+        if (lockedBy) return refuseLocked(lockedBy);
+        const mode = Object.hasOwn(SAVED_WAYS, options.mode ?? "")
           ? options.mode
           : settings.mode;
         const requestedOrigin =
           options.origin === undefined
             ? settings.origin
             : httpsOrigin(options.origin);
-        if (
-          mode === "cloudflare" &&
-          (!requestedOrigin ||
-            /(^|\.)trycloudflare\.com$/i.test(
-              new URL(requestedOrigin).hostname,
-            ))
-        ) {
-          problem = requestedOrigin
-            ? {
-                code: "quick-tunnel",
-                message:
-                  "Use a persistent Cloudflare tunnel with a stable hostname. Quick Tunnels do not support chat streaming.",
-                url: null,
-                refused: true,
-              }
-            : {
-                code: "needs-origin",
-                message:
-                  "The address must be an https:// origin, such as https://dream.example.com.",
-                url: null,
-                refused: true,
-              };
+        const refusal = SAVED_WAYS[mode].refuse?.(requestedOrigin);
+        if (refusal) {
+          problem = { ...refusal, url: null, refused: true };
           return status();
         }
         closing = false;
@@ -546,27 +628,27 @@ export function createRemoteAccess({
 
     /**
      * Turns remote access off: the listener stops (paired devices can no
-     * longer reach it) and the Serve entry Dream made is removed. Local
-     * work, and paired devices' sessions, are untouched.
+     * longer reach it) and what Dream set up for each way in (the Serve
+     * entry it made) is removed. Local work, and paired devices' sessions,
+     * are untouched.
      */
     disable: () =>
       serially(async () => {
-        if (override) return overridden();
+        const { lockedBy } = selected();
+        if (lockedBy) return refuseLocked(lockedBy);
         save({ enabled: false });
         clearMonitor();
         await stopListening();
-        origin = null;
+        tried = null;
         problem = null;
+        checking = false;
         checkedAt = now();
-        if (settings.servedBy) {
-          try {
-            await tailscale.disable(settings.servedBy);
-            save({ servedBy: null });
-          } catch (error) {
-            // The listener is already closed, so nothing is reachable; the
-            // leftover entry is reported, and removed on the next attempt.
-            problem = asProblem(error);
-          }
+        try {
+          for (const way of Object.values(SAVED_WAYS)) await way.teardown();
+        } catch (error) {
+          // The listener is already closed, so nothing is reachable; the
+          // leftover entry is reported, and removed on the next attempt.
+          problem = asProblem(error);
         }
         return status();
       }),

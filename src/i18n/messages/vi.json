@@ -1209,7 +1209,8 @@
       "quickTunnel": "Hãy dùng đường hầm Cloudflare cố định với tên máy chủ ổn định. Quick Tunnel không hỗ trợ truyền phát trò chuyện.",
       "portInUse": "Cổng {port} trên máy tính này đang được sử dụng. Hãy chọn cổng cục bộ khác.",
       "unreachableTailscale": "Không thể truy cập máy tính này qua {origin}. Có thể Tailscale vẫn đang lấy chứng chỉ; hãy kiểm tra lại sau một phút.",
-      "unreachableCloudflare": "Không thể truy cập máy tính này qua {origin}. Hãy kiểm tra cloudflared đang chạy cho đường hầm của bạn và URL dịch vụ của tên máy chủ này là http://127.0.0.1:{port}."
+      "unreachableCloudflare": "Không thể truy cập máy tính này qua {origin}. Hãy kiểm tra cloudflared đang chạy cho đường hầm của bạn và URL dịch vụ của tên máy chủ này là http://127.0.0.1:{port}.",
+      "unreachableProxy": "Không thể truy cập máy tính này qua {origin}. Hãy kiểm tra proxy ngược của bạn có chuyển tiếp địa chỉ này đến http://127.0.0.1:{port} không."
     },
     "modeProxy": "Proxy ngược của bạn",
     "setByOptions": "Được đặt bởi {sources} khi máy chủ khởi động. Hãy khởi động mà không có chúng để thay đổi tại đây.",

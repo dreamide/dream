@@ -490,7 +490,12 @@ It is the host's setting, saved beside its state database: on or off; through
 **Tailscale Serve** (HTTPS on the tailnet) or **Cloudflare Tunnel**; and a
 stable loopback port for the remote listener.
 An address is **ready** only once a request through it reached this host;
-Cloudflare also requires proof of the host's installation key. The user runs
+Cloudflare also requires proof of the host's installation key. The host
+reports one **phase** (`off`, `checking`, `ready` or `notReady`), the
+address to show and, apart from the phase, the start-up options that lock
+it (`lockedBy`); Settings, `dream-host remote` and the host's log read
+those, through `electron/shared/remote-access-view.js` for an older host.
+Each way in is one adapter inside the module. The user runs
 the tunnel's cloudflared connector; Dream never installs, starts or stops it.
 Dream changes only the Serve entry it created (`servedBy`).
 Configured in Settings > Connections on the host's own computer, or with

@@ -1209,7 +1209,8 @@
       "quickTunnel": "Usa un tunnel Cloudflare persistente con un nome host stabile. I Quick Tunnel non supportano lo streaming della chat.",
       "portInUse": "La porta {port} è già in uso su questo computer. Scegli un’altra porta locale.",
       "unreachableTailscale": "Impossibile raggiungere questo computer tramite {origin}. Tailscale potrebbe star ancora ottenendo il certificato; controlla di nuovo tra un minuto.",
-      "unreachableCloudflare": "Impossibile raggiungere questo computer tramite {origin}. Verifica che cloudflared sia in esecuzione per il tuo tunnel e che l’URL del servizio di questo nome host sia http://127.0.0.1:{port}."
+      "unreachableCloudflare": "Impossibile raggiungere questo computer tramite {origin}. Verifica che cloudflared sia in esecuzione per il tuo tunnel e che l’URL del servizio di questo nome host sia http://127.0.0.1:{port}.",
+      "unreachableProxy": "Impossibile raggiungere questo computer tramite {origin}. Verifica che il tuo reverse proxy inoltri questo indirizzo a http://127.0.0.1:{port}."
     },
     "modeProxy": "Il tuo reverse proxy",
     "setByOptions": "Impostato da {sources} all’avvio dell’host. Avvialo senza di essi per modificarlo qui.",

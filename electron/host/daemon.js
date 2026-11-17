@@ -302,13 +302,17 @@ async function serve({ runDirectory, values, log, resolved }) {
 
   // Remote access as saved (`dream-host remote on`), or as its options set it.
   const access = await host.startRemoteAccess();
-  if (access.enabled) {
+  if (access.phase !== "off") {
+    const where = [
+      access.listening ? `127.0.0.1:${access.port}` : "not listening",
+      access.lockedBy ? `set by ${access.lockedBy.join(", ")}` : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
     log(
-      access.mode === "proxy"
-        ? `Serving paired devices on 127.0.0.1:${access.port}${access.requestedOrigin ? ` for ${access.requestedOrigin}` : ""}.`
-        : access.ready
-          ? `Remote access ready at ${access.origin}.`
-          : `Remote access is on but not ready: ${access.problem?.message ?? "starting"}`,
+      access.phase === "ready"
+        ? `Remote access ready at ${access.address} (${where}).`
+        : `Remote access is on but not ready (${where}): ${access.problem?.message ?? "there is no public address to check."}`,
     );
   }
   const remote = access.listening ? { port: access.port } : null;

@@ -1209,7 +1209,8 @@
       "quickTunnel": "고정 호스트 이름이 있는 영구 Cloudflare 터널을 사용하세요. Quick Tunnel은 채팅 스트리밍을 지원하지 않습니다.",
       "portInUse": "이 컴퓨터의 포트 {port}이(가) 이미 사용 중입니다. 다른 로컬 포트를 선택하세요.",
       "unreachableTailscale": "{origin}을(를) 통해 이 컴퓨터에 연결할 수 없습니다. Tailscale이 아직 인증서를 받는 중일 수 있으니 1분 후 다시 확인하세요.",
-      "unreachableCloudflare": "{origin}을(를) 통해 이 컴퓨터에 연결할 수 없습니다. 터널의 cloudflared가 실행 중인지, 이 호스트 이름의 서비스 URL이 http://127.0.0.1:{port}인지 확인하세요."
+      "unreachableCloudflare": "{origin}을(를) 통해 이 컴퓨터에 연결할 수 없습니다. 터널의 cloudflared가 실행 중인지, 이 호스트 이름의 서비스 URL이 http://127.0.0.1:{port}인지 확인하세요.",
+      "unreachableProxy": "{origin}을(를) 통해 이 컴퓨터에 연결할 수 없습니다. 리버스 프록시가 이 주소를 http://127.0.0.1:{port}(으)로 전달하는지 확인하세요."
     },
     "modeProxy": "사용자의 리버스 프록시",
     "setByOptions": "호스트 시작 시 {sources}(으)로 설정되었습니다. 여기서 변경하려면 이 옵션 없이 시작하세요.",

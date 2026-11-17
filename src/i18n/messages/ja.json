@@ -1209,7 +1209,8 @@
       "quickTunnel": "固定ホスト名の永続的な Cloudflare トンネルを使用してください。Quick Tunnel はチャットのストリーミングに対応していません。",
       "portInUse": "このコンピューターのポート {port} は既に使用中です。別のローカルポートを選択してください。",
       "unreachableTailscale": "{origin} 経由でこのコンピューターに到達できませんでした。Tailscale がまだ証明書を取得中の可能性があります。1 分後に再確認してください。",
-      "unreachableCloudflare": "{origin} 経由でこのコンピューターに到達できませんでした。トンネルの cloudflared が実行中であること、このホスト名のサービス URL が http://127.0.0.1:{port} であることを確認してください。"
+      "unreachableCloudflare": "{origin} 経由でこのコンピューターに到達できませんでした。トンネルの cloudflared が実行中であること、このホスト名のサービス URL が http://127.0.0.1:{port} であることを確認してください。",
+      "unreachableProxy": "{origin} 経由でこのコンピューターに到達できませんでした。リバースプロキシがこのアドレスを http://127.0.0.1:{port} に転送していることを確認してください。"
     },
     "modeProxy": "独自のリバースプロキシ",
     "setByOptions": "ホストの起動時に {sources} で設定されました。ここで変更するには、それらを付けずに起動してください。",

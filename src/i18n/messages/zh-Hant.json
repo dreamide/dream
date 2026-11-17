@@ -1209,7 +1209,8 @@
       "quickTunnel": "請使用具有固定主機名稱的永久 Cloudflare 通道。Quick Tunnel 不支援聊天串流。",
       "portInUse": "這台電腦上的連接埠 {port} 已被占用。請選擇其他本機連接埠。",
       "unreachableTailscale": "無法透過 {origin} 連到這台電腦。Tailscale 可能仍在取得憑證；請一分鐘後重新檢查。",
-      "unreachableCloudflare": "無法透過 {origin} 連到這台電腦。請確認隧道的 cloudflared 正在執行，且此主機名稱的服務 URL 為 http://127.0.0.1:{port}。"
+      "unreachableCloudflare": "無法透過 {origin} 連到這台電腦。請確認隧道的 cloudflared 正在執行，且此主機名稱的服務 URL 為 http://127.0.0.1:{port}。",
+      "unreachableProxy": "無法透過 {origin} 連到這台電腦。請確認你的反向代理將此位址轉送到 http://127.0.0.1:{port}。"
     },
     "modeProxy": "你的反向代理",
     "setByOptions": "主機啟動時由 {sources} 設定。不帶這些選項啟動後即可在此變更。",

@@ -209,6 +209,16 @@ export interface RemoteAccessStatus {
   configured?: boolean;
   problem: RemoteAccessProblem | null;
   checkedAt: string | null;
+  /**
+   * Where it is: `notReady` is on and not reachable. This, `address` and
+   * `lockedBy` are absent from a host older than 2026-11-17; read all
+   * three with `readRemoteAccess` (electron/shared/remote-access-view.js).
+   */
+  phase?: "off" | "checking" | "ready" | "notReady";
+  /** The address to show: verified when ready, else the one set up or saved. */
+  address?: string | null;
+  /** The start-up options that set it; null when Settings may change it. */
+  lockedBy?: string[] | null;
 }
 
 /** A pairing just minted: a short code that works once. */
