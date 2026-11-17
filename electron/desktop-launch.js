@@ -20,6 +20,8 @@
 import { resolveDesktopHostMode } from "./desktop-host-mode.js";
 import { StateLockedError } from "./host/state-lock.js";
 
+/** @typedef {import("./host/home-host.js").HomeHost} HomeHost */
+
 const parsePort = (value) => {
   const port = Number(value);
   return Number.isInteger(port) && port > 0 && port <= 65_535 ? port : null;
@@ -46,9 +48,9 @@ const parsePort = (value) => {
  *     closePersistedStateDatabase: () => void,
  *   },
  *   hosts: {
- *     createHost: (options: object) => any,
- *     createHomeHostAttachment: (options: object) => any,
- *     withInProcessFallback: (options: object) => any,
+ *     createHost: (options: object) => HomeHost,
+ *     createHomeHostAttachment: (options: object) => HomeHost,
+ *     withInProcessFallback: (options: object) => HomeHost,
  *   },
  *   renderer: {
  *     getPort: (options: object) => Promise<number>,
@@ -74,7 +76,7 @@ export function createDesktopLaunch({
   hosts,
   renderer,
 }) {
-  /** @type {null | { workspaceDatabasePath: string, releaseWorkspaceLock: () => void, saveQueue: any, host: any }} */
+  /** @type {null | { workspaceDatabasePath: string, releaseWorkspaceLock: () => void, saveQueue: any, host: HomeHost }} */
   let prepared = null;
   let rendererServer = null;
 
@@ -188,7 +190,7 @@ export function createDesktopLaunch({
     return {
       host,
       /** The host mode now: a detached host that could not start fell back. */
-      hostMode: () => host.mode ?? resolvedHostMode.mode,
+      hostMode: () => host.mode,
       saveQueue,
       workspaceDatabasePath,
     };

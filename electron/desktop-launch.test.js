@@ -13,8 +13,13 @@ const createFakes = ({ env = {}, moveFails = false, locked = false } = {}) => {
   const shown = [];
   const exits = [];
   const created = { attachments: [], hosts: [], queues: [], renderers: [] };
-  const fakeHost = (name) => ({
-    name,
+  // A home host (host/home-host.js) recording what the launch calls.
+  const fakeHost = (mode) => ({
+    mode,
+    processSessions: {
+      hasActiveSessions: () => false,
+      stopAllProcesses: async () => {},
+    },
     close: async () => steps.push("host.close"),
     listen: async (options) => steps.push(["host.listen", options]),
     startRemoteAccess: async () => steps.push("host.startRemoteAccess"),
@@ -36,17 +41,13 @@ const createFakes = ({ env = {}, moveFails = false, locked = false } = {}) => {
     hosts: {
       createHomeHostAttachment: (options) => {
         created.attachments.push(options);
-        return fakeHost("attached");
+        return fakeHost("detached");
       },
       createHost: (options) => {
         created.hosts.push(options);
         return fakeHost("in-process");
       },
-      withInProcessFallback: (options) => ({
-        ...options.attached,
-        mode: "detached",
-        options,
-      }),
+      withInProcessFallback: (options) => ({ ...options.attached, options }),
     },
     isDevelopment: false,
     paths: {

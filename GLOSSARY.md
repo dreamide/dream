@@ -364,6 +364,17 @@ before forwarding requests. In a browser it is the
 paired host serving the page (route `origin`), pinned like any address.
 Projects without a `hostId` live on the home host. A desktop always has one.
 
+The **home host interface** (`HomeHost`, `electron/host/home-host.js`) is
+what the desktop launch holds as its home host: `mode` (`detached` or
+`in-process`), `processSessions` (the processes in the desktop's own
+process; none for a detached host), `listen`, `startRemoteAccess` and
+`close`. The host in this process (`createHost`), the **host attachment**
+(`createHomeHostAttachment`, the edge to a host in its own process) and the
+**in-process fallback** (`withInProcessFallback`: the attachment or, when it
+cannot start and nothing holds the data, a host in this process) all
+provide it. A daemon holds `createHost` with two members more:
+`getHostDescriptor` and `isBusy`.
+
 ## Host mode
 
 How a desktop launch runs its home host (`electron/desktop-host-mode.js`):

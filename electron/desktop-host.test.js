@@ -58,6 +58,9 @@ const hostInfo = async (port) => {
 const listen = async (edge) =>
   hostInfo(await edge.listen({ apiToken: "edge-token", port: 0 }));
 
+/** Who started the host on the desktop's data, and where it runs. */
+const running = () => findRunningHost(stateDatabasePath, { env });
+
 afterEach(async () => {
   await stopRunningDaemon(desktopRun);
   await stopRunningDaemon(userRun);
@@ -74,8 +77,8 @@ test("the desktop starts its own host when none runs, and stops it", {
   const edge = attach();
   const info = await listen(edge);
   expect(info.pid).not.toBe(process.pid);
-  expect(edge.describe()).toMatchObject({
-    owned: true,
+  expect(await running()).toMatchObject({
+    owner: "desktop",
     runDirectory: desktopRun,
   });
   expect(readStateLockRecord(stateDatabasePath)).toMatchObject({
@@ -112,8 +115,8 @@ test("a host the user started is attached to and left running", {
   const info = await listen(edge);
   // Its version is not this app's, and it is attached to all the same.
   expect(info.pid).toBe(record.pid);
-  expect(edge.describe()).toMatchObject({
-    owned: false,
+  expect(await running()).toMatchObject({
+    owner: "user",
     runDirectory: userRun,
   });
 
@@ -130,7 +133,10 @@ test("a desktop's host left running is reused, or replaced for another version",
 
   const again = attach();
   expect((await listen(again)).pid).toBe(firstPid);
-  expect(again.describe().owned).toBe(true);
+  expect(await running()).toMatchObject({
+    owner: "desktop",
+    runDirectory: desktopRun,
+  });
 
   const upgraded = attach({ appVersion: "999.0.0" });
   expect((await listen(upgraded)).pid).not.toBe(firstPid);
@@ -174,7 +180,6 @@ test("data held by a host that cannot be reached is refused with a reason", asyn
 test("a host that cannot start falls back to a host in this process", async () => {
   const failing = {
     close: async () => {},
-    describe: () => ({ owned: true }),
     listen: async () => {
       throw new Error("no host");
     },

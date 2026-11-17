@@ -39,6 +39,24 @@ import { createTailscale } from "./remote-access/tailscale.js";
 import { acquireStateLock } from "./state-lock.js";
 
 /**
+ * The home host interface (home-host.js), and what a daemon reads besides:
+ * `getHostDescriptor`, who this host is, for its run record; `isBusy`,
+ * whether anything is going on, for its idle shutdown. Its
+ * `startRemoteAccess` resolves with the remote access status.
+ * @typedef {import("./home-host.js").HomeHost & {
+ *   getHostDescriptor: () => {
+ *     capabilities: readonly string[],
+ *     fingerprint: string,
+ *     hostId: string,
+ *     hostProtocolVersion: number,
+ *     publicKey: string,
+ *     version: string | null,
+ *   },
+ *   isBusy: () => boolean,
+ * }} Host
+ */
+
+/**
  * @param {{
  *   dataDirectory: string,
  *   diagnosticsEnabled?: boolean,
@@ -80,6 +98,7 @@ import { acquireStateLock } from "./state-lock.js";
  *
  * Throws StateLockedError (state-lock.js) when another process already runs
  * a host on the same state database.
+ * @returns {Host}
  */
 export function createHost({
   dataDirectory,
@@ -209,7 +228,6 @@ export function createHost({
   let server = null;
   let remoteServer = null;
 
-  /** What both listeners serve, besides their own guards. */
   // Whether and how paired devices reach this host; the listener it starts
   // is this host's remote listener (below).
   const remoteAccess = createRemoteAccess({
@@ -241,6 +259,7 @@ export function createHost({
     tailscale,
   });
 
+  /** What both listeners serve, besides their own guards. */
   const services = () => ({
     signHostProof,
     activity,
@@ -262,14 +281,11 @@ export function createHost({
   });
 
   return {
-    processSessions,
-    /** The host catalog (projects, chats, transcripts). */
-    catalog,
-    getHostDescriptor,
-    getHostInfo,
+    /** The host is in the process that holds it. */
+    mode: /** @type {const} */ ("in-process"),
 
-    /** The host's running agent turns. */
-    turns,
+    processSessions,
+    getHostDescriptor,
 
     /**
      * Whether anything is going on: a client on the host socket, a live
@@ -312,45 +328,11 @@ export function createHost({
     },
 
     /**
-     * Starts serving paired devices (api/remote-app.js), after `listen`.
-     * Bound to loopback unless told otherwise: a reverse proxy (Tailscale
-     * Serve) is what exposes it, and pairing is required whoever reaches it.
-     * @param {{
-     *   port: number,
-     *   hostname?: string,
-     *   publicOrigins?: string[],
-     *   trustForwardedHost?: boolean,
-     * }} options
-     *   `publicOrigins`: the origins clients load from (the HTTPS URL the
-     *   proxy serves). `trustForwardedHost`: the proxy names the host in
-     *   X-Forwarded-Host.
-     * @returns {Promise<{ port: number, origins: string[] }>}
-     */
-    async listenRemote(options) {
-      if (!server) throw new Error("Start the host's local listener first.");
-      if (remoteServer) throw new Error("The remote listener is running.");
-      remoteServer = await startRemoteApiServer(services(), {
-        clientDirectory,
-        ...options,
-      });
-      return { origins: remoteServer.origins, port: remoteServer.port };
-    },
-
-    /**
      * Remote access as configured (host/remote-access/): call after
-     * `listen`, once. Starts the remote listener when access is on.
+     * `listen`, once. Starts the remote listener when access is on, and
+     * resolves with the remote access status.
      */
     startRemoteAccess: () => remoteAccess.start(),
-
-    /** Remote access: status, enable, disable, refresh. */
-    remoteAccess,
-
-    /** Stops serving paired devices; local work carries on. */
-    async closeRemote() {
-      const closing = remoteServer;
-      remoteServer = null;
-      await closing?.close();
-    },
 
     /**
      * Stops every terminal, closes the API server and its state readers,

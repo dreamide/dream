@@ -25,6 +25,7 @@ import {
 import { HOST_SOCKET_PATH } from "./api/host-socket-routes.js";
 import { API_SESSION_TOKEN_HEADER } from "./api/shared/session-token.js";
 import { ensureDaemon, probeDaemon, stopRunningDaemon } from "./host/daemon.js";
+import { NO_PROCESS_SESSIONS } from "./host/home-host.js";
 import { HOST_IDENTITY_FILE, loadHostIdentity } from "./host/identity.js";
 import { hostOptionFlags } from "./host/options.js";
 import { HOST_PROTOCOL_VERSION } from "./host/protocol.js";
@@ -97,6 +98,7 @@ export async function findRunningHost(
  *   `getRunDirectory`: where the host's run record is now (it can change
  *   when `start` finds another host). `start`: brings the host up, or
  *   finds it, before the edge listens. `stop`: run when the edge closes.
+ * @returns {import("./host/home-host.js").HomeHost}
  */
 function createHostAttachment({
   dataDirectory,
@@ -187,11 +189,10 @@ function createHostAttachment({
   };
 
   return {
-    // The desktop owns no host processes to stop on unload.
-    processSessions: {
-      hasActiveSessions: () => false,
-      stopAllProcesses: async () => {},
-    },
+    mode: "detached",
+    // The host's processes run in its own process: none in the desktop's
+    // to stop before its renderer unloads.
+    processSessions: NO_PROCESS_SESSIONS,
     // The host process starts its own remote access.
     startRemoteAccess: async () => {},
     async listen({ apiToken, port }) {
@@ -252,6 +253,7 @@ function createHostAttachment({
  *   find?: typeof findRunningHost,
  *   stopDaemon?: typeof stopRunningDaemon,
  * }} options
+ * @returns {import("./host/home-host.js").HomeHost}
  */
 export function createHomeHostAttachment({
   dataDirectory,
@@ -267,7 +269,7 @@ export function createHomeHostAttachment({
   stopDaemon = stopRunningDaemon,
 }) {
   const home = childHostHome(stateDatabasePath);
-  /** @type {{ runDirectory: string, owned: boolean, version: string | null } | null} */
+  /** @type {{ runDirectory: string, owned: boolean } | null} */
   let current = null;
 
   /** Starts the desktop's own host. */
@@ -292,11 +294,7 @@ export function createHomeHostAttachment({
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(error?.log ? `${message} See ${error.log}.` : message);
     }
-    current = {
-      owned: true,
-      runDirectory,
-      version: started.record.version ?? null,
-    };
+    current = { owned: true, runDirectory };
     log(
       `${started.reused ? "Attached to" : "Started"} this desktop's host ${started.record.pid} on 127.0.0.1:${started.record.port}; its log is ${path.join(runDirectory, "host.log")}.`,
     );
@@ -323,20 +321,12 @@ export function createHomeHostAttachment({
         await startOwn();
         return;
       }
-      current = {
-        owned: true,
-        runDirectory: found.runDirectory,
-        version: found.record.version ?? null,
-      };
+      current = { owned: true, runDirectory: found.runDirectory };
       log(`Attached to this desktop's host ${found.record.pid}.`);
       return;
     }
     if (found) {
-      current = {
-        owned: false,
-        runDirectory: found.runDirectory,
-        version: found.record.version ?? null,
-      };
+      current = { owned: false, runDirectory: found.runDirectory };
       log(
         `Attached to the host ${found.record.pid} started with dream-host; it keeps running when Dream quits.`,
       );
@@ -345,7 +335,7 @@ export function createHomeHostAttachment({
     await startOwn();
   };
 
-  const attachment = createHostAttachment({
+  return createHostAttachment({
     dataDirectory,
     getRunDirectory: () => current?.runDirectory ?? null,
     resolveRemoteHost,
@@ -362,17 +352,6 @@ export function createHomeHostAttachment({
     unavailableMessage:
       "This desktop's host is not running. Restart Dream to start it again.",
   });
-
-  return {
-    ...attachment,
-
-    /** Whether this desktop started the host (and so stops it). */
-    describe: () => ({
-      owned: current?.owned ?? false,
-      runDirectory: current?.runDirectory ?? null,
-      version: current?.version ?? null,
-    }),
-  };
 }
 
 /**
@@ -380,8 +359,8 @@ export function createHomeHostAttachment({
  * when it cannot start and nothing else holds the data. `mode` says which
  * serves now: `detached`, then `in-process` after a fallback.
  * @param {{
- *   attached: ReturnType<typeof createHomeHostAttachment>,
- *   createInProcess: () => any,
+ *   attached: import("./host/home-host.js").HomeHost,
+ *   createInProcess: () => import("./host/home-host.js").HomeHost,
  *   fallBack: boolean,
  *   stateDatabasePath: string,
  *   isHeld?: (stateDatabasePath: string) => boolean,
@@ -389,6 +368,7 @@ export function createHomeHostAttachment({
  * }} options
  *   `fallBack`: false when the mode was asked for explicitly; a failure is
  *   then the launch's failure.
+ * @returns {import("./host/home-host.js").HomeHost}
  */
 export function withInProcessFallback({
   attached,
@@ -399,11 +379,14 @@ export function withInProcessFallback({
   log = (message, error) => console.error(`[host] ${message}`, error ?? ""),
 }) {
   let active = attached;
+  /** @type {"detached" | "in-process"} */
   let mode = "detached";
   return {
     get mode() {
       return mode;
     },
+    // One object for the host's life (main.js reads it once), forwarding to
+    // whichever host serves.
     processSessions: {
       hasActiveSessions: () => active.processSessions.hasActiveSessions(),
       stopAllProcesses: () => active.processSessions.stopAllProcesses(),
@@ -426,10 +409,6 @@ export function withInProcessFallback({
         return active.listen(options);
       }
     },
-    describe: () =>
-      mode === "in-process"
-        ? { owned: true, runDirectory: null, version: null }
-        : attached.describe(),
     close: () => active.close(),
   };
 }
