@@ -1,16 +1,17 @@
 /**
  * The chat runtime: owns one AI SDK `Chat` per conversation, outside React.
  *
- * A chat streams, persists its transcript, answers approvals and picks up
- * queued submissions whether or not a `ChatPanel` is showing it. Panels are
+ * A chat streams, persists its transcript and answers approvals whether or
+ * not a `ChatPanel` is showing it. Panels are
  * views of the session's **live transcript** (`getChatSessionView`,
  * `watchChatSessionView`): its messages, at most once per
  * CHAT_STREAM_UPDATE_THROTTLE_MS, and its status and error at once. The
  * session reads its `Chat` once per update for itself and every panel.
  *
- * The store never imports this module (it would be a cycle). Store actions ask
- * for a submission by queueing it in `pendingChatSubmitByChatId`; the runtime
- * watches that queue and sends.
+ * Messages reach a chat through Chat submission (chat-submission.ts), which
+ * decides whether the chat takes one and then starts its turn here
+ * (`startChatTurn`). The store never imports this module (it would be a
+ * cycle); it sends through the submitter that module registers with it.
  */
 import { Chat } from "@ai-sdk/react";
 import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai";
@@ -32,12 +33,7 @@ import {
 import { resolveRequestHost } from "@/lib/host-routing";
 import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
 import { resolveEffectiveMcpServers } from "@/lib/mcp-servers";
-import { projectScope } from "@/lib/project-resource-cache";
-import type {
-  AiProvider,
-  PendingChatSubmit,
-  ProjectReference,
-} from "@/types/ide";
+import type { AiProvider, ProjectReference } from "@/types/ide";
 import { isAiSdkApproval } from "../../../../electron/shared/agent-turn-contract.js";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { getProviderCapabilities } from "../../../../electron/shared/provider-capabilities.js";
@@ -53,26 +49,17 @@ import {
   flushProjectPanelRefresh,
   scheduleProjectPanelRefresh,
 } from "../project-panel-refresh";
-import { PROVIDER_PRESENTATION } from "../provider-presentation";
-import { isHostAway } from "../ssh/host-away";
 import { catalogBaselines } from "../store/catalog-baselines";
 import {
   addAskUserQuestionAnswerToMessages,
   preserveAskUserQuestionAnswers,
 } from "./ask-user-question-answers";
 import { CHAT_STREAM_UPDATE_THROTTLE_MS } from "./chat-constants";
-import { chatDrafts } from "./chat-drafts";
 import {
   getChatModelOptions,
   resolveChatModelSelection,
 } from "./chat-model-selection";
-import {
-  hasPossibleSkillMention,
-  type SerializedComposerDraft,
-  serializeComposerDraft,
-} from "./composer-draft";
 import type { ChatMessageMetadata } from "./message-footer";
-import { fetchProviderSkills, providerSupportsSkills } from "./provider-skills";
 import { projectMessagesForRequest } from "./request-context";
 import type { ToolApprovalResponder } from "./tool-call-groups";
 import { createTurnFollowing } from "./turn-following";
@@ -98,6 +85,8 @@ interface ChatRuntimeTranslators {
 const FALLBACK_CHAT_MESSAGES: Record<string, string> = {
   alreadyStreaming: "Chat response is already streaming.",
   enableModelFirst: "Enable at least one model in Settings first.",
+  hostNotConnected: "{host} is not connected. Send again once it is back.",
+  messageStillSending: "A message to this chat is still being sent.",
   notInActiveProject:
     "This chat is no longer in the active project. Switch back to this project and try again.",
   providerCliUnavailable:
@@ -114,7 +103,8 @@ export const setChatRuntimeTranslators = (
   translators = next;
 };
 
-const chatT: Translate = (key, values) => {
+/** A `chat` message in the current locale (English until `ChatRuntimeHost` runs). */
+export const chatT: Translate = (key, values) => {
   if (translators) {
     return translators.chat(key, values);
   }
@@ -166,8 +156,6 @@ interface InternalChatSession extends ChatSession {
 }
 
 const sessions = new Map<string, InternalChatSession>();
-const draining = new Set<string>();
-const submissions = new Map<string, Promise<boolean>>();
 
 /** A session's `Chat` id is `chat:<chatId>`; the host knows the chat id. */
 const CHAT_ID_PREFIX = "chat:";
@@ -500,10 +488,8 @@ const isSessionBusy = (session: InternalChatSession) => {
   const { chatId } = session;
   return (
     isChatProcessing(session.chat) ||
-    draining.has(chatId) ||
     Boolean(state.streamingChatIds[chatId]) ||
-    Boolean(state.awaitingAnswerChatIds[chatId]) ||
-    Boolean(state.pendingChatSubmitByChatId[chatId])
+    Boolean(state.awaitingAnswerChatIds[chatId])
   );
 };
 
@@ -536,7 +522,7 @@ const scheduleEviction = (session: InternalChatSession) => {
       return;
     }
     if (isSessionBusy(session)) {
-      // Looked at again when the turn ends (see `submitChatPrompt`).
+      // Looked at again when the turn ends (turn following's `onSettled`).
       return;
     }
     disposeSession(session);
@@ -791,13 +777,14 @@ export const respondToToolApproval = (
     });
 };
 
-// ── Submitting ──────────────────────────────────────────────────────────
+// ── Starting a turn ─────────────────────────────────────────────────────
 
-export interface ChatPromptSubmission {
+/** A message ready for the host: serialized, with the skills it mentions. */
+export interface ChatTurnPrompt {
   files: FileUIPart[];
-  references?: ProjectReference[];
-  /** `$skill` names the composer recognised; shown on the sent message. */
-  skills?: string[];
+  references: ProjectReference[];
+  /** `$skill` names the text mentions; shown on the sent message. */
+  skills: string[];
   text: string;
 }
 
@@ -846,46 +833,23 @@ const generateChatTitle = ({
 };
 
 /**
- * Sends a prompt in `chatId`. Returns `true` once the message is on its way,
- * `false` when nothing was sent (the reason, if any, is on the chat's error
- * banner). Throws when the chat is already streaming or cannot run here.
+ * Sends `prompt` to the chat's host as a new turn and follows the turn here.
+ * Resolves once the host has the message; rejects when it does not.
  *
- * Synchronous on purpose: callers clear their draft right after it returns.
- * The chat's transcript must already be loaded.
+ * Only Chat submission (chat-submission.ts) calls this, after its gate has
+ * let the message through and the chat's transcript is loaded.
  */
-export const submitChatPrompt = (
+export const startChatTurn = async (
   chatId: string,
-  prompt: ChatPromptSubmission,
-): Promise<boolean> | false => {
+  prompt: ChatTurnPrompt,
+): Promise<void> => {
   const session = getChatSession(chatId) as InternalChatSession;
-  const { chat } = session;
-
-  chatTurnOutcomes.reportError(chatId, null);
-  chat.clearError();
-
   const state = useIdeStore.getState();
   const config = state.chats.find((item) => item.id === chatId);
-  const submittedProject = config
+  const project = config
     ? state.projects.find((item) => item.id === config.projectId)
     : undefined;
-
-  if (
-    !config ||
-    !submittedProject ||
-    state.activeProjectId !== submittedProject.id
-  ) {
-    const message = chatT("notInActiveProject");
-    chatTurnOutcomes.reportError(chatId, message);
-    throw new Error(message);
-  }
-
-  // Its host is not there to run the turn.
-  const away = isHostAway(state, submittedProject);
-  if (away) {
-    const message = chatT("hostNotConnected", { host: away.label });
-    chatTurnOutcomes.reportError(chatId, message);
-    throw new Error(message);
-  }
+  if (!config || !project) throw new Error(chatT("notInActiveProject"));
 
   const { settings, providerModels } = state;
   const {
@@ -899,36 +863,12 @@ export const submitChatPrompt = (
     config,
     getChatModelOptions(settings, providerModels),
   );
+  if (!activeModel) throw new Error(chatT("enableModelFirst"));
 
-  if (!(providerModels[activeProvider]?.installed ?? false)) {
-    chatTurnOutcomes.reportError(
-      chatId,
-      chatT("providerCliUnavailable", {
-        provider: PROVIDER_PRESENTATION[activeProvider].label,
-      }),
-    );
-    return false;
-  }
-
-  if (!activeModel) {
-    chatTurnOutcomes.reportError(chatId, chatT("enableModelFirst"));
-    return false;
-  }
-
-  const projectReferences = prompt.references ?? [];
-  if (
-    !prompt.text.trim() &&
-    prompt.files.length === 0 &&
-    projectReferences.length === 0
-  ) {
-    return false;
-  }
-
-  const submittedProjectPath = submittedProject.path;
-  const modelLabel = activeOption?.label ?? activeModel;
+  const projectReferences = prompt.references;
   const selectionMetadata = {
     model: activeModel,
-    modelLabel,
+    modelLabel: activeOption?.label ?? activeModel,
     modelSpeed: selectedModelSpeed,
     ...(availableModelSpeedTiers.length > 0
       ? { modelSpeedLabel: modelT(selectedModelSpeed) }
@@ -942,15 +882,15 @@ export const submitChatPrompt = (
   };
 
   const storedMessages = state.messagesByChatId[chatId] ?? [];
-  const shouldGenerateTitle =
+  if (
     storedMessages.length === 0 &&
     !config.messageCount &&
-    config.title === "New chat";
-  if (shouldGenerateTitle) {
+    config.title === "New chat"
+  ) {
     generateChatTitle({
       chatId,
       fallbackModel: activeModel,
-      projectPath: submittedProjectPath,
+      projectPath: project.path,
       promptText:
         prompt.text || formatProjectReferencesForPrompt(projectReferences),
       provider: activeProvider,
@@ -969,7 +909,7 @@ export const submitChatPrompt = (
       createdAt: new Date().toISOString(),
       ...selectionMetadata,
       projectReferences,
-      ...(prompt.skills?.length ? { skillMentions: prompt.skills } : {}),
+      ...(prompt.skills.length ? { skillMentions: prompt.skills } : {}),
     },
   };
   if (!message.parts.length)
@@ -977,157 +917,35 @@ export const submitChatPrompt = (
       type: "text",
       text: formatProjectReferencesForPrompt(projectReferences),
     });
-  const sending = (submissions.get(chatId) ?? Promise.resolve())
-    .catch(() => {})
-    .then(async () => {
-      await catalogBaselines.ensureChat(submittedProject, config);
-      const submission = {
-        ...selectionMetadata,
-        chatId,
-        requestId,
-        message: message as Parameters<
-          typeof apiClient.submitChat
-        >[0]["message"],
-        checkpointsEnabled: settings.changeCheckpoints,
-        mcpServers: getProviderCapabilities(activeProvider).mcp
-          ? resolveEffectiveMcpServers(settings)
-          : [],
-        permissionMode: config.permissionMode,
-        projectId: submittedProject.id,
-        projectPath: submittedProjectPath,
-        projectReferences,
-        provider: activeProvider,
-      };
-      try {
-        await apiClient.submitChat(submission);
-      } catch (error) {
-        if (error instanceof ApiError && error.status < 500) throw error;
-        // A lost receipt may hide a committed submission. Retry the exact ID;
-        // the host returns its receipt without dispatching it twice.
-        await apiClient.submitChat(submission);
-      }
-      await refreshChatQueue(chatId);
-      // Very short turns can finish before a stream subscription is established.
-      await useIdeStore.getState().applyCatalogTranscript(chatId);
-      turnFollowing.follow(session);
-      return true;
-    })
-    .catch((error: unknown) => {
-      chatTurnOutcomes.reportError(
-        chatId,
-        error instanceof Error ? error.message : chatT("unexpectedError"),
-      );
-      throw error;
-    })
-    .finally(() => {
-      if (submissions.get(chatId) === sending) submissions.delete(chatId);
-    });
-  submissions.set(chatId, sending);
-  return sending;
-};
 
-// ── Queued submissions ──────────────────────────────────────────────────
-
-const isEmptySubmission = (submission: PendingChatSubmit) =>
-  !submission.text.trim() &&
-  submission.references.length === 0 &&
-  !submission.files?.length;
-
-const restoreDraft = (chatId: string, submission: PendingChatSubmit) => {
-  if (!submission.preserveDraft) {
-    return;
-  }
-  // Back to the chat's draft, whether or not a panel shows it now.
-  chatDrafts.append(chatId, submission.text);
-};
-
-/**
- * A queued prompt (a saved prompt, a stash item, review feedback) is sent
- * through the same serialization as the composer, so its `$skill` mentions
- * are recognised and shown on the message. Queued text is already
- * serialized; this recovers the skills. The catalog is only fetched when the
- * text could mention one, as the composer does.
- */
-const serializeQueuedSubmission = async (
-  chatId: string,
-  submission: PendingChatSubmit,
-): Promise<SerializedComposerDraft> => {
-  const draft = { references: submission.references, text: submission.text };
-  const state = useIdeStore.getState();
-  const config = state.chats.find((item) => item.id === chatId);
-  const project = config
-    ? state.projects.find((item) => item.id === config.projectId)
-    : undefined;
-  if (!config || !project || !hasPossibleSkillMention(draft.text)) {
-    return { ...draft, skills: [] };
-  }
-
-  const { selectedProvider } = resolveChatModelSelection(
-    config,
-    getChatModelOptions(state.settings, state.providerModels),
-  );
-  if (!providerSupportsSkills(selectedProvider)) {
-    return { ...draft, skills: [] };
-  }
-  const { skills } = await fetchProviderSkills(
-    selectedProvider,
-    projectScope(project),
-  );
-  return serializeComposerDraft(draft, skills);
-};
-
-const drainPendingSubmit = async (chatId: string) => {
-  if (draining.has(chatId)) {
-    return;
-  }
-
-  draining.add(chatId);
+  await catalogBaselines.ensureChat(project, config);
+  const submission = {
+    ...selectionMetadata,
+    chatId,
+    requestId,
+    message: message as Parameters<typeof apiClient.submitChat>[0]["message"],
+    checkpointsEnabled: settings.changeCheckpoints,
+    mcpServers: getProviderCapabilities(activeProvider).mcp
+      ? resolveEffectiveMcpServers(settings)
+      : [],
+    permissionMode: config.permissionMode,
+    projectId: project.id,
+    projectPath: project.path,
+    projectReferences,
+    provider: activeProvider,
+  };
   try {
-    await useIdeStore.getState().loadRecentMessagesForChat(chatId);
-
-    const state = useIdeStore.getState();
-    if (!state.pendingChatSubmitByChatId[chatId]) {
-      return;
-    }
-
-    const submission = state.takePendingChatSubmit(chatId);
-    if (!submission || isEmptySubmission(submission)) {
-      return;
-    }
-
-    try {
-      const serialized = await serializeQueuedSubmission(chatId, submission);
-      const submitted = await submitChatPrompt(chatId, {
-        files: submission.files ?? [],
-        ...serialized,
-      });
-      if (!submitted) {
-        restoreDraft(chatId, submission);
-      }
-    } catch (error) {
-      restoreDraft(chatId, submission);
-      chatTurnOutcomes.reportError(
-        chatId,
-        error instanceof Error ? error.message : "Unable to send the message.",
-      );
-    }
-  } catch {
-    chatTurnOutcomes.reportError(chatId, chatT("unexpectedError"));
-  } finally {
-    draining.delete(chatId);
-    const session = sessions.get(chatId);
-    if (session) {
-      scheduleEviction(session);
-    }
+    await apiClient.submitChat(submission);
+  } catch (error) {
+    if (error instanceof ApiError && error.status < 500) throw error;
+    // A lost receipt may hide a committed submission. Retry the exact ID;
+    // the host returns its receipt without dispatching it twice.
+    await apiClient.submitChat(submission);
   }
-};
-
-const drainPendingSubmits = () => {
-  for (const chatId of Object.keys(
-    useIdeStore.getState().pendingChatSubmitByChatId,
-  )) {
-    void drainPendingSubmit(chatId);
-  }
+  await refreshChatQueue(chatId);
+  // Very short turns can finish before a stream subscription is established.
+  await useIdeStore.getState().applyCatalogTranscript(chatId);
+  turnFollowing.follow(session);
 };
 
 // ── Store wiring ────────────────────────────────────────────────────────
@@ -1242,13 +1060,6 @@ export const startChatRuntime = () => {
         }
       }
     }
-
-    if (
-      state.pendingChatSubmitByChatId !== previous.pendingChatSubmitByChatId ||
-      state.streamingChatIds !== previous.streamingChatIds
-    ) {
-      drainPendingSubmits();
-    }
   });
 
   const flushAll = () => {
@@ -1276,6 +1087,5 @@ export const startChatRuntime = () => {
     }
   };
 
-  drainPendingSubmits();
   return stopRuntime;
 };

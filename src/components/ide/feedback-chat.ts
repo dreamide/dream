@@ -1,4 +1,3 @@
-import type { PendingChatSubmit } from "@/types/ide";
 import { chatAcceptsMessage } from "./chat-activity";
 import { getFirstActiveDiffChatId } from "./diff-feedback";
 import { useIdeStore } from "./ide-store";
@@ -45,15 +44,4 @@ export function resolveFeedbackChatId({
     );
   state.setActiveChatId(project.id, chatId);
   return { chatId, created: false };
-}
-
-export function queueFeedbackSubmit(
-  chatId: string,
-  submission: PendingChatSubmit,
-) {
-  if (!useIdeStore.getState().queueChatSubmit(chatId, submission)) {
-    throw new Error(
-      "This chat already has a message in progress. Try again when it finishes.",
-    );
-  }
 }

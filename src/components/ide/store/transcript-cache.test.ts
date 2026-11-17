@@ -40,7 +40,7 @@ function setup() {
     transcriptPageByChatId: {},
     streamingChatIds: {},
     awaitingAnswerChatIds: {},
-    pendingChatSubmitByChatId: {},
+    sendingChatIds: {},
     persist() {},
   } as unknown as IdeState;
   const set = (next: Partial<IdeState>) => {

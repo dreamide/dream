@@ -295,7 +295,8 @@
     "providerCliUnavailable": "{provider} CLI ist nicht verfügbar. Überprüfen Sie Einstellungen > Anbieter.",
     "unableToContinueInTerminal": "Der Chat konnte im Terminal nicht fortgesetzt werden.",
     "unexpectedError": "Es ist ein unerwarteter Fehler aufgetreten. Weitere Informationen finden Sie in der Entwicklerkonsole.",
-    "hostNotConnected": "{host} ist nicht verbunden. Sende erneut, sobald die Verbindung wieder steht."
+    "hostNotConnected": "{host} ist nicht verbunden. Sende erneut, sobald die Verbindung wieder steht.",
+    "messageStillSending": "Eine Nachricht an diesen Chat wird noch gesendet."
   },
   "browser": {
     "actions": "Browseraktionen",

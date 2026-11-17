@@ -12,7 +12,6 @@ import type {
   HostConnectionState,
   HostStatusEvent,
   PanelSizes,
-  PendingChatSubmit,
   ProjectConfig,
   ProjectGitStatusEntry,
   ProjectGitWorktreeCleanupResponse,
@@ -25,6 +24,7 @@ import type {
   SshHostConfig,
   StashItem,
 } from "@/types/ide";
+import type { ChatSendResult } from "../chat/chat-submission";
 import type {
   CliUpgradeResult,
   ProviderModelState,
@@ -120,10 +120,14 @@ export interface IdeState {
     string,
     { before: string | null; total: number }
   >;
-  pendingChatSubmitByChatId: Record<string, PendingChatSubmit>;
 
   // Runtime state
   streamingChatIds: Record<string, boolean>;
+  /**
+   * Chats a message is being sent to from this window, until their host has
+   * it (chat/chat-submission.ts is the only writer).
+   */
+  sendingChatIds: Record<string, true>;
   /**
    * Chats with a turn running on their host, whoever started it. A session
    * for one resumes the turn's stream (chat-runtime.ts).
@@ -398,9 +402,13 @@ export interface IdeState {
     updater: (item: StashItem) => StashItem,
   ) => void;
   deleteStashItem: (projectId: string, itemId: string) => void;
+  /**
+   * Sends a stash item to its chat (a new one, or the first active diff
+   * chat) and removes it from the stash. Returns the chat, or null when the
+   * item cannot go anywhere. A message the chat does not take goes to the
+   * chat's draft (chat/chat-submission.ts).
+   */
   executeStashItem: (projectId: string, itemId: string) => string | null;
-  queueChatSubmit: (chatId: string, submission: PendingChatSubmit) => boolean;
-  takePendingChatSubmit: (chatId: string) => PendingChatSubmit | null;
 
   // Actions - saved prompts
   /** Saves a new saved prompt at the end of the list. Returns its id. */
@@ -415,15 +423,15 @@ export interface IdeState {
   deleteSavedPrompt: (promptId: string) => void;
   moveSavedPrompt: (promptId: string, index: number) => void;
   /**
-   * Sends a saved prompt's text, as written, to `chatId` in
-   * `projectId`. Returns whether it was sent (it is not when the chat is
-   * busy).
+   * Sends a saved prompt's text, as written, to `chatId` in `projectId`.
+   * Null when the prompt or chat is not there or the prompt is empty;
+   * otherwise what Chat submission answered (chat/chat-submission.ts).
    */
   runSavedPrompt: (
     projectId: string,
     promptId: string,
     chatId: string,
-  ) => boolean;
+  ) => Promise<ChatSendResult> | null;
 
   // Actions - panels
   setPanelSizes: (
@@ -497,6 +505,7 @@ export interface IdeState {
   // Actions - runtime
   setTerminalSessionName: (sessionId: string, name: string) => void;
   setChatStreaming: (chatId: string, streaming: boolean) => void;
+  setChatSending: (chatId: string, sending: boolean) => void;
   setChatAwaitingAnswer: (chatId: string, awaiting: boolean) => void;
   setChatTitleGenerating: (chatId: string, generating: boolean) => void;
   bumpProjectGitRefreshKey: (projectId: string) => void;

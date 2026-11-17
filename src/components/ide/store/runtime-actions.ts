@@ -7,6 +7,7 @@ export const createRuntimeActions = (
   IdeState,
   | "setTerminalSessionName"
   | "setChatStreaming"
+  | "setChatSending"
   | "setChatAwaitingAnswer"
   | "setChatTitleGenerating"
   | "bumpProjectGitRefreshKey"
@@ -59,6 +60,17 @@ export const createRuntimeActions = (
       const awaitingAnswerChatIds = { ...state.awaitingAnswerChatIds };
       delete awaitingAnswerChatIds[chatId];
       return { awaitingAnswerChatIds, streamingChatIds };
+    }),
+
+  // A message is being sent to the chat from this window
+  // (chat/chat-submission.ts).
+  setChatSending: (chatId, sending) =>
+    set((state) => {
+      if (Boolean(state.sendingChatIds[chatId]) === sending) return state;
+      const sendingChatIds = { ...state.sendingChatIds };
+      if (sending) sendingChatIds[chatId] = true;
+      else delete sendingChatIds[chatId];
+      return { sendingChatIds };
     }),
 
   setChatAwaitingAnswer: (chatId, awaiting) =>

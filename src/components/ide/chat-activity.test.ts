@@ -16,14 +16,14 @@ const none: ChatActivityState = {
   awaitingAnswerChatIds: {},
   hostAwaitingApprovalChatIds: {},
   hostRunningChatIds: {},
-  pendingChatSubmitByChatId: {},
+  sendingChatIds: {},
   streamingChatIds: {},
 };
 
 /** The store with one signal set for chat `c`. */
 const only = (signal: keyof ChatActivityState): ChatActivityState => ({
   ...none,
-  [signal]: { c: signal === "pendingChatSubmitByChatId" ? {} : true },
+  [signal]: { c: true },
 });
 
 test("each signal answers each question", () => {
@@ -42,11 +42,8 @@ test("each signal answers each question", () => {
       "hostAwaitingApprovalChatIds",
       { accepts: true, running: false, waiting: true },
     ],
-    // A message is queued here already.
-    [
-      "pendingChatSubmitByChatId",
-      { accepts: false, running: false, waiting: false },
-    ],
+    // A message is being sent to it from here.
+    ["sendingChatIds", { accepts: false, running: false, waiting: false }],
   ];
   for (const [signal, expected] of cases) {
     const state = signal ? only(signal) : none;

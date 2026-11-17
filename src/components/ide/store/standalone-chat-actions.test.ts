@@ -43,7 +43,7 @@ const createTestStore = (handlers: FakeApiHandlers = {}) => {
         hosts: {},
         messagesByChatId: {},
         nextTerminalOrdinalByProject: {},
-        pendingChatSubmitByChatId: {},
+        sendingChatIds: {},
         projectFileSearchRequests: {},
         projectFilesRefreshKeys: {},
         projectGitPanelTabByProject: {},

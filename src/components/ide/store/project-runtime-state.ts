@@ -50,7 +50,7 @@ export const CHAT_KEYED_STATE = [
   "awaitingAnswerChatIds",
   "messagesByChatId",
   "transcriptPageByChatId",
-  "pendingChatSubmitByChatId",
+  "sendingChatIds",
   "streamingChatIds",
   "titleGeneratingChatIds",
 ] as const satisfies readonly RecordKeyOf<IdeState>[];

@@ -295,7 +295,8 @@
     "providerCliUnavailable": "{provider} CLI は使用できません。 [設定] > [プロバイダー] を確認します。",
     "unableToContinueInTerminal": "このチャットをターミナルで続行できませんでした。",
     "unexpectedError": "予期しないエラーが発生しました。詳細については、開発者コンソールを確認してください。",
-    "hostNotConnected": "{host} に接続されていません。接続が戻ったらもう一度送信してください。"
+    "hostNotConnected": "{host} に接続されていません。接続が戻ったらもう一度送信してください。",
+    "messageStillSending": "このチャットへのメッセージはまだ送信中です。"
   },
   "browser": {
     "actions": "ブラウザ操作",

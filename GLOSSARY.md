@@ -156,12 +156,30 @@ one answer:
 - **Waiting on its user:** a question or tool approval is open, here or on
   the host.
 - **Accepts a message:** no session here streams the chat and no message is
-  queued for it. A turn on the host does not block a message, because the
-  host queues runs.
+  being sent to it from here (Chat submission). A turn on the host does not
+  block a message, because the host queues runs.
 
 Whether this window's own session is busy, and which transcripts it keeps, are
 about this window rather than the chat, so the chat runtime and the
 transcript cache answer them.
+
+## Chat submission
+
+How a message is sent to a Chat, whoever sends it: the composer, a stash
+item, a saved prompt or review feedback
+(`sendChatMessage` in `src/components/ide/chat/chat-submission.ts`). One gate
+decides whether the chat takes the message; a message is **refused** when its
+chat is gone, deleted or not in the active project, when it is empty, when a
+message to the chat is still being sent from this window (**busy**), when the
+project's host is away, when the provider CLI is missing, or when no model is
+enabled. A chat that streams or runs a turn still takes one; the host queues
+it. A message that passes is serialized with its skills and the chat runtime
+starts its turn. The answer is a value: sent, refused with its reason, or
+failed with its error; the chat's banner says the same, except when busy.
+The composer's message is the chat's draft, emptied only once sent. Other
+senders let go of theirs when they send, so one that is not sent joins the
+chat's draft. Store actions reach it through the submitter it registers with
+the store.
 
 ## Chat turn outcome
 
@@ -945,15 +963,15 @@ file or folder (a _reference_), a **picked skill** (both encoded as an icon
 slot, six spaces, then the name), or a **typed skill** (plain `$name`).
 Serializing a draft turns references into `@path` and picked skills into
 `$name`, giving `{ text, references, skills }`. The composer, the stash and
-queued prompts (saved prompts, stash runs, feedback) all serialize through
-it.
+Chat submission (for saved prompts, stash runs and feedback) all serialize
+through it.
 
 A chat's **live draft** is held outside React by
 `src/components/ide/chat/chat-drafts.ts`. It holds the text and its
 references together, since a mention's path lives only in its reference, and
 where prompt history navigation stands. It outlives the panel that shows it.
-A queued message that could not be sent is appended to it, whether or not a
-panel shows the chat. Sending empties it. The composer edits a draft through
+A message from outside the composer that the chat did not take is appended to
+it, whether or not a panel shows the chat. Sending empties it. The composer edits a draft through
 one value, `{ text, references }`, that its owner holds: the chat's draft for
 a chat panel, or the stash composer's own. The composer keeps only the token
 at the caret.

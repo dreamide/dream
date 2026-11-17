@@ -295,7 +295,8 @@
     "providerCliUnavailable": "{provider} CLI 不可用。检查设置 > 提供商。",
     "unableToContinueInTerminal": "无法在终端中继续此聊天。",
     "unexpectedError": "发生意外错误。检查开发者控制台了解详细信息。",
-    "hostNotConnected": "{host} 未连接。连接恢复后请重新发送。"
+    "hostNotConnected": "{host} 未连接。连接恢复后请重新发送。",
+    "messageStillSending": "仍在向此聊天发送一条消息。"
   },
   "browser": {
     "actions": "浏览器操作",

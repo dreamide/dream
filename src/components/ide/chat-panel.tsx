@@ -51,8 +51,8 @@ import {
   dismissChatError,
   respondToToolApproval,
   stopChatTurn,
-  submitChatPrompt,
 } from "./chat/chat-runtime";
+import { sendChatMessage } from "./chat/chat-submission";
 import type { ContinueChatPopoverContext } from "./chat/continue-chat-popover";
 import { EditChatDialog } from "./chat/edit-chat-dialog";
 import { estimateStableMessages } from "./chat/message-token-estimate";
@@ -404,28 +404,20 @@ export const ChatPanel = ({
 
   const handleSubmit = useCallback(
     async (prompt: PromptInputMessage) => {
-      if (readOnly || hostAway) return;
+      if (readOnly) return;
       handleActivateChat();
 
-      // The runtime validates and sends; this panel only owns the draft.
-      if (!(await submitChatPrompt(chat.id, prompt))) {
-        // Rejecting keeps the composer's text, references and attachments.
-        throw new Error(
-          chatTurnOutcomes.store.getState().errors[chat.id] ||
-            "Unable to submit prompt.",
-        );
-      }
+      // Chat submission decides and sends, and empties the draft once sent.
+      const result = await sendChatMessage(chat.id, prompt, {
+        origin: "composer",
+      });
+      if (result.status === "failed") throw new Error(result.error);
+      // Rejecting keeps the composer's text, references and attachments.
+      if (result.status === "refused") throw new Error(result.message ?? "");
 
-      chatDrafts.clear(chat.id);
       scrollConversationToBottom();
     },
-    [
-      chat.id,
-      handleActivateChat,
-      hostAway,
-      readOnly,
-      scrollConversationToBottom,
-    ],
+    [chat.id, handleActivateChat, readOnly, scrollConversationToBottom],
   );
 
   const closeEditDialog = useCallback(() => {

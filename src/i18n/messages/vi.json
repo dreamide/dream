@@ -295,7 +295,8 @@
     "providerCliUnavailable": "{provider} CLI không có sẵn. Kiểm tra Cài đặt > Nhà cung cấp.",
     "unableToContinueInTerminal": "Không thể tiếp tục cuộc trò chuyện này trong terminal.",
     "unexpectedError": "Đã xảy ra lỗi không mong muốn. Kiểm tra bảng điều khiển dành cho nhà phát triển để biết chi tiết.",
-    "hostNotConnected": "{host} chưa được kết nối. Hãy gửi lại khi kết nối được khôi phục."
+    "hostNotConnected": "{host} chưa được kết nối. Hãy gửi lại khi kết nối được khôi phục.",
+    "messageStillSending": "Một tin nhắn tới cuộc trò chuyện này vẫn đang được gửi."
   },
   "browser": {
     "actions": "Tác vụ trình duyệt",

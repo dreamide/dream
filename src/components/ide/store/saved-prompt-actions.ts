@@ -1,5 +1,6 @@
 import { createSavedPrompt } from "@/lib/ide-defaults";
 import type { SavedPrompt } from "@/types/ide";
+import { sendToChat } from "./chat-submitter";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
 const replaceSavedPrompt = (
@@ -107,18 +108,16 @@ export const createSavedPromptActions = (
       chat.projectId !== projectId ||
       chat.deletedAt !== null
     ) {
-      return false;
+      return null;
     }
 
     const text = savedPrompt.prompt.trim();
-    // If the send fails, the prompt lands in the composer instead of being lost.
-    return (
-      text.length > 0 &&
-      state.queueChatSubmit(chatId, {
-        preserveDraft: true,
-        references: [],
-        text,
-      })
+    if (!text) return null;
+    // A prompt the chat does not take lands in its draft instead of being lost.
+    return sendToChat(
+      chatId,
+      { references: [], text },
+      { origin: "saved-prompt" },
     );
   },
 });

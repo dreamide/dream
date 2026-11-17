@@ -2,7 +2,7 @@
  * Chat activity: what a chat is doing, as this window's sessions and the
  * chat's host both see it. The store keeps the signals apart (a session
  * streaming here, a turn the host says runs, a question or approval waiting
- * on either, a message queued here). Readers ask one of the questions below
+ * on either, a message being sent from here). Readers ask one of the questions below
  * instead of combining the signals themselves.
  *
  * - Running: a turn runs, followed here or not. Another client's turn
@@ -11,8 +11,9 @@
  * - Waiting on its user: a question or tool approval is open, here or on
  *   the host.
  * - Accepts a message: nothing in this window stops a new message: no
- *   session here streams the chat and no message is queued for it. A turn
- *   running elsewhere does not stop one: the host queues the run.
+ *   session here streams the chat and no message is being sent to it from
+ *   here (chat/chat-submission.ts). A turn running elsewhere does not stop
+ *   one: the host queues the run.
  *
  * Not here: whether this window's own session for a chat is busy
  * (chat/chat-runtime.ts) and which transcripts it keeps (transcript-cache.ts).
@@ -27,7 +28,7 @@ export type ChatActivityState = Pick<
   | "awaitingAnswerChatIds"
   | "hostAwaitingApprovalChatIds"
   | "hostRunningChatIds"
-  | "pendingChatSubmitByChatId"
+  | "sendingChatIds"
   | "streamingChatIds"
 >;
 
@@ -36,7 +37,7 @@ export const selectChatActivity = (state: IdeState): ChatActivityState => ({
   awaitingAnswerChatIds: state.awaitingAnswerChatIds,
   hostAwaitingApprovalChatIds: state.hostAwaitingApprovalChatIds,
   hostRunningChatIds: state.hostRunningChatIds,
-  pendingChatSubmitByChatId: state.pendingChatSubmitByChatId,
+  sendingChatIds: state.sendingChatIds,
   streamingChatIds: state.streamingChatIds,
 });
 
@@ -53,10 +54,10 @@ export const isChatWaitingOnUser = (state: ChatActivityState, chatId: string) =>
 
 /**
  * A new message can go to the chat now: no session here streams it and no
- * message is queued for it. A turn on the host does not stop it.
+ * message is being sent to it from here. A turn on the host does not stop it.
  */
 export const chatAcceptsMessage = (state: ChatActivityState, chatId: string) =>
-  !state.streamingChatIds[chatId] && !state.pendingChatSubmitByChatId[chatId];
+  !state.streamingChatIds[chatId] && !state.sendingChatIds[chatId];
 
 /** The projects with a chat running in them. */
 export const projectIdsWithRunningChats = (

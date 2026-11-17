@@ -60,7 +60,7 @@ export const RunSavedPromptSubmenu = ({
                 // A busy chat cannot take a run, so Ctrl+click falls back to
                 // inserting rather than dropping the prompt.
                 if ((event.ctrlKey || event.metaKey) && accepts) {
-                  runSavedPrompt(projectId, savedPrompt.id, chatId);
+                  void runSavedPrompt(projectId, savedPrompt.id, chatId);
                 } else {
                   insertPromptText?.(savedPrompt.prompt);
                 }

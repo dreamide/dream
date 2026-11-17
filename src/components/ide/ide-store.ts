@@ -94,10 +94,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   settings: DEFAULT_SETTINGS,
   messagesByChatId: {},
   transcriptPageByChatId: {},
-  pendingChatSubmitByChatId: {},
 
   // ── Runtime state ───────────────────────────────────────────────────
   streamingChatIds: {},
+  sendingChatIds: {},
   hostRunningChatIds: {},
   hostAwaitingApprovalChatIds: {},
   hosts: {},

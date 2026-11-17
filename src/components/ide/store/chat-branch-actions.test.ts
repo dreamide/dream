@@ -215,7 +215,7 @@ test("auto-archive leaves a chat whose turn runs, here or on the host", () => {
         deleteChat: (chatId: string) => deleted.push(chatId),
         hostAwaitingApprovalChatIds: {},
         hostRunningChatIds: { [onHost.id]: true },
-        pendingChatSubmitByChatId: {},
+        sendingChatIds: {},
         settings: { ...DEFAULT_SETTINGS, archiveChatsAfterDays: 7 },
         streamingChatIds: { [streaming.id]: true },
         titleGeneratingChatIds: {},

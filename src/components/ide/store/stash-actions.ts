@@ -1,6 +1,7 @@
 import { createStashItem } from "@/lib/ide-defaults";
 import type { StashItem } from "@/types/ide";
 import { getFirstActiveDiffChatId } from "../diff-feedback";
+import { sendToChat } from "./chat-submitter";
 import { updateProjectUiInList } from "./helpers";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
@@ -13,12 +14,7 @@ export const createStashActions = (
   get: IdeStoreGet,
 ): Pick<
   IdeState,
-  | "addStashItem"
-  | "updateStashItem"
-  | "deleteStashItem"
-  | "executeStashItem"
-  | "takePendingChatSubmit"
-  | "queueChatSubmit"
+  "addStashItem" | "updateStashItem" | "deleteStashItem" | "executeStashItem"
 > => ({
   addStashItem: (projectId, item) => {
     const state = get();
@@ -140,15 +136,12 @@ export const createStashActions = (
         remoteConversationProjectPath: null,
       }));
 
-    if (
-      !get().queueChatSubmit(chatId, {
-        references: item.references,
-        text: item.text,
-        ...(!newChat ? { preserveDraft: true } : {}),
-      })
-    ) {
-      return null;
-    }
+    // Let go of at once: a message the chat does not take goes to its draft.
+    void sendToChat(
+      chatId,
+      { references: item.references, text: item.text },
+      { origin: "stash" },
+    );
 
     set((current) => ({
       projects: updateProjectUiInList(current.projects, projectId, (entry) => ({
@@ -160,47 +153,5 @@ export const createStashActions = (
     }));
 
     return chatId;
-  },
-
-  queueChatSubmit: (chatId, submission) => {
-    const state = get();
-    const chat = state.chats.find(
-      (entry) => entry.id === chatId && entry.deletedAt === null,
-    );
-    if (
-      !chat ||
-      chat.projectId !== state.activeProjectId ||
-      state.pendingChatSubmitByChatId[chatId] ||
-      (!submission.text.trim() &&
-        submission.references.length === 0 &&
-        !submission.files?.length)
-    )
-      return false;
-    set({
-      pendingChatSubmitByChatId: {
-        ...state.pendingChatSubmitByChatId,
-        [chatId]: submission,
-      },
-    });
-    get().setActiveChatId(chat.projectId, chatId);
-    return true;
-  },
-
-  takePendingChatSubmit: (chatId) => {
-    let pending: IdeState["pendingChatSubmitByChatId"][string] | null = null;
-
-    set((state) => {
-      if (!Object.hasOwn(state.pendingChatSubmitByChatId, chatId)) {
-        return state;
-      }
-
-      pending = state.pendingChatSubmitByChatId[chatId] ?? null;
-      const { [chatId]: _removed, ...pendingChatSubmitByChatId } =
-        state.pendingChatSubmitByChatId;
-
-      return { pendingChatSubmitByChatId };
-    });
-
-    return pending;
   },
 });

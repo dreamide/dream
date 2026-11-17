@@ -10,9 +10,10 @@ import {
   formatElementSource,
 } from "./browser-feedback";
 import type { InspectedElement } from "./browser-inspector-script";
+import { sendChatMessage } from "./chat/chat-submission";
 import { chatAcceptsMessage } from "./chat-activity";
 import { getFirstActiveDiffChatId } from "./diff-feedback";
-import { queueFeedbackSubmit, resolveFeedbackChatId } from "./feedback-chat";
+import { resolveFeedbackChatId } from "./feedback-chat";
 import { useIdeStore } from "./ide-store";
 
 export interface BrowserElementSelection {
@@ -75,14 +76,19 @@ export function BrowserElementFeedback({
       });
       // Retry in the same new chat if loading or provider setup fails.
       if (target.created) setCreatedChatId(target.chatId);
-      queueFeedbackSubmit(target.chatId, {
-        files: selection.imageDataUrl
-          ? [createBrowserFeedbackAttachment(selection.imageDataUrl)]
-          : [],
-        preserveDraft: true,
-        references: [],
-        text,
-      });
+      // Let go of at once: a message the chat does not take goes to its
+      // draft, and its banner says why.
+      void sendChatMessage(
+        target.chatId,
+        {
+          files: selection.imageDataUrl
+            ? [createBrowserFeedbackAttachment(selection.imageDataUrl)]
+            : [],
+          references: [],
+          text,
+        },
+        { origin: "feedback" },
+      );
       onClose();
     } catch (cause) {
       setError(

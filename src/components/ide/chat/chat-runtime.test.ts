@@ -10,7 +10,6 @@ import { chatTurnOutcomes } from "../chat-turn-outcome";
 import { clearGeneratedGitText } from "../git-generated-text";
 import { useIdeStore } from "../ide-store";
 import { CHAT_STREAM_UPDATE_THROTTLE_MS } from "./chat-constants";
-import { chatDrafts } from "./chat-drafts";
 import {
   CHAT_SESSION_IDLE_EVICT_MS,
   getChatSession,
@@ -18,7 +17,6 @@ import {
   reattachChatStreams,
   retainChatSession,
   startChatRuntime,
-  submitChatPrompt,
   subscribeLiveTranscript,
   watchChatSessionView,
 } from "./chat-runtime";
@@ -130,82 +128,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
   useIdeStore.setState(initialState, true);
   clearGeneratedGitText();
-});
-
-test("a queued submission is sent and saved with no chat panel mounted", async () => {
-  const { chat, project } = setUp();
-
-  assert.equal(
-    useIdeStore
-      .getState()
-      .queueChatSubmit(chat.id, { references: [], text: "Fix the login bug" }),
-    true,
-  );
-
-  await waitFor(() =>
-    requests.some((request) => request.url === "/api/chat/submit"),
-  );
-  const request = requests.find((entry) => entry.url === "/api/chat/submit");
-  assert.equal(request?.body.chatId, chat.id);
-  assert.equal(request?.body.projectPath, project.path);
-  assert.equal(request?.body.model, "claude-test");
-  assert.equal(request?.body.provider, "anthropic");
-
-  await waitFor(
-    () => useIdeStore.getState().messagesByChatId[chat.id]?.length === 2,
-  );
-  const state = useIdeStore.getState();
-  assert.equal(state.pendingChatSubmitByChatId[chat.id], undefined);
-  assert.deepEqual(
-    state.messagesByChatId[chat.id]?.map((message) => message.role),
-    ["user", "assistant"],
-  );
-  // The session and the store agree on the finished transcript.
-  assert.deepEqual(
-    getChatSession(chat.id).chat.messages,
-    state.messagesByChatId[chat.id],
-  );
-  // ...and so does what a panel would show of it.
-  await waitFor(() => getChatSessionView(chat.id).status === "ready");
-  assert.equal(
-    getChatSessionView(chat.id).messages,
-    getChatSession(chat.id).chat.messages,
-  );
-});
-
-test("a queued submission that cannot be sent returns to the draft", async () => {
-  const { chat } = setUp({ installed: false });
-
-  useIdeStore.getState().queueChatSubmit(chat.id, {
-    preserveDraft: true,
-    references: [],
-    text: "Make this button blue",
-  });
-
-  await waitFor(() =>
-    Boolean(chatTurnOutcomes.store.getState().errors[chat.id]),
-  );
-  assert.match(
-    chatTurnOutcomes.store.getState().errors[chat.id],
-    /Anthropic CLI is not available/,
-  );
-  // Back in the chat's draft, though no panel shows the chat.
-  assert.equal(chatDrafts.get(chat.id).text, "Make this button blue");
-  chatDrafts.clear(chat.id);
-  assert.equal(
-    requests.some((request) => request.url === "/api/chat/submit"),
-    false,
-  );
-});
-
-test("a chat outside the active project is refused", () => {
-  const { chat } = setUp();
-  useIdeStore.setState({ activeProjectId: "another-project" });
-
-  assert.throws(
-    () => submitChatPrompt(chat.id, { files: [], text: "Hello" }),
-    /no longer in the active project/,
-  );
 });
 
 test("an idle session is dropped only after its last watcher leaves", () => {
@@ -567,73 +489,6 @@ test("recovery retries back off, deduplicate lifecycle resumes, and stop when th
   useIdeStore.setState({ chats: [] });
   await vi.advanceTimersByTimeAsync(10_000);
   assert.equal(streamRequests, 3);
-});
-
-test("a lost submit receipt retries the same durable request and attachment payload", async () => {
-  const { chat } = setUp();
-  const transport = globalThis.fetch;
-  let submissions = 0;
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string, init?: RequestInit) => {
-      const response = await transport(url, init);
-      if (String(url) === "/api/chat/submit" && ++submissions === 1)
-        throw new TypeError("Connection lost after acceptance");
-      return response;
-    }),
-  );
-  const file = {
-    type: "file" as const,
-    mediaType: "text/plain",
-    filename: "context.txt",
-    url: "data:text/plain;base64,SGk=",
-  };
-  assert.equal(
-    await submitChatPrompt(chat.id, {
-      files: [file],
-      text: "Use this context",
-    }),
-    true,
-  );
-  const sent = requests.filter((entry) => entry.url === "/api/chat/submit");
-  assert.equal(sent.length, 2);
-  assert.deepEqual(sent[0].body, sent[1].body);
-  assert.deepEqual(
-    (sent[0].body.message as { parts: unknown[] }).parts[0],
-    file,
-  );
-});
-
-test("busy chats accept ordered follow-ups; failed acceptance rejects without discarding the caller's draft", async () => {
-  const { chat } = setUp();
-  useIdeStore.setState({ streamingChatIds: { [chat.id]: true } });
-  const first = submitChatPrompt(chat.id, { files: [], text: "First" });
-  const second = submitChatPrompt(chat.id, { files: [], text: "Second" });
-  await Promise.all([first, second]);
-  assert.deepEqual(
-    requests
-      .filter((entry) => entry.url === "/api/chat/submit")
-      .map(
-        (entry) =>
-          (entry.body.message as { parts: { text: string }[] }).parts[0].text,
-      ),
-    ["First", "Second"],
-  );
-  const transport = globalThis.fetch;
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string, init?: RequestInit) =>
-      String(url) === "/api/chat/submit"
-        ? new Response("Cannot accept submission", { status: 400 })
-        : transport(url, init),
-    ),
-  );
-  const prompt = { files: [], text: "Keep this draft" };
-  await assert.rejects(
-    Promise.resolve(submitChatPrompt(chat.id, prompt)),
-    /Cannot accept/,
-  );
-  assert.equal(prompt.text, "Keep this draft");
 });
 
 test("the commit message is generated once the project's last running turn ends", async () => {

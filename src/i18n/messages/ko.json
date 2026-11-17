@@ -295,7 +295,8 @@
     "providerCliUnavailable": "{provider} CLI를 사용할 수 없습니다. 설정 > 공급자를 확인하세요.",
     "unableToContinueInTerminal": "터미널에서 이 채팅을 계속할 수 없습니다.",
     "unexpectedError": "예상치 못한 오류가 발생했습니다. 자세한 내용은 개발자 콘솔을 확인하세요.",
-    "hostNotConnected": "{host}에 연결되어 있지 않습니다. 연결이 돌아오면 다시 보내세요."
+    "hostNotConnected": "{host}에 연결되어 있지 않습니다. 연결이 돌아오면 다시 보내세요.",
+    "messageStillSending": "이 채팅으로 보내는 메시지가 아직 전송 중입니다."
   },
   "browser": {
     "actions": "브라우저 동작",

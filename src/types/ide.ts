@@ -1,5 +1,5 @@
 import type { FileDiffMetadata } from "@pierre/diffs/react";
-import type { FileUIPart, UIMessage } from "ai";
+import type { UIMessage } from "ai";
 import type { AppLocale } from "@/i18n/config";
 import type { SparklesPaletteName } from "@/lib/sparkles-palettes";
 
@@ -143,13 +143,6 @@ export interface SavedPrompt {
   /** Sent to the agent as written. */
   prompt: string;
   updatedAt: string;
-}
-
-export interface PendingChatSubmit {
-  files?: FileUIPart[];
-  preserveDraft?: boolean;
-  references: ProjectReference[];
-  text: string;
 }
 
 export interface ProjectConfig {

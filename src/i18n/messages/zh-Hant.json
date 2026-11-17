@@ -295,7 +295,8 @@
     "providerCliUnavailable": "{provider} CLI 不可用。檢查設定 > 提供者。",
     "unableToContinueInTerminal": "無法在終端機中繼續此聊天。",
     "unexpectedError": "發生意外錯誤。檢查開發者控制台以了解詳細資訊。",
-    "hostNotConnected": "{host} 未連線。連線恢復後請重新傳送。"
+    "hostNotConnected": "{host} 未連線。連線恢復後請重新傳送。",
+    "messageStillSending": "仍在向此聊天傳送一則訊息。"
   },
   "browser": {
     "actions": "瀏覽器動作",

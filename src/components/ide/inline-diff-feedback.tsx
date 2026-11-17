@@ -6,12 +6,13 @@ import { PromptInputSubmit } from "@/components/ai-elements/prompt-input-control
 import { Popover, PopoverContent } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { sendChatMessage } from "./chat/chat-submission";
 import { chatAcceptsMessage } from "./chat-activity";
 import {
   formatDiffReferenceMessage,
   getFirstActiveDiffChatId,
 } from "./diff-feedback";
-import { queueFeedbackSubmit, resolveFeedbackChatId } from "./feedback-chat";
+import { resolveFeedbackChatId } from "./feedback-chat";
 import { useIdeStore } from "./ide-store";
 
 export interface DiffFeedbackTarget {
@@ -159,11 +160,13 @@ export function InlineDiffFeedback({
       });
       // Retry in the same new chat if loading or provider setup fails.
       if (chat.created) setCreatedChatId(chat.chatId);
-      queueFeedbackSubmit(chat.chatId, {
-        text,
-        references: [],
-        preserveDraft: true,
-      });
+      // Let go of at once: a message the chat does not take goes to its
+      // draft, and its banner says why.
+      void sendChatMessage(
+        chat.chatId,
+        { references: [], text },
+        { origin: "feedback" },
+      );
       cancel();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : chatT("sendFailed"));

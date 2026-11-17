@@ -50,8 +50,7 @@ export const createTranscriptCache = (
   const protectedChat = (id: string, state: IdeState) =>
     mounted.has(id) ||
     state.streamingChatIds[id] ||
-    state.awaitingAnswerChatIds[id] ||
-    state.pendingChatSubmitByChatId[id];
+    state.awaitingAnswerChatIds[id];
 
   const canLoad = (id: string, state: IdeState) => {
     const chat = state.chats.find((chat) => chat.id === id);
@@ -165,8 +164,7 @@ export const createTranscriptCache = (
       state.projects !== previous.projects ||
       state.chats !== previous.chats ||
       state.streamingChatIds !== previous.streamingChatIds ||
-      state.awaitingAnswerChatIds !== previous.awaitingAnswerChatIds ||
-      state.pendingChatSubmitByChatId !== previous.pendingChatSubmitByChatId
+      state.awaitingAnswerChatIds !== previous.awaitingAnswerChatIds
     )
       schedulePrune();
   };

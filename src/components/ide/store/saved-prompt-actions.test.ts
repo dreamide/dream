@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { afterEach, test } from "vitest";
 import { createStore } from "zustand/vanilla";
 import { createProjectConfig, DEFAULT_SETTINGS } from "@/lib/ide-defaults";
+import type { SendChatMessage } from "../chat/chat-submission";
 import { createChatActions } from "./chat-actions";
+import { setChatSubmitter } from "./chat-submitter";
 import type { IdeState } from "./ide-store-types";
 import { createSavedPromptActions } from "./saved-prompt-actions";
 import { createStashActions } from "./stash-actions";
@@ -18,7 +20,7 @@ const createTestStore = () => {
         closedProjects: [],
         draftChatIdByProject: {},
         messagesByChatId: {},
-        pendingChatSubmitByChatId: {},
+        sendingChatIds: {},
         projects: [project],
         settings: DEFAULT_SETTINGS,
         streamingChatIds: {},
@@ -32,8 +34,19 @@ const createTestStore = () => {
     ...createSavedPromptActions(store.setState, store.getState),
   });
 
-  return { project, store };
+  // What the store sends, through the submitter Chat submission registers.
+  const sent: Parameters<SendChatMessage>[] = [];
+  setChatSubmitter(async (...args) => {
+    sent.push(args);
+    return { status: "sent" };
+  });
+
+  return { project, sent, store };
 };
+
+afterEach(() => {
+  setChatSubmitter(null);
+});
 
 test("addSavedPrompt saves a trimmed prompt and refuses one without a name or prompt", () => {
   const { store } = createTestStore();
@@ -104,49 +117,47 @@ test("moveSavedPrompt reorders and deleteSavedPrompt removes", () => {
   );
 });
 
-test("runSavedPrompt sends the prompt to the chat as written and keeps the saved prompt", () => {
-  const { project, store } = createTestStore();
+test("runSavedPrompt sends the prompt to the chat as written and keeps the saved prompt", async () => {
+  const { project, sent, store } = createTestStore();
   const chatId = store.getState().addChat(project.id) as string;
   const promptId = store.getState().addSavedPrompt({
     prompt: "Address the review comments on {{branch}}",
     name: "Review",
   }) as string;
 
-  assert.equal(
-    store.getState().runSavedPrompt(project.id, promptId, chatId),
-    true,
+  assert.deepEqual(
+    await store.getState().runSavedPrompt(project.id, promptId, chatId),
+    { status: "sent" },
   );
-  assert.deepEqual(store.getState().pendingChatSubmitByChatId[chatId], {
-    preserveDraft: true,
-    references: [],
-    text: "Address the review comments on {{branch}}",
-  });
+  assert.deepEqual(sent, [
+    [
+      chatId,
+      { references: [], text: "Address the review comments on {{branch}}" },
+      { origin: "saved-prompt" },
+    ],
+  ]);
   // Running a saved prompt never uses it up.
   assert.equal(store.getState().savedPrompts.length, 1);
-
-  // The chat already has a queued prompt, so it is busy.
-  assert.equal(
-    store.getState().runSavedPrompt(project.id, promptId, chatId),
-    false,
-  );
 });
 
-test("runSavedPrompt queues during streaming but refuses another project", () => {
-  const { project, store } = createTestStore();
+test("runSavedPrompt sends nothing to a chat of another project or a deleted one", () => {
+  const { project, sent, store } = createTestStore();
   const chatId = store.getState().addChat(project.id) as string;
   const promptId = store
     .getState()
     .addSavedPrompt({ prompt: "Run the tests", name: "Test" }) as string;
 
-  store.setState({ streamingChatIds: { [chatId]: true } });
-  assert.equal(
-    store.getState().runSavedPrompt(project.id, promptId, chatId),
-    true,
-  );
-
-  store.setState({ streamingChatIds: {} });
   assert.equal(
     store.getState().runSavedPrompt("other-project", promptId, chatId),
-    false,
+    null,
   );
+  store.getState().updateChat(chatId, (chat) => ({
+    ...chat,
+    deletedAt: new Date().toISOString(),
+  }));
+  assert.equal(
+    store.getState().runSavedPrompt(project.id, promptId, chatId),
+    null,
+  );
+  assert.deepEqual(sent, []);
 });
