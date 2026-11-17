@@ -1,23 +1,23 @@
 import { getDesktopApi } from "@/lib/electron";
-import type { IdeState, IdeStoreSet } from "./ide-store-types";
+import type { IdeStoreSet } from "./ide-store-types";
 
-export const createRuntimeActions = (
-  set: IdeStoreSet,
-): Pick<
-  IdeState,
-  | "setTerminalSessionName"
-  | "setChatStreaming"
-  | "setChatSending"
-  | "setChatAwaitingAnswer"
-  | "setChatTitleGenerating"
-  | "bumpProjectGitRefreshKey"
-  | "bumpProjectFilesRefreshKey"
-  | "setIsMacOs"
-  | "setIsElectron"
-  | "setAppReady"
-  | "openExternalUrl"
-  | "openExternalPath"
-> => ({
+/** The runtime flag actions in the store (`IdeState`). */
+export interface RuntimeActions {
+  setTerminalSessionName: (sessionId: string, name: string) => void;
+  setChatStreaming: (chatId: string, streaming: boolean) => void;
+  setChatSending: (chatId: string, sending: boolean) => void;
+  setChatAwaitingAnswer: (chatId: string, awaiting: boolean) => void;
+  setChatTitleGenerating: (chatId: string, generating: boolean) => void;
+  bumpProjectGitRefreshKey: (projectId: string) => void;
+  bumpProjectFilesRefreshKey: (projectId: string) => void;
+  setIsMacOs: (value: boolean) => void;
+  setIsElectron: (value: boolean) => void;
+  setAppReady: (value: boolean) => void;
+  openExternalUrl: (url: string) => void;
+  openExternalPath: (path: string) => void;
+}
+
+export const createRuntimeActions = (set: IdeStoreSet): RuntimeActions => ({
   setTerminalSessionName: (sessionId, name) => {
     const normalizedSessionId =
       typeof sessionId === "string" ? sessionId.trim() : "";

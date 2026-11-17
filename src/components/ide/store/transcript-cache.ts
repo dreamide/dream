@@ -17,6 +17,22 @@ interface Entry {
   persisted: boolean;
 }
 
+/** The transcript actions in the store (`IdeState`). */
+export interface TranscriptActions {
+  retainChatTranscript: (chatId: string) => () => void;
+  loadMessagesForChat: (chatId: string) => Promise<UIMessage[]>;
+  loadRecentMessagesForChat: (chatId: string) => Promise<UIMessage[]>;
+  loadEarlierMessagesForChat: (chatId: string) => Promise<void>;
+  /**
+   * The host saved a chat's transcript. `messageCount` is the host's count
+   * after the save, absent when the save only merged messages.
+   */
+  applyCatalogTranscript: (
+    chatId: string,
+    notice?: { messageCount?: number },
+  ) => Promise<void>;
+}
+
 interface PendingLoad {
   promise: Promise<UIMessage[]>;
   refreshRequested: boolean;
@@ -25,6 +41,8 @@ interface PendingLoad {
 export const createTranscriptCache = (
   get: () => IdeState,
   set: (state: Partial<IdeState>) => void,
+  /** Saves every slice now (the save scheduler in ide-store.ts). */
+  persist: () => void,
 ) => {
   const entries = new Map<string, Entry>();
   const messageSizes = new WeakMap<UIMessage, number>();
@@ -268,15 +286,7 @@ export const createTranscriptCache = (
     return promise;
   };
 
-  const actions: Pick<
-    IdeState,
-    | "retainChatTranscript"
-    | "loadMessagesForChat"
-    | "loadRecentMessagesForChat"
-    | "loadEarlierMessagesForChat"
-    | "applyCatalogTranscript"
-    | "persistMessagesForChat"
-  > = {
+  const actions: TranscriptActions = {
     retainChatTranscript: (id) => {
       mounted.set(id, (mounted.get(id) ?? 0) + 1);
       const entry = entries.get(id);
@@ -364,38 +374,43 @@ export const createTranscriptCache = (
         // Keep the current messages. The next notification retries the read.
       }
     },
-    persistMessagesForChat: async (id, messages) => {
-      if (messages) get().setMessagesForChat(id, messages);
-      const snapshot = get().messagesByChatId[id];
-      if (!snapshot) return;
-      const partial = Boolean(get().transcriptPageByChatId[id]?.before);
-      const entry = entries.get(id);
-      // Serialize writes per chat so a slow older save cannot overwrite a newer
-      // transcript on disk. Failed saves leave the entry dirty and protected.
-      const previous = saves.get(id) ?? Promise.resolve();
-      const promise = previous
-        .then(async () => {
-          if (!get().chats.some((chat) => chat.id === id)) return;
-          get().persist();
-          await catalogBaselines.saveTranscript(id, snapshot, partial);
-          if (
-            entry &&
-            entries.get(id) === entry &&
-            entry.messages === snapshot
-          ) {
-            entry.persisted = true;
-          }
-        })
-        .catch((error: unknown) => {
-          console.warn(`Unable to persist messages for chat ${id}.`, error);
-        })
-        .finally(() => {
-          if (saves.get(id) === promise) saves.delete(id);
-          schedulePrune();
-        });
-      saves.set(id, promise);
-      await promise;
-    },
+  };
+
+  /**
+   * Saves a chat's transcript, `messages` first set as it when given: the
+   * workspace now, and the messages to the chat's host, one save per chat
+   * at a time.
+   */
+  const persistMessagesForChat = async (
+    id: string,
+    messages?: UIMessage[],
+  ): Promise<void> => {
+    if (messages) get().setMessagesForChat(id, messages);
+    const snapshot = get().messagesByChatId[id];
+    if (!snapshot) return;
+    const partial = Boolean(get().transcriptPageByChatId[id]?.before);
+    const entry = entries.get(id);
+    // Serialize writes per chat so a slow older save cannot overwrite a newer
+    // transcript on disk. Failed saves leave the entry dirty and protected.
+    const previous = saves.get(id) ?? Promise.resolve();
+    const promise = previous
+      .then(async () => {
+        if (!get().chats.some((chat) => chat.id === id)) return;
+        persist();
+        await catalogBaselines.saveTranscript(id, snapshot, partial);
+        if (entry && entries.get(id) === entry && entry.messages === snapshot) {
+          entry.persisted = true;
+        }
+      })
+      .catch((error: unknown) => {
+        console.warn(`Unable to persist messages for chat ${id}.`, error);
+      })
+      .finally(() => {
+        if (saves.get(id) === promise) saves.delete(id);
+        schedulePrune();
+      });
+    saves.set(id, promise);
+    await promise;
   };
 
   const markHydrated = (messagesByChatId: Record<string, UIMessage[]>) => {
@@ -406,5 +421,5 @@ export const createTranscriptCache = (
     schedulePrune();
   };
 
-  return { actions, observe, markHydrated };
+  return { actions, observe, markHydrated, persistMessagesForChat };
 };

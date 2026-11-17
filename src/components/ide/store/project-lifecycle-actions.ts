@@ -2,7 +2,7 @@ import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { ProjectConfig, ProjectWorktreeInfo } from "@/types/ide";
 import { chatTurnOutcomes } from "../chat-turn-outcome";
 import { createHostReach, type HostReach } from "./host-reach";
-import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
+import type { IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 import {
   commitWorkspaceRemoval,
   dropProjectRuntimeState,
@@ -13,22 +13,62 @@ import {
 } from "./terminal-actions";
 import * as workspace from "./workspace-document";
 
+/** The project actions in the store (`IdeState`). */
+export interface ProjectLifecycleActions {
+  setProjects: (projects: ProjectConfig[]) => void;
+  setActiveProjectId: (id: string | null) => void;
+  addProject: (
+    path: string,
+    options?: {
+      activate?: boolean;
+      /** The host the folder is on; the local host when absent. */
+      hostId?: string;
+      /**
+       * Marks the project as a Git worktree. Only fills in projects that do
+       * not already carry worktree info, so details recorded at creation
+       * (base branch, creation time) are kept.
+       */
+      worktree?: ProjectWorktreeInfo;
+    },
+  ) => void;
+  /**
+   * Opens the folder at `path` on a host as a project, the way a person
+   * opens one: an SSH host is connected first (ssh's prompts appear in
+   * their own dialog), so a project already there opens as itself. False
+   * when the host could not be reached; nothing is added then.
+   */
+  openProject: (
+    path: string,
+    options?: { activate?: boolean; hostId?: string; signal?: AbortSignal },
+  ) => Promise<boolean>;
+  closeProject: (projectId: string) => void;
+  /**
+   * Removes a closed project for good, with its chats: from this window and
+   * from its host's catalog. Its folder is not touched.
+   */
+  forgetClosedProject: (projectId: string) => void;
+  updateProject: (
+    projectId: string,
+    updater: (project: ProjectConfig) => ProjectConfig,
+  ) => void;
+}
+
 export const createProjectLifecycleActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
-  terminals: TerminalSessionOwner = createTerminalSessionOwner(set, get),
-  hosts: Pick<HostReach, "reach"> = createHostReach(get),
-): Pick<
-  IdeState,
-  | "setProjects"
-  | "setActiveProjectId"
-  | "addProject"
-  | "openProject"
-  | "closeProject"
-  | "forgetClosedProject"
-  | "stopProjectTerminals"
-  | "updateProject"
-> => ({
+  {
+    terminals = createTerminalSessionOwner(set, get),
+    hosts = createHostReach(get),
+    persist,
+  }: {
+    /** The Terminal session owner, which stops a Project's terminals. */
+    terminals?: Pick<TerminalSessionOwner, "dropProject">;
+    /** The Host reach owner, which reaches a Host before opening on it. */
+    hosts?: Pick<HostReach, "reach">;
+    /** Saves every slice now (the save scheduler in ide-store.ts). */
+    persist: () => void;
+  },
+): ProjectLifecycleActions => ({
   setProjects: (projects: ProjectConfig[]) => {
     set((state) => workspace.setProjects(state, state.settings, projects));
   },
@@ -82,10 +122,8 @@ export const createProjectLifecycleActions = (
     return true;
   },
 
-  stopProjectTerminals: (projectId: string) => terminals.dropProject(projectId),
-
   closeProject: (projectId: string) => {
-    void get().stopProjectTerminals(projectId);
+    void terminals.dropProject(projectId);
     set((state) => {
       const runtime = dropProjectRuntimeState(state, projectId);
       return {
@@ -106,11 +144,11 @@ export const createProjectLifecycleActions = (
     const state = get();
     void commitWorkspaceRemoval(
       set,
-      get,
+      terminals,
       workspace.removeProjects(state, state.settings, [projectId]),
     );
     // Its host's catalog hears of the removal with the next save.
-    get().persist();
+    persist();
   },
 
   updateProject: (

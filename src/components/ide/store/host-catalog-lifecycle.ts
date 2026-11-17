@@ -1,5 +1,7 @@
 /**
- * One per-store owner of catalog readiness, shared by every host trigger.
+ * One per-store owner of catalog readiness, shared by every host trigger
+ * (built by the store's catalog actions, store/catalog-actions.ts, which
+ * give it how a catalog is loaded or reloaded into the store).
  * Every catalog it reads is checked first: that the host that answered is
  * the one the connection is for (or, newly verified, no other connection's),
  * that this app speaks its protocol, and that its ids collide with no other
@@ -27,21 +29,19 @@ export class HostIdentityError extends Error {
   override name = "HostIdentityError";
 }
 
-const lifecycles = new WeakMap<
-  IdeStoreGet,
-  ReturnType<typeof createLifecycle>
->();
+/** How a host's catalog comes into the store (store/catalog-actions.ts). */
+export interface HostCatalogLoaders {
+  /** Loads a host's catalog it has no baseline for. */
+  load: (hostId: string) => Promise<void>;
+  /** Reloads a host's catalog against its baseline. */
+  reload: (hostId: string) => Promise<void>;
+}
 
-export const hostCatalogLifecycle = (set: IdeStoreSet, get: IdeStoreGet) => {
-  let lifecycle = lifecycles.get(get);
-  if (!lifecycle) {
-    lifecycle = createLifecycle(set, get);
-    lifecycles.set(get, lifecycle);
-  }
-  return lifecycle;
-};
-
-function createLifecycle(set: IdeStoreSet, get: IdeStoreGet) {
+export const createHostCatalogLifecycle = (
+  set: IdeStoreSet,
+  get: IdeStoreGet,
+  { load, reload }: HostCatalogLoaders,
+) => {
   const pending = new Map<
     string,
     { controller: AbortController; promise: Promise<void> }
@@ -157,9 +157,8 @@ function createLifecycle(set: IdeStoreSet, get: IdeStoreGet) {
           controller.signal.throwIfAborted();
           // A host this client has a baseline for is reloaded against it;
           // one it has none for is loaded afresh (catalog-baselines.ts).
-          if (catalogBaselines.hasBaseline(hostId))
-            await get().reloadCatalog(hostId);
-          else await get().loadHostCatalog(hostId);
+          if (catalogBaselines.hasBaseline(hostId)) await reload(hostId);
+          else await load(hostId);
           controller.signal.throwIfAborted();
           readiness(hostId, true, null);
           for (const project of get().projects) {
@@ -184,4 +183,8 @@ function createLifecycle(set: IdeStoreSet, get: IdeStoreGet) {
       return promise;
     },
   };
-}
+};
+
+export type HostCatalogLifecycle = ReturnType<
+  typeof createHostCatalogLifecycle
+>;

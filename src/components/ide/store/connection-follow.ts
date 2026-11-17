@@ -8,8 +8,8 @@ import {
 import { reattachChatStreams } from "../chat/chat-runtime";
 import { catalogBaselines } from "./catalog-baselines";
 import {
+  type HostCatalogLifecycle,
   HostIdentityError,
-  hostCatalogLifecycle,
 } from "./host-catalog-lifecycle";
 import { recoverableHostIds } from "./host-reach";
 import type { IdeState, IdeStoreSet } from "./ide-store-types";
@@ -19,9 +19,10 @@ export const followConnections = (
     setState: IdeStoreSet;
     getState: () => IdeState;
   },
+  /** The store's catalog readiness (store/catalog-actions.ts). */
+  catalogs: HostCatalogLifecycle,
   recovery: ConnectionRecovery = connectionRecovery,
 ) => {
-  const catalogs = hostCatalogLifecycle(store.setState, store.getState);
   return recovery.bindWorkspace({
     // Transport, not readiness: recovery is what brings the catalog in.
     hosts: () => recoverableHostIds(store.getState()),

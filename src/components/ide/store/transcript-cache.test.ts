@@ -41,14 +41,17 @@ function setup() {
     streamingChatIds: {},
     awaitingAnswerChatIds: {},
     sendingChatIds: {},
-    persist() {},
   } as unknown as IdeState;
   const set = (next: Partial<IdeState>) => {
     const previous = state;
     state = { ...state, ...next };
     cache.observe(state, previous);
   };
-  const cache = createTranscriptCache(() => state, set);
+  const cache = createTranscriptCache(
+    () => state,
+    set,
+    () => {},
+  );
   state = {
     ...state,
     ...cache.actions,
@@ -68,7 +71,7 @@ function setup() {
       };
     },
   );
-  return { get: () => state, id: chat.id };
+  return { cache, get: () => state, id: chat.id };
 }
 
 test("recent loads deduplicate; earlier pages prepend once; full-history callers load the complete transcript", async () => {
@@ -97,12 +100,12 @@ test("a full-history request racing initial paging cannot receive only the recen
 });
 
 test("refresh preserves the loaded window and partial saves request a transactional merge", async () => {
-  const { get, id } = setup();
+  const { cache, get, id } = setup();
   await get().loadRecentMessagesForChat(id);
   await get().loadEarlierMessagesForChat(id);
   await get().applyCatalogTranscript(id);
   assert.deepEqual(get().messagesByChatId[id], messages.slice(20));
-  await get().persistMessagesForChat(id);
+  await cache.persistMessagesForChat(id);
   assert.deepEqual(vi.mocked(catalogBaselines.saveTranscript).mock.calls[0], [
     id,
     messages.slice(20),

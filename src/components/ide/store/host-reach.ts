@@ -29,9 +29,13 @@ import type {
 } from "@/lib/connections/supervisor";
 import { getDesktopApi } from "@/lib/electron";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
-import type { DesktopApi, HostConnectionState, HostRoute } from "@/types/ide";
+import type {
+  DesktopApi,
+  HostConnectionState,
+  HostRoute,
+  HostStatusEvent,
+} from "@/types/ide";
 import { watchHostBrowser } from "./host-browser-watch";
-import { watchHostCatalog } from "./host-catalog-watch";
 import type { IdeState } from "./ide-store-types";
 
 /** The home host's connection, as the connection supervisor has it. */
@@ -135,10 +139,18 @@ export interface HostReachParts {
   connect?: (hostId: string) => Promise<boolean>;
   /** The home host's connection. */
   home?: () => HomeConnection;
-  /** Follows one host's catalog events; returns the stop. */
+  /**
+   * Follows one host's catalog events; returns the stop. Needed to follow
+   * (ide-store.ts gives `watchHostCatalog` over the store's host catalogs).
+   */
   watchCatalog?: (hostId: string, store: FollowedStore) => () => void;
   /** Lends this window's browser to one host; returns the stop. */
   watchBrowser?: (hostId: string, store: FollowedStore) => () => void;
+  /**
+   * Writes main's report of a host's connection. Needed to follow
+   * (ide-store.ts gives the host actions' `setHostStatus`).
+   */
+  setHostStatus?: (event: HostStatusEvent) => void;
   /** The desktop bridge; null in a browser. */
   desktop?: () => Pick<DesktopApi, "hostMode" | "onHostStatus"> | null;
 }
@@ -149,8 +161,9 @@ export const createHostReach = (
   {
     connect = (hostId) => get().connectHost(hostId),
     home = homeConnection,
-    watchCatalog = watchHostCatalog,
+    watchCatalog,
     watchBrowser = watchHostBrowser,
+    setHostStatus,
     desktop = getDesktopApi,
   }: HostReachParts = {},
 ) => {
@@ -178,6 +191,10 @@ export const createHostReach = (
      * host status reports written to the store.
      */
     follow(store: FollowedStore): () => void {
+      if (!watchCatalog || !setHostStatus)
+        throw new Error(
+          "Following hosts needs a catalog watcher and a host status writer.",
+        );
       const bridge = desktop();
       const watching = new Map<string, () => void>();
       const routes = new Map<string, string | null | undefined>();
@@ -217,7 +234,7 @@ export const createHostReach = (
       });
       // What main says about SSH and paired hosts' connections.
       const removeHostStatus = bridge?.onHostStatus((event) =>
-        store.getState().setHostStatus(event),
+        setHostStatus(event),
       );
 
       return () => {

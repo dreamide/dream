@@ -1,7 +1,8 @@
 import { createSavedPrompt } from "@/lib/ide-defaults";
 import type { SavedPrompt } from "@/types/ide";
+import type { ChatSendResult } from "../chat/chat-submission";
 import { sendToChat } from "./chat-submitter";
-import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
+import type { IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
 const replaceSavedPrompt = (
   savedPrompts: SavedPrompt[],
@@ -20,17 +21,35 @@ const replaceSavedPrompt = (
   return changed ? next : savedPrompts;
 };
 
+/** The saved prompt actions in the store (`IdeState`). */
+export interface SavedPromptActions {
+  /** Saves a new saved prompt at the end of the list. Returns its id. */
+  addSavedPrompt: (savedPrompt: {
+    name: string;
+    prompt: string;
+  }) => string | null;
+  updateSavedPrompt: (
+    promptId: string,
+    updates: { name?: string; prompt?: string },
+  ) => void;
+  deleteSavedPrompt: (promptId: string) => void;
+  moveSavedPrompt: (promptId: string, index: number) => void;
+  /**
+   * Sends a saved prompt's text, as written, to `chatId` in `projectId`.
+   * Null when the prompt or chat is not there or the prompt is empty;
+   * otherwise what Chat submission answered (chat/chat-submission.ts).
+   */
+  runSavedPrompt: (
+    projectId: string,
+    promptId: string,
+    chatId: string,
+  ) => Promise<ChatSendResult> | null;
+}
+
 export const createSavedPromptActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
-): Pick<
-  IdeState,
-  | "addSavedPrompt"
-  | "updateSavedPrompt"
-  | "deleteSavedPrompt"
-  | "moveSavedPrompt"
-  | "runSavedPrompt"
-> => ({
+): SavedPromptActions => ({
   addSavedPrompt: ({ prompt, name }) => {
     if (!name.trim() || !prompt.trim()) {
       return null;

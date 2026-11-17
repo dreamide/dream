@@ -2,7 +2,7 @@
 // workspace snapshot: the real projects replace the snapshot ones where the
 // tabs are now.
 import { expect, test, vi } from "vitest";
-import { createStore } from "zustand/vanilla";
+import { createStore, type StoreApi } from "zustand/vanilla";
 import { createProjectConfig, DEFAULT_SETTINGS } from "@/lib/ide-defaults";
 import type { PersistedWorkspaceProject, ProjectConfig } from "@/types/ide";
 import {
@@ -42,6 +42,19 @@ vi.mock("./ide-store-persistence", async (importOriginal) => ({
   }),
   loadCatalog: async () => ({ ...hostState.catalog, runningChatIds: [] }),
 }));
+
+/** The store's host catalogs over `store`, its action in the store. */
+const createTestCatalog = (
+  store: StoreApi<IdeState>,
+  persist: () => void = () => {},
+) => {
+  const catalog = createCatalogActions(store.setState, store.getState, {
+    persist,
+    terminals: { dropProject: async () => {} },
+  });
+  store.setState(catalog.actions);
+  return catalog;
+};
 
 const onDevbox = (path: string, name: string): ProjectConfig => ({
   ...createProjectConfig(path, DEFAULT_SETTINGS),
@@ -85,7 +98,6 @@ test("a host's catalog replaces its snapshot projects in place", async () => {
     () =>
       ({
         ...registeredMaps,
-        stopProjectTerminals: async () => {},
         activeProjectId: remote.id,
         chats: [],
         closedProjects: [remoteClosed],
@@ -99,9 +111,9 @@ test("a host's catalog replaces its snapshot projects in place", async () => {
         streamingChatIds: {},
       }) as unknown as IdeState,
   );
-  store.setState(createCatalogActions(store.setState, store.getState));
+  const catalog = createTestCatalog(store);
 
-  await store.getState().loadHostCatalog("devbox");
+  await catalog.loadHostCatalog("devbox");
 
   const state = store.getState();
   expect(state.projects.map((project) => project.name)).toEqual([
@@ -139,7 +151,6 @@ test("a project the host refused (it has one at that path) becomes the host's pr
     () =>
       ({
         ...registeredMaps,
-        stopProjectTerminals: async () => {},
         activeProjectId: refused.id,
         chats: [refusedChat],
         closedProjects: [],
@@ -147,20 +158,19 @@ test("a project the host refused (it has one at that path) becomes the host's pr
         hostAwaitingApprovalChatIds: {},
         hostRunningChatIds: {},
         messagesByChatId: {},
-        persist: () => {
-          saves += 1;
-        },
         projects: [localA, refused],
         settings: DEFAULT_SETTINGS,
         stateHydrated: true,
         streamingChatIds: {},
       }) as unknown as IdeState,
   );
-  store.setState(createCatalogActions(store.setState, store.getState));
+  const catalog = createTestCatalog(store, () => {
+    saves += 1;
+  });
 
-  await store
-    .getState()
-    .adoptHostProjects("devbox", [{ existingId: kept.id, id: refused.id }]);
+  await catalog.adoptHostProjects("devbox", [
+    { existingId: kept.id, id: refused.id },
+  ]);
 
   const state = store.getState();
   expect(state.projects.map((project) => project.id)).toEqual([
@@ -189,7 +199,6 @@ test("the local host's reload never removes an SSH host's project", async () => 
     () =>
       ({
         ...registeredMaps,
-        stopProjectTerminals: async () => {},
         activeProjectId: remote.id,
         chats: [remoteChat],
         closedProjects: [],
@@ -203,10 +212,10 @@ test("the local host's reload never removes an SSH host's project", async () => 
         streamingChatIds: {},
       }) as unknown as IdeState,
   );
-  store.setState(createCatalogActions(store.setState, store.getState));
+  const catalog = createTestCatalog(store);
 
   // The local host says these are gone: they were never its own.
-  store.getState().applyCatalogChanges({
+  catalog.applyCatalogChanges({
     removedChatIds: [remoteChat.id],
     removedProjectIds: [remote.id],
   });
@@ -220,9 +229,7 @@ test("the local host's reload never removes an SSH host's project", async () => 
   expect(state.activeProjectId).toBe(remote.id);
 
   // Its own host can remove it.
-  store
-    .getState()
-    .applyCatalogChanges({ removedProjectIds: [remote.id] }, "devbox");
+  catalog.applyCatalogChanges({ removedProjectIds: [remote.id] }, "devbox");
   expect(store.getState().projects.map((project) => project.id)).not.toContain(
     remote.id,
   );

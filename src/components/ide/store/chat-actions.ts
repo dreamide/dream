@@ -14,12 +14,15 @@ import { chatTurnOutcomes } from "../chat-turn-outcome";
 import { requestChatCheckpointCleanup } from "./checkpoint-cleanup";
 import { areMessagesEqual, shouldTouchChatUpdatedAt } from "./helpers";
 import type {
-  IdeState,
   IdeStoreGet,
   IdeStoreSet,
   StoreActionDependencies,
 } from "./ide-store-types";
 import { commitWorkspaceRemoval } from "./project-runtime-state";
+import {
+  createTerminalSessionOwner,
+  type TerminalSessionOwner,
+} from "./terminal-actions";
 import * as workspace from "./workspace-document";
 
 /**
@@ -34,30 +37,67 @@ const closeProjectsLeftOpen = (get: IdeStoreGet, openBefore: string[]) => {
   }
 };
 
+/** The chat actions in the store (`IdeState`). */
+export interface ChatActions {
+  addChat: (
+    projectId: string,
+    title?: string,
+    options?: { forceNew?: boolean },
+  ) => string | null;
+  addChatBeside: (projectId: string) => string | null;
+  branchChatInWorkspace: (options: {
+    chatId: string;
+    messageId: string;
+  }) => string;
+  branchChatInNewWorktree: (options: {
+    baseRef?: string | null;
+    branchName: string;
+    chatId: string;
+    messageId: string;
+  }) => Promise<{ chatId: string; projectId: string }>;
+  toggleProjectMultiChatMode: (projectId: string) => void;
+  /** Closes a side-by-side chat column; the chat stays. */
+  closeChatColumn: (projectId: string, chatId: string) => void;
+  reorderChatColumns: (
+    projectId: string,
+    fromIndex: number,
+    toIndex: number,
+  ) => void;
+  setChatColumnWidths: (
+    projectId: string,
+    widths: Record<string, number>,
+  ) => void;
+  setActiveChatId: (projectId: string, chatId: string | null) => void;
+  updateChat: (
+    chatId: string,
+    updater: (chat: ChatConfig) => ChatConfig,
+  ) => void;
+  archiveInactiveChats: () => number;
+  toggleChatPinned: (chatId: string) => void;
+  deleteChat: (chatId: string) => void;
+  permanentlyDeleteChats: (chatIds: string[]) => void;
+  restoreChats: (chatIds: string[]) => void;
+  setMessagesForChat: (chatId: string, messages: UIMessage[]) => void;
+  setChatSort: (sortOrder: ChatSortOrder) => void;
+}
+
 export const createChatActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
-  { api }: StoreActionDependencies = {},
-): Pick<
-  IdeState,
-  | "addChat"
-  | "addChatBeside"
-  | "branchChatInWorkspace"
-  | "branchChatInNewWorktree"
-  | "toggleProjectMultiChatMode"
-  | "closeChatColumn"
-  | "reorderChatColumns"
-  | "setChatColumnWidths"
-  | "setActiveChatId"
-  | "updateChat"
-  | "archiveInactiveChats"
-  | "toggleChatPinned"
-  | "deleteChat"
-  | "permanentlyDeleteChats"
-  | "restoreChats"
-  | "setMessagesForChat"
-  | "setChatSort"
-> => ({
+  {
+    api,
+    persist,
+    persistTranscript,
+    terminals = createTerminalSessionOwner(set, get),
+  }: StoreActionDependencies & {
+    /** Saves every slice now (the save scheduler in ide-store.ts). */
+    persist: () => void;
+    /** Saves a chat's transcript (store/transcript-cache.ts). */
+    persistTranscript?: (chatId: string) => Promise<void>;
+    /** The Terminal session owner, which stops a removed Project's terminals. */
+    terminals?: Pick<TerminalSessionOwner, "dropProject">;
+  },
+): ChatActions => ({
   addChat: (
     projectId: string,
     title?: string,
@@ -124,7 +164,7 @@ export const createChatActions = (
       ),
     );
 
-    void get().persistMessagesForChat?.(branchedChat.id);
+    void persistTranscript?.(branchedChat.id);
 
     return branchedChat.id;
   },
@@ -220,7 +260,7 @@ export const createChatActions = (
 
   toggleChatPinned: (chatId: string) => {
     get().updateChat(chatId, (chat) => ({ ...chat, pinned: !chat.pinned }));
-    get().persist();
+    persist();
   },
 
   archiveInactiveChats: () => {
@@ -289,10 +329,10 @@ export const createChatActions = (
       const state = get();
       void commitWorkspaceRemoval(
         set,
-        get,
+        terminals,
         workspace.removeProjects(state, state.settings, emptied),
       );
-      get().persist();
+      persist();
     }
   },
 

@@ -45,11 +45,6 @@ const createTestStore = () => {
     () =>
       ({
         ...registeredMaps,
-        stopProjectTerminals: vi.fn(async (projectId: string) => {
-          stoppedSessions.push(
-            ...(store.getState().projectTerminalSessionIds[projectId] ?? []),
-          );
-        }),
         activeProjectId: open.id,
         chats: [openChat, closedChat],
         closedProjects: [closed],
@@ -61,14 +56,32 @@ const createTestStore = () => {
         streamingChatIds: {},
       }) as unknown as IdeState,
   );
-  store.setState(createCatalogActions(store.setState, store.getState));
-  return { closed, closedChat, open, openChat, stoppedSessions, store };
+  const catalog = createCatalogActions(store.setState, store.getState, {
+    persist: () => {},
+    terminals: {
+      dropProject: vi.fn(async (projectId: string) => {
+        stoppedSessions.push(
+          ...(store.getState().projectTerminalSessionIds[projectId] ?? []),
+        );
+      }),
+    },
+  });
+  store.setState(catalog.actions);
+  return {
+    catalog,
+    closed,
+    closedChat,
+    open,
+    openChat,
+    stoppedSessions,
+    store,
+  };
 };
 
 test("catalog fields change; this window's workspace fields stay", () => {
-  const { open, store } = createTestStore();
+  const { catalog, open, store } = createTestStore();
 
-  store.getState().applyCatalogChanges({
+  catalog.applyCatalogChanges({
     projects: [{ ...open, runCommand: "pnpm start", ui: { multiChat: false } }],
   });
 
@@ -78,10 +91,10 @@ test("catalog fields change; this window's workspace fields stay", () => {
 });
 
 test("a project another window added arrives closed", () => {
-  const { store } = createTestStore();
+  const { catalog, store } = createTestStore();
   const added = project("/work/added");
 
-  store.getState().applyCatalogChanges({ projects: [added] });
+  catalog.applyCatalogChanges({ projects: [added] });
 
   expect(store.getState().projects.map((item) => item.id)).not.toContain(
     added.id,
@@ -92,10 +105,10 @@ test("a project another window added arrives closed", () => {
 });
 
 test("chats are upserted and removed, with their transcripts", () => {
-  const { open, openChat, closedChat, store } = createTestStore();
+  const { catalog, open, openChat, closedChat, store } = createTestStore();
   const newChat = chat(open, "From elsewhere");
 
-  store.getState().applyCatalogChanges({
+  catalog.applyCatalogChanges({
     chats: [{ ...closedChat, title: "Renamed" }, newChat],
     removedChatIds: [openChat.id],
   });
@@ -110,9 +123,9 @@ test("chats are upserted and removed, with their transcripts", () => {
 });
 
 test("a removed project takes its chats with it", () => {
-  const { closed, closedChat, store } = createTestStore();
+  const { catalog, closed, closedChat, store } = createTestStore();
 
-  store.getState().applyCatalogChanges({ removedProjectIds: [closed.id] });
+  catalog.applyCatalogChanges({ removedProjectIds: [closed.id] });
 
   expect(store.getState().closedProjects).toEqual([]);
   expect(store.getState().chats.some((item) => item.id === closedChat.id)).toBe(
@@ -121,14 +134,14 @@ test("a removed project takes its chats with it", () => {
 });
 
 test("a project its host removed has its terminals stopped and leaves no runtime state behind", () => {
-  const { open, stoppedSessions, store } = createTestStore();
+  const { catalog, open, stoppedSessions, store } = createTestStore();
   store.setState({
     projectGitRefreshKeys: { [open.id]: 3 },
     projectTerminalSessionIds: { [open.id]: ["session-1"] },
     terminalStatus: { "session-1": "running" },
   } as Partial<IdeState>);
 
-  store.getState().applyCatalogChanges({ removedProjectIds: [open.id] });
+  catalog.applyCatalogChanges({ removedProjectIds: [open.id] });
 
   // Stopped while its session ids were still in the store.
   expect(stoppedSessions).toEqual(["session-1"]);

@@ -629,7 +629,7 @@ One owner, `createTerminalSessionOwner` in `store/terminal-actions.ts`
 the store maps panels render, its output buffer, its command observation and
 untouched mark, and its shell through the terminal client. Opening, closing,
 discarding untouched terminals, typed input, a Project's close or removal
-(`stopProjectTerminals`) and a Host's removal go through it, and so do host
+(`dropProject`) and a Host's removal go through it, and so do host
 events: output and its acknowledgement, status, a detached home host's
 surviving terminals and their discovery.
 

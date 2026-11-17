@@ -1,27 +1,74 @@
+import type {
+  AppView,
+  GitPanelTab,
+  PanelSizes,
+  RightPanelView,
+} from "@/types/ide";
 import type { FileEditorSessions } from "../file-editor-session";
-import { DEFAULT_GIT_PANEL_TAB, type RightPanelView } from "../ide-types";
+import { DEFAULT_GIT_PANEL_TAB } from "../ide-types";
 import { resolveProjectFilePath } from "../project-file-path";
 import { updateProjectUiInList } from "./helpers";
-import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
+import type {
+  IdeStoreGet,
+  IdeStoreSet,
+  ProjectFilePosition,
+} from "./ide-store-types";
+import type { TerminalSessionOwner } from "./terminal-actions";
+
+/** The panel actions in the store (`IdeState`). */
+export interface PanelActions {
+  setPanelSizes: (
+    updater: PanelSizes | ((prev: PanelSizes) => PanelSizes),
+  ) => void;
+  setProjectPanelSizes: (
+    projectId: string,
+    updater: PanelSizes | ((prev: PanelSizes) => PanelSizes),
+  ) => void;
+  setProjectChatHistoryPanelOpen: (projectId: string, open: boolean) => void;
+  setProjectGitPanelTab: (projectId: string, tab: GitPanelTab) => void;
+  /**
+   * Shows `view` in the project's right panel, opening it. With `toggle`, a
+   * view (and Git tab) already showing closes the panel instead. `gitTab`
+   * picks the Git panel's tab. Leaving the terminal view discards terminals
+   * nobody typed into; showing it starts one when there is none.
+   */
+  showRightPanelView: (
+    projectId: string,
+    view: RightPanelView,
+    options?: { gitTab?: GitPanelTab; toggle?: boolean },
+  ) => void;
+  /** Closes the project's right panel (see `showRightPanelView`). */
+  closeRightPanel: (projectId: string) => void;
+  /** Opens the right panel on the view it last showed, or closes it. */
+  toggleRightPanel: (projectId: string) => void;
+  setAppView: (view: AppView) => void;
+  /**
+   * Shows a file in the project's Files panel, optionally at a position.
+   * `filePath` may be absolute or relative, with either separator; false
+   * when it is not a file of that open project.
+   */
+  openProjectFile: (
+    projectId: string,
+    filePath: string,
+    position?: ProjectFilePosition,
+  ) => boolean;
+  /** Opens the Files panel on find in files and focuses its query. */
+  openProjectFileSearch: (projectId: string) => void;
+  setOutputPanelOpen: (open: boolean) => void;
+}
 
 export const createPanelActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
-  { fileEditor }: { fileEditor: FileEditorSessions },
-): Pick<
-  IdeState,
-  | "setPanelSizes"
-  | "setProjectPanelSizes"
-  | "setProjectChatHistoryPanelOpen"
-  | "setProjectGitPanelTab"
-  | "showRightPanelView"
-  | "closeRightPanel"
-  | "toggleRightPanel"
-  | "setAppView"
-  | "openProjectFile"
-  | "openProjectFileSearch"
-  | "setOutputPanelOpen"
-> => {
+  {
+    fileEditor,
+    terminals,
+  }: {
+    fileEditor: FileEditorSessions;
+    /** The Terminal session owner, which discards untouched terminals. */
+    terminals: Pick<TerminalSessionOwner, "discardUntouched">;
+  },
+): PanelActions => {
   /** Writes an open project's right-panel fields, if they change. */
   const setRightPanel = (
     projectId: string,
@@ -54,12 +101,12 @@ export const createPanelActions = (
     const project = get().projects.find((item) => item.id === projectId);
     if (!project) return;
     if (project.ui.rightPanelView === "terminal") {
-      get().discardUntouchedTerminals(projectId);
+      terminals.discardUntouched(projectId);
     }
     setRightPanel(projectId, { rightPanelOpen: false });
   };
 
-  const showRightPanelView: IdeState["showRightPanelView"] = (
+  const showRightPanelView: PanelActions["showRightPanelView"] = (
     projectId,
     view,
     options = {},
@@ -84,7 +131,7 @@ export const createPanelActions = (
       state.setProjectGitPanelTab(projectId, options.gitTab);
     }
     if (rightPanelView === "terminal" && view !== "terminal") {
-      state.discardUntouchedTerminals(projectId);
+      terminals.discardUntouched(projectId);
     }
     setRightPanel(projectId, { rightPanelOpen: true, rightPanelView: view });
     if (view === "terminal") {

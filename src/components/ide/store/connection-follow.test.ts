@@ -5,7 +5,10 @@ import { createConnectionSupervisor } from "@/lib/connections/supervisor";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
 import { reattachChatStreams } from "../chat/chat-runtime";
 import { followConnections } from "./connection-follow";
-import { hostCatalogLifecycle } from "./host-catalog-lifecycle";
+import {
+  createHostCatalogLifecycle,
+  type HostCatalogLifecycle,
+} from "./host-catalog-lifecycle";
 import { loadCatalog } from "./ide-store-persistence";
 import type { IdeState } from "./ide-store-types";
 
@@ -44,15 +47,21 @@ test("recovery rejects a delayed old catalog through the production catalog life
         chats: [],
       }) as unknown as IdeState,
   );
-  const catalogs = hostCatalogLifecycle(store.setState, store.getState);
-  store.setState({
-    loadHostCatalog: (hostId) =>
-      catalogs.read(hostId, (catalog) => {
-        accepted.push(String(catalog.projects[0].name));
-      }),
-  });
+  const catalogs: HostCatalogLifecycle = createHostCatalogLifecycle(
+    store.setState,
+    store.getState,
+    {
+      load: (hostId) =>
+        catalogs.read(hostId, (catalog) => {
+          accepted.push(String(catalog.projects[0].name));
+        }),
+      reload: async () => {
+        throw new Error("No host has a baseline here.");
+      },
+    },
+  );
   const recovery = createConnectionRecovery(createConnectionSupervisor());
-  const stop = followConnections(store, recovery);
+  const stop = followConnections(store, catalogs, recovery);
   try {
     const event = { reason: "online" as const, hiddenMs: 0 };
     const old = recovery.resume(event);

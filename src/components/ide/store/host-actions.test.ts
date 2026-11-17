@@ -11,6 +11,7 @@ import {
 import type { HostConnectionState, SavedHostConnection } from "@/types/ide";
 import { catalogBaselines } from "./catalog-baselines";
 import { connectionStatusOf, createHostActions } from "./host-actions";
+import { createHostCatalogLifecycle } from "./host-catalog-lifecycle";
 import type { IdeState } from "./ide-store-types";
 import {
   BROWSER_TAB_KEYED_STATE,
@@ -19,6 +20,10 @@ import {
   PROJECT_KEYED_RUNTIME_STATE,
   TERMINAL_SESSION_KEYED_STATE,
 } from "./project-runtime-state";
+import {
+  createTerminalSessionOwner,
+  type TerminalSessionOwner,
+} from "./terminal-actions";
 
 const desktop = vi.hoisted(() => ({
   connectHost: vi.fn(async () => ({})),
@@ -48,7 +53,15 @@ const host = (id: string) => ({
   target: `me@${id}`,
 });
 
-const createTestStore = () => {
+/**
+ * A store with the host actions, its catalog loads faked. `dropProject`
+ * replaces how the Terminal session owner stops a project's terminals.
+ */
+const createTestStore = ({
+  dropProject,
+}: {
+  dropProject?: TerminalSessionOwner["dropProject"];
+} = {}) => {
   const loadHostCatalog = vi.fn(async (hostId: string) => {
     catalogBaselines.adopt(hostId, {
       chats: [],
@@ -58,14 +71,13 @@ const createTestStore = () => {
     adopted.add(hostId);
   });
   const reloadCatalog = vi.fn(async () => {});
+  const persist = vi.fn();
   const store = createStore<IdeState>(
     () =>
       ({
         bumpProjectGitRefreshKey: () => {},
         hosts: {},
-        loadHostCatalog,
         projects: [],
-        reloadCatalog,
         setSettings: (
           updater: (settings: IdeState["settings"]) => IdeState["settings"],
         ) => store.setState({ settings: updater(store.getState().settings) }),
@@ -75,8 +87,17 @@ const createTestStore = () => {
         },
       }) as unknown as IdeState,
   );
-  store.setState(createHostActions(store.setState, store.getState));
-  return { loadHostCatalog, reloadCatalog, store };
+  const terminals = createTerminalSessionOwner(store.setState, store.getState);
+  const hosts = createHostActions(store.setState, store.getState, {
+    catalogs: createHostCatalogLifecycle(store.setState, store.getState, {
+      load: loadHostCatalog,
+      reload: reloadCatalog,
+    }),
+    persist,
+    terminals: dropProject ? { ...terminals, dropProject } : terminals,
+  });
+  store.setState(hosts.actions);
+  return { hosts, loadHostCatalog, persist, reloadCatalog, store };
 };
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -89,9 +110,9 @@ test("after a reload, hosts main still has connected come back, and hosts with o
     d: "idle",
   };
   desktop.getHostState.mockImplementation(async (hostId) => states[hostId]);
-  const { loadHostCatalog, store } = createTestStore();
+  const { hosts, loadHostCatalog, store } = createTestStore();
 
-  await store.getState().resumeHosts(["c"]);
+  await hosts.resumeHosts(["c"]);
 
   // a: already connected in main; c: had open projects. Not b (on its way)
   // nor d (nothing open, not connected).
@@ -113,16 +134,16 @@ test("after a reload, hosts main still has connected come back, and hosts with o
 });
 
 test("a host that connects without this window asking brings its projects in", async () => {
-  const { loadHostCatalog, reloadCatalog, store } = createTestStore();
+  const { hosts, loadHostCatalog, reloadCatalog, store } = createTestStore();
 
   // Main finishes a reconnect it started before this window reloaded.
-  store.getState().setHostStatus({
+  hosts.setHostStatus({
     error: null,
     hostId: "b",
     state: "reconnecting",
     version: null,
   });
-  store.getState().setHostStatus({
+  hosts.setHostStatus({
     error: null,
     hostId: "b",
     state: "connected",
@@ -136,13 +157,13 @@ test("a host that connects without this window asking brings its projects in", a
   });
 
   // A later drop and return reloads what it already has.
-  store.getState().setHostStatus({
+  hosts.setHostStatus({
     error: null,
     hostId: "b",
     state: "reconnecting",
     version: null,
   });
-  store.getState().setHostStatus({
+  hosts.setHostStatus({
     error: null,
     hostId: "b",
     state: "connected",
@@ -238,11 +259,11 @@ test.each([
   ["unauthorized", "unauthorized"],
   [null, "offline"],
 ] as const)("a connection main refused for %s is %s, from its status alone", (refusal, status) => {
-  const { loadHostCatalog, store } = createTestStore();
+  const { hosts, loadHostCatalog } = createTestStore();
   const error =
     "This route reaches a different host than the saved connection.";
 
-  store.getState().setHostStatus({
+  hosts.setHostStatus({
     error,
     hostId: "c",
     refusal,
@@ -256,11 +277,11 @@ test.each([
 });
 
 test("a connect's rejection keeps the refusal main reported with it", async () => {
-  const { store } = createTestStore();
+  const { hosts, store } = createTestStore();
   const error = "The route refused catalog access (401).";
   desktop.connectHost.mockImplementationOnce(async () => {
     // Main's status for the attempt, then the attempt's rejection.
-    store.getState().setHostStatus({
+    hosts.setHostStatus({
       error,
       hostId: "d",
       refusal: "unauthorized",
@@ -306,25 +327,25 @@ const createStoreWithHostProject = (hostState: HostConnectionState) => {
     events.push("disconnect");
     return true;
   });
-  const { store } = createTestStore();
+  const { store } = createTestStore({
+    dropProject: async (projectId: string) => {
+      const sessions =
+        store.getState().projectTerminalSessionIds[projectId] ?? [];
+      events.push(...sessions.map((sessionId) => `stop ${sessionId}`));
+    },
+  });
   store.setState({
     ...registeredMaps,
     activeProjectId: remote.id,
     chats: [localChat, remoteChat],
     closedProjects: [],
     hosts: { a: { error: null, loaded: true, state: hostState } },
-    persist: () => {},
     projectGitRefreshKeys: { [local.id]: 1, [remote.id]: 2 },
     projectTerminalSessionIds: { [remote.id]: ["remote-session"] },
     projects: [
       { ...local, ui: { ...local.ui, activeChatId: localChat.id } },
       { ...remote, ui: { ...remote.ui, activeChatId: remoteChat.id } },
     ],
-    stopProjectTerminals: async (projectId: string) => {
-      const sessions =
-        store.getState().projectTerminalSessionIds[projectId] ?? [];
-      events.push(...sessions.map((sessionId) => `stop ${sessionId}`));
-    },
     terminalStatus: { "remote-session": "running" },
   } as unknown as Partial<IdeState>);
   return { events, local, localChat, store };
@@ -361,10 +382,8 @@ test("removing an SSH host that is not connected does not ask it to stop anythin
 });
 
 test("renaming a saved connection keeps its name, and an empty name goes back to its route's", () => {
-  const { store } = createTestStore();
-  const persist = vi.fn();
+  const { persist, store } = createTestStore();
   store.setState({
-    persist,
     hostConnections: [
       {
         version: 1,

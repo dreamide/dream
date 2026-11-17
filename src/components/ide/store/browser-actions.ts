@@ -4,27 +4,35 @@ import {
   moveItem,
   resolveActiveBrowserTab,
 } from "./helpers";
-import type { IdeState, IdeStoreSet } from "./ide-store-types";
+import type { IdeStoreSet } from "./ide-store-types";
 
 interface Tabs {
   tabs: BrowserTabState[];
   activeTabId: string | null;
 }
 
+/** The browser tab actions in the store (`IdeState`). */
+export interface BrowserActions {
+  setBrowserError: (error: string | null) => void;
+  setBrowserLoading: (id: string, loading: boolean) => void;
+  ensureBrowserTabs: (projectId: string, initialUrl?: string) => void;
+  createBrowserTab: (projectId: string, initialUrl?: string) => string | null;
+  updateBrowserTab: (
+    projectId: string,
+    tabId: string,
+    updater: (tab: BrowserTabState) => BrowserTabState,
+  ) => void;
+  closeBrowserTab: (projectId: string, tabId: string) => string | null;
+  reorderBrowserTabs: (
+    projectId: string,
+    fromIndex: number,
+    toIndex: number,
+  ) => void;
+  setActiveBrowserTab: (projectId: string, tabId: string | null) => void;
+}
+
 /** Tab transitions settle selection, the saved URL and removed loading state together. */
-export const createBrowserActions = (
-  set: IdeStoreSet,
-): Pick<
-  IdeState,
-  | "setBrowserError"
-  | "setBrowserLoading"
-  | "ensureBrowserTabs"
-  | "createBrowserTab"
-  | "updateBrowserTab"
-  | "closeBrowserTab"
-  | "reorderBrowserTabs"
-  | "setActiveBrowserTab"
-> => {
+export const createBrowserActions = (set: IdeStoreSet): BrowserActions => {
   const changeTabs = (
     projectId: string,
     update: (current: Tabs) => Tabs,

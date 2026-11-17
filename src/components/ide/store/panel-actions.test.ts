@@ -34,7 +34,6 @@ const createTestStore = (
   const store = createStore<IdeState>(
     () =>
       ({
-        discardUntouchedTerminals,
         openProjectTerminal,
         projectFileSearchRequests: {},
         projectGitPanelTabByProject: {},
@@ -42,7 +41,10 @@ const createTestStore = (
       }) as unknown as IdeState,
   );
   store.setState(
-    createPanelActions(store.setState, store.getState, { fileEditor }),
+    createPanelActions(store.setState, store.getState, {
+      fileEditor,
+      terminals: { discardUntouched: discardUntouchedTerminals },
+    }),
   );
   const panel = () => {
     const { rightPanelOpen, rightPanelView } =

@@ -440,21 +440,36 @@ export type TerminalSessionOwner = ReturnType<
   typeof createTerminalSessionOwner
 >;
 
+/** The terminal actions in the store (`IdeState`). */
+export interface TerminalActions {
+  startRunner: () => Promise<void>;
+  stopRunner: () => Promise<void>;
+  openProjectTerminal: (projectId: string) => Promise<void>;
+  addProjectTerminal: (
+    projectId: string,
+    options?: AddProjectTerminalOptions,
+  ) => Promise<void>;
+  setActiveProjectTerminalId: (
+    projectId: string,
+    sessionId: string | null,
+  ) => void;
+  reorderProjectTerminals: (
+    projectId: string,
+    fromIndex: number,
+    toIndex: number,
+  ) => void;
+  closeProjectTerminal: (
+    projectId: string,
+    sessionId: string,
+    options?: CloseProjectTerminalOptions,
+  ) => Promise<void>;
+}
+
 export const createTerminalActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
   terminals: TerminalSessionOwner = createTerminalSessionOwner(set, get),
-): Pick<
-  IdeState,
-  | "startRunner"
-  | "stopRunner"
-  | "openProjectTerminal"
-  | "discardUntouchedTerminals"
-  | "addProjectTerminal"
-  | "setActiveProjectTerminalId"
-  | "reorderProjectTerminals"
-  | "closeProjectTerminal"
-> => ({
+): TerminalActions => ({
   startRunner: async () => {
     const project = get().getActiveProject();
     if (!project) return;
@@ -487,10 +502,6 @@ export const createTerminalActions = (
     }
 
     await get().addProjectTerminal(projectId, { closeIfUntouched: true });
-  },
-
-  discardUntouchedTerminals: (projectId) => {
-    terminals.discardUntouched(projectId);
   },
 
   addProjectTerminal: (projectId, options) =>

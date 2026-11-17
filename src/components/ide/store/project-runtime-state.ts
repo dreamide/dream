@@ -3,7 +3,8 @@
 // place instead of a hand-written list in each action. A new map keyed by
 // project id, terminal session id, browser tab id or chat id is added here,
 // once, and every exit path picks it up.
-import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
+import type { IdeState, IdeStoreSet } from "./ide-store-types";
+import type { TerminalSessionOwner } from "./terminal-actions";
 import type { WorkspaceRemoval } from "./workspace-document";
 
 type RecordKeyOf<T> = {
@@ -156,12 +157,12 @@ export const applyWorkspaceRemoval = (
  */
 export const commitWorkspaceRemoval = (
   set: IdeStoreSet,
-  get: IdeStoreGet,
+  terminals: Pick<TerminalSessionOwner, "dropProject">,
   removal: WorkspaceRemoval,
 ): Promise<void> => {
   const stops = Promise.all(
     removal.removedProjectIds.map((projectId) =>
-      get().stopProjectTerminals(projectId),
+      terminals.dropProject(projectId),
     ),
   ).then(() => undefined);
   set((state) => applyWorkspaceRemoval(state, removal));

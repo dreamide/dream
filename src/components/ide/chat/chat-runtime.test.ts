@@ -499,13 +499,15 @@ test("the commit message is generated once the project's last running turn ends"
     requests.filter(({ url }) => url === "/api/project-git-commit-message");
 
   // Neither chat has a session here: their turns ran from elsewhere.
-  useIdeStore.getState().setHostTurnRunning(chat.id, true);
-  useIdeStore.getState().setHostTurnRunning(other.id, true);
-  useIdeStore.getState().setHostTurnRunning(chat.id, false);
+  useIdeStore.setState({ hostRunningChatIds: { [chat.id]: true } });
+  useIdeStore.setState({
+    hostRunningChatIds: { [chat.id]: true, [other.id]: true },
+  });
+  useIdeStore.setState({ hostRunningChatIds: { [other.id]: true } });
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.equal(generations().length, 0, "another turn is still running");
 
-  useIdeStore.getState().setHostTurnRunning(other.id, false);
+  useIdeStore.setState({ hostRunningChatIds: {} });
   await waitFor(() => generations().length === 1);
   assert.equal(generations()[0].body.projectPath, project.path);
 });

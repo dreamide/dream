@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { UIMessage } from "ai";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { createStore } from "zustand/vanilla";
 import {
   createFakeApiClient,
@@ -33,6 +33,7 @@ const WORKTREE_PATH = "/workspace/worktrees/source-feature";
 
 const createTestStore = (handlers: FakeApiHandlers = {}) => {
   const api = createFakeApiClient(handlers);
+  const persist = vi.fn();
   const parent = createProjectConfig("/workspace/source", DEFAULT_SETTINGS);
   const worktree = createProjectConfig(WORKTREE_PATH, DEFAULT_SETTINGS);
   worktree.worktree = createWorktreeRecord({
@@ -86,7 +87,9 @@ const createTestStore = (handlers: FakeApiHandlers = {}) => {
       }) as unknown as IdeState,
   );
   store.setState({
-    ...createProjectLifecycleActions(store.setState, store.getState),
+    ...createProjectLifecycleActions(store.setState, store.getState, {
+      persist,
+    }),
     ...createWorktreeActions(store.setState, store.getState, {
       api: api.client,
     }),
@@ -97,6 +100,7 @@ const createTestStore = (handlers: FakeApiHandlers = {}) => {
     calls: api.calls,
     parent,
     parentChat,
+    persist,
     store,
     worktree,
     worktreeChat,
@@ -511,18 +515,12 @@ test("attachWorktreeProject opens a worktree listed on an SSH host on that host"
 });
 
 test("forgetClosedProject removes a closed project for good, with its chats", () => {
-  const { parent, parentChat, store, worktree } = createTestStore();
-  let saves = 0;
-  store.setState({
-    persist: () => {
-      saves += 1;
-    },
-  });
+  const { parent, parentChat, persist, store, worktree } = createTestStore();
 
   // An open project is not removed this way.
   store.getState().forgetClosedProject(parent.id);
   assert.ok(store.getState().projects.some((p) => p.id === parent.id));
-  assert.equal(saves, 0);
+  assert.equal(persist.mock.calls.length, 0);
 
   store.getState().closeProject(parent.id);
   store.getState().forgetClosedProject(parent.id);
@@ -536,5 +534,5 @@ test("forgetClosedProject removes a closed project for good, with its chats", ()
   assert.ok(!state.chats.some((chat) => chat.id === parentChat.id));
   assert.equal(state.messagesByChatId[parentChat.id], undefined);
   assert.ok(state.projects.some((p) => p.id === worktree.id));
-  assert.equal(saves, 1);
+  assert.equal(persist.mock.calls.length, 1);
 });

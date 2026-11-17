@@ -12,6 +12,10 @@
  * collide with another host's. Such a HostIdentityError, or a merge refused
  * for a different saved key, disconnects it as an identity refusal: nothing
  * of a host that is not the one meant is used.
+ *
+ * Besides its store actions it gives ide-store.ts `resumeHosts`, which
+ * hydration calls, and `setHostStatus`, which the Host reach owner calls
+ * with main's reports.
  */
 
 import {
@@ -22,7 +26,11 @@ import type { ConnectionStatus } from "@/lib/connections/supervisor";
 import { desktopErrorMessage, getDesktopApi } from "@/lib/electron";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import { forgetHostSocketClient } from "@/lib/host-socket";
-import type { HostConnectionState, HostRefusal } from "@/types/ide";
+import type {
+  HostConnectionState,
+  HostRefusal,
+  HostStatusEvent,
+} from "@/types/ide";
 import {
   findHostConnection,
   listHostChoices,
@@ -30,20 +38,30 @@ import {
 import { routesToDial } from "../../../../electron/shared/routes-to-dial.js";
 import { catalogBaselines } from "./catalog-baselines";
 import {
+  type HostCatalogLifecycle,
   HostIdentityError,
-  hostCatalogLifecycle,
 } from "./host-catalog-lifecycle";
 import type {
   HostRuntimeState,
-  IdeState,
   IdeStoreGet,
   IdeStoreSet,
 } from "./ide-store-types";
-import { createSavedHostConnectionEdits } from "./saved-host-connection-edits";
+import {
+  createSavedHostConnectionEdits,
+  type SavedHostConnectionActions,
+} from "./saved-host-connection-edits";
 import {
   createTerminalSessionOwner,
   type TerminalSessionOwner,
 } from "./terminal-actions";
+
+/** The host connection actions in the store (`IdeState`). */
+export interface HostActions extends SavedHostConnectionActions {
+  /** Connects an SSH host from settings and loads its catalog. */
+  connectHost: (hostId: string) => Promise<boolean>;
+  /** Disconnects an SSH host; its work keeps running there. */
+  disconnectHost: (hostId: string) => Promise<void>;
+}
 
 // A host's connection state is the main process's (it owns the routes); the
 // supervisor hears it through this one mapping. A connection that failed for
@@ -73,20 +91,19 @@ export const connectionStatusOf = (
 export const createHostActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
-  terminals: TerminalSessionOwner = createTerminalSessionOwner(set, get),
-): Pick<
-  IdeState,
-  | "connectHost"
-  | "resumeHosts"
-  | "updateSshHost"
-  | "disconnectHost"
-  | "setHostStatus"
-  | "removeSshHost"
-  | "pairHost"
-  | "addSshRoute"
-  | "setHostRoutes"
-  | "renameHostConnection"
-> => {
+  {
+    catalogs,
+    persist,
+    terminals = createTerminalSessionOwner(set, get),
+  }: {
+    /** Catalog readiness (built by store/catalog-actions.ts). */
+    catalogs: HostCatalogLifecycle;
+    /** Saves every slice now (the save scheduler in ide-store.ts). */
+    persist: () => void;
+    /** The Terminal session owner, which stops a removed Host's terminals. */
+    terminals?: Pick<TerminalSessionOwner, "dropHost" | "dropProject">;
+  },
+) => {
   const setHost = (hostId: string, patch: Partial<HostRuntimeState>) => {
     if (patch.state) {
       // A refusal main reported stays with the host until its next status
@@ -111,7 +128,6 @@ export const createHostActions = (
     }));
   };
 
-  const catalogs = hostCatalogLifecycle(set, get);
   const connecting = new Map<
     string,
     { token: symbol; promise: Promise<boolean> }
@@ -151,7 +167,7 @@ export const createHostActions = (
     }
   };
 
-  const connectHost: IdeState["connectHost"] = (hostId) => {
+  const connectHost: HostActions["connectHost"] = (hostId) => {
     if (edits.isRemoving(hostId)) return Promise.resolve(false);
     if (hostId === LOCAL_HOST_ID) return Promise.resolve(true);
     const pending = connecting.get(hostId);
@@ -241,15 +257,31 @@ export const createHostActions = (
 
   const edits = createSavedHostConnectionEdits(set, get, {
     invalidateConnection: stopFollowing,
+    persist,
     reconnect: connectHost,
     terminals,
   });
 
-  return {
+  const actions: HostActions = {
     ...edits.actions,
     connectHost,
 
-    resumeHosts: async (openHostIds) => {
+    disconnectHost: async (hostId) => {
+      stopFollowing(hostId);
+      await getDesktopApi()?.disconnectHost(hostId);
+      setHost(hostId, { error: null, state: "disconnected" });
+    },
+  };
+
+  return {
+    actions,
+
+    /**
+     * After hydration: picks up the SSH hosts main is already connected to
+     * (it keeps them across a reload of the window) and reconnects those in
+     * `openHostIds` (hosts with projects open last time).
+     */
+    resumeHosts: async (openHostIds: string[]): Promise<void> => {
       const desktopApi = getDesktopApi();
       const reopen = new Set(openHostIds);
       await Promise.all(
@@ -286,13 +318,15 @@ export const createHostActions = (
       );
     },
 
-    disconnectHost: async (hostId) => {
-      stopFollowing(hostId);
-      await getDesktopApi()?.disconnectHost(hostId);
-      setHost(hostId, { error: null, state: "disconnected" });
-    },
-
-    setHostStatus: ({ error, hostId, refusal, state, routeId, routes }) => {
+    /** Main reported a host's connection state. */
+    setHostStatus: ({
+      error,
+      hostId,
+      refusal,
+      state,
+      routeId,
+      routes,
+    }: HostStatusEvent) => {
       if (edits.isRemoving(hostId)) return;
       if (
         !listHostChoices(get().hostConnections, get().settings.sshHosts).some(

@@ -8,9 +8,20 @@
 import { getCatalogEventsClient } from "@/lib/catalog-events";
 import { refreshChatQueue, useChatQueueStore } from "@/lib/chat-queue";
 import { CLIENT_ID } from "@/lib/client-id";
+import type { CatalogChanges, HostCatalog } from "./catalog-actions";
 import type { FollowedStore } from "./host-reach";
 
-export const watchHostCatalog = (hostId: string, store: FollowedStore) => {
+/** What the watcher applies events through (store/catalog-actions.ts). */
+export type CatalogEventTarget = Pick<
+  HostCatalog,
+  "applyCatalogChanges" | "setHostChatAwaitingApproval" | "setHostTurnRunning"
+>;
+
+export const watchHostCatalog = (
+  hostId: string,
+  store: FollowedStore,
+  catalog: CatalogEventTarget,
+) => {
   const client = getCatalogEventsClient(hostId);
 
   let stopWaiting: (() => void) | null = null;
@@ -48,10 +59,7 @@ export const watchHostCatalog = (hostId: string, store: FollowedStore) => {
       return;
     }
     if (event.kind === "changes") {
-      state.applyCatalogChanges(
-        event as Parameters<typeof state.applyCatalogChanges>[0],
-        hostId,
-      );
+      catalog.applyCatalogChanges(event as CatalogChanges, hostId);
     } else if (
       event.kind === "transcript" &&
       typeof event.chatId === "string"
@@ -62,9 +70,12 @@ export const watchHostCatalog = (hostId: string, store: FollowedStore) => {
           : {}),
       });
     } else if (event.kind === "turn" && typeof event.chatId === "string") {
-      state.setHostTurnRunning(event.chatId, event.running === true);
+      catalog.setHostTurnRunning(event.chatId, event.running === true);
     } else if (event.kind === "approval" && typeof event.chatId === "string") {
-      state.setHostChatAwaitingApproval(event.chatId, event.awaiting === true);
+      catalog.setHostChatAwaitingApproval(
+        event.chatId,
+        event.awaiting === true,
+      );
     }
   });
   const removeResets = client.onReset(reload);

@@ -12,19 +12,24 @@ import type {
   ProjectConfig,
   ProjectGitWorktreeCleanupResponse,
   ProjectGitWorktreeInfo,
+  ProjectGitWorktreeMergeResponse,
   ProjectWorktreeInfo,
 } from "@/types/ide";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { createBranchedChatConfig } from "../chat-branching";
 import { normalizeProjectPathKey } from "../ide-state";
 import type {
-  IdeState,
   IdeStoreGet,
   IdeStoreSet,
   StoreActionDependencies,
+  WorktreeInitialChatSeed,
   WorktreeProjectCreationResult,
 } from "./ide-store-types";
 import { commitWorkspaceRemoval } from "./project-runtime-state";
+import {
+  createTerminalSessionOwner,
+  type TerminalSessionOwner,
+} from "./terminal-actions";
 import * as workspace from "./workspace-document";
 
 /** The one place a `ProjectWorktreeInfo` is built. */
@@ -87,18 +92,84 @@ const onHost = (projects: ProjectConfig[], hostId: string | undefined) => {
   return projects.filter((project) => getProjectHostId(project) === host);
 };
 
+/** The worktree actions in the store (`IdeState`). */
+export interface WorktreeActions {
+  createWorktreeProject: (
+    parentProjectId: string,
+    options: {
+      activate?: boolean;
+      baseRef?: string | null;
+      branchName: string;
+      initialChatSeed?: WorktreeInitialChatSeed;
+    },
+  ) => Promise<WorktreeProjectCreationResult | null>;
+  /**
+   * Opens a worktree git lists as a worktree project of its main checkout
+   * (a detached one opens as a plain folder).
+   */
+  attachWorktreeProject: (
+    worktree: ProjectGitWorktreeInfo,
+    repo: {
+      /** The host of the project it was listed from; local when absent. */
+      hostId?: string;
+      mainWorktreePath: string;
+      repoRoot: string;
+    },
+  ) => void;
+  /**
+   * Merges the worktree's branch into its base in the main checkout, and
+   * refreshes the parent's git status when it moved.
+   */
+  completeWorktreeProject: (
+    projectId: string,
+    options?: { acknowledgeUncommitted?: boolean },
+  ) => Promise<ProjectGitWorktreeMergeResponse>;
+  /**
+   * Has the main process remove the worktree (and delete its branch when
+   * asked and merged). A worktree git had already forgotten is answered as
+   * removed. The app's own record stays until `purgeWorktreeProject`.
+   */
+  forgetWorktree: (options: {
+    /** The branch as listed; resolved from the project record when omitted. */
+    branch?: string | null;
+    /** The branch head agreed to be lost, for an unmerged branch. */
+    confirmedBranchHead?: string | null;
+    deleteBranch?: boolean;
+    force?: boolean;
+    /** The host the worktree is on; the local host when absent. */
+    hostId?: string;
+    mainWorktreePath: string;
+    worktreePath: string;
+  }) => Promise<ProjectGitWorktreeCleanupResponse>;
+  /**
+   * Drops every record of the worktree (open or closed project, chats,
+   * per-project state) and activates `activateProjectId`, by default the
+   * worktree's parent.
+   */
+  purgeWorktreeProject: (
+    worktreePath: string,
+    options?: {
+      activateProjectId?: string | null;
+      /** The host the worktree is on; the local host when absent. */
+      hostId?: string;
+    },
+  ) => void;
+}
+
 export const createWorktreeActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
-  { api = apiClient }: StoreActionDependencies = {},
-): Pick<
-  IdeState,
-  | "createWorktreeProject"
-  | "attachWorktreeProject"
-  | "completeWorktreeProject"
-  | "forgetWorktree"
-  | "purgeWorktreeProject"
-> => ({
+  {
+    api = apiClient,
+    persistTranscript,
+    terminals = createTerminalSessionOwner(set, get),
+  }: StoreActionDependencies & {
+    /** Saves a chat's transcript (store/transcript-cache.ts). */
+    persistTranscript?: (chatId: string) => Promise<void>;
+    /** The Terminal session owner, which stops a removed Project's terminals. */
+    terminals?: Pick<TerminalSessionOwner, "dropProject">;
+  } = {},
+): WorktreeActions => ({
   createWorktreeProject: async (parentProjectId, options) => {
     const parentProject = get().projects.find(
       (project) => project.id === parentProjectId,
@@ -171,7 +242,7 @@ export const createWorktreeActions = (
     });
 
     if (created.value?.chatId && seed) {
-      await get().persistMessagesForChat?.(created.value.chatId);
+      await persistTranscript?.(created.value.chatId);
     }
 
     return created.value;
@@ -242,7 +313,7 @@ export const createWorktreeActions = (
       worktreePath,
     );
     if (project && state.projects.includes(project)) {
-      void state.stopProjectTerminals(project.id);
+      void terminals.dropProject(project.id);
     }
 
     const knownBranch = branch ?? project?.worktree?.branch ?? null;
@@ -303,7 +374,7 @@ export const createWorktreeActions = (
     const current = get();
     void commitWorkspaceRemoval(
       set,
-      get,
+      terminals,
       workspace.removeProjects(
         current,
         current.settings,

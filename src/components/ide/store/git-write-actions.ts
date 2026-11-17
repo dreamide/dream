@@ -11,13 +11,16 @@
 //   succeeded or not (the refresh key moves);
 //   it answers an outcome and never throws: how a failure shows (a toast,
 //   a line under the message) is the surface's.
-import { apiClient } from "@/lib/api-client";
-import type { ProjectConfig } from "@/types/ide";
+import {
+  type ApiRequestOf,
+  type ApiResponseOf,
+  apiClient,
+} from "@/lib/api-client";
+import type { ProjectConfig, ProjectGitStatusEntry } from "@/types/ide";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import type {
   GitWrite,
   GitWriteOutcome,
-  IdeState,
   IdeStoreGet,
   IdeStoreSet,
   StoreActionDependencies,
@@ -31,21 +34,52 @@ export class GitWriteBusyError extends Error {
   }
 }
 
+/**
+ * The git write actions in the store (`IdeState`). Each runs on the
+ * project's host, refuses to start while another write of the project runs,
+ * refreshes the project's git state once when done, and answers an outcome
+ * rather than throwing.
+ */
+export interface GitWriteActions {
+  commitProject: (
+    projectId: string,
+    commit: { message: string; includeUnstaged: boolean; push: boolean },
+  ) => Promise<GitWriteOutcome<unknown>>;
+  pushProject: (
+    projectId: string,
+  ) => Promise<GitWriteOutcome<ApiResponseOf<"gitPush">>>;
+  pullProject: (
+    projectId: string,
+  ) => Promise<GitWriteOutcome<ApiResponseOf<"gitPull">>>;
+  fetchProject: (
+    projectId: string,
+  ) => Promise<GitWriteOutcome<ApiResponseOf<"gitFetch">>>;
+  /** Reverts one changed file, or every change. */
+  revertProjectChanges: (
+    projectId: string,
+    target: ProjectGitStatusEntry | "all",
+  ) => Promise<GitWriteOutcome<unknown>>;
+  checkoutProjectBranch: (
+    projectId: string,
+    branchName: string,
+    options?: { create?: boolean },
+  ) => Promise<GitWriteOutcome<ApiResponseOf<"gitCheckout">>>;
+  deleteProjectBranch: (
+    projectId: string,
+    branchName: string,
+    options?: { confirmedHead?: string | null },
+  ) => Promise<GitWriteOutcome<ApiResponseOf<"gitBranchDelete">>>;
+  createProjectPullRequest: (
+    projectId: string,
+    request: Omit<ApiRequestOf<"gitCreatePullRequest">, "projectPath">,
+  ) => Promise<GitWriteOutcome<ApiResponseOf<"gitCreatePullRequest">>>;
+}
+
 export const createGitWriteActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
   { api = apiClient }: StoreActionDependencies = {},
-): Pick<
-  IdeState,
-  | "checkoutProjectBranch"
-  | "commitProject"
-  | "createProjectPullRequest"
-  | "deleteProjectBranch"
-  | "fetchProject"
-  | "pullProject"
-  | "pushProject"
-  | "revertProjectChanges"
-> => {
+): GitWriteActions => {
   const setWrite = (projectId: string, write: GitWrite | null) => {
     set((state) => {
       const next = { ...state.gitWriteByProject };

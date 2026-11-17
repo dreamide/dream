@@ -4,7 +4,11 @@
 import { connectionSupervisor } from "@/lib/connections/runtime";
 import { getDesktopApi } from "@/lib/electron";
 import { forgetHostSocketClient } from "@/lib/host-socket";
-import type { HostRoute, SavedHostConnection } from "@/types/ide";
+import type {
+  HostRoute,
+  SavedHostConnection,
+  SshHostConfig,
+} from "@/types/ide";
 import {
   findHostConnection,
   forgetHostConnection,
@@ -17,21 +21,54 @@ import {
 } from "../../../../electron/shared/routes-to-dial.js";
 import { catalogBaselines } from "./catalog-baselines";
 import { HostIdentityError } from "./host-catalog-lifecycle";
-import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
+import type {
+  HostPairing,
+  IdeState,
+  IdeStoreGet,
+  IdeStoreSet,
+} from "./ide-store-types";
 import { applyWorkspaceRemoval } from "./project-runtime-state";
 import { settleSettings } from "./settings-actions";
 import type { TerminalSessionOwner } from "./terminal-actions";
 import * as workspace from "./workspace-document";
 
-type EditActions = Pick<
-  IdeState,
-  | "removeSshHost"
-  | "pairHost"
-  | "addSshRoute"
-  | "setHostRoutes"
-  | "renameHostConnection"
-  | "updateSshHost"
->;
+/** The saved connection actions in the store (`IdeState`). */
+export interface SavedHostConnectionActions {
+  /**
+   * Forgets an SSH host: disconnects it, takes its projects out of this
+   * window (the host keeps them) and removes it from settings.
+   */
+  removeSshHost: (hostId: string) => Promise<void>;
+  /** Pairs with a code created on the host. */
+  pairHost: (
+    how: HostPairing,
+    label: string,
+    connectionId?: string,
+    replaceRouteId?: string,
+  ) => Promise<string>;
+  addSshRoute: (
+    connectionId: string,
+    values: Pick<SshHostConfig, "label" | "target">,
+  ) => Promise<void>;
+  setHostRoutes: (
+    hostId: string,
+    routes: SavedHostConnection["routes"],
+  ) => Promise<void>;
+  /**
+   * Names a saved connection; an empty name goes back to its route's name
+   * (its SSH host's name, or its address).
+   */
+  renameHostConnection: (hostId: string, label: string) => void;
+  /**
+   * Changes how an SSH host is named or reached, keeping its id (and so its
+   * projects); a live connection reconnects when the target or host
+   * command changed.
+   */
+  updateSshHost: (
+    hostId: string,
+    patch: Partial<Pick<SshHostConfig, "label" | "target">>,
+  ) => Promise<void>;
+}
 
 /** How long removing a host waits for its terminals to stop. */
 const TERMINAL_STOP_WAIT_MS = 5_000;
@@ -53,13 +90,19 @@ export const createSavedHostConnectionEdits = (
   get: IdeStoreGet,
   {
     invalidateConnection,
+    persist,
     reconnect,
     terminals,
   }: {
     invalidateConnection: (id: string) => void;
+    /** Saves every slice now (the save scheduler in ide-store.ts). */
+    persist: () => void;
     reconnect: (id: string) => Promise<boolean>;
-    /** The Terminal session owner, which drops a removed Host's sessions. */
-    terminals: Pick<TerminalSessionOwner, "dropHost">;
+    /**
+     * The Terminal session owner, which stops a removed Host's terminals
+     * and drops its sessions.
+     */
+    terminals: Pick<TerminalSessionOwner, "dropHost" | "dropProject">;
   },
 ) => {
   const revisions = new Map<string, number>();
@@ -135,7 +178,7 @@ export const createSavedHostConnectionEdits = (
         (identityRevisions.get(identity) ?? 0) + 1,
       );
     }
-    get().persist?.();
+    persist();
     return revision(id);
   };
   const refresh = async (id: string, version: number) => {
@@ -189,7 +232,7 @@ export const createSavedHostConnectionEdits = (
     ),
   });
 
-  const actions: EditActions = {
+  const actions: SavedHostConnectionActions = {
     removeSshHost: async (hostId) => {
       assertEditable(hostId);
       removing.add(hostId);
@@ -216,7 +259,7 @@ export const createSavedHostConnectionEdits = (
           await settleWithin(
             Promise.all(
               removedProjectIds.map((projectId) =>
-                get().stopProjectTerminals(projectId),
+                terminals.dropProject(projectId),
               ),
             ),
             TERMINAL_STOP_WAIT_MS,
@@ -260,7 +303,7 @@ export const createSavedHostConnectionEdits = (
             hosts,
           };
         });
-        get().persist();
+        persist();
         await retire(removedConnection?.routes ?? []);
       } finally {
         removing.delete(hostId);
@@ -468,7 +511,7 @@ export const createSavedHostConnectionEdits = (
       if (name === (connection.label ?? "")) return;
       const { label: _previous, ...rest } = connection;
       set((state) => replace(state, name ? { ...rest, label: name } : rest));
-      get().persist();
+      persist();
     },
 
     updateSshHost: async (hostId, patch) => {

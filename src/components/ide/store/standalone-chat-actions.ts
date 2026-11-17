@@ -11,12 +11,39 @@ import {
 } from "../../../../electron/shared/persisted-state-codec.js";
 import { createHostReach, type HostReach } from "./host-reach";
 import type {
-  IdeState,
   IdeStoreGet,
   IdeStoreSet,
   StoreActionDependencies,
 } from "./ide-store-types";
 import * as workspace from "./workspace-document";
+
+/** The standalone chat actions in the store (`IdeState`). */
+export interface StandaloneChatActions {
+  /**
+   * Starts a standalone chat on a Host (the local one by default): shows
+   * that Host's empty one again, or creates a chat folder there and a
+   * standalone project for it. Not `ok` when the Host could not be reached
+   * (`error` null) or refused the folder (`error` as the API threw it).
+   */
+  createStandaloneChat: (options?: {
+    hostId?: string;
+  }) => Promise<
+    | { ok: true; chatId: string | null; projectId: string }
+    | { ok: false; error: unknown }
+  >;
+  /**
+   * Shows a standalone chat, restoring it when deleted. Its project opens
+   * and the standalone project that was open closes. False when the chat
+   * is not a standalone chat or its Host could not be reached.
+   */
+  showStandaloneChat: (chatId: string) => Promise<boolean>;
+  /**
+   * Turns a standalone chat's project into an ordinary one where its folder
+   * is, named after the chat, and shows it as its own tab. Its other chats
+   * go with it. False when the chat is not a standalone chat.
+   */
+  promoteStandaloneChat: (chatId: string) => boolean;
+}
 
 export const createStandaloneChatActions = (
   set: IdeStoreSet,
@@ -25,10 +52,7 @@ export const createStandaloneChatActions = (
     api = apiClient,
     reach = createHostReach(get),
   }: StoreActionDependencies & { reach?: Pick<HostReach, "reach"> } = {},
-): Pick<
-  IdeState,
-  "createStandaloneChat" | "showStandaloneChat" | "promoteStandaloneChat"
-> => {
+): StandaloneChatActions => {
   /** A Host other than this machine is connected and loaded first. */
   const reachHost = (hostId: string) => reach.reach(hostId);
 

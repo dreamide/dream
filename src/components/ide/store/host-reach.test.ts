@@ -130,7 +130,6 @@ const following = ({
       ({
         hostConnections: connections,
         hosts,
-        setHostStatus,
       }) as unknown as IdeState,
   );
   const reach = createHostReach(store.getState, {
@@ -144,6 +143,7 @@ const following = ({
         },
       },
     home: () => home("ready"),
+    setHostStatus,
     watchBrowser: (hostId, followed) => {
       expect(followed).toBe(store);
       log.push(`browser ${hostId}`);
@@ -244,7 +244,7 @@ test("a detached home host borrows the browser; a browser client lends none", ()
   web.stop();
 });
 
-test("main's host status reports reach the store while following", () => {
+test("main's host status reports reach the host status writer while following", () => {
   const { setHostStatus, statusListeners, stop } = following({});
   const event: HostStatusEvent = {
     error: null,

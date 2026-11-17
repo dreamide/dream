@@ -24,14 +24,14 @@ import {
   resolveActiveBrowserTab,
 } from "./store/helpers";
 import { createHostActions } from "./store/host-actions";
-import { hostCatalogLifecycle } from "./store/host-catalog-lifecycle";
+import { watchHostCatalog } from "./store/host-catalog-watch";
 import { createHostReach } from "./store/host-reach";
 import {
   getLoadedWorkspace,
   loadPersistedIdeState,
   savePersistedWorkspace,
 } from "./store/ide-store-persistence";
-import type { IdeState } from "./store/ide-store-types";
+import type { IdeState, IdeStoreSet } from "./store/ide-store-types";
 import { createPanelActions } from "./store/panel-actions";
 import { createProjectLifecycleActions } from "./store/project-lifecycle-actions";
 import { readCachedProviderModels } from "./store/provider-model-cache";
@@ -56,9 +56,19 @@ import { createTranscriptCache } from "./store/transcript-cache";
 import * as workspace from "./store/workspace-document";
 import { createWorktreeActions } from "./store/worktree-actions";
 
+// What one store module calls in another is passed to it here, not read
+// from the store: the owners below are built before the store and reach it
+// at each call.
+const getStore = () => useIdeStore.getState();
+const setStore: IdeStoreSet = (update) => useIdeStore.setState(update);
+
+/** Saves every slice now (the save scheduler, below). */
+const persist = () => saveScheduler.saveAll();
+
 const transcriptCache = createTranscriptCache(
   () => useIdeStore.getState(),
   (state) => useIdeStore.setState(state),
+  persist,
 );
 
 /** Each open project's Files panel tabs and drafts (file-editor-session.ts). */
@@ -80,8 +90,27 @@ export const terminalSessionOwner = createTerminalSessionOwner(
   () => useIdeStore.getState(),
 );
 
+/**
+ * The hosts' catalogs in this window: applying them, and their readiness
+ * (store/catalog-actions.ts).
+ */
+const hostCatalog = createCatalogActions(setStore, getStore, {
+  persist,
+  terminals: terminalSessionOwner,
+});
+
+/** SSH and paired hosts' connections (store/host-actions.ts). */
+const hostConnections = createHostActions(setStore, getStore, {
+  catalogs: hostCatalog.lifecycle,
+  persist,
+  terminals: terminalSessionOwner,
+});
+
 /** Reaching each Host and following host state (store/host-reach.ts). */
-export const hostReach = createHostReach(() => useIdeStore.getState());
+export const hostReach = createHostReach(() => useIdeStore.getState(), {
+  setHostStatus: hostConnections.setHostStatus,
+  watchCatalog: (hostId, store) => watchHostCatalog(hostId, store, hostCatalog),
+});
 
 // ---------------------------------------------------------------------------
 // Store
@@ -189,16 +218,30 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
 
   // ── Actions: projects and chats ─────────────────────────────────────
-  ...createProjectLifecycleActions(set, get, terminalSessionOwner, hostReach),
-  ...createWorktreeActions(set, get),
+  ...createProjectLifecycleActions(set, get, {
+    hosts: hostReach,
+    persist,
+    terminals: terminalSessionOwner,
+  }),
+  ...createWorktreeActions(set, get, {
+    persistTranscript: transcriptCache.persistMessagesForChat,
+    terminals: terminalSessionOwner,
+  }),
   ...createStandaloneChatActions(set, get, { reach: hostReach }),
   ...createGitWriteActions(set, get),
-  ...createChatActions(set, get),
+  ...createChatActions(set, get, {
+    persist,
+    persistTranscript: transcriptCache.persistMessagesForChat,
+    terminals: terminalSessionOwner,
+  }),
   ...createStashActions(set, get),
   ...createSavedPromptActions(set, get),
 
   // ── Actions: panels ─────────────────────────────────────────────────
-  ...createPanelActions(set, get, { fileEditor: fileEditorSessions }),
+  ...createPanelActions(set, get, {
+    fileEditor: fileEditorSessions,
+    terminals: terminalSessionOwner,
+  }),
 
   // ── Actions: settings ───────────────────────────────────────────────
   ...createSettingsActions(set, get),
@@ -257,7 +300,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     // when its catalog comes in (store/connection-follow.ts).
     if (homeCatalog) {
       try {
-        hostCatalogLifecycle(set, get).accept(LOCAL_HOST_ID, {
+        hostCatalog.lifecycle.accept(LOCAL_HOST_ID, {
           host: homeCatalog.host,
         });
       } catch (error) {
@@ -265,7 +308,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       }
     }
 
-    void get().resumeHosts(
+    void hostConnections.resumeHosts(
       getLoadedWorkspace()
         .workspaceProjects.filter(
           (entry) => entry.status === "open" && entry.hostId !== LOCAL_HOST_ID,
@@ -275,15 +318,12 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   },
 
   ...transcriptCache.actions,
-  ...createCatalogActions(set, get),
-  ...createHostActions(set, get, terminalSessionOwner),
-
-  // Saves now, every slice; see the save scheduler below.
-  persist: () => saveScheduler.saveAll(),
+  ...hostCatalog.actions,
+  ...hostConnections.actions,
 }));
 
 useIdeStore.subscribe(transcriptCache.observe);
-followConnections(useIdeStore);
+followConnections(useIdeStore, hostCatalog.lifecycle);
 
 // The Files panel sessions follow the store: a files refresh reads clean
 // files again, and a project that is no longer open takes its session with
@@ -371,7 +411,7 @@ const TERMINAL_SESSION_PROJECT = /^__(?:project|browser)_terminal__:([^:]+)/;
 // A project a host refused (it already has one at that path) becomes the
 // host's project.
 setCatalogConflictHandler((hostId, conflicts) => {
-  void useIdeStore.getState().adoptHostProjects(hostId, conflicts);
+  void hostCatalog.adoptHostProjects(hostId, conflicts);
 });
 
 setHostResolver((hint) => {

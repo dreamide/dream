@@ -79,7 +79,10 @@ const setup = async ({ detached = false } = {}) => {
   });
   store.setState({
     ...createTerminalActions(store.setState, store.getState, owner),
-    ...createProjectLifecycleActions(store.setState, store.getState, owner),
+    ...createProjectLifecycleActions(store.setState, store.getState, {
+      persist: () => {},
+      terminals: owner,
+    }),
   });
   // What IdeShell does: host events go to the owner.
   client.onData(owner.receiveOutput);
@@ -156,7 +159,7 @@ test("removing a Project stops its terminals and cancels their pending commands"
   vi.useFakeTimers();
   for (const sessionId of sessionIds) owner.input(sessionId, "\r");
 
-  await commitWorkspaceRemoval(store.setState, store.getState, {
+  await commitWorkspaceRemoval(store.setState, owner, {
     doc: { projects: [] },
     removedChatIds: [],
     removedProjectIds: ["project-a"],
@@ -187,7 +190,8 @@ test("leaving the terminal view discards only the terminals nobody typed into", 
   owner.input(idle, "\x1b[24;1R");
   owner.input(typed, "l");
 
-  store.getState().discardUntouchedTerminals("project-a");
+  // What leaving the terminal view asks of the owner (panel-actions.ts).
+  owner.discardUntouched("project-a");
   await vi.waitFor(() =>
     expect(api.terminalStop).toHaveBeenCalledWith(
       { sessionId: idle },

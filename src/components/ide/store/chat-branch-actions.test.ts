@@ -67,9 +67,14 @@ const createTestStore = (handlers: FakeApiHandlers = {}) => {
       }) as unknown as IdeState,
   );
   store.setState({
-    ...createProjectLifecycleActions(store.setState, store.getState),
+    ...createProjectLifecycleActions(store.setState, store.getState, {
+      persist: () => {},
+    }),
     ...createWorktreeActions(store.setState, store.getState, { api }),
-    ...createChatActions(store.setState, store.getState, { api }),
+    ...createChatActions(store.setState, store.getState, {
+      api,
+      persist: () => {},
+    }),
   });
 
   return { messages, project, sourceChat, store };
@@ -224,6 +229,7 @@ test("auto-archive leaves a chat whose turn runs, here or on the host", () => {
   const { archiveInactiveChats } = createChatActions(
     store.setState,
     store.getState,
+    { persist: () => {} },
   );
 
   assert.equal(archiveInactiveChats(), 1);

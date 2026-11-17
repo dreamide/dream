@@ -6,7 +6,11 @@ import {
   settleModelSelection,
 } from "@/lib/ide-defaults";
 import type { AiProvider, AppSettings } from "@/types/ide";
-import { ALL_PROVIDERS, type CliUpgradeResult } from "../ide-types";
+import {
+  ALL_PROVIDERS,
+  type CliUpgradeResult,
+  type SettingsSection,
+} from "../ide-types";
 import type {
   IdeState,
   IdeStoreGet,
@@ -78,22 +82,40 @@ export const settleSettings = (
   };
 };
 
+type ProviderModels = IdeState["providerModels"];
+
+/** The settings and provider actions in the store (`IdeState`). */
+export interface SettingsActions {
+  setSettings: (
+    updater: AppSettings | ((prev: AppSettings) => AppSettings),
+  ) => void;
+  setSettingsOpen: (open: boolean) => void;
+  setSettingsSection: (section: SettingsSection) => void;
+  setModelSearchQuery: (query: string) => void;
+  toggleProviderModel: (
+    provider: AiProvider,
+    model: string,
+    enabled?: boolean,
+  ) => void;
+  refreshProviderModels: (options?: {
+    force?: boolean;
+    provider?: AiProvider;
+  }) => Promise<void>;
+  setProviderModels: (
+    updater: ProviderModels | ((prev: ProviderModels) => ProviderModels),
+  ) => void;
+  checkCliUpdates: (options?: {
+    force?: boolean;
+    provider?: AiProvider;
+  }) => Promise<void>;
+  upgradeCli: (provider: AiProvider) => Promise<CliUpgradeResult>;
+}
+
 export const createSettingsActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
   { api = apiClient }: StoreActionDependencies = {},
-): Pick<
-  IdeState,
-  | "setSettings"
-  | "setSettingsOpen"
-  | "setSettingsSection"
-  | "setModelSearchQuery"
-  | "toggleProviderModel"
-  | "refreshProviderModels"
-  | "setProviderModels"
-  | "checkCliUpdates"
-  | "upgradeCli"
-> => {
+): SettingsActions => {
   // The newest model fetch started for each provider. Fetches overlap (an
   // all-provider refresh still running when an upgrade re-reads one CLI), and
   // one that started earlier can finish later; only the newest may write a

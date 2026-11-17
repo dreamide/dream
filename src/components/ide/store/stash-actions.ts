@@ -3,19 +3,37 @@ import type { StashItem } from "@/types/ide";
 import { getFirstActiveDiffChatId } from "../diff-feedback";
 import { sendToChat } from "./chat-submitter";
 import { updateProjectUiInList } from "./helpers";
-import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
+import type { IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 
 const getProjectStashItems = (
   project: { ui: { stashItems?: StashItem[] } } | undefined,
 ) => project?.ui.stashItems ?? [];
 
+/** The stash actions in the store (`IdeState`). */
+export interface StashActions {
+  addStashItem: (
+    projectId: string,
+    item: Omit<StashItem, "createdAt" | "id" | "updatedAt">,
+  ) => string | null;
+  updateStashItem: (
+    projectId: string,
+    itemId: string,
+    updater: (item: StashItem) => StashItem,
+  ) => void;
+  deleteStashItem: (projectId: string, itemId: string) => void;
+  /**
+   * Sends a stash item to its chat (a new one, or the first active diff
+   * chat) and removes it from the stash. Returns the chat, or null when the
+   * item cannot go anywhere. A message the chat does not take goes to the
+   * chat's draft (chat/chat-submission.ts).
+   */
+  executeStashItem: (projectId: string, itemId: string) => string | null;
+}
+
 export const createStashActions = (
   set: IdeStoreSet,
   get: IdeStoreGet,
-): Pick<
-  IdeState,
-  "addStashItem" | "updateStashItem" | "deleteStashItem" | "executeStashItem"
-> => ({
+): StashActions => ({
   addStashItem: (projectId, item) => {
     const state = get();
     const project = state.projects.find((entry) => entry.id === projectId);

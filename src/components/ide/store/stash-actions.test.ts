@@ -27,7 +27,9 @@ const createTestStore = () => {
       }) as unknown as IdeState,
   );
   store.setState({
-    ...createChatActions(store.setState, store.getState),
+    ...createChatActions(store.setState, store.getState, {
+      persist: () => {},
+    }),
     ...createStashActions(store.setState, store.getState),
   });
 

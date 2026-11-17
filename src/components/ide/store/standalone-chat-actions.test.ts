@@ -25,6 +25,14 @@ const createTestStore = (handlers: FakeApiHandlers = {}) => {
   const plain = createProjectConfig("/workspace/app", DEFAULT_SETTINGS);
   const stopped: string[] = [];
   let persisted = 0;
+  const persist = () => {
+    persisted += 1;
+  };
+  const terminals = {
+    dropProject: async (projectId: string) => {
+      stopped.push(projectId);
+    },
+  };
 
   const store = createStore<IdeState>(
     () =>
@@ -61,17 +69,18 @@ const createTestStore = (handlers: FakeApiHandlers = {}) => {
       }) as unknown as IdeState,
   );
   store.setState({
-    ...createProjectLifecycleActions(store.setState, store.getState),
-    ...createChatActions(store.setState, store.getState, { api: api.client }),
+    ...createProjectLifecycleActions(store.setState, store.getState, {
+      persist,
+      terminals,
+    }),
+    ...createChatActions(store.setState, store.getState, {
+      api: api.client,
+      persist,
+      terminals,
+    }),
     ...createStandaloneChatActions(store.setState, store.getState, {
       api: api.client,
     }),
-    persist: () => {
-      persisted += 1;
-    },
-    stopProjectTerminals: async (projectId: string) => {
-      stopped.push(projectId);
-    },
   });
   store.getState().addProject(plain.path);
 
