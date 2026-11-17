@@ -329,6 +329,26 @@ export const getGitRepositoryInfo = async (projectPath) => {
   };
 };
 
+/** The project's repository (`getGitRepositoryInfo`); throws outside one. */
+export const ensureProjectGitRepository = async (projectPath) => {
+  const repoInfo = await getGitRepositoryInfo(projectPath);
+  if (!repoInfo.isRepo || !repoInfo.repoRoot) {
+    throw new Error("Project is not a Git repository.");
+  }
+
+  return repoInfo;
+};
+
+/** The checked-out branch of `getGitRepositoryInfo`, or null when detached. */
+export const getGitActionBranchName = (branch) => {
+  const normalizedBranch = typeof branch === "string" ? branch.trim() : "";
+  if (!normalizedBranch || normalizedBranch.startsWith("HEAD ")) {
+    return null;
+  }
+
+  return normalizedBranch;
+};
+
 const mapGitChangeStatus = (xy, fallbackCode = "") => {
   const codes = [fallbackCode, ...(xy ?? "")]
     .map((value) => value.trim())

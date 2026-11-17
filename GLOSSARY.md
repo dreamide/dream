@@ -704,12 +704,22 @@ may not run (an agent is still writing).
 
 ## Generated git text
 
-Commit messages and pull request details a model writes
-(`src/components/ide/git-generated-text.ts`), cached by what they are
-written from: the Project's Host, the changes as `electron/shared/git-changes.js` names them
-(the same key the main process caches by), the model settings, and for pull
-requests the branches, next step and git version. A failure reaches the
-caller and is never cached. A pending or cached answer belongs to its Host,
+Commit messages and pull request details a model writes. The host writes
+them (`electron/api/project-git/generated-text.js`, `generatedGitText`):
+the prompts, the cleanup of the model's answer, the title and description
+written without a model, and the pull request's git reads, over a
+`generateText` port (the Provider registry). It remembers commit messages
+by the changes as `electron/shared/git-changes.js` names them and the model
+settings (30, oldest written dropped), and shares one under way: every
+client warms the same message when a turn ends, and a pull request with
+"commit, push and create" reuses the one the Changes tab generated. Pull
+request details are not remembered on the host.
+
+The renderer (`src/components/ide/git-generated-text.ts`) caches what it
+was told, per window, by what it is written from: the Project's Host, the
+same changes key, the model settings, and for pull requests the branches,
+next step and git version. A failure reaches the caller and is never
+cached on either side. A pending or cached answer belongs to its Host,
 even when another Host has a Project at the same path; background warming
 reads and generates on the same captured Host.
 

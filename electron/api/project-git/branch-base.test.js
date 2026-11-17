@@ -8,8 +8,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, test, vi } from "vitest";
 
-const { generateProjectPullRequestDetails, getProjectGitPushPreview } =
-  await import("./actions.js");
+const { getProjectGitPushPreview } = await import("./actions.js");
+const { generatedGitText } = await import("./generated-text.js");
 const { previewProjectGitBranchDelete } = await import("./branches.js");
 const { gitRepositories } = await import("./core.js");
 const { compareProjectGitWorktree } = await import("./worktree-lifecycle.js");
@@ -156,7 +156,7 @@ test("a diverged base compares with the remote and merges into the local branch"
   assert.equal(preview.aheadCount, 2);
 
   // So does the pull request into it, which GitHub compares with its main.
-  const details = await generateProjectPullRequestDetails(repo);
+  const details = await generatedGitText.pullRequestDetails(repo);
   assert.equal(details.baseBranch, "main");
   assert.equal(details.headBranch, "feature");
   assert.equal(details.title, "Feature");
@@ -216,7 +216,7 @@ test("with no base found, each caller says so in its own words", async () => {
 
   assert.equal(await gitRepositories.baseOf(repo), null);
 
-  await assert.rejects(generateProjectPullRequestDetails(repo), {
+  await assert.rejects(generatedGitText.pullRequestDetails(repo), {
     message: "Unable to determine the base branch for this pull request.",
   });
 

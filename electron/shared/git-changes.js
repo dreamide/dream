@@ -3,8 +3,8 @@
 // both sides of the route seam: which changes a commit takes, and which
 // fields of a change make two sets of changes the same set.
 //
-// The main process caches a generated commit message by these changes (its
-// fingerprint, project-git/core.js); the renderer caches what it has
+// The host caches a generated commit message by these changes (their
+// fingerprint, project-git/generated-text.js); the renderer caches what it has
 // already been told by the same changes (git-generated-text.ts). Both use
 // this module, so they agree on when a message is still the right one.
 

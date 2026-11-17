@@ -4,8 +4,6 @@ import {
   commitProjectGitChanges,
   createProjectPullRequest,
   fetchProjectGitChanges,
-  generateProjectGitCommitMessage,
-  generateProjectPullRequestDetails,
   getProjectGitLog,
   getProjectGitPushPreview,
   getProjectGitRemoteUrl,
@@ -33,6 +31,7 @@ import {
   MIME_TYPES,
   resolveProjectPath,
 } from "./project-git/files.js";
+import { generatedGitText } from "./project-git/generated-text.js";
 import { detectProjectIcon } from "./project-git/icons.js";
 import {
   projectDirectoryRequestSchema,
@@ -369,7 +368,7 @@ export const registerProjectGitRoutes = (app) => {
     "/api/project-git-commit-message",
     projectGitCommitMessageRequestSchema,
     async ({ projectPath, ...options }) => ({
-      commitMessage: await generateProjectGitCommitMessage(projectPath, {
+      commitMessage: await generatedGitText.commitMessage(projectPath, {
         ...options,
         throwOnError: true,
       }),
@@ -442,7 +441,7 @@ export const registerProjectGitRoutes = (app) => {
     "/api/project-git-pull-request-details",
     projectGitPullRequestDetailsRequestSchema,
     ({ projectPath, ...options }) =>
-      generateProjectPullRequestDetails(projectPath, options),
+      generatedGitText.pullRequestDetails(projectPath, options),
     { errorMessage: "Unable to generate pull request details." },
   );
 
