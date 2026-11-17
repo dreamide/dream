@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useProjectGitStatus } from "@/hooks/use-project-git-status";
 import {
   apiClient,
   fetchApiBlob,
@@ -55,6 +56,7 @@ import {
   type FileEditorSnapshot,
   isImageFile,
 } from "./file-editor-session";
+import { toFileTreeGitStatus } from "./file-tree-git-status";
 import { AppShellPlaceholder, PanelResizeHandle } from "./ide-helpers";
 import { fileEditorSessions, useIdeStore } from "./ide-store";
 import { useMaterialFileTreeIcons } from "./material-file-icon";
@@ -186,6 +188,12 @@ const fileTreeStyle = {
   "--trees-selected-focused-border-color-override": "transparent",
   "--trees-scrollbar-gutter-override": "10px",
   "--trees-theme-focus-ring": "var(--ring)",
+  "--trees-theme-git-added-fg": "var(--git-added)",
+  "--trees-theme-git-deleted-fg": "var(--git-deleted)",
+  "--trees-theme-git-ignored-fg": "var(--git-ignored)",
+  "--trees-theme-git-modified-fg": "var(--git-modified)",
+  "--trees-theme-git-renamed-fg": "var(--git-renamed)",
+  "--trees-theme-git-untracked-fg": "var(--git-untracked)",
   "--trees-theme-input-bg": "var(--background)",
   "--trees-theme-input-border": "var(--border)",
   "--trees-theme-list-active-selection-bg": "var(--accent)",
@@ -295,6 +303,17 @@ const ProjectFileTree = ({
   useEffect(() => {
     model.setIcons(materialFileTreeIcons);
   }, [materialFileTreeIcons, model]);
+
+  // Changed files are marked in the tree, as in the Changes panel. Untracked
+  // files are only in the full status.
+  const { status: gitStatus } = useProjectGitStatus(projectPath, {
+    active,
+    detail: "full",
+    hostId,
+  });
+  useEffect(() => {
+    model.setGitStatus(toFileTreeGitStatus(gitStatus?.changes ?? []));
+  }, [gitStatus, model]);
 
   useEffect(() => {
     tree.attach();

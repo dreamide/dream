@@ -162,6 +162,13 @@
   --warning-surface: oklch(0.973 0.071 103.193);
   --warning-foreground: oklch(0.421 0.095 57.708);
   --warning-border: oklch(0.905 0.182 98.111);
+  /* Git status of a file in the Files tree (VS Code's decoration colours). */
+  --git-added: oklch(0.596 0.145 163.225);
+  --git-deleted: oklch(0.586 0.253 17.585);
+  --git-ignored: var(--muted-foreground);
+  --git-modified: oklch(0.555 0.163 48.998);
+  --git-renamed: oklch(0.596 0.145 163.225);
+  --git-untracked: oklch(0.596 0.145 163.225);
   --border: var(--surface-200);
   --input: var(--surface-200);
   --ring: var(--surface-400);
@@ -202,6 +209,11 @@
   --warning-surface: oklch(0.286 0.066 53.813);
   --warning-foreground: oklch(0.973 0.071 103.193);
   --warning-border: oklch(0.476 0.114 61.907);
+  --git-added: oklch(0.765 0.177 163.223);
+  --git-deleted: oklch(0.712 0.194 13.428);
+  --git-modified: oklch(0.828 0.189 84.429);
+  --git-renamed: oklch(0.765 0.177 163.223);
+  --git-untracked: oklch(0.765 0.177 163.223);
   --border: var(--surface-800);
   --input: var(--surface-800);
   --ring: var(--surface-500);
