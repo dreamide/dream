@@ -55,15 +55,21 @@ const FATAL_SSH_ERRORS =
 export class SshHostError extends Error {
   /**
    * @param {string} message
-   * @param {{ fatal?: boolean, detail?: string, cancelled?: boolean }} [options]
+   * @param {{ fatal?: boolean, detail?: string, cancelled?: boolean, refusal?: string }} [options]
    *   `fatal`: retrying cannot help (authentication, host key, protocol).
+   *   `refusal`: the route supervisor's reason for a fatal refusal
+   *   (`protocol` for a host this app cannot speak to).
    */
-  constructor(message, { fatal = false, detail = "", cancelled = false } = {}) {
+  constructor(
+    message,
+    { fatal = false, detail = "", cancelled = false, refusal } = {},
+  ) {
     super(message);
     this.name = "SshHostError";
     this.fatal = fatal;
     this.detail = detail;
     this.cancelled = cancelled;
+    if (refusal) this.refusal = refusal;
   }
 }
 
@@ -345,7 +351,8 @@ export function createSshHostConnection({
         : sshFailure("SSH failed", stderr);
     }
     const problem = hostProtocolProblem(result.hostProtocolVersion);
-    if (problem) throw new SshHostError(problem, { fatal: true });
+    if (problem)
+      throw new SshHostError(problem, { fatal: true, refusal: "protocol" });
     return result;
   };
 

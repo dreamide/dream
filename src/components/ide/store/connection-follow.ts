@@ -40,6 +40,10 @@ export const followConnections = (
         try {
           await catalogs.refresh(hostId);
         } catch (error) {
+          // Main reports its own refusals with the status (host-actions.ts).
+          // This is the window's own catalog check, which main cannot make:
+          // the home host, a host another connection already has, or ids
+          // that collide with another host's.
           if (error instanceof HostIdentityError)
             connectionSupervisor.set(hostId, "incompatible", error.message);
           throw error;

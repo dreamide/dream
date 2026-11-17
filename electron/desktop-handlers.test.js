@@ -237,30 +237,47 @@ test("a theme change is saved and repaints the window", () => {
 
 test("SSH host calls are checked before they reach the hosts", async () => {
   const { handlers, log } = createFakes();
-  await assert.rejects(() => handlers.connectHost({ hostId: "h" }));
-  assert.deepEqual(
-    await handlers.connectHost({
-      hostId: "h",
-      target: " box ",
-    }),
-    { fingerprint: null, hostId: null, hostProtocolVersion: 3, version: "1.2" },
-  );
   assert.throws(() => handlers.forwardHostPort({ hostId: "h", port: 70000 }));
   assert.equal(handlers.forwardHostPort({ hostId: "h", port: "3000" }), 43000);
   assert.equal(handlers.getHostState({}), "idle");
   assert.deepEqual(await handlers.listSshConfigHosts(), ["devbox"]);
   handlers.answerHostPrompt({ answer: "pw", promptId: 2 });
+  assert.deepEqual(log, [["prompt answer", 2, "pw"]]);
+});
+
+test("a host connects over its routes to dial, the one shape the bridge takes", async () => {
+  const { handlers, log } = createFakes();
+  const routes = [
+    { id: "ssh:devbox", kind: "ssh", target: "me@devbox" },
+    {
+      id: "https:1",
+      kind: "https",
+      origin: "https://host.example",
+      credentialId: "cred-1",
+    },
+  ];
+  const expectedIdentity = { hostId: "host_a", fingerprint: "SHA256:a" };
+
+  assert.deepEqual(
+    await handlers.connectHost({ hostId: "h", routes, expectedIdentity }),
+    { fingerprint: null, hostId: null, hostProtocolVersion: 3, version: "1.2" },
+  );
   assert.deepEqual(log, [
-    [
-      "connect",
-      {
-        expectedIdentity: null,
-        hostId: "h",
-        target: "box",
-      },
-    ],
-    ["prompt answer", 2, "pw"],
+    ["connect", { hostId: "h", routes, expectedIdentity }],
   ]);
+
+  // The shapes it no longer takes, and malformed routes, never reach the
+  // hosts.
+  for (const payload of [
+    { hostId: "h" },
+    { hostId: "h", target: "box" },
+    { hostId: "h", sshRoutes: [{ id: "ssh:h", target: "box" }] },
+    { hostId: "h", routes: [{ id: "ssh:h", target: "box" }] },
+    { hostId: "h", routes: [routes[0], routes[0]] },
+    { routes },
+  ])
+    await assert.rejects(() => handlers.connectHost(payload));
+  assert.equal(log.length, 1);
 });
 
 // Registered by the modules that own them, on the same table's channels.

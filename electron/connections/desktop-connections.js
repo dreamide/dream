@@ -101,15 +101,12 @@ export function createDesktopHostConnections({
   };
 
   return {
-    connect({
-      hostId,
-      target,
-      expectedIdentity = null,
-      sshRoutes,
-      routes: configuredRoutes,
-    }) {
-      const routes = configuredRoutes ??
-        sshRoutes ?? [{ id: `ssh:${hostId}`, target }];
+    /**
+     * Connects `hostId` over its routes to dial, checked by
+     * `readConnectRequest` (shared/routes-to-dial.js).
+     * @param {import("../../src/types/ide").HostConnectRequest} request
+     */
+    connect({ hostId, routes, expectedIdentity = null }) {
       const config = JSON.stringify(routes);
       let host = hosts.get(hostId);
       const pinned = host?.supervisor.getPinnedIdentity();

@@ -341,6 +341,22 @@ export type HostRoute =
   | { id: string; kind: "origin"; origin: string };
 
 /**
+ * One route to dial, as the desktop bridge carries it: an SSH route with
+ * its target from Settings, or a paired HTTPS route
+ * (electron/shared/routes-to-dial.js).
+ */
+export type DialRoute =
+  | { id: string; kind: "ssh"; target: string }
+  | { id: string; kind: "https"; origin: string; credentialId: string };
+
+/** Connecting one connection id: its routes to dial and its pinned host. */
+export interface HostConnectRequest {
+  hostId: string;
+  routes: DialRoute[];
+  expectedIdentity: { hostId: string; fingerprint: string | null } | null;
+}
+
+/**
  * A host this client has verified (electron/shared/host-connections.js):
  * which persistent host one of its connection ids reaches. Saved the first
  * time a route is verified; a connection without one routes by its id.
@@ -369,11 +385,21 @@ export type HostConnectionState =
   | "disconnected"
   | "failed";
 
+/**
+ * Why the route supervisor refused a connection for good
+ * (electron/shared/route-supervisor.js): the host refused this client's
+ * credential, the route reaches another host than the one pinned, or the
+ * host speaks a protocol this app does not.
+ */
+export type HostRefusal = "unauthorized" | "identity" | "protocol";
+
 export interface HostStatusEvent {
   hostId: string;
   state: HostConnectionState;
   error: string | null;
   version: string | null;
+  /** Set when `failed` because every route was refused for this reason. */
+  refusal?: HostRefusal | null;
   routeId?: string | null;
   routes?: HostRouteRuntimeState[];
 }
@@ -1019,21 +1045,11 @@ export interface DesktopApi {
   listSshConfigHosts: () => Promise<string[]>;
 
   /**
-   * Connects an SSH host (its daemon is started or reused there). With an
-   * expected host id, only that host: any other is refused, then and on
-   * every reconnect.
+   * Connects a host over its routes to dial (an SSH host's daemon is started
+   * or reused there). With an expected identity, only that host: any other
+   * is refused, then and on every reconnect.
    */
-  connectHost: (payload: {
-    hostId: string;
-    target?: string;
-    expectedHostId?: string | null;
-    expectedFingerprint?: string | null;
-    sshRoutes?: { id: string; target: string }[];
-    routes?: (
-      | { id: string; kind: "ssh"; target: string }
-      | { id: string; kind: "https"; origin: string; credentialId: string }
-    )[];
-  }) => Promise<{
+  connectHost: (payload: HostConnectRequest) => Promise<{
     hostProtocolVersion: number;
     version: string | null;
     /** The host's persistent id; null from a host too old to say. */

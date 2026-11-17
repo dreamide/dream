@@ -318,6 +318,16 @@ host's is refused. The local
 route is never refused. Device and session IDs belong to remote
 authorization, which is a separate concern.
 
+**Routes to dial** (`electron/shared/routes-to-dial.js`) are what connecting
+a saved host sends the main process, and the one shape the desktop bridge
+carries for it: each route in preference order, an SSH route with its target
+from Settings, and the host it is pinned to. It is also the one place a saved
+SSH route is read against Settings. The main process checks the shape once
+(`readConnectRequest`). A connection the route supervisor refuses for good
+reports why (`refusal`: unauthorized, identity or protocol), and the renderer
+maps it to `unauthorized` or `incompatible` in one place
+(`connectionStatusOf`).
+
 A saved connection edit is accepted against the current connection, after
 verification. An accepted edit or removal supersedes verification already
 under way; its late result cannot restore a removed route or Host. Credentials

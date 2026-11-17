@@ -8,8 +8,13 @@ import type { HostRoute, SavedHostConnection } from "@/types/ide";
 import {
   findHostConnection,
   forgetHostConnection,
-  MAX_HOST_ROUTES,
 } from "../../../../electron/shared/host-connections.js";
+import {
+  connectionOfSshHost,
+  connectionRoutes,
+  MAX_HOST_ROUTES,
+  routesToDial,
+} from "../../../../electron/shared/routes-to-dial.js";
 import { catalogBaselines } from "./catalog-baselines";
 import { HostIdentityError } from "./host-catalog-lifecycle";
 import type { IdeState, IdeStoreGet, IdeStoreSet } from "./ide-store-types";
@@ -402,12 +407,15 @@ export const createSavedHostConnectionEdits = (
       checkRoutes([...before.routes, route]);
       let version: number;
       try {
-        await api.connectHost({
-          hostId: id,
-          target: values.target,
-          expectedHostId: before.hostId,
-          expectedFingerprint: before.fingerprint,
-        });
+        // The new route alone, pinned to this connection's host, with the
+        // SSH host it will add to Settings.
+        await api.connectHost(
+          routesToDial({
+            connectionId: id,
+            saved: { ...before, routes: [route] },
+            sshHosts: [{ ...values, id }],
+          }),
+        );
         const connection = current();
         const routes: HostRoute[] = [...connection.routes, route];
         checkRoutes(routes);
@@ -468,12 +476,7 @@ export const createSavedHostConnectionEdits = (
         (host) => host.id === hostId,
       );
       if (!previous) return;
-      const owner =
-        connections().find((host) =>
-          host.routes.some(
-            (route) => route.kind === "ssh" && route.sshHostId === hostId,
-          ),
-        )?.id ?? hostId;
+      const owner = connectionOfSshHost(connections(), hostId)?.id ?? hostId;
       assertEditable(owner);
       const next = { ...previous, ...patch, id: hostId };
       const changed = next.target !== previous.target;
@@ -504,9 +507,7 @@ export const createSavedHostConnectionEdits = (
           "This host id belongs to a different saved key.",
         );
       }
-      const incoming: HostRoute[] = saved(id)?.routes ?? [
-        { id: `ssh:${id}`, kind: "ssh", sshHostId: id },
-      ];
+      const incoming: HostRoute[] = connectionRoutes(saved(id), id);
       const routes = [
         ...other.routes,
         ...incoming.filter(

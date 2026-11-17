@@ -2,14 +2,15 @@
 // window asks main what is connected instead of assuming nothing is.
 import { afterEach, expect, test, vi } from "vitest";
 import { createStore } from "zustand/vanilla";
+import { connectionSupervisor } from "@/lib/connections/runtime";
 import {
   createChatConfig,
   createProjectConfig,
   DEFAULT_SETTINGS,
 } from "@/lib/ide-defaults";
-import type { HostConnectionState } from "@/types/ide";
+import type { HostConnectionState, SavedHostConnection } from "@/types/ide";
 import { catalogBaselines } from "./catalog-baselines";
-import { createHostActions } from "./host-actions";
+import { connectionStatusOf, createHostActions } from "./host-actions";
 import type { IdeState } from "./ide-store-types";
 import {
   BROWSER_TAB_KEYED_STATE,
@@ -25,7 +26,10 @@ const desktop = vi.hoisted(() => ({
   getHostState: vi.fn(async (_hostId: string) => "idle" as string),
 }));
 
-vi.mock("@/lib/electron", () => ({ getDesktopApi: () => desktop }));
+vi.mock("@/lib/electron", () => ({
+  desktopErrorMessage: (error: Error) => error.message,
+  getDesktopApi: () => desktop,
+}));
 
 // The hosts a test's catalog load gave a baseline, forgotten after it.
 const adopted = new Set<string>();
@@ -171,12 +175,112 @@ test("editing a host keeps it, and a live connection reconnects when how it is r
   // The adapter replaces edited routes while keeping healthy fallbacks.
   expect(desktop.disconnectHost).not.toHaveBeenCalled();
   expect(desktop.connectHost).toHaveBeenCalledWith({
-    expectedFingerprint: null,
-    expectedHostId: null,
+    expectedIdentity: null,
     hostId: "a",
-    target: "me@newer-a",
+    routes: [{ id: "ssh:a", kind: "ssh", target: "me@newer-a" }],
   });
   expect(hostIds()).toEqual(["a", "b", "c", "d"]);
+});
+
+test("a saved connection connects over its routes to dial, pinned to its host", async () => {
+  const { store } = createTestStore();
+  const saved: SavedHostConnection = {
+    version: 1,
+    id: "conn",
+    hostId: "host_a",
+    fingerprint: "SHA256:a",
+    verifiedAt: null,
+    routes: [
+      { id: "ssh:b", kind: "ssh", sshHostId: "b" },
+      { id: "ssh:gone", kind: "ssh", sshHostId: "gone" },
+      {
+        id: "https:1",
+        kind: "https",
+        origin: "https://host.example",
+        credentialId: "cred-1",
+      },
+    ],
+  };
+  store.setState({ hostConnections: [saved] });
+
+  await store.getState().connectHost("conn");
+
+  expect(desktop.connectHost).toHaveBeenCalledWith({
+    expectedIdentity: { hostId: "host_a", fingerprint: "SHA256:a" },
+    hostId: "conn",
+    routes: [
+      { id: "ssh:b", kind: "ssh", target: "me@b" },
+      {
+        id: "https:1",
+        kind: "https",
+        origin: "https://host.example",
+        credentialId: "cred-1",
+      },
+    ],
+  });
+});
+
+test("a connection with nothing to dial is not sent to main", async () => {
+  const { store } = createTestStore();
+
+  expect(await store.getState().connectHost("gone")).toBe(false);
+
+  expect(desktop.connectHost).not.toHaveBeenCalled();
+  expect(store.getState().hosts.gone).toMatchObject({
+    error: "This connection is not in Settings.",
+    state: "failed",
+  });
+});
+
+test.each([
+  ["identity", "incompatible"],
+  ["protocol", "incompatible"],
+  ["unauthorized", "unauthorized"],
+  [null, "offline"],
+] as const)("a connection main refused for %s is %s, from its status alone", (refusal, status) => {
+  const { loadHostCatalog, store } = createTestStore();
+  const error =
+    "This route reaches a different host than the saved connection.";
+
+  store.getState().setHostStatus({
+    error,
+    hostId: "c",
+    refusal,
+    state: "failed",
+    version: null,
+  });
+
+  expect(connectionSupervisor.get("c")).toMatchObject({ error, status });
+  expect(loadHostCatalog).not.toHaveBeenCalled();
+  connectionSupervisor.forget("c");
+});
+
+test("a connect's rejection keeps the refusal main reported with it", async () => {
+  const { store } = createTestStore();
+  const error = "The route refused catalog access (401).";
+  desktop.connectHost.mockImplementationOnce(async () => {
+    // Main's status for the attempt, then the attempt's rejection.
+    store.getState().setHostStatus({
+      error,
+      hostId: "d",
+      refusal: "unauthorized",
+      state: "failed",
+      version: null,
+    });
+    throw new Error(error);
+  });
+
+  expect(await store.getState().connectHost("d")).toBe(false);
+
+  expect(store.getState().hosts.d).toMatchObject({ error, state: "failed" });
+  expect(connectionSupervisor.get("d").status).toBe("unauthorized");
+  connectionSupervisor.forget("d");
+});
+
+test("only a failed connection is refused", () => {
+  expect(connectionStatusOf("failed", "identity")).toBe("incompatible");
+  expect(connectionStatusOf("reconnecting", "identity")).toBe("reconnecting");
+  expect(connectionStatusOf("connected", "unauthorized")).toBe("ready");
 });
 
 /** A store with one local and one host-"a" project, each with a chat. */

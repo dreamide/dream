@@ -30,6 +30,7 @@ import { getClientPlatform } from "@/lib/connections/platform";
 import { useConnectionState } from "@/lib/connections/use-connection-state";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { SshHostConfig } from "@/types/ide";
+import { connectionOfSshHost } from "../../../../electron/shared/routes-to-dial.js";
 import { useIdeStore } from "../ide-store";
 import {
   EMPTY_HOST_FORM,
@@ -116,11 +117,7 @@ const OpenProjectForm = ({ onClose }: { onClose: () => void }) => {
     if (!home && !sshHost) {
       attempt.cancel();
       setOpening(false);
-      const merged = connections.find((host) =>
-        host.routes.some(
-          (route) => route.kind === "ssh" && route.sshHostId === hostId,
-        ),
-      );
+      const merged = connectionOfSshHost(connections, hostId);
       setHostId(merged?.id ?? LOCAL_HOST_ID);
     }
   }, [attempt, home, sshHost, connections, hostId]);

@@ -167,6 +167,7 @@ test("a failure that is not a refusal is retried", async () => {
   await settle();
   expect(supervisor.getState()).toMatchObject({
     state: "reconnecting",
+    refusal: null,
     routes: [
       { state: "cooldown", error: "The route refused catalog access (503)." },
     ],
@@ -202,6 +203,7 @@ test.each([
 
   expect(supervisor.getState()).toMatchObject({
     state: "failed",
+    refusal: "unauthorized",
     routes: [{ state: "blocked" }],
   });
   expect(adapter.opened[0].closed).toBe(true);
@@ -226,18 +228,24 @@ test.each([
     "speaks an unsupported protocol",
     { catalogHost: { ...HOST_A, hostProtocolVersion: 99 } },
     /protocol 99/,
+    "protocol",
   ],
   [
     "lists another host in its catalog",
     { catalogHost: HOST_B },
     "The route's catalog does not match its verified host.",
+    "identity",
   ],
-])("a host that %s is refused for good", async (_case, reply, message) => {
+])("a host that %s is refused for good", async (_case, reply, message, refusal) => {
   const { supervisor } = supervise({
     reaches: () => ({ host: HOST_A, ...reply }),
   });
   await expect(supervisor.connect()).rejects.toThrow(message);
-  expect(supervisor.getState().routes[0].state).toBe("blocked");
+  expect(supervisor.getState()).toMatchObject({
+    state: "failed",
+    refusal,
+    routes: [{ state: "blocked" }],
+  });
 });
 
 test("a host that is not the expected one is refused before its catalog is read", async () => {
@@ -251,7 +259,11 @@ test("a host that is not the expected one is refused before its catalog is read"
   );
   expect(adapter.opened[0].options.expectedIdentity).toEqual(HOST_A);
   expect(adapter.opened[0].requests).toEqual([]);
-  expect(supervisor.getState().routes[0].state).toBe("blocked");
+  expect(supervisor.getState()).toMatchObject({
+    state: "failed",
+    refusal: "identity",
+    routes: [{ state: "blocked" }],
+  });
 });
 
 test("after a loss, a route that now reaches another host is blocked and the pin kept", async () => {
@@ -267,6 +279,7 @@ test("after a loss, a route that now reaches another host is blocked and the pin
 
   expect(supervisor.getState()).toMatchObject({
     state: "failed",
+    refusal: "identity",
     routes: [{ state: "blocked" }],
   });
   expect(supervisor.getPinnedIdentity()).toEqual(HOST_A);
@@ -298,7 +311,12 @@ test("a link lost before it is ready fails that attempt with the reason", async 
 
   await expect(supervisor.connect()).rejects.toThrow("The grant was revoked.");
   expect(closed).toBe(true);
-  expect(supervisor.getState().routes[0].state).toBe("blocked");
+  // Fatal, but with no reason given: failed, not refused.
+  expect(supervisor.getState()).toMatchObject({
+    state: "failed",
+    refusal: null,
+    routes: [{ state: "blocked" }],
+  });
 });
 
 test("beside other routes, a host without a persistent identity is refused", async () => {
@@ -331,4 +349,32 @@ test("a lost preferred route falls back to the next one", async () => {
     routeId: "https",
   });
   expect(adapter.opened[1].options.background).toBe(false);
+});
+
+test("a connection is refused only when every route is, and gives its preferred route's reason", async () => {
+  const unauthorized = supervise({
+    routes: [{ id: "ssh" }, { id: "https" }],
+    reaches: (route) =>
+      route.id === "ssh"
+        ? { host: HOST_A, catalogStatus: 401 }
+        : { host: HOST_A, catalogHost: HOST_B },
+  });
+  await expect(unauthorized.supervisor.connect()).rejects.toThrow();
+  expect(unauthorized.supervisor.getState()).toMatchObject({
+    state: "failed",
+    refusal: "unauthorized",
+  });
+
+  const unreachable = supervise({
+    routes: [{ id: "ssh" }, { id: "https" }],
+    reaches: (route) =>
+      route.id === "ssh"
+        ? { host: HOST_A, catalogStatus: 503 }
+        : { host: HOST_A, catalogHost: HOST_B },
+  });
+  await expect(unreachable.supervisor.connect()).rejects.toThrow();
+  expect(unreachable.supervisor.getState()).toMatchObject({
+    state: "failed",
+    refusal: null,
+  });
 });

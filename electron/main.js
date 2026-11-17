@@ -243,6 +243,7 @@ const desktopConnections = createDesktopHostConnections({
     sendToRenderer(desktopChannel("onHostStatus"), {
       error: status.error ?? null,
       hostId: status.hostId,
+      refusal: status.refusal ?? null,
       state: status.state,
       routeId: status.routeId,
       routes: status.routes,

@@ -99,6 +99,8 @@ export interface HostRuntimeState {
   error: string | null;
   /** Its catalog is in the store. */
   loaded: boolean;
+  /** Why it failed for good, while `failed`: what its connection state maps. */
+  refusal?: HostStatusEvent["refusal"];
   routeId?: HostStatusEvent["routeId"];
   routes?: HostStatusEvent["routes"];
 }

@@ -10,7 +10,7 @@
 // register themselves on the same table's channels.
 import path from "node:path";
 import { DESKTOP_METHODS } from "./shared/desktop-channels.js";
-import { MAX_HOST_ROUTES } from "./shared/host-connections.js";
+import { readConnectRequest } from "./shared/routes-to-dial.js";
 
 /** @typedef {import("./shared/desktop-channels.js").DesktopMethod} DesktopMethod */
 
@@ -103,7 +103,7 @@ const pairingIdentity = (payload, fallbackName) => {
  * @param {() => string} deps.hostname The OS host name, for naming this
  *   desktop to a host it pairs with.
  * @param {{ loadWorkspace: () => unknown, saveWorkspaceChanges: (changes: unknown) => unknown }} deps.state
- * @param {{ connect: (options: { hostId: string, target: string, expectedIdentity?: { hostId: string, fingerprint?: string | null } | null }) => Promise<{ hostProtocolVersion: number, version?: string | null, hostId?: string | null, fingerprint?: string | null }>, disconnect: (hostId: string) => void, getState: (hostId: string) => unknown, forwardPort: (hostId: string, port: number) => unknown }} deps.sshHosts
+ * @param {{ connect: (request: import("../src/types/ide").HostConnectRequest) => Promise<{ hostProtocolVersion: number, version?: string | null, hostId?: string | null, fingerprint?: string | null }>, disconnect: (hostId: string) => void, getState: (hostId: string) => unknown, forwardPort: (hostId: string, port: number) => unknown }} deps.sshHosts
  * @param {() => Promise<string[]>} deps.sshConfigHosts The aliases in the
  *   user's ssh config.
  * @param {{ answer: (promptId: unknown, answer: unknown) => void }} deps.sshPrompts
@@ -382,105 +382,10 @@ export const createDesktopHandlers = ({
       return true;
     },
     connectHost: async (/** @type {unknown} */ payload) => {
-      const {
-        expectedHostId,
-        expectedFingerprint,
-        hostId,
-        target,
-        sshRoutes,
-        routes: configuredRoutes,
-      } = fields(payload);
-      if (
-        typeof hostId !== "string" ||
-        (!configuredRoutes && (typeof target !== "string" || !target.trim()))
-      ) {
-        throw new Error("A host needs an id and an SSH target.");
-      }
-      let routes;
-      if (configuredRoutes !== undefined) {
-        if (
-          !Array.isArray(configuredRoutes) ||
-          !configuredRoutes.length ||
-          configuredRoutes.length > MAX_HOST_ROUTES
-        )
-          throw new Error(
-            `A connection needs between 1 and ${MAX_HOST_ROUTES} routes.`,
-          );
-        routes = configuredRoutes.map((route) => {
-          if (typeof route?.id !== "string" || !route.id.trim())
-            throw new Error("A route needs an id.");
-          if (
-            route.kind === "https" &&
-            typeof route.origin === "string" &&
-            typeof route.credentialId === "string"
-          )
-            return {
-              id: route.id,
-              kind: "https",
-              origin: route.origin,
-              credentialId: route.credentialId,
-            };
-          if (
-            route.kind === "ssh" &&
-            typeof route.target === "string" &&
-            route.target.trim()
-          )
-            return {
-              id: route.id,
-              kind: "ssh",
-              target: route.target.trim(),
-            };
-          throw new Error(
-            "Each route needs an SSH target or paired HTTPS origin.",
-          );
-        });
-        if (new Set(routes.map((route) => route.id)).size !== routes.length)
-          throw new Error("Route ids must be distinct.");
-      }
-      if (sshRoutes !== undefined) {
-        if (
-          !Array.isArray(sshRoutes) ||
-          sshRoutes.length === 0 ||
-          sshRoutes.length > MAX_HOST_ROUTES
-        )
-          throw new Error(
-            `A connection needs between 1 and ${MAX_HOST_ROUTES} SSH routes.`,
-          );
-        routes = sshRoutes.map((route) => {
-          if (
-            typeof route?.id !== "string" ||
-            !route.id.trim() ||
-            typeof route?.target !== "string" ||
-            !route.target.trim()
-          )
-            throw new Error("Each SSH route needs a distinct id and target.");
-          return {
-            id: route.id.trim(),
-            target: route.target.trim(),
-          };
-        });
-        if (new Set(routes.map((route) => route.id)).size !== routes.length)
-          throw new Error("Each SSH route needs a distinct id.");
-      }
-      const endpoint = await sshHosts.connect({
-        ...(routes
-          ? configuredRoutes
-            ? { routes }
-            : { sshRoutes: routes }
-          : {}),
-        hostId,
-        target: typeof target === "string" ? target.trim() : undefined,
-        expectedIdentity:
-          typeof expectedHostId === "string" && expectedHostId
-            ? {
-                fingerprint:
-                  typeof expectedFingerprint === "string"
-                    ? expectedFingerprint
-                    : null,
-                hostId: expectedHostId,
-              }
-            : null,
-      });
+      // The one shape and its one check (shared/routes-to-dial.js).
+      const request = readConnectRequest(payload);
+      const { hostId } = request;
+      const endpoint = await sshHosts.connect(request);
       // The token stays in this process; the renderer goes through the proxy.
       return {
         ...(endpoint.routeId

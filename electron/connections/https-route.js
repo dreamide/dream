@@ -12,7 +12,7 @@ import {
   hostProtocolProblem,
   matchesPinnedIdentity,
 } from "../shared/host-verification.js";
-import { routeRefusal } from "../shared/route-supervisor.js";
+import { refused, routeRefusal } from "../shared/route-supervisor.js";
 
 const fatal = (message) => Object.assign(new Error(message), { fatal: true });
 
@@ -185,13 +185,17 @@ export function createVerifiedHttps({
               Buffer.from(result.signature, "base64"),
             )
           )
-            throw fatal("The HTTPS host's identity proof is invalid.");
+            throw refused(
+              "identity",
+              "The HTTPS host's identity proof is invalid.",
+            );
           if (identity && !matchesPinnedIdentity(identity, host))
-            throw fatal(
+            throw refused(
+              "identity",
               "This HTTPS route reaches a different host than the saved connection. No device credential was sent.",
             );
           const problem = hostProtocolProblem(host.hostProtocolVersion);
-          if (problem) throw fatal(problem);
+          if (problem) throw refused("protocol", problem);
           identity = { hostId: host.hostId, fingerprint: host.fingerprint };
           descriptor = host;
           socket.removeListener("data", readProof);
@@ -401,7 +405,8 @@ export function createHttpsRoutes({
         const response = await transport.request(url, { ...init, headers });
         if (response.status === 401 || response.status === 403)
           onLost(
-            fatal(
+            refused(
+              "unauthorized",
               "This device's grant was revoked, expired, or lacks access. Pair again on the host.",
             ),
           );

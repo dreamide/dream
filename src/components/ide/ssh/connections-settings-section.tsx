@@ -55,10 +55,12 @@ import type {
   HostRoute,
   SavedHostConnection,
 } from "@/types/ide";
+import { listHostChoices } from "../../../../electron/shared/host-connections.js";
 import {
-  listHostChoices,
+  connectionRoutes,
   MAX_HOST_ROUTES,
-} from "../../../../electron/shared/host-connections.js";
+  sshHostOf,
+} from "../../../../electron/shared/routes-to-dial.js";
 import { useIdeStore } from "../ide-store";
 import { SettingsGroup } from "../settings/settings-shared";
 import type { HostPairing, HostRuntimeState } from "../store/ide-store-types";
@@ -99,7 +101,7 @@ const useRouteTarget = () => {
   const sshHosts = useIdeStore((state) => state.settings.sshHosts);
   return (route: HostRoute) =>
     route.kind === "ssh"
-      ? (sshHosts.find((host) => host.id === route.sshHostId)?.target ?? "")
+      ? (sshHostOf(route, sshHosts)?.target ?? "")
       : route.kind === "local"
         ? sshT("localMachine")
         : route.origin;
@@ -132,9 +134,7 @@ export function ConnectionsSettingsSection() {
       runtime: isHome
         ? { state: "connected", loaded: true, error: null, routeId: "local" }
         : hosts[choice.id],
-      routes: saved?.routes ?? [
-        { id: `ssh:${choice.id}`, kind: "ssh", sshHostId: choice.id },
-      ],
+      routes: connectionRoutes(saved, choice.id),
     };
   });
   const saveSsh = useAddSshHost();

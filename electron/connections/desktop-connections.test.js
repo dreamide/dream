@@ -31,6 +31,8 @@ const createFakeSsh = () => {
   });
 };
 
+const DEVBOX = [{ id: "ssh:devbox", kind: "ssh", target: "devbox" }];
+
 const catalog = (host, status = 200) =>
   new Response(JSON.stringify({ host: { hostProtocolVersion: 1, ...host } }), {
     status,
@@ -51,7 +53,7 @@ test("an SSH route is made ready through the catalog and pins its host", async (
 
   const endpoint = await connections.connect({
     hostId: "devbox",
-    target: "devbox",
+    routes: DEVBOX,
   });
 
   expect(endpoint).toMatchObject({ ...HOST_A, routeId: "ssh:devbox" });
@@ -66,7 +68,7 @@ test("an SSH route is made ready through the catalog and pins its host", async (
   expect(() =>
     connections.connect({
       hostId: "devbox",
-      target: "devbox",
+      routes: DEVBOX,
       expectedIdentity: { hostId: "host_b", fingerprint: "SHA256:b" },
     }),
   ).toThrow(/pinned to a different host identity/);
@@ -82,10 +84,11 @@ test("an SSH route whose catalog refuses the token is blocked", async () => {
   });
 
   await expect(
-    connections.connect({ hostId: "devbox", target: "devbox" }),
+    connections.connect({ hostId: "devbox", routes: DEVBOX }),
   ).rejects.toThrow("The route refused catalog access (401).");
   expect(connections.getRouteState("devbox")).toMatchObject({
     state: "failed",
+    refusal: "unauthorized",
     routes: [{ routeId: "ssh:devbox", state: "blocked" }],
   });
   connections.disconnect("devbox");

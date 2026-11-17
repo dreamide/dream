@@ -3,13 +3,13 @@
 // same way (Host verification's readiness sequence and one rule for what is
 // fatal), pins the host, selects among ready links and retries. It never
 // retries requests or knows how a host process is started or stopped.
-import { MAX_HOST_ROUTES } from "./host-connections.js";
 import {
   catalogMatchesHost,
   hostProtocolProblem,
   matchesPinnedIdentity,
   requestCatalogProbe,
 } from "./host-verification.js";
+import { MAX_HOST_ROUTES } from "./routes-to-dial.js";
 
 const RETRY_MS = [2_000, 4_000, 8_000, 16_000, 30_000, 60_000];
 
@@ -72,7 +72,23 @@ const RETRY_MS = [2_000, 4_000, 8_000, 16_000, 30_000, 60_000];
  * ) => Promise<RouteLink>} RouteAdapter
  */
 
-const fatal = (message) => Object.assign(new Error(message), { fatal: true });
+/**
+ * Why a route was refused for good, where that is known: the host refused
+ * this client's credential (`unauthorized`), the route reaches another host
+ * than the one pinned or cannot prove which host it is (`identity`), or the
+ * host speaks a protocol this app does not (`protocol`). Carried on a fatal
+ * error as `refusal`, and on the status once every route is refused.
+ * @typedef {import("../../src/types/ide").HostRefusal} RefusalReason
+ */
+
+/**
+ * A fatal error with its refusal reason, for the supervisor and the route
+ * adapters alike.
+ * @param {RefusalReason} refusal
+ * @param {string} message
+ */
+export const refused = (refusal, message) =>
+  Object.assign(new Error(message), { fatal: true, refusal });
 
 /**
  * The one rule for a host's refusal: 401 or 403 means the credential is
@@ -83,9 +99,11 @@ const fatal = (message) => Object.assign(new Error(message), { fatal: true });
  * @param {number} status
  */
 export function routeRefusal(what, status) {
+  const credential = status === 401 || status === 403;
   return Object.assign(new Error(`${what} (${status}).`), {
-    fatal: status === 401 || status === 403,
+    fatal: credential,
     status,
+    ...(credential ? { refusal: "unauthorized" } : {}),
   });
 }
 
@@ -112,11 +130,13 @@ export async function readyLink(link, { signal, pinned, needsIdentity }) {
   signal.throwIfAborted();
   const endpoint = link.endpoint;
   if (pinned && !matchesPinnedIdentity(pinned, endpoint))
-    throw fatal(
+    throw refused(
+      "identity",
       "This route reaches a different host than the saved connection.",
     );
   if (needsIdentity && (!endpoint.hostId || !endpoint.fingerprint))
-    throw fatal(
+    throw refused(
+      "identity",
       "Multiple routes require a host with a persistent identity and key fingerprint.",
     );
   const response = await requestCatalogProbe({
@@ -132,9 +152,12 @@ export async function readyLink(link, { signal, pinned, needsIdentity }) {
   const problem = hostProtocolProblem(
     catalog?.host?.hostProtocolVersion ?? endpoint.hostProtocolVersion,
   );
-  if (problem) throw fatal(problem);
+  if (problem) throw refused("protocol", problem);
   if (endpoint.hostId && !catalogMatchesHost(catalog, endpoint))
-    throw fatal("The route's catalog does not match its verified host.");
+    throw refused(
+      "identity",
+      "The route's catalog does not match its verified host.",
+    );
   signal.throwIfAborted();
   return endpoint;
 }
@@ -145,7 +168,9 @@ export async function readyLink(link, { signal, pinned, needsIdentity }) {
  * ready link is selected. A lost or failed route cools down with jittered
  * backoff; a fatal failure blocks that route until an explicit connect;
  * cancellation stops the whole attempt. The first host reached (or
- * `expectedIdentity`) is pinned for the connection's life. Timers, time
+ * `expectedIdentity`) is pinned for the connection's life. Each status
+ * gives the connection's state, its error, its `refusal` (the reason it
+ * failed for good, or null) and each route's state. Timers, time
  * and jitter are injectable for every client.
  * @param {{
  *   routes: Array<{ id: string, [field: string]: unknown }>,
@@ -194,9 +219,19 @@ export function createRouteSupervisor({
   let error = null;
   let lastStatus = null;
 
+  // A connection is refused, and says why, only when it failed with every
+  // route blocked by a known refusal; it gives its preferred route's reason.
+  const refusal = () => {
+    if (state !== "failed") return null;
+    const reasons = routes.map(
+      (route) => failures.get(route.id)?.refusal ?? null,
+    );
+    return reasons.every(Boolean) ? reasons[0] : null;
+  };
   const snapshot = () => ({
     state,
     error,
+    refusal: refusal(),
     routeId: active?.route.id ?? null,
     routes: routes.map((route) => ({
       routeId: route.id,
@@ -233,6 +268,7 @@ export function createRouteSupervisor({
     failures.set(route.id, {
       count,
       blocked: Boolean(reason.fatal),
+      refusal: (reason.fatal && reason.refusal) || null,
       error: reason.message || String(reason),
       retryAt: reason.fatal
         ? null

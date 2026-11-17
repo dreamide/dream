@@ -31,15 +31,13 @@ import {
   hostProtocolProblem,
   matchesPinnedIdentity,
 } from "./host-verification.js";
+import { sshHostOf, sshRouteFor } from "./routes-to-dial.js";
 
 /** @typedef {import("../../src/types/ide").SavedHostConnection} SavedHostConnection */
 /** @typedef {import("../../src/types/ide").HostRoute} HostRoute */
 /** @typedef {import("../../src/types/ide").HostDescriptor} HostDescriptor */
 
 export const HOST_CONNECTION_RECORD_VERSION = 1;
-
-/** The most routes one saved connection may have. */
-export const MAX_HOST_ROUTES = 8;
 
 /** The connection id of the host inside this app. */
 const LOCAL_CONNECTION_ID = "local";
@@ -163,9 +161,7 @@ export const originRoute = (origin) => ({
  * @returns {HostRoute}
  */
 export const routeForConnectionId = (connectionId, homeRoute = LOCAL_ROUTE) =>
-  connectionId === LOCAL_CONNECTION_ID
-    ? homeRoute
-    : { id: `ssh:${connectionId}`, kind: "ssh", sshHostId: connectionId };
+  connectionId === LOCAL_CONNECTION_ID ? homeRoute : sshRouteFor(connectionId);
 
 /**
  * The saved connection for `connectionId`, if any.
@@ -316,11 +312,9 @@ export const listHostChoices = (connections, sshHosts) => {
     ...listOf(connections)
       .filter((host) => host.id !== LOCAL_CONNECTION_ID)
       .map((host) => {
-        const ssh = host.routes.flatMap((route) =>
-          route.kind === "ssh"
-            ? sshHosts.filter((item) => item.id === route.sshHostId)
-            : [],
-        )[0];
+        const ssh = host.routes
+          .map((route) => sshHostOf(route, sshHosts))
+          .find(Boolean);
         const direct = host.routes.find((route) => route.kind === "https");
         return {
           id: host.id,
