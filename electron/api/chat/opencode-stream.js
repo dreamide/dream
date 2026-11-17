@@ -502,542 +502,525 @@ export const streamOpenCodeResponse = ({
     provider: "opencode",
     responseMessageMetadata,
     prepareAttachments: true,
-    execute: (turn, preparedAttachments) =>
-      new Promise((resolve, reject) => {
-        let finished = false;
-        let textPartIndex = 0;
-        let activeSessionId = null;
-        let activeCompactionId = null;
-        let submittedPrompt = "";
-        const permissionIds = new Set();
-        const streamedTextByPartId = new Map();
-        const messageRoleById = new Map();
-        const pendingPartEventsByMessageId = new Map();
-        let hasWrittenText = false;
-        /** The turn's OpenCode server (providers/opencode-server.js). */
-        let server = null;
-        const serverAbortController = new AbortController();
+    execute: (turn, life, preparedAttachments) => {
+      let textPartIndex = 0;
+      let activeSessionId = null;
+      let activeCompactionId = null;
+      let submittedPrompt = "";
+      const permissionIds = new Set();
+      const streamedTextByPartId = new Map();
+      const messageRoleById = new Map();
+      const pendingPartEventsByMessageId = new Map();
+      let hasWrittenText = false;
+      /** The turn's OpenCode server (providers/opencode-server.js). */
+      let server = null;
+      // Aborted when the turn ends: stops the server's start, the event
+      // stream and any request in flight.
+      const serverAbortController = new AbortController();
+      life.defer(() => serverAbortController.abort());
 
-        const finish = (callback) => {
-          if (finished) return;
-          finished = true;
-          abortSignal?.removeEventListener("abort", handleAbort);
-          serverAbortController.abort();
-          server?.close();
-          callback();
-        };
+      const fail = (error) => {
+        life.fail(
+          new Error(
+            describeOpenCodeRequestError({
+              error,
+              model,
+              sessionId: activeSessionId,
+            }),
+          ),
+        );
+      };
 
-        const fail = (error) => {
-          finish(() =>
-            reject(
-              new Error(
-                describeOpenCodeRequestError({
-                  error,
-                  model,
-                  sessionId: activeSessionId,
-                }),
-              ),
+      const writeText = (text, idHint, type = "text", end = false) => {
+        if (!text || life.ended || life.aborted || turn.textLimited) {
+          return;
+        }
+        const id = idHint || `opencode-${type}-${++textPartIndex}`;
+        if (turn.hasEndedText(id, type)) {
+          return;
+        }
+
+        if (type === "reasoning") {
+          turn.reasoning(text, id);
+        } else {
+          turn.text(text, id);
+        }
+        hasWrittenText = true;
+
+        if (end) {
+          turn.endText(id, type);
+        }
+
+        if (turn.textLimited) {
+          life.done();
+        }
+      };
+
+      const isOpenCodePartFinished = (part) =>
+        typeof part?.time?.end === "number" ||
+        (part?.type === "tool" &&
+          (part.state?.status === "completed" ||
+            part.state?.status === "error"));
+
+      const getOpenCodeMessageId = (part) =>
+        typeof part?.messageID === "string" && part.messageID.trim()
+          ? part.messageID
+          : null;
+
+      const queuePendingPartEvent = (messageId, event) => {
+        const pendingEvents = pendingPartEventsByMessageId.get(messageId);
+        if (pendingEvents) {
+          pendingEvents.push(event);
+          return;
+        }
+
+        pendingPartEventsByMessageId.set(messageId, [event]);
+      };
+
+      const handleMessageUpdated = async (message) => {
+        if (
+          !message ||
+          message.sessionID !== activeSessionId ||
+          typeof message.id !== "string"
+        ) {
+          return;
+        }
+
+        if (message.role !== "assistant" && message.role !== "user") {
+          return;
+        }
+
+        messageRoleById.set(message.id, message.role);
+
+        if (message.role === "assistant" && message.error) {
+          fail(
+            new Error(
+              getOpenCodeErrorDetail(message.error) ||
+                "OpenCode session failed.",
             ),
           );
-        };
+          return;
+        }
 
-        const writeText = (text, idHint, type = "text", end = false) => {
-          if (!text || finished || abortSignal?.aborted || turn.textLimited) {
-            return;
-          }
-          const id = idHint || `opencode-${type}-${++textPartIndex}`;
-          if (turn.hasEndedText(id, type)) {
-            return;
-          }
+        const pendingEvents = pendingPartEventsByMessageId.get(message.id);
+        if (!pendingEvents) {
+          return;
+        }
 
-          if (type === "reasoning") {
-            turn.reasoning(text, id);
-          } else {
-            turn.text(text, id);
-          }
-          hasWrittenText = true;
+        pendingPartEventsByMessageId.delete(message.id);
+        for (const pendingEvent of pendingEvents) {
+          await handleMessagePartUpdated(pendingEvent);
+        }
+      };
 
-          if (end) {
-            turn.endText(id, type);
-          }
+      const handleWriteToolPart = (part) => {
+        if (!isOpenCodeWriteToolPart(part)) {
+          return false;
+        }
 
-          if (turn.textLimited) {
-            finish(resolve);
-          }
-        };
-
-        const isOpenCodePartFinished = (part) =>
-          typeof part?.time?.end === "number" ||
-          (part?.type === "tool" &&
-            (part.state?.status === "completed" ||
-              part.state?.status === "error"));
-
-        const getOpenCodeMessageId = (part) =>
-          typeof part?.messageID === "string" && part.messageID.trim()
-            ? part.messageID
-            : null;
-
-        const queuePendingPartEvent = (messageId, event) => {
-          const pendingEvents = pendingPartEventsByMessageId.get(messageId);
-          if (pendingEvents) {
-            pendingEvents.push(event);
-            return;
-          }
-
-          pendingPartEventsByMessageId.set(messageId, [event]);
-        };
-
-        const handleMessageUpdated = async (message) => {
-          if (
-            !message ||
-            message.sessionID !== activeSessionId ||
-            typeof message.id !== "string"
-          ) {
-            return;
-          }
-
-          if (message.role !== "assistant" && message.role !== "user") {
-            return;
-          }
-
-          messageRoleById.set(message.id, message.role);
-
-          if (message.role === "assistant" && message.error) {
-            fail(
-              new Error(
-                getOpenCodeErrorDetail(message.error) ||
-                  "OpenCode session failed.",
-              ),
-            );
-            return;
-          }
-
-          const pendingEvents = pendingPartEventsByMessageId.get(message.id);
-          if (!pendingEvents) {
-            return;
-          }
-
-          pendingPartEventsByMessageId.delete(message.id);
-          for (const pendingEvent of pendingEvents) {
-            await handleMessagePartUpdated(pendingEvent);
-          }
-        };
-
-        const handleWriteToolPart = (part) => {
-          if (!isOpenCodeWriteToolPart(part)) {
-            return false;
-          }
-
-          const toolCallId = part.callID || part.id;
-          if (!toolCallId) {
-            return true;
-          }
-          turn.toolStart({
-            input: {
-              ...getOpenCodeToolStateInput(part),
-              title: part.state?.title ?? null,
-              tool: part.tool ?? null,
-            },
-            title: "File change",
-            toolCallId,
-            toolName: "writeFile",
-          });
-
-          const output = getOpenCodeToolOutput(part);
-          if (output) {
-            if (part.state?.status === "error") {
-              turn.toolError(toolCallId, getOpenCodeToolErrorText(part));
-              return true;
-            }
-            turn.toolOutput(toolCallId, output);
-          }
-
+        const toolCallId = part.callID || part.id;
+        if (!toolCallId) {
           return true;
-        };
+        }
+        turn.toolStart({
+          input: {
+            ...getOpenCodeToolStateInput(part),
+            title: part.state?.title ?? null,
+            tool: part.tool ?? null,
+          },
+          title: "File change",
+          toolCallId,
+          toolName: "writeFile",
+        });
 
-        const handleGenericToolPart = (part) => {
-          if (part?.type !== "tool") {
-            return false;
-          }
-
-          const toolCallId = part.callID || part.id;
-          if (!toolCallId) {
-            return false;
-          }
-
-          const dreamToolName = getOpenCodeDreamToolName(
-            part.tool ?? part.name,
-          );
-          const input = normalizeOpenCodeToolInput(
-            dreamToolName,
-            getOpenCodeToolStateInput(part),
-          );
-          turn.toolStart({
-            input,
-            title:
-              part.state?.title ?? getOpenCodeDreamToolTitle(dreamToolName),
-            toolCallId,
-            toolName: dreamToolName,
-          });
-
+        const output = getOpenCodeToolOutput(part);
+        if (output) {
           if (part.state?.status === "error") {
             turn.toolError(toolCallId, getOpenCodeToolErrorText(part));
-          } else if (part.state?.status === "completed") {
-            turn.toolOutput(
-              toolCallId,
-              normalizeOpenCodeToolOutput(part, dreamToolName, input),
-            );
+            return true;
           }
+          turn.toolOutput(toolCallId, output);
+        }
 
-          return true;
-        };
+        return true;
+      };
 
-        const handleTodoToolPart = (part) => {
-          if (!isOpenCodeTodoToolPart(part)) {
-            return false;
-          }
+      const handleGenericToolPart = (part) => {
+        if (part?.type !== "tool") {
+          return false;
+        }
 
-          return (
-            turn.todos(part.state?.input) ||
-            turn.todos(part.state?.structured) ||
-            turn.todos(part.state?.metadata) ||
-            turn.todos(part.metadata) ||
-            turn.todos(part.state?.output)
+        const toolCallId = part.callID || part.id;
+        if (!toolCallId) {
+          return false;
+        }
+
+        const dreamToolName = getOpenCodeDreamToolName(part.tool ?? part.name);
+        const input = normalizeOpenCodeToolInput(
+          dreamToolName,
+          getOpenCodeToolStateInput(part),
+        );
+        turn.toolStart({
+          input,
+          title: part.state?.title ?? getOpenCodeDreamToolTitle(dreamToolName),
+          toolCallId,
+          toolName: dreamToolName,
+        });
+
+        if (part.state?.status === "error") {
+          turn.toolError(toolCallId, getOpenCodeToolErrorText(part));
+        } else if (part.state?.status === "completed") {
+          turn.toolOutput(
+            toolCallId,
+            normalizeOpenCodeToolOutput(part, dreamToolName, input),
           );
-        };
+        }
 
-        const handlePermission = async (permission) => {
-          if (
-            !permission?.id ||
-            permissionIds.has(permission.id) ||
-            permission.sessionID !== activeSessionId
-          ) {
-            return;
-          }
+        return true;
+      };
 
-          permissionIds.add(permission.id);
+      const handleTodoToolPart = (part) => {
+        if (!isOpenCodeTodoToolPart(part)) {
+          return false;
+        }
 
-          if (
-            shouldAutoApproveOpenCodePermission({
-              permissionMode,
-              permission,
-            })
-          ) {
-            await replyToOpenCodePermission({
-              client: server.client,
-              directory: projectPath,
-              permission,
-              response: "once",
-            });
-            return;
-          }
+        return (
+          turn.todos(part.state?.input) ||
+          turn.todos(part.state?.structured) ||
+          turn.todos(part.state?.metadata) ||
+          turn.todos(part.metadata) ||
+          turn.todos(part.state?.output)
+        );
+      };
 
-          const input = createOpenCodePermissionInput(permission);
-          const toolName = permission.type || "permission";
-          const approval = await turn.approval({
-            input,
-            request: { input, toolName },
-            title: permission.title || "OpenCode permission",
-            toolCallId:
-              permission.callID || `opencode-permission-${permission.id}`,
-            toolName,
-          });
+      const handlePermission = async (permission) => {
+        if (
+          !permission?.id ||
+          permissionIds.has(permission.id) ||
+          permission.sessionID !== activeSessionId
+        ) {
+          return;
+        }
 
+        permissionIds.add(permission.id);
+
+        if (
+          shouldAutoApproveOpenCodePermission({
+            permissionMode,
+            permission,
+          })
+        ) {
           await replyToOpenCodePermission({
             client: server.client,
             directory: projectPath,
             permission,
-            response: approval.approved
-              ? approval.scope === "session"
-                ? "always"
-                : "once"
-              : "reject",
+            response: "once",
           });
-        };
+          return;
+        }
 
-        const handleMessagePartUpdated = async (event) => {
-          if (!event || typeof event !== "object") {
+        const input = createOpenCodePermissionInput(permission);
+        const toolName = permission.type || "permission";
+        const approval = await turn.approval({
+          input,
+          request: { input, toolName },
+          title: permission.title || "OpenCode permission",
+          toolCallId:
+            permission.callID || `opencode-permission-${permission.id}`,
+          toolName,
+        });
+
+        await replyToOpenCodePermission({
+          client: server.client,
+          directory: projectPath,
+          permission,
+          response: approval.approved
+            ? approval.scope === "session"
+              ? "always"
+              : "once"
+            : "reject",
+        });
+      };
+
+      const handleMessagePartUpdated = async (event) => {
+        if (!event || typeof event !== "object") {
+          return;
+        }
+
+        const part = event.properties?.part;
+        if (part?.sessionID !== activeSessionId) {
+          return;
+        }
+
+        if (part.type === "compaction") {
+          activeCompactionId = part.id;
+          turn.compaction(part.id, "compacting");
+          return;
+        }
+
+        const messageId = getOpenCodeMessageId(part);
+        if (messageId) {
+          const role = messageRoleById.get(messageId);
+          if (role === "user") {
             return;
           }
 
-          const part = event.properties?.part;
-          if (part?.sessionID !== activeSessionId) {
+          if (!role) {
+            queuePendingPartEvent(messageId, event);
             return;
           }
 
-          if (part.type === "compaction") {
-            activeCompactionId = part.id;
-            turn.compaction(part.id, "compacting");
+          if (role !== "assistant") {
             return;
           }
+        }
 
-          const messageId = getOpenCodeMessageId(part);
-          if (messageId) {
-            const role = messageRoleById.get(messageId);
-            if (role === "user") {
-              return;
-            }
+        if (
+          handleTodoToolPart(part) ||
+          handleWriteToolPart(part) ||
+          handleGenericToolPart(part)
+        ) {
+          return;
+        }
 
-            if (!role) {
-              queuePendingPartEvent(messageId, event);
-              return;
-            }
+        const text = extractOpenCodePartText(part);
+        if (!text) {
+          return;
+        }
 
-            if (role !== "assistant") {
-              return;
-            }
-          }
+        if (isLikelySubmittedOpenCodePrompt(text, submittedPrompt)) {
+          return;
+        }
 
-          if (
-            handleTodoToolPart(part) ||
-            handleWriteToolPart(part) ||
-            handleGenericToolPart(part)
-          ) {
-            return;
-          }
-
-          const text = extractOpenCodePartText(part);
-          if (!text) {
-            return;
-          }
-
-          if (isLikelySubmittedOpenCodePrompt(text, submittedPrompt)) {
-            return;
-          }
-
-          const id = part.id || `opencode-part-${++textPartIndex}`;
-          const type = getOpenCodePartType(part);
-          if (typeof event.properties?.delta === "string") {
-            streamedTextByPartId.set(id, text);
-            writeText(event.properties.delta, id, type);
-            if (isOpenCodePartFinished(part)) {
-              turn.endText(id, type);
-            }
-            return;
-          }
-
-          const previousText = streamedTextByPartId.get(id) ?? "";
-          if (previousText === text) {
-            if (isOpenCodePartFinished(part)) {
-              turn.endText(id, type);
-            }
-            return;
-          }
-
+        const id = part.id || `opencode-part-${++textPartIndex}`;
+        const type = getOpenCodePartType(part);
+        if (typeof event.properties?.delta === "string") {
           streamedTextByPartId.set(id, text);
-          writeText(
-            text.startsWith(previousText)
-              ? text.slice(previousText.length)
-              : text,
-            id,
-            type,
-          );
+          writeText(event.properties.delta, id, type);
           if (isOpenCodePartFinished(part)) {
             turn.endText(id, type);
           }
-        };
-
-        const handleEvent = async (event) => {
-          if (!event || typeof event !== "object") {
-            return;
-          }
-
-          if (event.type === "session.error") {
-            if (event.properties?.sessionID === activeSessionId) {
-              fail(
-                new Error(
-                  getOpenCodeErrorDetail(event) || "OpenCode session failed.",
-                ),
-              );
-            }
-            return;
-          }
-
-          if (event.type === "message.updated") {
-            await handleMessageUpdated(event.properties?.info);
-            return;
-          }
-
-          if (event.type === "permission.updated") {
-            await handlePermission(event.properties);
-            return;
-          }
-
-          if (
-            event.type === "session.compacted" &&
-            event.properties?.sessionID === activeSessionId &&
-            activeCompactionId
-          ) {
-            turn.compaction(activeCompactionId, "compacted");
-            activeCompactionId = null;
-            return;
-          }
-
-          if (event.type === "message.part.updated") {
-            await handleMessagePartUpdated(event);
-          }
-        };
-
-        const handleAbort = () => {
-          finish(resolve);
-        };
-
-        if (abortSignal?.aborted) {
-          handleAbort();
           return;
         }
-        abortSignal?.addEventListener("abort", handleAbort, { once: true });
 
-        void (async () => {
-          if (finished || abortSignal?.aborted) return;
-          const { modelID, providerID } = parseOpenCodeModel(model);
-          server = await openOpenCodeServer({
-            config: getOpenCodeServerConfig(permissionMode, mcpServers),
-            signal: serverAbortController.signal,
-          });
-          // The turn ended while the server started: nothing will close it.
-          if (finished) {
-            server.close();
-            return;
+        const previousText = streamedTextByPartId.get(id) ?? "";
+        if (previousText === text) {
+          if (isOpenCodePartFinished(part)) {
+            turn.endText(id, type);
           }
+          return;
+        }
 
-          // Starts now so MCP tool listing overlaps session setup.
-          const disabledToolsPromise = resolveOpenCodeDisabledTools({
-            client: server.client,
-            directory: projectPath,
-            preferredServers: Object.keys(toOpenCodeMcpConfig(mcpServers)),
-            signal: serverAbortController.signal,
-          });
+        streamedTextByPartId.set(id, text);
+        writeText(
+          text.startsWith(previousText)
+            ? text.slice(previousText.length)
+            : text,
+          id,
+          type,
+        );
+        if (isOpenCodePartFinished(part)) {
+          turn.endText(id, type);
+        }
+      };
 
-          let resumed = false;
-          let freshReason = null;
-          const signal = serverAbortController.signal;
-          if (resumeSessionId) {
-            const resume = await resumeOpenCodeSession(server.client, {
-              directory: projectPath,
-              sessionId: resumeSessionId,
-              signal,
-            });
-            if (resume.resumed) {
-              activeSessionId = resumeSessionId;
-              resumed = true;
-            } else {
-              freshReason = resume.reason;
-            }
+      const handleEvent = async (event) => {
+        if (!event || typeof event !== "object") {
+          return;
+        }
+
+        if (event.type === "session.error") {
+          if (event.properties?.sessionID === activeSessionId) {
+            fail(
+              new Error(
+                getOpenCodeErrorDetail(event) || "OpenCode session failed.",
+              ),
+            );
           }
-          activeSessionId ??= await createOpenCodeSession(server.client, {
-            agent: "build",
+          return;
+        }
+
+        if (event.type === "message.updated") {
+          await handleMessageUpdated(event.properties?.info);
+          return;
+        }
+
+        if (event.type === "permission.updated") {
+          await handlePermission(event.properties);
+          return;
+        }
+
+        if (
+          event.type === "session.compacted" &&
+          event.properties?.sessionID === activeSessionId &&
+          activeCompactionId
+        ) {
+          turn.compaction(activeCompactionId, "compacted");
+          activeCompactionId = null;
+          return;
+        }
+
+        if (event.type === "message.part.updated") {
+          await handleMessagePartUpdated(event);
+        }
+      };
+
+      // Stop ends the turn at once; closing the server stops OpenCode.
+      life.onAbort(() => life.done());
+
+      void (async () => {
+        if (life.ended) return;
+        const { modelID, providerID } = parseOpenCodeModel(model);
+        server = await openOpenCodeServer({
+          config: getOpenCodeServerConfig(permissionMode, mcpServers),
+          signal: serverAbortController.signal,
+        });
+        // Closed when the turn ends, or at once if it ended while the
+        // server started.
+        life.defer(() => {
+          serverAbortController.abort();
+          server.close();
+        });
+        if (life.ended) return;
+
+        // Starts now so MCP tool listing overlaps session setup.
+        const disabledToolsPromise = resolveOpenCodeDisabledTools({
+          client: server.client,
+          directory: projectPath,
+          preferredServers: Object.keys(toOpenCodeMcpConfig(mcpServers)),
+          signal: serverAbortController.signal,
+        });
+
+        let resumed = false;
+        let freshReason = null;
+        const signal = serverAbortController.signal;
+        if (resumeSessionId) {
+          const resume = await resumeOpenCodeSession(server.client, {
             directory: projectPath,
-            model: { modelID, providerID },
+            sessionId: resumeSessionId,
             signal,
           });
+          if (resume.resumed) {
+            activeSessionId = resumeSessionId;
+            resumed = true;
+          } else {
+            freshReason = resume.reason;
+          }
+        }
+        activeSessionId ??= await createOpenCodeSession(server.client, {
+          agent: "build",
+          directory: projectPath,
+          model: { modelID, providerID },
+          signal,
+        });
 
-          turn.session(activeSessionId, { resumed, reason: freshReason });
-          const prompt = buildTurnPrompt({
-            currentTurnAttachments: preparedAttachments?.promptText ?? null,
-            form: { ...OPENCODE_PROMPT_FORM, systemPrompt },
-            messages,
-            projectPath,
-            projectReferencesPrompt,
-            resumed,
-            sessionHandoff,
-          });
-          submittedPrompt = prompt;
+        turn.session(activeSessionId, { resumed, reason: freshReason });
+        const prompt = buildTurnPrompt({
+          currentTurnAttachments: preparedAttachments?.promptText ?? null,
+          form: { ...OPENCODE_PROMPT_FORM, systemPrompt },
+          messages,
+          projectPath,
+          projectReferencesPrompt,
+          resumed,
+          sessionHandoff,
+        });
+        submittedPrompt = prompt;
 
-          const events = await server.client.event.subscribe({
-            query: { directory: projectPath },
-            signal: serverAbortController.signal,
-            sseMaxRetryAttempts: 0,
-            onSseError: (error) => {
-              if (!finished && !serverAbortController.signal.aborted) {
-                fail(error);
-              }
-            },
-          });
-
-          const eventsPromise = (async () => {
-            for await (const event of events.stream) {
-              if (finished || abortSignal?.aborted) {
-                return;
-              }
-              await handleEvent(event);
-            }
-            if (!finished && !serverAbortController.signal.aborted) {
-              fail(
-                new Error(
-                  "OpenCode's event stream closed before the turn completed.",
-                ),
-              );
-            }
-          })().catch((error) => {
-            if (
-              !finished &&
-              !abortSignal?.aborted &&
-              !serverAbortController.signal.aborted
-            ) {
+        const events = await server.client.event.subscribe({
+          query: { directory: projectPath },
+          signal: serverAbortController.signal,
+          sseMaxRetryAttempts: 0,
+          onSseError: (error) => {
+            if (!life.ended && !serverAbortController.signal.aborted) {
               fail(error);
             }
-          });
+          },
+        });
 
-          const disabledTools = await disabledToolsPromise;
-          const promptTools =
-            Object.keys(disabledTools).length > 0
-              ? disabledTools
-              : resumed
-                ? OPENCODE_TOOL_BUDGET_RESET
-                : undefined;
+        const eventsPromise = (async () => {
+          for await (const event of events.stream) {
+            if (life.ended || life.aborted) {
+              return;
+            }
+            await handleEvent(event);
+          }
+          if (!life.ended && !serverAbortController.signal.aborted) {
+            fail(
+              new Error(
+                "OpenCode's event stream closed before the turn completed.",
+              ),
+            );
+          }
+        })().catch((error) => {
+          if (
+            !life.ended &&
+            !life.aborted &&
+            !serverAbortController.signal.aborted
+          ) {
+            fail(error);
+          }
+        });
 
-          const promptResult = await server.client.session.prompt({
-            body: {
-              agent: "build",
-              ...(promptTools ? { tools: promptTools } : {}),
-              model: {
-                modelID,
-                providerID,
-              },
-              parts: chunkTextInput(prompt).map((text) => ({
-                text,
-                type: "text",
-              })),
+        const disabledTools = await disabledToolsPromise;
+        const promptTools =
+          Object.keys(disabledTools).length > 0
+            ? disabledTools
+            : resumed
+              ? OPENCODE_TOOL_BUDGET_RESET
+              : undefined;
+
+        const promptResult = await server.client.session.prompt({
+          body: {
+            agent: "build",
+            ...(promptTools ? { tools: promptTools } : {}),
+            model: {
+              modelID,
+              providerID,
             },
-            path: { id: activeSessionId },
-            query: { directory: projectPath },
-            signal: serverAbortController.signal,
-          });
+            parts: chunkTextInput(prompt).map((text) => ({
+              text,
+              type: "text",
+            })),
+          },
+          path: { id: activeSessionId },
+          query: { directory: projectPath },
+          signal: serverAbortController.signal,
+        });
 
-          const promptError = getOpenCodeErrorDetail(
-            promptResult.error ?? promptResult.data?.info?.error,
-          );
-          if (promptError) {
-            throw new Error(promptError);
-          }
+        const promptError = getOpenCodeErrorDetail(
+          promptResult.error ?? promptResult.data?.info?.error,
+        );
+        if (promptError) {
+          throw new Error(promptError);
+        }
 
-          if (finished || abortSignal?.aborted) {
-            return;
-          }
+        if (life.ended || life.aborted) {
+          return;
+        }
 
-          if (!hasWrittenText && !turn.textLimited) {
-            let wroteFallbackText = false;
-            for (const part of promptResult.data?.parts ?? []) {
-              const text = extractOpenCodePartText(part);
-              if (!text || isLikelySubmittedOpenCodePrompt(text, prompt)) {
-                continue;
-              }
-
-              writeText(text, part.id, getOpenCodePartType(part), true);
-              wroteFallbackText = true;
+        if (!hasWrittenText && !turn.textLimited) {
+          let wroteFallbackText = false;
+          for (const part of promptResult.data?.parts ?? []) {
+            const text = extractOpenCodePartText(part);
+            if (!text || isLikelySubmittedOpenCodePrompt(text, prompt)) {
+              continue;
             }
 
-            if (!wroteFallbackText) {
-              throw new Error(
-                "OpenCode completed without returning assistant text.",
-              );
-            }
+            writeText(text, part.id, getOpenCodePartType(part), true);
+            wroteFallbackText = true;
           }
 
-          serverAbortController.abort();
-          await eventsPromise;
-          finish(resolve);
-        })().catch(fail);
-      }),
+          if (!wroteFallbackText) {
+            throw new Error(
+              "OpenCode completed without returning assistant text.",
+            );
+          }
+        }
+
+        serverAbortController.abort();
+        await eventsPromise;
+        life.done();
+      })().catch(fail);
+      return life.settled;
+    },
   });

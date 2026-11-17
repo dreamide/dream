@@ -29,17 +29,28 @@ const observingStart = async (run) => {
 
 /**
  * A fake ACP agent. `script(session)` runs after session/prompt is called
- * and drives notifications and requests through the connection.
+ * and drives notifications and requests through the connection. Its
+ * `requests` also record each spawn and close, and `onNotify` hears what
+ * the client notifies.
  */
 const createFakeAdapter = ({
   loadSession = false,
+  onClose,
+  onNotify,
   promptResult = {},
   script,
+  spawn,
 } = {}) => {
   const requests = [];
   const connection = {
-    close: () => {},
-    notify: (method, params) => requests.push(["notify", method, params]),
+    close: () => {
+      requests.push(["close"]);
+      onClose?.();
+    },
+    notify: (method, params) => {
+      requests.push(["notify", method, params]);
+      onNotify?.(method, params);
+    },
     onNotification: null,
     onRequest: null,
     request: async (method, params) => {
@@ -66,7 +77,11 @@ const createFakeAdapter = ({
       provider: "grok",
       label: "Grok Build",
       authenticate: async () => {},
-      spawn: async () => connection,
+      spawn: async () => {
+        requests.push(["spawn"]);
+        await spawn?.();
+        return connection;
+      },
       getUsage: (result) => result?.usage ?? null,
     },
     requests,
@@ -352,4 +367,119 @@ test("an agent that cannot load the session starts fresh, says why, and drops th
   const prompt = requests.find((r) => r[1] === "session/prompt")[2].prompt[0]
     .text;
   assert.equal(prompt.includes("Missed while away."), false);
+});
+
+test("Stop before the agent starts spawns nothing and ends without an error", async () => {
+  const { adapter, requests } = createFakeAdapter();
+  const controller = new AbortController();
+  controller.abort();
+  const chunks = await readChunks(
+    await streamAcpResponse({
+      ...request,
+      abortSignal: controller.signal,
+      adapter,
+    }),
+  );
+  assert.equal(
+    chunks.some((c) => c.type === "error"),
+    false,
+  );
+  assert.deepEqual(requests, []);
+});
+
+test("Stop while the agent starts closes it before it is initialized", async () => {
+  const controller = new AbortController();
+  const { adapter, requests } = createFakeAdapter({
+    spawn: async () => controller.abort(),
+  });
+  const chunks = await readChunks(
+    await streamAcpResponse({
+      ...request,
+      abortSignal: controller.signal,
+      adapter,
+    }),
+  );
+  assert.equal(
+    chunks.some((c) => c.type === "error"),
+    false,
+  );
+  assert.deepEqual(requests, [["spawn"], ["close"]]);
+});
+
+test("Stop mid-prompt cancels the session, and the turn ends when the agent answers", async () => {
+  const controller = new AbortController();
+  let answerCancel = () => {};
+  const { adapter, requests } = createFakeAdapter({
+    onNotify: (method) => {
+      if (method === "session/cancel") answerCancel();
+    },
+    promptResult: { stopReason: "cancelled" },
+    script: async (connection, sessionId) => {
+      update(connection, sessionId, {
+        sessionUpdate: "agent_message_chunk",
+        content: { text: "Working" },
+      });
+      const cancelled = new Promise((resolve) => {
+        answerCancel = resolve;
+      });
+      controller.abort();
+      await cancelled;
+    },
+  });
+  const chunks = await readChunks(
+    await streamAcpResponse({
+      ...request,
+      abortSignal: controller.signal,
+      adapter,
+    }),
+  );
+  assert.equal(
+    chunks.some((c) => c.type === "error"),
+    false,
+  );
+  assert.equal(
+    chunks
+      .filter((c) => c.type === "text-delta")
+      .map((c) => c.delta)
+      .join(""),
+    "Working",
+  );
+  const cancels = requests.filter((r) => r[1] === "session/cancel");
+  assert.deepEqual(cancels, [
+    ["notify", "session/cancel", { sessionId: "sess-1" }],
+  ]);
+  // The turn closed its connection when the prompt returned.
+  const close = requests.findIndex((r) => r[0] === "close");
+  assert.ok(close > requests.indexOf(cancels[0]));
+});
+
+test("Stop mid-prompt closes an agent that does not answer the cancel after 250 ms", async () => {
+  const controller = new AbortController();
+  let closeConnection = () => {};
+  const { adapter, requests } = createFakeAdapter({
+    onClose: () => closeConnection(),
+    script: async () => {
+      const closed = new Promise((_resolve, reject) => {
+        closeConnection = () => reject(new Error("ACP connection closed."));
+      });
+      controller.abort();
+      await closed;
+    },
+  });
+  const started = Date.now();
+  const chunks = await readChunks(
+    await streamAcpResponse({
+      ...request,
+      abortSignal: controller.signal,
+      adapter,
+    }),
+  );
+  assert.ok(Date.now() - started >= 200);
+  // The closed connection's error is dropped: the turn was stopped.
+  assert.equal(
+    chunks.some((c) => c.type === "error"),
+    false,
+  );
+  assert.equal(requests.filter((r) => r[1] === "session/cancel").length, 1);
+  assert.ok(requests.some((r) => r[0] === "close"));
 });

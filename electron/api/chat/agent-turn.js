@@ -34,6 +34,7 @@ import { formatApprovalId } from "../../shared/agent-turn-contract.js";
 import { getToolKindForName, isToolKind } from "../../shared/tool-call.js";
 import { waitForToolApproval } from "../tool-approvals.js";
 import { formatStreamError } from "./errors.js";
+import { createTurnLifetime } from "./turn-lifetime.js";
 import { followTurnMessage } from "./turn-message.js";
 import { createDeltaJoiner, createTurnStopBoundary } from "./turn-output.js";
 
@@ -560,10 +561,14 @@ const observeTurn = async (stream, originalMessages, observer) => {
 };
 
 /**
- * Runs `execute(turn)` inside a UI-message stream and returns the HTTP
- * response. The initial request metadata is written before `execute` runs,
- * open parts are closed after it, an error after the client aborted is
- * dropped, and any other error reaches the client formatted.
+ * Runs `execute(turn, life, attachments)` inside a UI-message stream and
+ * returns the HTTP response. `life` is the turn's lifetime
+ * (turn-lifetime.js): the turn ends when the adapter ends it, or when the
+ * promise `execute` returns settles. `attachments` are the prepared
+ * attachments when `prepareAttachments` is set. The initial request
+ * metadata is written before `execute` runs, open parts are closed after
+ * the turn ends, an error after the turn was aborted is dropped, and any
+ * other error reaches the client formatted.
  */
 export const streamAgentTurn = ({
   execute,
@@ -592,14 +597,20 @@ export const streamAgentTurn = ({
       // message on a client following the turn through resumeStream().
       writer.write({ type: "start" });
       turn.metadata();
+      // One lifetime per turn (turn-lifetime.js): the adapter ends it once,
+      // and its cleanups run however the turn ends.
+      const run = (attachments) => {
+        const life = createTurnLifetime(turnOptions.abortSignal);
+        return life.run(() => execute(turn, life, attachments));
+      };
       try {
         if (prepareAttachments) {
           await withTemporaryChatAttachments(
             { messages, signal: turnOptions.abortSignal },
-            (attachments) => execute(turn, attachments),
+            run,
           );
         } else {
-          await execute(turn);
+          await run();
         }
       } catch (error) {
         if (!turn.aborted) {

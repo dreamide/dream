@@ -150,7 +150,7 @@ export const streamAcpResponse = ({
     provider,
     responseMessageMetadata,
     prepareAttachments: true,
-    execute: async (turn, preparedAttachments) => {
+    execute: async (turn, life, preparedAttachments) => {
       let connection = null;
       let sessionId = null;
       let loadingSession = false;
@@ -259,7 +259,7 @@ export const streamAcpResponse = ({
           toolName: toolCall.toolName,
         });
 
-        if (abortSignal?.aborted) {
+        if (life.aborted) {
           return { outcome: { outcome: "cancelled" } };
         }
         const optionId = choosePermissionOption(
@@ -272,7 +272,17 @@ export const streamAcpResponse = ({
           : { outcome: { outcome: "cancelled" } };
       };
 
-      const handleAbort = () => {
+      // When the turn ends: pending approvals are cancelled, then the
+      // connection (and its agent process) is closed.
+      life.defer(() => connection?.close());
+      life.defer(() => approvalController.abort());
+
+      // Stop cancels the session's prompt and closes the connection 250 ms
+      // later if the agent has not answered; before a session exists it
+      // closes the connection at once. The turn ends when the request in
+      // flight returns or fails, and each step checks for Stop before the
+      // next one.
+      life.onAbort(() => {
         approvalController.abort();
         if (!connection) return;
         if (sessionId) {
@@ -281,140 +291,126 @@ export const streamAcpResponse = ({
           return;
         }
         connection.close();
+      });
+
+      if (life.aborted) return;
+      connection = await adapter.spawn({
+        permissionMode,
+        cwd: projectPath,
+        model,
+        reasoningEffort,
+      });
+      if (life.aborted) return;
+      connection.onNotification = (method, params) => {
+        if (method === "session/update") handleSessionUpdate(params);
+      };
+      connection.onRequest = (method, params) => {
+        if (method === "session/request_permission") {
+          return handlePermissionRequest(params);
+        }
+        return (
+          adapter.onRequest?.({
+            method,
+            params,
+            sessionId,
+            signal: approvalController.signal,
+            turn,
+          }) ??
+          Promise.reject(
+            new Error(`Unsupported ${label} ACP request: ${method}`),
+          )
+        );
       };
 
-      const stopIfAborted = () => {
-        if (!abortSignal?.aborted) return false;
-        handleAbort();
-        return true;
-      };
+      const initializeResult = await connection.request("initialize", {
+        protocolVersion: 1,
+        clientCapabilities: {},
+        clientInfo: { name: "dream", version: "1" },
+      });
+      if (life.aborted) return;
+      await adapter.authenticate(connection, initializeResult);
+      if (life.aborted) return;
 
-      abortSignal?.addEventListener("abort", handleAbort, { once: true });
-
-      try {
-        if (stopIfAborted()) return;
-        connection = await adapter.spawn({
-          permissionMode,
-          cwd: projectPath,
-          model,
-          reasoningEffort,
-        });
-        if (stopIfAborted()) return;
-        connection.onNotification = (method, params) => {
-          if (method === "session/update") handleSessionUpdate(params);
-        };
-        connection.onRequest = (method, params) => {
-          if (method === "session/request_permission") {
-            return handlePermissionRequest(params);
-          }
-          return (
-            adapter.onRequest?.({
-              method,
-              params,
-              sessionId,
-              signal: approvalController.signal,
-              turn,
-            }) ??
-            Promise.reject(
-              new Error(`Unsupported ${label} ACP request: ${method}`),
-            )
+      let freshReason = null;
+      if (
+        resumeSessionId &&
+        !initializeResult?.agentCapabilities?.loadSession
+      ) {
+        freshReason = `${label} cannot load a saved session.`;
+      } else if (resumeSessionId) {
+        sessionId = resumeSessionId;
+        loadingSession = true;
+        try {
+          sessionState = await connection.request(
+            "session/load",
+            { cwd: projectPath, mcpServers: acpMcpServers, sessionId },
+            60_000,
           );
-        };
-
-        const initializeResult = await connection.request("initialize", {
-          protocolVersion: 1,
-          clientCapabilities: {},
-          clientInfo: { name: "dream", version: "1" },
-        });
-        if (stopIfAborted()) return;
-        await adapter.authenticate(connection, initializeResult);
-        if (stopIfAborted()) return;
-
-        let freshReason = null;
-        if (
-          resumeSessionId &&
-          !initializeResult?.agentCapabilities?.loadSession
-        ) {
-          freshReason = `${label} cannot load a saved session.`;
-        } else if (resumeSessionId) {
-          sessionId = resumeSessionId;
-          loadingSession = true;
-          try {
-            sessionState = await connection.request(
-              "session/load",
-              { cwd: projectPath, mcpServers: acpMcpServers, sessionId },
-              60_000,
-            );
-            if (stopIfAborted()) return;
-            loadedSession = true;
-          } catch (error) {
-            sessionId = null;
-            freshReason = `${label} could not load the saved session: ${
-              error instanceof Error ? error.message : String(error)
-            }`;
-          } finally {
-            loadingSession = false;
-          }
+          if (life.aborted) return;
+          loadedSession = true;
+        } catch (error) {
+          sessionId = null;
+          freshReason = `${label} could not load the saved session: ${
+            error instanceof Error ? error.message : String(error)
+          }`;
+        } finally {
+          loadingSession = false;
         }
-
-        if (!sessionId) {
-          const session = await connection.request("session/new", {
-            cwd: projectPath,
-            mcpServers: acpMcpServers,
-          });
-          if (stopIfAborted()) return;
-          sessionId = session?.sessionId;
-          sessionState = session;
-        }
-        if (!sessionId) {
-          throw new Error(`${label} did not return a session id.`);
-        }
-
-        await adapter.configureSession?.(connection, {
-          sessionId,
-          sessionState,
-          model,
-          permissionMode,
-        });
-        if (stopIfAborted()) return;
-
-        turn.session(sessionId, {
-          resumed: loadedSession,
-          reason: freshReason,
-        });
-
-        // A `$skill` mention becomes the agent's own `/name` slash command,
-        // which it only recognizes at the start of the prompt.
-        const prompt = buildTurnPrompt({
-          currentTurnAttachments: preparedAttachments?.promptText ?? null,
-          form: {
-            label,
-            runtimeDescription: `You are ${label} running inside the Dream desktop IDE with native project tools.`,
-            systemPrompt:
-              "Complete the user's request using the active project when relevant.",
-          },
-          messages,
-          projectPath,
-          projectReferencesPrompt,
-          resumed: loadedSession,
-          sessionHandoff,
-          skillSlashCommand,
-        });
-
-        const promptResult = await connection.request(
-          "session/prompt",
-          { prompt: [{ text: prompt, type: "text" }], sessionId },
-          30 * 60_000,
-        );
-        turn.usage(
-          adapter.getUsage?.(promptResult),
-          adapter.getContextWindow?.(initializeResult, model),
-        );
-      } finally {
-        approvalController.abort();
-        abortSignal?.removeEventListener("abort", handleAbort);
-        connection?.close();
       }
+
+      if (!sessionId) {
+        const session = await connection.request("session/new", {
+          cwd: projectPath,
+          mcpServers: acpMcpServers,
+        });
+        if (life.aborted) return;
+        sessionId = session?.sessionId;
+        sessionState = session;
+      }
+      if (!sessionId) {
+        throw new Error(`${label} did not return a session id.`);
+      }
+
+      await adapter.configureSession?.(connection, {
+        sessionId,
+        sessionState,
+        model,
+        permissionMode,
+      });
+      if (life.aborted) return;
+
+      turn.session(sessionId, {
+        resumed: loadedSession,
+        reason: freshReason,
+      });
+
+      // A `$skill` mention becomes the agent's own `/name` slash command,
+      // which it only recognizes at the start of the prompt.
+      const prompt = buildTurnPrompt({
+        currentTurnAttachments: preparedAttachments?.promptText ?? null,
+        form: {
+          label,
+          runtimeDescription: `You are ${label} running inside the Dream desktop IDE with native project tools.`,
+          systemPrompt:
+            "Complete the user's request using the active project when relevant.",
+        },
+        messages,
+        projectPath,
+        projectReferencesPrompt,
+        resumed: loadedSession,
+        sessionHandoff,
+        skillSlashCommand,
+      });
+
+      const promptResult = await connection.request(
+        "session/prompt",
+        { prompt: [{ text: prompt, type: "text" }], sessionId },
+        30 * 60_000,
+      );
+      turn.usage(
+        adapter.getUsage?.(promptResult),
+        adapter.getContextWindow?.(initializeResult, model),
+      );
     },
   });
 };

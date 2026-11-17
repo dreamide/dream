@@ -270,6 +270,32 @@ test("interrupt acknowledgement waits for the provider terminal notification", a
   await result;
 });
 
+test("Stop while Codex starts the thread ends the turn, starts no turn, and lets go of the thread", async () => {
+  const controller = new AbortController();
+  let unregistered = 0;
+  getCodexAppServerClient.mockResolvedValueOnce({
+    hasThread: () => false,
+    registerThread: () => () => {
+      unregistered += 1;
+    },
+    sendRequest: async (method, params) => {
+      outbound.push({ method, params });
+      if (method === "thread/start") {
+        controller.abort();
+        return { thread: { id: "root" } };
+      }
+      throw new Error(`Unexpected native request: ${method}`);
+    },
+  });
+  const text = await start(controller.signal).text();
+  assert.doesNotMatch(text, /"type":"error"/);
+  assert.deepEqual(
+    outbound.map((frame) => frame.method),
+    ["thread/start"],
+  );
+  assert.equal(unregistered, 1);
+});
+
 test("an approval callback lost at restart is not reported as accepted", async () => {
   assert.deepEqual(
     await resolveToolApproval({ id: "openai:expired", approved: true }),

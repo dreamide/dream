@@ -469,764 +469,738 @@ export const streamCodexAppServerResponse = ({
     provider: "openai",
     responseMessageMetadata,
     prepareAttachments: true,
-    execute: (turn, preparedAttachments) =>
-      new Promise((resolve, reject) => {
-        const commandOutputs = new Map();
-        const activeSubagentToolCalls = new Set();
-        const subagentThreadsById = new Map();
-        const subagentToolCallIdsByThreadId = new Map();
-        const pendingToolCompletions = new Set();
-        let finished = false;
-        let rootThreadId = null;
-        let rootTurnId = null;
-        let appServerClient = null;
-        let turnStartPromise = null;
-        let unregisterThread = null;
-        let interruptTimeout = null;
+    execute: (turn, life, preparedAttachments) => {
+      const commandOutputs = new Map();
+      const activeSubagentToolCalls = new Set();
+      const subagentThreadsById = new Map();
+      const subagentToolCallIdsByThreadId = new Map();
+      const pendingToolCompletions = new Set();
+      let rootThreadId = null;
+      let rootTurnId = null;
+      let appServerClient = null;
+      let turnStartPromise = null;
 
-        const finish = (callback) => {
-          if (finished) return;
-          finished = true;
-          clearTimeout(interruptTimeout);
-          abortSignal?.removeEventListener("abort", handleAbort);
-          unregisterThread?.();
-          unregisterThread = null;
-          callback();
-        };
-
-        const trackToolCompletion = (completion) => {
-          pendingToolCompletions.add(completion);
-          completion
-            .catch((error) => {
-              console.error("[codex app-server tool completion]", error);
-            })
-            .finally(() => {
-              pendingToolCompletions.delete(completion);
-            });
-        };
-
-        const waitForPendingToolCompletions = async () => {
-          while (pendingToolCompletions.size > 0) {
-            await Promise.allSettled([...pendingToolCompletions]);
-          }
-        };
-
-        const sendResponse = (id, result) => {
-          appServerClient?.sendResponse(id, result);
-        };
-
-        const sendErrorResponse = (id, message) => {
-          appServerClient?.sendErrorResponse(id, message);
-        };
-
-        const ensureCommandToolStarted = (item) =>
-          turn.toolStart({
-            input: {
-              command: item.command ?? "",
-              cwd: item.cwd ?? null,
-              reason: item.reason ?? null,
-            },
-            title: "Command",
-            toolCallId: item?.id,
-            toolName: "runCommand",
+      const trackToolCompletion = (completion) => {
+        pendingToolCompletions.add(completion);
+        completion
+          .catch((error) => {
+            console.error("[codex app-server tool completion]", error);
+          })
+          .finally(() => {
+            pendingToolCompletions.delete(completion);
           });
+      };
 
-        const ensureFileToolStarted = (item) =>
+      const waitForPendingToolCompletions = async () => {
+        while (pendingToolCompletions.size > 0) {
+          await Promise.allSettled([...pendingToolCompletions]);
+        }
+      };
+
+      const sendResponse = (id, result) => {
+        appServerClient?.sendResponse(id, result);
+      };
+
+      const sendErrorResponse = (id, message) => {
+        appServerClient?.sendErrorResponse(id, message);
+      };
+
+      const ensureCommandToolStarted = (item) =>
+        turn.toolStart({
+          input: {
+            command: item.command ?? "",
+            cwd: item.cwd ?? null,
+            reason: item.reason ?? null,
+          },
+          title: "Command",
+          toolCallId: item?.id,
+          toolName: "runCommand",
+        });
+
+      const ensureFileToolStarted = (item) =>
+        turn.toolStart({
+          input: {
+            changes: item.changes ?? [],
+            reason: item.reason ?? null,
+          },
+          title: "File change",
+          toolCallId: item?.id,
+          toolName: "writeFile",
+        });
+
+      const getSubagentToolCallId = (threadId, fallbackId) => {
+        const existingToolCallId = threadId
+          ? subagentToolCallIdsByThreadId.get(threadId)
+          : null;
+        const toolCallId =
+          existingToolCallId ??
+          fallbackId ??
+          (threadId ? `subagent-${threadId}` : null);
+        if (threadId && toolCallId) {
+          subagentToolCallIdsByThreadId.set(threadId, toolCallId);
+        }
+
+        return toolCallId;
+      };
+
+      const ensureAgentToolStarted = (toolCallId, input) => {
+        if (
           turn.toolStart({
-            input: {
-              changes: item.changes ?? [],
-              reason: item.reason ?? null,
-            },
-            title: "File change",
-            toolCallId: item?.id,
-            toolName: "writeFile",
-          });
-
-        const getSubagentToolCallId = (threadId, fallbackId) => {
-          const existingToolCallId = threadId
-            ? subagentToolCallIdsByThreadId.get(threadId)
-            : null;
-          const toolCallId =
-            existingToolCallId ??
-            fallbackId ??
-            (threadId ? `subagent-${threadId}` : null);
-          if (threadId && toolCallId) {
-            subagentToolCallIdsByThreadId.set(threadId, toolCallId);
-          }
-
-          return toolCallId;
-        };
-
-        const ensureAgentToolStarted = (toolCallId, input) => {
-          if (
-            turn.toolStart({
-              input,
-              title: "Agent task",
-              toolCallId,
-              toolName: "agent",
-            })
-          ) {
-            activeSubagentToolCalls.add(toolCallId);
-          }
-
-          return toolCallId;
-        };
-
-        const ensureSpawnAgentToolStarted = (item, allowUnresolved = false) => {
-          const threadId = getCollabAgentStateEntries(item).at(0)?.threadId;
-          if (!threadId && !allowUnresolved) {
-            return null;
-          }
-
-          const toolCallId = getSubagentToolCallId(
-            threadId,
-            allowUnresolved || threadId ? item?.id : null,
-          );
-          return ensureAgentToolStarted(
+            input,
+            title: "Agent task",
             toolCallId,
-            buildCollabAgentInput(item),
-          );
-        };
+            toolName: "agent",
+          })
+        ) {
+          activeSubagentToolCalls.add(toolCallId);
+        }
 
-        const ensureSubagentActivityToolStarted = (item, thread = null) => {
-          const threadId = getFirstString(item?.agentThreadId, thread?.id);
-          const threadDetails =
-            thread ?? (threadId ? subagentThreadsById.get(threadId) : null);
-          const toolCallId = getSubagentToolCallId(
-            threadId,
-            threadId ? `subagent-${threadId}` : item?.id,
-          );
-          return ensureAgentToolStarted(
-            toolCallId,
-            buildSubagentActivityInput(item, threadDetails),
-          );
-        };
+        return toolCallId;
+      };
 
-        const completeSubagentTool = ({
-          errorText = null,
-          output = "Agent task completed.",
+      const ensureSpawnAgentToolStarted = (item, allowUnresolved = false) => {
+        const threadId = getCollabAgentStateEntries(item).at(0)?.threadId;
+        if (!threadId && !allowUnresolved) {
+          return null;
+        }
+
+        const toolCallId = getSubagentToolCallId(
           threadId,
-          toolCallId: explicitToolCallId = null,
-        }) => {
-          const toolCallId =
-            explicitToolCallId ??
-            (threadId ? subagentToolCallIdsByThreadId.get(threadId) : null);
-          if (!toolCallId || !activeSubagentToolCalls.has(toolCallId)) {
+          allowUnresolved || threadId ? item?.id : null,
+        );
+        return ensureAgentToolStarted(toolCallId, buildCollabAgentInput(item));
+      };
+
+      const ensureSubagentActivityToolStarted = (item, thread = null) => {
+        const threadId = getFirstString(item?.agentThreadId, thread?.id);
+        const threadDetails =
+          thread ?? (threadId ? subagentThreadsById.get(threadId) : null);
+        const toolCallId = getSubagentToolCallId(
+          threadId,
+          threadId ? `subagent-${threadId}` : item?.id,
+        );
+        return ensureAgentToolStarted(
+          toolCallId,
+          buildSubagentActivityInput(item, threadDetails),
+        );
+      };
+
+      const completeSubagentTool = ({
+        errorText = null,
+        output = "Agent task completed.",
+        threadId,
+        toolCallId: explicitToolCallId = null,
+      }) => {
+        const toolCallId =
+          explicitToolCallId ??
+          (threadId ? subagentToolCallIdsByThreadId.get(threadId) : null);
+        if (!toolCallId || !activeSubagentToolCalls.has(toolCallId)) {
+          return;
+        }
+
+        activeSubagentToolCalls.delete(toolCallId);
+        if (errorText) {
+          turn.toolError(toolCallId, errorText);
+        } else {
+          turn.toolOutput(toolCallId, output);
+        }
+      };
+
+      const completeToolCall = async (item) => {
+        if (!item?.id) {
+          return;
+        }
+
+        if (item.type === "commandExecution") {
+          ensureCommandToolStarted(item);
+          turn.toolOutput(item.id, {
+            command: item.command ?? "",
+            durationMs: item.durationMs ?? null,
+            exitCode: typeof item.exitCode === "number" ? item.exitCode : null,
+            output:
+              item.aggregatedOutput ??
+              commandOutputs.get(item.id)?.join("") ??
+              "",
+            status: item.status ?? "completed",
+          });
+          return;
+        }
+
+        if (isSpawnAgentToolItem(item)) {
+          const toolCallId = ensureSpawnAgentToolStarted(item, true);
+          const output = buildCollabAgentOutput(item);
+          completeSubagentTool({
+            errorText:
+              item.status === "failed" || item.success === false
+                ? output
+                : null,
+            output,
+            toolCallId,
+          });
+          return;
+        }
+
+        if (item.type === "fileChange") {
+          ensureFileToolStarted(item);
+          const output = await buildFileChangeOutput({ item, projectPath });
+          if (life.ended) {
             return;
           }
 
-          activeSubagentToolCalls.delete(toolCallId);
-          if (errorText) {
-            turn.toolError(toolCallId, errorText);
-          } else {
-            turn.toolOutput(toolCallId, output);
-          }
-        };
+          turn.toolOutput(item.id, output);
+        }
+      };
 
-        const completeToolCall = async (item) => {
-          if (!item?.id) {
+      const handleServerRequest = async (message) => {
+        const { id, method, params } = message;
+
+        try {
+          if (method === "item/tool/call") {
+            const definition =
+              params?.threadId === rootThreadId &&
+              params?.turnId === rootTurnId &&
+              !abortSignal?.aborted
+                ? orchestrationTools?.[params.tool]
+                : null;
+            if (definition)
+              turn.toolStart({
+                toolCallId: params.callId,
+                toolName: params.tool,
+                input: params.arguments,
+              });
+            const output = definition
+              ? await definition.handler(params.arguments)
+              : {
+                  isError: true,
+                  content: [
+                    {
+                      type: "text",
+                      text: "Tool is unavailable for this thread or turn.",
+                    },
+                  ],
+                };
+            if (definition) {
+              if (output.isError)
+                turn.toolError(
+                  params.callId,
+                  output.content.map((item) => item.text ?? "").join("\n"),
+                );
+              else turn.toolOutput(params.callId, output);
+            }
+            sendResponse(id, {
+              success: !output.isError,
+              contentItems: output.content
+                .filter((item) => item.type === "text")
+                .map((item) => ({ type: "inputText", text: item.text })),
+            });
+            return;
+          }
+          if (method === "item/commandExecution/requestApproval") {
+            const toolCallId = params?.itemId ?? `codex-command-${id}`;
+            const response = await turn.approval({
+              input: {
+                command: params?.command ?? "",
+                cwd: params?.cwd ?? null,
+                reason: params?.reason ?? null,
+              },
+              request: { method, params },
+              title: "Command",
+              toolCallId,
+              toolName: "runCommand",
+            });
+            sendResponse(id, {
+              decision: chooseCodexApprovalDecision({
+                approved: response.approved,
+                availableDecisions: params?.availableDecisions,
+                scope: response.scope,
+              }),
+            });
+            return;
+          }
+
+          if (method === "item/fileChange/requestApproval") {
+            const toolCallId = params?.itemId ?? `codex-file-change-${id}`;
+            const response = await turn.approval({
+              input: {
+                grantRoot: params?.grantRoot ?? null,
+                reason: params?.reason ?? null,
+                title: params?.grantRoot
+                  ? `Allow writes under ${params.grantRoot}?`
+                  : "Allow file changes?",
+              },
+              request: { method, params },
+              title: "File change",
+              toolCallId,
+              toolName: "writeFile",
+            });
+            sendResponse(id, {
+              decision: chooseCodexApprovalDecision({
+                approved: response.approved,
+                scope: response.scope,
+              }),
+            });
+            return;
+          }
+
+          if (method === "item/permissions/requestApproval") {
+            const toolCallId = params?.itemId ?? `codex-permissions-${id}`;
+            const response = await turn.approval({
+              input: {
+                cwd: params?.cwd ?? null,
+                permissions: params?.permissions ?? null,
+                reason: params?.reason ?? null,
+                title: "Allow additional permissions?",
+              },
+              request: { method, params },
+              title: "Permissions",
+              toolCallId,
+              toolName: "permissions",
+            });
+
+            sendResponse(id, {
+              permissions: response.approved ? (params?.permissions ?? {}) : {},
+              scope: response.scope === "session" ? "session" : "turn",
+              strictAutoReview: false,
+            });
+            return;
+          }
+
+          if (method === "item/tool/requestUserInput") {
+            const questions = normalizeCodexUserInputQuestions(
+              params?.questions,
+            );
+            const toolCallId = params?.itemId ?? `codex-question-${id}`;
+            const response = await turn.approval({
+              input: {
+                itemId: toolCallId,
+                questions,
+                threadId: params?.threadId ?? null,
+                turnId: params?.turnId ?? null,
+              },
+              request: { method, params },
+              title: "Question",
+              toolCallId,
+              toolName: "ask-user-question",
+            });
+
+            if (!response.approved) {
+              const message =
+                response.reason || "User cancelled the question request.";
+              turn.toolError(toolCallId, message);
+              sendErrorResponse(id, message);
+              return;
+            }
+
+            turn.toolOutput(
+              toolCallId,
+              buildQuestionUiOutput({ questions, reason: response.reason }),
+            );
+            sendResponse(
+              id,
+              buildCodexUserInputResponse({
+                questions,
+                reason: response.reason,
+              }),
+            );
+            return;
+          }
+
+          sendErrorResponse(
+            id,
+            `Unsupported Codex app-server request: ${method}`,
+          );
+        } catch (error) {
+          sendErrorResponse(
+            id,
+            error instanceof Error
+              ? error.message
+              : "Failed to resolve approval request.",
+          );
+        }
+      };
+
+      const handleNotification = (message) => {
+        const { method, params } = message;
+        if (!method) {
+          return;
+        }
+
+        if (method === "turn/plan/updated") {
+          turn.todos(params);
+          return;
+        }
+
+        if (method === "rawResponseItem/completed") {
+          turn.todosFromTool(params?.item);
+          return;
+        }
+
+        if (
+          method === "thread/started" &&
+          params?.thread?.id &&
+          params.thread.parentThreadId
+        ) {
+          subagentThreadsById.set(params.thread.id, params.thread);
+          return;
+        }
+
+        if (method === "thread/status/changed" && params?.threadId) {
+          const thread = subagentThreadsById.get(params.threadId);
+          if (!subagentToolCallIdsByThreadId.has(params.threadId) && !thread) {
+            return;
+          }
+
+          if (params.status?.type === "idle") {
+            ensureSubagentActivityToolStarted(null, thread);
+            completeSubagentTool({ threadId: params.threadId });
+          } else if (params.status?.type === "systemError") {
+            ensureSubagentActivityToolStarted(null, thread);
+            completeSubagentTool({
+              errorText: "Agent task failed.",
+              threadId: params.threadId,
+            });
+          }
+          return;
+        }
+
+        if (method === "thread/closed" && params?.threadId) {
+          completeSubagentTool({
+            output: "Agent task closed.",
+            threadId: params.threadId,
+          });
+          return;
+        }
+
+        if (method === "thread/started" && params?.thread?.id) {
+          turn.session(params.thread.id);
+          return;
+        }
+
+        if (
+          method === "turn/started" &&
+          params?.threadId === rootThreadId &&
+          params?.turn?.id
+        ) {
+          rootTurnId = params.turn.id;
+          return;
+        }
+
+        if (method === "item/started" && params?.item) {
+          const item = params.item;
+          if (item.type === "contextCompaction") {
+            turn.compaction(item.id, "compacting");
+            return;
+          }
+          if (turn.todosFromTool(item)) {
             return;
           }
 
           if (item.type === "commandExecution") {
             ensureCommandToolStarted(item);
-            turn.toolOutput(item.id, {
-              command: item.command ?? "",
-              durationMs: item.durationMs ?? null,
-              exitCode:
-                typeof item.exitCode === "number" ? item.exitCode : null,
-              output:
-                item.aggregatedOutput ??
-                commandOutputs.get(item.id)?.join("") ??
-                "",
-              status: item.status ?? "completed",
-            });
-            return;
-          }
-
-          if (isSpawnAgentToolItem(item)) {
-            const toolCallId = ensureSpawnAgentToolStarted(item, true);
-            const output = buildCollabAgentOutput(item);
-            completeSubagentTool({
-              errorText:
-                item.status === "failed" || item.success === false
-                  ? output
-                  : null,
-              output,
-              toolCallId,
-            });
-            return;
-          }
-
-          if (item.type === "fileChange") {
+          } else if (item.type === "fileChange") {
             ensureFileToolStarted(item);
-            const output = await buildFileChangeOutput({ item, projectPath });
-            if (finished) {
-              return;
-            }
-
-            turn.toolOutput(item.id, output);
+          } else if (isSpawnAgentToolItem(item)) {
+            ensureSpawnAgentToolStarted(item);
+          } else if (item.type === "subAgentActivity") {
+            ensureSubagentActivityToolStarted(item);
+          } else if (item.type === "agentMessage") {
+            turn.text("", item.id);
+          } else if (item.type === "reasoning") {
+            turn.reasoning("", item.id);
           }
-        };
-
-        const handleServerRequest = async (message) => {
-          const { id, method, params } = message;
-
-          try {
-            if (method === "item/tool/call") {
-              const definition =
-                params?.threadId === rootThreadId &&
-                params?.turnId === rootTurnId &&
-                !abortSignal?.aborted
-                  ? orchestrationTools?.[params.tool]
-                  : null;
-              if (definition)
-                turn.toolStart({
-                  toolCallId: params.callId,
-                  toolName: params.tool,
-                  input: params.arguments,
-                });
-              const output = definition
-                ? await definition.handler(params.arguments)
-                : {
-                    isError: true,
-                    content: [
-                      {
-                        type: "text",
-                        text: "Tool is unavailable for this thread or turn.",
-                      },
-                    ],
-                  };
-              if (definition) {
-                if (output.isError)
-                  turn.toolError(
-                    params.callId,
-                    output.content.map((item) => item.text ?? "").join("\n"),
-                  );
-                else turn.toolOutput(params.callId, output);
-              }
-              sendResponse(id, {
-                success: !output.isError,
-                contentItems: output.content
-                  .filter((item) => item.type === "text")
-                  .map((item) => ({ type: "inputText", text: item.text })),
-              });
-              return;
-            }
-            if (method === "item/commandExecution/requestApproval") {
-              const toolCallId = params?.itemId ?? `codex-command-${id}`;
-              const response = await turn.approval({
-                input: {
-                  command: params?.command ?? "",
-                  cwd: params?.cwd ?? null,
-                  reason: params?.reason ?? null,
-                },
-                request: { method, params },
-                title: "Command",
-                toolCallId,
-                toolName: "runCommand",
-              });
-              sendResponse(id, {
-                decision: chooseCodexApprovalDecision({
-                  approved: response.approved,
-                  availableDecisions: params?.availableDecisions,
-                  scope: response.scope,
-                }),
-              });
-              return;
-            }
-
-            if (method === "item/fileChange/requestApproval") {
-              const toolCallId = params?.itemId ?? `codex-file-change-${id}`;
-              const response = await turn.approval({
-                input: {
-                  grantRoot: params?.grantRoot ?? null,
-                  reason: params?.reason ?? null,
-                  title: params?.grantRoot
-                    ? `Allow writes under ${params.grantRoot}?`
-                    : "Allow file changes?",
-                },
-                request: { method, params },
-                title: "File change",
-                toolCallId,
-                toolName: "writeFile",
-              });
-              sendResponse(id, {
-                decision: chooseCodexApprovalDecision({
-                  approved: response.approved,
-                  scope: response.scope,
-                }),
-              });
-              return;
-            }
-
-            if (method === "item/permissions/requestApproval") {
-              const toolCallId = params?.itemId ?? `codex-permissions-${id}`;
-              const response = await turn.approval({
-                input: {
-                  cwd: params?.cwd ?? null,
-                  permissions: params?.permissions ?? null,
-                  reason: params?.reason ?? null,
-                  title: "Allow additional permissions?",
-                },
-                request: { method, params },
-                title: "Permissions",
-                toolCallId,
-                toolName: "permissions",
-              });
-
-              sendResponse(id, {
-                permissions: response.approved
-                  ? (params?.permissions ?? {})
-                  : {},
-                scope: response.scope === "session" ? "session" : "turn",
-                strictAutoReview: false,
-              });
-              return;
-            }
-
-            if (method === "item/tool/requestUserInput") {
-              const questions = normalizeCodexUserInputQuestions(
-                params?.questions,
-              );
-              const toolCallId = params?.itemId ?? `codex-question-${id}`;
-              const response = await turn.approval({
-                input: {
-                  itemId: toolCallId,
-                  questions,
-                  threadId: params?.threadId ?? null,
-                  turnId: params?.turnId ?? null,
-                },
-                request: { method, params },
-                title: "Question",
-                toolCallId,
-                toolName: "ask-user-question",
-              });
-
-              if (!response.approved) {
-                const message =
-                  response.reason || "User cancelled the question request.";
-                turn.toolError(toolCallId, message);
-                sendErrorResponse(id, message);
-                return;
-              }
-
-              turn.toolOutput(
-                toolCallId,
-                buildQuestionUiOutput({ questions, reason: response.reason }),
-              );
-              sendResponse(
-                id,
-                buildCodexUserInputResponse({
-                  questions,
-                  reason: response.reason,
-                }),
-              );
-              return;
-            }
-
-            sendErrorResponse(
-              id,
-              `Unsupported Codex app-server request: ${method}`,
-            );
-          } catch (error) {
-            sendErrorResponse(
-              id,
-              error instanceof Error
-                ? error.message
-                : "Failed to resolve approval request.",
-            );
-          }
-        };
-
-        const handleNotification = (message) => {
-          const { method, params } = message;
-          if (!method) {
-            return;
-          }
-
-          if (method === "turn/plan/updated") {
-            turn.todos(params);
-            return;
-          }
-
-          if (method === "rawResponseItem/completed") {
-            turn.todosFromTool(params?.item);
-            return;
-          }
-
-          if (
-            method === "thread/started" &&
-            params?.thread?.id &&
-            params.thread.parentThreadId
-          ) {
-            subagentThreadsById.set(params.thread.id, params.thread);
-            return;
-          }
-
-          if (method === "thread/status/changed" && params?.threadId) {
-            const thread = subagentThreadsById.get(params.threadId);
-            if (
-              !subagentToolCallIdsByThreadId.has(params.threadId) &&
-              !thread
-            ) {
-              return;
-            }
-
-            if (params.status?.type === "idle") {
-              ensureSubagentActivityToolStarted(null, thread);
-              completeSubagentTool({ threadId: params.threadId });
-            } else if (params.status?.type === "systemError") {
-              ensureSubagentActivityToolStarted(null, thread);
-              completeSubagentTool({
-                errorText: "Agent task failed.",
-                threadId: params.threadId,
-              });
-            }
-            return;
-          }
-
-          if (method === "thread/closed" && params?.threadId) {
-            completeSubagentTool({
-              output: "Agent task closed.",
-              threadId: params.threadId,
-            });
-            return;
-          }
-
-          if (method === "thread/started" && params?.thread?.id) {
-            turn.session(params.thread.id);
-            return;
-          }
-
-          if (
-            method === "turn/started" &&
-            params?.threadId === rootThreadId &&
-            params?.turn?.id
-          ) {
-            rootTurnId = params.turn.id;
-            return;
-          }
-
-          if (method === "item/started" && params?.item) {
-            const item = params.item;
-            if (item.type === "contextCompaction") {
-              turn.compaction(item.id, "compacting");
-              return;
-            }
-            if (turn.todosFromTool(item)) {
-              return;
-            }
-
-            if (item.type === "commandExecution") {
-              ensureCommandToolStarted(item);
-            } else if (item.type === "fileChange") {
-              ensureFileToolStarted(item);
-            } else if (isSpawnAgentToolItem(item)) {
-              ensureSpawnAgentToolStarted(item);
-            } else if (item.type === "subAgentActivity") {
-              ensureSubagentActivityToolStarted(item);
-            } else if (item.type === "agentMessage") {
-              turn.text("", item.id);
-            } else if (item.type === "reasoning") {
-              turn.reasoning("", item.id);
-            }
-            return;
-          }
-
-          if (method === "item/agentMessage/delta" && params?.itemId) {
-            turn.text(params.delta ?? "", params.itemId);
-            return;
-          }
-
-          if (method === "item/reasoning/textDelta" && params?.itemId) {
-            turn.reasoning(params.delta ?? "", params.itemId);
-            return;
-          }
-
-          if (
-            method === "item/commandExecution/outputDelta" &&
-            params?.itemId
-          ) {
-            const output = commandOutputs.get(params.itemId) ?? [];
-            output.push(params.delta ?? "");
-            commandOutputs.set(params.itemId, output);
-            return;
-          }
-
-          if (method === "item/completed" && params?.item) {
-            const item = params.item;
-            if (item.type === "contextCompaction") {
-              turn.compaction(item.id, "compacted");
-              return;
-            }
-            if (turn.todosFromTool(item)) {
-              return;
-            }
-
-            if (item.type === "agentMessage") {
-              turn.endText(item.id, "text");
-            } else if (item.type === "reasoning") {
-              if (Array.isArray(item.summary) && item.summary.length > 0) {
-                turn.reasoning(item.summary.join("\n"), item.id);
-              }
-              turn.endText(item.id, "reasoning");
-            } else if (
-              item.type === "subAgentActivity" &&
-              item.kind === "interrupted"
-            ) {
-              ensureSubagentActivityToolStarted(item);
-              completeSubagentTool({
-                errorText: "Agent task was interrupted.",
-                threadId: item.agentThreadId,
-              });
-            } else if (item.type !== "subAgentActivity") {
-              trackToolCompletion(completeToolCall(item));
-            } else {
-              ensureSubagentActivityToolStarted(item);
-            }
-            return;
-          }
-
-          if (method === "turn/completed" && params?.turn) {
-            if (!rootThreadId || params.threadId !== rootThreadId) {
-              return;
-            }
-
-            const turnResult = params.turn;
-            turn.metadata({ nativeTurnId: turnResult.id });
-            if (turnResult.status === "failed") {
-              const turnError = new Error(
-                turnResult.error?.message ||
-                  turnResult.error?.additionalDetails ||
-                  "Codex turn failed.",
-              );
-              finish(() => reject(turnError));
-              return;
-            }
-
-            void (async () => {
-              await waitForPendingToolCompletions();
-              for (const toolCallId of activeSubagentToolCalls) {
-                completeSubagentTool({ toolCallId });
-              }
-              finish(resolve);
-            })();
-          }
-        };
-
-        const handleMessage = (message) => {
-          if (!message || typeof message !== "object") {
-            return;
-          }
-
-          const tokenCount = getCodexTokenCountUsage(message);
-          if (tokenCount) {
-            turn.usage(tokenCount.usage, tokenCount.contextWindow);
-          }
-
-          if (Object.hasOwn(message, "id") && message.method) {
-            void handleServerRequest(message);
-            return;
-          }
-
-          handleNotification(message);
-        };
-
-        const handleAbort = () => {
-          const interruptRequest = (async () => {
-            if (!rootTurnId && turnStartPromise) {
-              try {
-                const turnResponse = await turnStartPromise;
-                rootTurnId = turnResponse?.turn?.id ?? null;
-              } catch {
-                return;
-              }
-            }
-            if (appServerClient && rootThreadId && rootTurnId) {
-              interruptTimeout = setTimeout(
-                () =>
-                  finish(() =>
-                    reject(new Error("Codex did not confirm interruption.")),
-                  ),
-                10_000,
-              );
-              await appServerClient.sendRequest("turn/interrupt", {
-                threadId: rootThreadId,
-                turnId: rootTurnId,
-              });
-            } else finish(resolve);
-          })();
-          void interruptRequest.catch((error) => finish(() => reject(error)));
-        };
-
-        if (abortSignal?.aborted) {
-          handleAbort();
           return;
         }
-        abortSignal?.addEventListener("abort", handleAbort, { once: true });
 
-        void getCodexAppServerClient({ mcpServers })
-          .then(async (client) => {
-            appServerClient = client;
-            if (finished) {
+        if (method === "item/agentMessage/delta" && params?.itemId) {
+          turn.text(params.delta ?? "", params.itemId);
+          return;
+        }
+
+        if (method === "item/reasoning/textDelta" && params?.itemId) {
+          turn.reasoning(params.delta ?? "", params.itemId);
+          return;
+        }
+
+        if (method === "item/commandExecution/outputDelta" && params?.itemId) {
+          const output = commandOutputs.get(params.itemId) ?? [];
+          output.push(params.delta ?? "");
+          commandOutputs.set(params.itemId, output);
+          return;
+        }
+
+        if (method === "item/completed" && params?.item) {
+          const item = params.item;
+          if (item.type === "contextCompaction") {
+            turn.compaction(item.id, "compacted");
+            return;
+          }
+          if (turn.todosFromTool(item)) {
+            return;
+          }
+
+          if (item.type === "agentMessage") {
+            turn.endText(item.id, "text");
+          } else if (item.type === "reasoning") {
+            if (Array.isArray(item.summary) && item.summary.length > 0) {
+              turn.reasoning(item.summary.join("\n"), item.id);
+            }
+            turn.endText(item.id, "reasoning");
+          } else if (
+            item.type === "subAgentActivity" &&
+            item.kind === "interrupted"
+          ) {
+            ensureSubagentActivityToolStarted(item);
+            completeSubagentTool({
+              errorText: "Agent task was interrupted.",
+              threadId: item.agentThreadId,
+            });
+          } else if (item.type !== "subAgentActivity") {
+            trackToolCompletion(completeToolCall(item));
+          } else {
+            ensureSubagentActivityToolStarted(item);
+          }
+          return;
+        }
+
+        if (method === "turn/completed" && params?.turn) {
+          if (!rootThreadId || params.threadId !== rootThreadId) {
+            return;
+          }
+
+          const turnResult = params.turn;
+          turn.metadata({ nativeTurnId: turnResult.id });
+          if (turnResult.status === "failed") {
+            const turnError = new Error(
+              turnResult.error?.message ||
+                turnResult.error?.additionalDetails ||
+                "Codex turn failed.",
+            );
+            life.fail(turnError);
+            return;
+          }
+
+          void (async () => {
+            await waitForPendingToolCompletions();
+            for (const toolCallId of activeSubagentToolCalls) {
+              completeSubagentTool({ toolCallId });
+            }
+            life.done();
+          })();
+        }
+      };
+
+      const handleMessage = (message) => {
+        if (!message || typeof message !== "object") {
+          return;
+        }
+
+        const tokenCount = getCodexTokenCountUsage(message);
+        if (tokenCount) {
+          turn.usage(tokenCount.usage, tokenCount.contextWindow);
+        }
+
+        if (Object.hasOwn(message, "id") && message.method) {
+          void handleServerRequest(message);
+          return;
+        }
+
+        handleNotification(message);
+      };
+
+      // Stop asks Codex to interrupt the turn, which ends once Codex says
+      // so (`turn/completed`), or fails after 10 s without that.
+      life.onAbort(() => {
+        const interruptRequest = (async () => {
+          if (!rootTurnId && turnStartPromise) {
+            try {
+              const turnResponse = await turnStartPromise;
+              rootTurnId = turnResponse?.turn?.id ?? null;
+            } catch {
               return;
             }
-            const sandbox = getCodexAppSandboxMode(permissionMode);
-            const approvalPolicy = getCodexAppApprovalPolicy(permissionMode);
-            const serviceTier = modelSpeed === "fast" ? "fast" : null;
+          }
+          if (appServerClient && rootThreadId && rootTurnId) {
+            const interruptTimeout = setTimeout(
+              () => life.fail(new Error("Codex did not confirm interruption.")),
+              10_000,
+            );
+            life.defer(() => clearTimeout(interruptTimeout));
+            await appServerClient.sendRequest("turn/interrupt", {
+              threadId: rootThreadId,
+              turnId: rootTurnId,
+            });
+          } else life.done();
+        })();
+        void interruptRequest.catch(life.fail);
+      });
 
-            let resumed = false;
-            let freshReason = null;
-            let threadResponse = null;
+      if (life.ended) {
+        return life.settled;
+      }
 
-            if (resumeSessionId) {
-              if (client.hasThread(resumeSessionId)) {
-                threadResponse = { thread: { id: resumeSessionId } };
+      void getCodexAppServerClient({ mcpServers })
+        .then(async (client) => {
+          appServerClient = client;
+          if (life.ended) {
+            return;
+          }
+          const sandbox = getCodexAppSandboxMode(permissionMode);
+          const approvalPolicy = getCodexAppApprovalPolicy(permissionMode);
+          const serviceTier = modelSpeed === "fast" ? "fast" : null;
+
+          let resumed = false;
+          let freshReason = null;
+          let threadResponse = null;
+
+          if (resumeSessionId) {
+            if (client.hasThread(resumeSessionId)) {
+              threadResponse = { thread: { id: resumeSessionId } };
+              resumed = true;
+            } else {
+              let restoredPersistedThread = false;
+              let forkedPersistedThread = false;
+              try {
+                await client.sendRequest("thread/unarchive", {
+                  threadId: resumeSessionId,
+                });
+                restoredPersistedThread = true;
+              } catch {
+                // The id may belong to an ephemeral thread from an old process.
+              }
+              try {
+                threadResponse = await client.sendRequest("thread/fork", {
+                  approvalPolicy,
+                  approvalsReviewer: "user",
+                  baseInstructions: systemPrompt,
+                  config: null,
+                  cwd: projectPath,
+                  ephemeral: true,
+                  model,
+                  modelProvider: "openai",
+                  sandbox,
+                  serviceTier,
+                  threadId: resumeSessionId,
+                  threadSource: "dream",
+                });
                 resumed = true;
-              } else {
-                let restoredPersistedThread = false;
-                let forkedPersistedThread = false;
-                try {
-                  await client.sendRequest("thread/unarchive", {
-                    threadId: resumeSessionId,
-                  });
-                  restoredPersistedThread = true;
-                } catch {
-                  // The id may belong to an ephemeral thread from an old process.
-                }
-                try {
-                  threadResponse = await client.sendRequest("thread/fork", {
-                    approvalPolicy,
-                    approvalsReviewer: "user",
-                    baseInstructions: systemPrompt,
-                    config: null,
-                    cwd: projectPath,
-                    ephemeral: true,
-                    model,
-                    modelProvider: "openai",
-                    sandbox,
-                    serviceTier,
-                    threadId: resumeSessionId,
-                    threadSource: "dream",
-                  });
-                  resumed = true;
-                  forkedPersistedThread = true;
-                } catch (error) {
-                  const detail =
-                    error instanceof Error ? error.message : String(error);
-                  console.warn(
-                    "[codex app-server] Dream thread could not be restored; starting a new thread.",
-                    detail,
-                  );
-                  freshReason = `Codex could not restore the saved thread: ${detail}`;
-                } finally {
-                  if (restoredPersistedThread || forkedPersistedThread) {
-                    try {
-                      await client.sendRequest("thread/archive", {
-                        threadId: resumeSessionId,
-                      });
-                    } catch {
-                      // Keep migration best-effort; the new thread is ephemeral.
-                    }
+                forkedPersistedThread = true;
+              } catch (error) {
+                const detail =
+                  error instanceof Error ? error.message : String(error);
+                console.warn(
+                  "[codex app-server] Dream thread could not be restored; starting a new thread.",
+                  detail,
+                );
+                freshReason = `Codex could not restore the saved thread: ${detail}`;
+              } finally {
+                if (restoredPersistedThread || forkedPersistedThread) {
+                  try {
+                    await client.sendRequest("thread/archive", {
+                      threadId: resumeSessionId,
+                    });
+                  } catch {
+                    // Keep migration best-effort; the new thread is ephemeral.
                   }
                 }
               }
             }
+          }
 
-            if (!threadResponse) {
-              threadResponse = await client.sendRequest("thread/start", {
-                ...(orchestrationTools
-                  ? {
-                      dynamicTools: Object.entries(orchestrationTools).map(
-                        ([name, definition]) => ({
-                          name,
-                          description: definition.description,
-                          inputSchema: z.toJSONSchema(definition.inputSchema),
-                          deferLoading: false,
-                        }),
-                      ),
-                    }
-                  : {}),
-                approvalPolicy,
-                approvalsReviewer: "user",
-                baseInstructions: systemPrompt,
-                // MCP servers are applied via app-server argv overrides (see
-                // getCodexAppServerClient); per-thread `config` hangs turns on
-                // codex-cli 0.154.x (openai/codex#45361).
-                config: null,
-                cwd: projectPath,
-                ephemeral: true,
-                experimentalRawEvents: false,
-                model,
-                modelProvider: "openai",
-                sandbox,
-                serviceName: "Dream",
-                serviceTier,
-                threadSource: "dream",
-              });
-            }
-            const threadId = threadResponse?.thread?.id;
-            if (!threadId) {
-              throw new Error("Codex app-server did not return a thread id.");
-            }
-            rootThreadId = threadId;
-            unregisterThread = client.registerThread(threadId, {
-              onDisconnect: (error) => {
-                finish(() => reject(error));
-              },
-              onMessage: handleMessage,
-            });
-            turn.session(threadId, { resumed, reason: freshReason });
-            if (orchestrationTools)
-              turn.metadata({
-                orchestrationToolsVersion: ORCHESTRATION_TOOLS_VERSION,
-              });
-            if (finished) {
-              return;
-            }
-
-            turnStartPromise = client.sendRequest("turn/start", {
+          if (!threadResponse) {
+            threadResponse = await client.sendRequest("thread/start", {
+              ...(orchestrationTools
+                ? {
+                    dynamicTools: Object.entries(orchestrationTools).map(
+                      ([name, definition]) => ({
+                        name,
+                        description: definition.description,
+                        inputSchema: z.toJSONSchema(definition.inputSchema),
+                        deferLoading: false,
+                      }),
+                    ),
+                  }
+                : {}),
               approvalPolicy,
               approvalsReviewer: "user",
-              ...(reasoningEffort
-                ? { effort: getCodexReasoningEffort(reasoningEffort) }
-                : {}),
-              input: [
-                {
-                  text: buildTurnPrompt({
-                    currentTurnAttachments:
-                      preparedAttachments?.promptText ?? null,
-                    form: { ...CODEX_PROMPT_FORM, systemPrompt },
-                    messages,
-                    projectPath,
-                    projectReferencesPrompt,
-                    resumed,
-                    sessionHandoff,
-                  }),
-                  text_elements: [],
-                  type: "text",
-                },
-              ],
+              baseInstructions: systemPrompt,
+              // MCP servers are applied via app-server argv overrides (see
+              // getCodexAppServerClient); per-thread `config` hangs turns on
+              // codex-cli 0.154.x (openai/codex#45361).
+              config: null,
+              cwd: projectPath,
+              ephemeral: true,
+              experimentalRawEvents: false,
               model,
-              sandboxPolicy: getCodexAppTurnSandboxPolicy({
-                permissionMode,
-                projectPath,
-              }),
+              modelProvider: "openai",
+              sandbox,
+              serviceName: "Dream",
               serviceTier,
-              threadId,
+              threadSource: "dream",
             });
-            const turnResponse = await turnStartPromise;
-            rootTurnId = turnResponse?.turn?.id ?? rootTurnId;
-          })
-          .catch((error) => {
-            const appServerError = new Error(
-              error instanceof Error
-                ? error.message
-                : "Codex app-server request failed.",
-            );
-            finish(() => reject(appServerError));
+          }
+          const threadId = threadResponse?.thread?.id;
+          if (!threadId) {
+            throw new Error("Codex app-server did not return a thread id.");
+          }
+          rootThreadId = threadId;
+          // Unregistered when the turn ends, or at once if it already has.
+          life.defer(
+            client.registerThread(threadId, {
+              onDisconnect: life.fail,
+              onMessage: handleMessage,
+            }),
+          );
+          turn.session(threadId, { resumed, reason: freshReason });
+          if (orchestrationTools)
+            turn.metadata({
+              orchestrationToolsVersion: ORCHESTRATION_TOOLS_VERSION,
+            });
+          if (life.ended) {
+            return;
+          }
+
+          turnStartPromise = client.sendRequest("turn/start", {
+            approvalPolicy,
+            approvalsReviewer: "user",
+            ...(reasoningEffort
+              ? { effort: getCodexReasoningEffort(reasoningEffort) }
+              : {}),
+            input: [
+              {
+                text: buildTurnPrompt({
+                  currentTurnAttachments:
+                    preparedAttachments?.promptText ?? null,
+                  form: { ...CODEX_PROMPT_FORM, systemPrompt },
+                  messages,
+                  projectPath,
+                  projectReferencesPrompt,
+                  resumed,
+                  sessionHandoff,
+                }),
+                text_elements: [],
+                type: "text",
+              },
+            ],
+            model,
+            sandboxPolicy: getCodexAppTurnSandboxPolicy({
+              permissionMode,
+              projectPath,
+            }),
+            serviceTier,
+            threadId,
           });
-      }),
+          const turnResponse = await turnStartPromise;
+          rootTurnId = turnResponse?.turn?.id ?? rootTurnId;
+        })
+        .catch((error) => {
+          const appServerError = new Error(
+            error instanceof Error
+              ? error.message
+              : "Codex app-server request failed.",
+          );
+          life.fail(appServerError);
+        });
+      return life.settled;
+    },
   });
 };

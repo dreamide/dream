@@ -569,3 +569,31 @@ test("streamAgentTurn drops an error raised after the client aborted", async () 
     false,
   );
 });
+
+test("streamAgentTurn hands execute the turn's lifetime: Stop reaches it, and the turn ends when the adapter ends it", async () => {
+  const controller = new AbortController();
+  const order = [];
+  const response = streamAgentTurn({
+    abortSignal: controller.signal,
+    provider: "codex",
+    messages: [],
+    execute: (turn, life) => {
+      life.defer(() => order.push("cleanup"));
+      life.onAbort(() => {
+        order.push("stop");
+        // An interrupt the provider confirms a little later.
+        setTimeout(() => {
+          order.push("confirmed");
+          life.done();
+        }, 5);
+      });
+      turn.text("working", "x");
+      controller.abort();
+      return life.settled;
+    },
+  });
+  const chunks = await readChunks(response);
+  assert.deepEqual(order, ["stop", "confirmed", "cleanup"]);
+  assert.equal(chunks.find((c) => c.type === "text-delta").delta, "working");
+  assert.ok(types(chunks).includes("text-end"), "open parts are closed");
+});

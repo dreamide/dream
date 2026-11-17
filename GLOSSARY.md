@@ -804,6 +804,17 @@ finished. A failed save fails the turn; a failed checkpoint is reported but
 does not fail it. Stopping waits for this settlement; a client ceasing to
 observe does not stop the host's work.
 
+A **turn lifetime** (`electron/api/chat/turn-lifetime.js`) is how a
+Provider adapter ends its turn exactly once. `streamAgentTurn` makes one
+per turn and calls `execute(turn, life, attachments)`: `life.onAbort(fn)`
+hears Stop once (at once if it already happened, never after the end),
+`life.defer(cleanup)` runs once when the turn ends, in reverse order (at
+once if it already ended, which is the late-start guard), `life.done` and
+`life.fail` end it with the first one winning, and `life.ended` says
+whether it has. Stop alone does not end a turn; the adapter's abort handler
+does, after its own interrupt request where the provider has one. The turn
+also ends when the promise `execute` returns settles.
+
 A **change checkpoint** is a turn's `before` and `after` snapshots of its
 project's files, kept as trees in a per-project shadow repository under the
 host's data directory (`electron/api/checkpoints/service.js`). The service
@@ -943,7 +954,8 @@ and Antigravity one-shot prompts (`generate-text.js`) and the Antigravity
 turn run on it; the provider supplies arguments and translation.
 Antigravity's prompt input (argv or stdin) and result-status error are in
 `antigravity-cli.js`. Long-lived JSON-RPC processes (ACP connection, Codex
-app server) keep their own lifetime.
+app server) and the OpenCode server keep their own process; their turn ends
+through its turn lifetime (see Agent turn).
 
 ## CLI catalog
 
