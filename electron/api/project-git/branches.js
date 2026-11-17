@@ -1,5 +1,6 @@
 // Deleting a local branch. "Merged" is answered in one place: every commit of
-// the branch is in the repository's base branch, locally or on its remote. A
+// the branch is in the repository's base branch, locally or on its remote
+// (both refs of the base, repository-context.js `baseOf`). A
 // branch that is not merged is only deleted against a confirmed head: the
 // commit the person saw when they agreed to lose its work, so a branch that
 // moved since then is kept.
@@ -8,9 +9,8 @@ import { RouteError } from "../shared/json-route.js";
 import {
   getGitCommandErrorMessage,
   getGitRepositoryInfo,
-  gitRefExists,
+  gitRepositories,
   listProjectGitBranches,
-  readGitBaseBranch,
   runGitCommand,
 } from "./core.js";
 import { gitHubPullRequests, pullRequestSummary } from "./pull-requests.js";
@@ -40,53 +40,39 @@ export const readBranchPullRequest = async (cwd, branch) => {
   }
 };
 
-const countCommits = async (cwd, branch, excludedRefs) => {
-  const result = await runGitCommand(
-    cwd,
-    ["rev-list", "--count", `refs/heads/${branch}`, "--not", ...excludedRefs],
-    { allowFailure: true },
-  );
-  return result.ok ? Number.parseInt(result.stdout.trim(), 10) : null;
-};
+const countCommits = (cwd, branch, excludedRefs) =>
+  gitRepositories.count(cwd, [
+    `refs/heads/${branch}`,
+    "--not",
+    ...excludedRefs,
+  ]);
 
 /**
  * How much of `branch` would be lost with it. `unmergedCount` is the commits
  * not in the base branch, null when there is no other base to compare with;
  * `localOnlyCount` is those that are on no remote either.
  */
-const readBranchMergeState = async (cwd, branch) => {
-  const { baseBranch, remoteName } = await readGitBaseBranch(cwd);
-  const candidates =
-    baseBranch && baseBranch !== branch
-      ? [
-          `refs/heads/${baseBranch}`,
-          ...(remoteName ? [`refs/remotes/${remoteName}/${baseBranch}`] : []),
-        ]
+const readBranchMergeState = async (cwd, branch, base) => {
+  const baseRefs =
+    base && base.baseBranch !== branch
+      ? [base.localRef, base.remoteRef].filter((ref) => ref !== null)
       : [];
-  const baseRefs = (
-    await Promise.all(
-      candidates.map(async (ref) =>
-        (await gitRefExists(cwd, ref)) ? ref : null,
-      ),
-    )
-  ).filter((ref) => ref !== null);
 
   const [unmergedCount, localOnlyCount] = await Promise.all([
     baseRefs.length > 0 ? countCommits(cwd, branch, baseRefs) : null,
     countCommits(cwd, branch, [...baseRefs, "--remotes"]),
   ]);
 
-  return { baseBranch, localOnlyCount, remoteName, unmergedCount };
+  return {
+    baseBranch: base?.baseBranch ?? null,
+    localOnlyCount,
+    remoteName: await gitRepositories.remoteName(cwd),
+    unmergedCount,
+  };
 };
 
-const readBranchHead = async (cwd, branch) => {
-  const result = await runGitCommand(
-    cwd,
-    ["rev-parse", "--verify", `refs/heads/${branch}`],
-    { allowFailure: true },
-  );
-  return result.ok ? result.stdout.trim() : null;
-};
+const readBranchHead = (cwd, branch) =>
+  gitRepositories.ref(cwd, `refs/heads/${branch}`);
 
 const runBranchDelete = async (cwd, flag, branch) => {
   const result = await runGitCommand(cwd, ["branch", flag, "--", branch], {
@@ -118,8 +104,8 @@ export const deleteGitBranch = async (
   branch,
   { confirmedHead = null } = {},
 ) => {
-  const { baseBranch } = await readGitBaseBranch(cwd);
-  if (branch === baseBranch) {
+  const base = await gitRepositories.baseOf(cwd);
+  if (branch === base?.baseBranch) {
     return refusedDelete(`"${branch}" is the base branch.`);
   }
 
@@ -137,7 +123,7 @@ export const deleteGitBranch = async (
   if (deletion.branchDeleted) {
     return deletion;
   }
-  const { unmergedCount } = await readBranchMergeState(cwd, branch);
+  const { unmergedCount } = await readBranchMergeState(cwd, branch, base);
   return unmergedCount === 0 ? runBranchDelete(cwd, "-D", branch) : deletion;
 };
 
@@ -169,7 +155,9 @@ export const previewProjectGitBranchDelete = async (
   const { entry, repoRoot } = await readListedBranch(projectPath, branchName);
   const [head, mergeState] = await Promise.all([
     readBranchHead(repoRoot, branchName),
-    readBranchMergeState(repoRoot, branchName),
+    gitRepositories
+      .baseOf(repoRoot)
+      .then((base) => readBranchMergeState(repoRoot, branchName, base)),
   ]);
   const pullRequest =
     mergeState.remoteName && mergeState.unmergedCount !== 0

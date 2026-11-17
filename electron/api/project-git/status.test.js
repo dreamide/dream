@@ -242,7 +242,10 @@ test("a read takes the branch, HEAD and upstream from its one status call", asyn
   await new Promise((resolve) => setTimeout(resolve, 150));
   spawned.length = 0;
   await listProjectGitChanges(repo);
-  const full = spawned.map((args) => args[0]);
+  // Looking up the default branch by name is not reading HEAD.
+  const full = spawned
+    .filter((args) => !args.some((arg) => /^refs\/(heads|remotes)\//.test(arg)))
+    .map((args) => args[0]);
 
   assert.deepEqual(summary, ["rev-parse", "status"]);
   // The repository root is remembered; HEAD and the upstream come with

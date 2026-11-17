@@ -80,8 +80,8 @@ test("a folder in no repository is asked again every time", async () => {
 
 test("a default branch falls back to main or master", async () => {
   const { context } = setup({
-    "show-ref --verify --quiet refs/heads/main": { ok: false },
-    "show-ref --verify --quiet refs/heads/master": { ok: true },
+    "rev-parse --verify --quiet refs/heads/main": { ok: false },
+    "rev-parse --verify --quiet refs/heads/master": { ok: true, stdout: "abc" },
   });
 
   assert.equal(await context.defaultBranch("/repo", null), "master");

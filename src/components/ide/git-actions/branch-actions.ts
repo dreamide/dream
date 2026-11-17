@@ -48,7 +48,8 @@ export interface BranchActions {
   pull: { enabled: boolean; behindCount: number };
   /** The branch's pull request, in any state, once known. */
   viewPullRequest: PullRequestSummary | null;
-  createPullRequest: CreatePullRequestAction;
+  /** Null when the host found no base branch to propose it into. */
+  createPullRequest: CreatePullRequestAction | null;
   /** Merge a worktree into its base or remove it; null for a branch that is not a worktree. */
   worktree: { enabled: boolean; mergeBase: string | null } | null;
   /** Something is ready to commit or push and no git write runs. */
@@ -77,15 +78,17 @@ export const getBranchActions = ({
   // published, when there is a remote to publish to.
   const canPush = upstream ? status.aheadCount > 0 : hasRemote;
 
-  const baseBranch = status.baseBranch ?? "main";
-  const problem = getPullRequestBranchError<CreatePullRequestAction["problem"]>(
-    status.branch,
-    baseBranch,
-    {
-      detachedHead: "detached-head",
-      sameBranch: () => "same-branch",
-    },
-  );
+  const baseBranch = status.baseBranch;
+  const problem = baseBranch
+    ? getPullRequestBranchError<CreatePullRequestAction["problem"]>(
+        status.branch,
+        baseBranch,
+        {
+          detachedHead: "detached-head",
+          sameBranch: () => "same-branch",
+        },
+      )
+    : null;
   const known = typeof pullRequest === "object" ? pullRequest : null;
   // Not offered while loading, so a branch with an open pull request is
   // never offered a second. A failed lookup still offers it: `gh` refuses a
@@ -110,22 +113,24 @@ export const getBranchActions = ({
       enabled: upstream && !writeRunning,
     },
     viewPullRequest: known,
-    createPullRequest: {
-      baseBranch,
-      enabled: hasRemote && !problem && !writeRunning,
-      nextStep: hasChanges
-        ? "commit-push-create"
-        : !upstream || status.aheadCount > 0
-          ? "push-create"
-          : "create",
-      nextSteps: problem
-        ? []
-        : hasChanges
-          ? ["create", "push-create", "commit-push-create"]
-          : ["create", "push-create"],
-      offered,
-      problem,
-    },
+    createPullRequest: baseBranch
+      ? {
+          baseBranch,
+          enabled: hasRemote && !problem && !writeRunning,
+          nextStep: hasChanges
+            ? "commit-push-create"
+            : !upstream || status.aheadCount > 0
+              ? "push-create"
+              : "create",
+          nextSteps: problem
+            ? []
+            : hasChanges
+              ? ["create", "push-create", "commit-push-create"]
+              : ["create", "push-create"],
+          offered,
+          problem,
+        }
+      : null,
     worktree: worktree
       ? {
           enabled: !writeRunning,

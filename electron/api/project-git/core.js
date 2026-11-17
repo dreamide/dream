@@ -134,16 +134,6 @@ const mapGitChangeState = (xy, untracked = false) => {
 const getPreferredGitRemote = (repoRoot) =>
   gitRepositories.remoteName(repoRoot);
 
-export const gitRefExists = async (repoRoot, ref) => {
-  const result = await runGitCommand(
-    repoRoot,
-    ["show-ref", "--verify", "--quiet", ref],
-    { allowFailure: true },
-  );
-
-  return result.ok;
-};
-
 const getGitDefaultBranch = (repoRoot, remoteName) =>
   gitRepositories.defaultBranch(repoRoot, remoteName);
 

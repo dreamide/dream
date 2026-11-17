@@ -15,18 +15,13 @@ import {
   releaseProjectDirectory,
 } from "../project-resources.js";
 import { RouteError } from "../shared/json-route.js";
-import {
-  getPullRequestBaseRef,
-  readGitCommitCount,
-  readGitPushPreviewCommits,
-} from "./actions.js";
+import { readGitPushPreviewCommits } from "./actions.js";
 import { deleteGitBranch, readBranchPullRequest } from "./branches.js";
 import {
   getGitAheadBehindCounts,
   getGitCommandErrorMessage,
   getGitRepositoryInfo,
   getProjectGitMetadata,
-  gitRefExists,
   gitRepositories,
   listProjectGitChanges,
   parseSingleFileDiff,
@@ -205,7 +200,7 @@ export const createProjectGitWorktree = async (
     repoInfo.repoRoot,
     branchName,
   );
-  const branchExists = await gitRefExists(
+  const branchExists = await gitRepositories.ref(
     repoInfo.repoRoot,
     `refs/heads/${normalizedBranchName}`,
   );
@@ -313,40 +308,37 @@ const resolveWorktreeContext = async (projectPath) => {
   };
 };
 
+/**
+ * The base a worktree's branch merges into: the ref it was created from when
+ * that names a branch, else the repository's default branch. Finishing a
+ * worktree merges into the local base branch, so it is compared with the
+ * base's `mergeRef` (repository-context.js): the local branch, or the
+ * remote one when there is no local branch yet and the merge's checkout
+ * would start it from there.
+ */
 const resolveWorktreeBaseBranch = async (
   mainWorktreePath,
   { baseRef = null, worktreeBranch = null } = {},
 ) => {
-  const metadata = await getProjectGitMetadata(mainWorktreePath, null);
-  const candidate = isUsableBaseBranchCandidate(baseRef, worktreeBranch)
-    ? baseRef.trim().replace(/^refs\/heads\//, "")
-    : metadata.baseBranch;
-
-  if (!candidate) {
-    throw new Error("Unable to determine the base branch for this worktree.");
-  }
-
-  const baseExistsLocally = await gitRefExists(
-    mainWorktreePath,
-    `refs/heads/${candidate}`,
-  );
-  const compareRef = baseExistsLocally
-    ? candidate
-    : await getPullRequestBaseRef(
-        mainWorktreePath,
-        metadata.remoteName,
-        candidate,
-      );
-
-  if (!compareRef) {
-    throw new Error(`Base branch "${candidate}" was not found.`);
+  const requested = isUsableBaseBranchCandidate(baseRef, worktreeBranch)
+    ? baseRef.trim()
+    : null;
+  const base = await gitRepositories.baseOf(mainWorktreePath, {
+    base: requested,
+  });
+  if (!base) {
+    throw new Error(
+      requested
+        ? `Base branch "${requested.replace(/^refs\/heads\//, "")}" was not found.`
+        : "Unable to determine the base branch for this worktree.",
+    );
   }
 
   return {
-    baseBranch: candidate,
-    baseExistsLocally,
-    compareRef,
-    remoteName: metadata.remoteName,
+    baseBranch: base.baseBranch,
+    baseExistsLocally: base.localRef !== null,
+    compareRef: base.mergeRef,
+    remoteName: base.remoteName,
   };
 };
 
@@ -373,19 +365,9 @@ const readTrackedDirtyCount = async (cwd) => {
   return result.stdout.split(/\r?\n/).filter((line) => line.trim()).length;
 };
 
-const hasGitRef = async (cwd, ref) => {
-  const result = await runGitCommand(
-    cwd,
-    ["rev-parse", "-q", "--verify", ref],
-    {
-      allowFailure: true,
-    },
-  );
-  return result.ok;
-};
-
 const hasInProgressOperation = async (cwd) =>
-  (await hasGitRef(cwd, "MERGE_HEAD")) || (await hasGitRef(cwd, "REBASE_HEAD"));
+  (await gitRepositories.ref(cwd, "MERGE_HEAD")) !== null ||
+  (await gitRepositories.ref(cwd, "REBASE_HEAD")) !== null;
 
 // ---------------------------------------------------------------------------
 // Compare
@@ -417,7 +399,7 @@ export const compareProjectGitWorktree = async (
     readMergeBase(context.worktreeRoot, base.compareRef),
     getGitAheadBehindCounts(context.worktreeRoot, base.compareRef),
     readGitPushPreviewCommits(context.worktreeRoot, rangeRef),
-    readGitCommitCount(context.worktreeRoot, rangeRef),
+    gitRepositories.count(context.worktreeRoot, [rangeRef]),
     listProjectGitChanges(projectPath),
     getProjectGitMetadata(context.worktreeRoot, context.worktreeBranch),
     readCurrentBranch(context.mainWorktreePath),
@@ -452,8 +434,8 @@ export const compareProjectGitWorktree = async (
     mergeBase,
     pullRequest,
     remoteName: base.remoteName,
-    totalCommits,
-    truncated: commits.length < totalCommits,
+    totalCommits: totalCommits ?? 0,
+    truncated: commits.length < (totalCommits ?? 0),
     upstreamBranch: worktreeMetadata.upstreamBranch,
     worktreePath: context.worktreePath,
     worktreeStatus,
@@ -570,7 +552,7 @@ export const mergeProjectGitWorktree = async (
   );
 
   if (!mergeResult.ok) {
-    if (await hasGitRef(context.mainWorktreePath, "MERGE_HEAD")) {
+    if (await gitRepositories.ref(context.mainWorktreePath, "MERGE_HEAD")) {
       const conflictsResult = await runGitCommand(
         context.mainWorktreePath,
         ["diff", "--name-only", "--diff-filter=U"],
@@ -746,7 +728,7 @@ export const forgetProjectGitWorktree = async (
 
   const branch = entry?.branch ?? knownBranch;
   const branchExists = branch
-    ? await hasGitRef(commandCwd, `refs/heads/${branch}`)
+    ? (await gitRepositories.ref(commandCwd, `refs/heads/${branch}`)) !== null
     : false;
   const deletion =
     deleteBranch && branchExists

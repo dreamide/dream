@@ -15,6 +15,10 @@
 // Changes made outside the host (an agent's shell, the user's terminal)
 // are seen by the next read of volatile state; remembered facts catch up
 // within `stableTtlMs`.
+//
+// A branch's base (`baseOf`) is a stable fact too: which branch work goes
+// into and which of its refs exist, never where they point. Every caller
+// that compares with, merges into or proposes to the base asks here.
 import path from "node:path";
 
 export const getGitCommandErrorMessage = (error) => {
@@ -132,6 +136,14 @@ export const createGitRepositoryContext = ({
     return promise;
   };
 
+  /** The commit `ref` names, or null when it names none. */
+  const readRef = async (cwd, ref) => {
+    const result = await run(cwd, ["rev-parse", "--verify", "--quiet", ref], {
+      allowFailure: true,
+    });
+    return result.ok ? result.stdout.trim() || null : null;
+  };
+
   const joinable = (key) => {
     const entry = reads.get(key);
     if (!entry) return null;
@@ -239,23 +251,100 @@ export const createGitRepositoryContext = ({
           if (head) return head;
         }
 
-        const refExists = async (ref) =>
-          (
-            await run(repoRoot, ["show-ref", "--verify", "--quiet", ref], {
-              allowFailure: true,
-            })
-          ).ok;
         for (const branchName of ["main", "master"]) {
-          if (await refExists(`refs/heads/${branchName}`)) return branchName;
+          if (await readRef(repoRoot, `refs/heads/${branchName}`)) {
+            return branchName;
+          }
           if (
             remoteName &&
-            (await refExists(`refs/remotes/${remoteName}/${branchName}`))
+            (await readRef(
+              repoRoot,
+              `refs/remotes/${remoteName}/${branchName}`,
+            ))
           ) {
             return branchName;
           }
         }
         return null;
       }),
+
+    /**
+     * A branch's base: the branch its work goes into, and the refs it can
+     * be read from. `base` is a branch the caller was given (a worktree's
+     * recorded base, the one a pull request was asked to go into);
+     * without one it is the default branch.
+     *
+     * `localRef` and `remoteRef` are the full refs that exist, null when
+     * one does not. One preference holds: `compareRef` is the remote
+     * branch when it exists, else the local one, because what work adds
+     * to its base is what it adds to the base everyone else sees (pushing,
+     * a pull request). `mergeRef` is the other way round: a merge into the
+     * base lands on the local branch, so what it would add is read from
+     * there, else from the remote branch a checkout would start it from.
+     *
+     * Null when no base is named or neither ref exists: the one "none
+     * found". Which refs exist is remembered like any stable fact, where
+     * they point is not; a base not found is asked again next time.
+     *
+     * @param {string} repoRoot
+     * @param {{ base?: string | null }} [options]
+     * @returns {Promise<null | {
+     *   baseBranch: string, remoteName: string | null,
+     *   localRef: string | null, remoteRef: string | null,
+     *   compareRef: string, mergeRef: string,
+     * }>}
+     */
+    baseOf: (repoRoot, { base = null } = {}) => {
+      const requested = (base ?? "").trim().replace(/^refs\/heads\//, "");
+      return remember(
+        `base\0${repoRoot}\0${requested}`,
+        async () => {
+          const remoteName = await context.remoteName(repoRoot);
+          const baseBranch =
+            requested || (await context.defaultBranch(repoRoot, remoteName));
+          if (!baseBranch) return null;
+          const [local, remote] = await Promise.all([
+            readRef(repoRoot, `refs/heads/${baseBranch}`),
+            remoteName
+              ? readRef(repoRoot, `refs/remotes/${remoteName}/${baseBranch}`)
+              : null,
+          ]);
+          const localRef = local ? `refs/heads/${baseBranch}` : null;
+          const remoteRef = remote
+            ? `refs/remotes/${remoteName}/${baseBranch}`
+            : null;
+          if (!localRef && !remoteRef) return null;
+          return {
+            baseBranch,
+            compareRef: remoteRef ?? localRef,
+            localRef,
+            mergeRef: localRef ?? remoteRef,
+            remoteName,
+            remoteRef,
+          };
+        },
+        { keepNull: false },
+      );
+    },
+
+    /** The commit `ref` names in the repository at `cwd`, or null. */
+    ref: readRef,
+
+    /**
+     * How many commits `git rev-list` lists for `revisions` (a range, or
+     * refs and `--not` ones), or null when git cannot say.
+     * @param {string} cwd
+     * @param {string[]} revisions
+     * @returns {Promise<number | null>}
+     */
+    async count(cwd, revisions) {
+      const result = await run(cwd, ["rev-list", "--count", ...revisions], {
+        allowFailure: true,
+      });
+      if (!result.ok) return null;
+      const value = Number.parseInt(result.stdout.trim(), 10);
+      return Number.isNaN(value) ? null : value;
+    },
   };
   return context;
 };

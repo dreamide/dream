@@ -9,7 +9,7 @@ import {
   getProjectGitBulkDiff,
   getProjectGitChangesFingerprint,
   getProjectGitMetadata,
-  gitRefExists,
+  gitRepositories,
   listProjectGitChanges,
   readGitRangeFiles,
   resolveGitBranchUpstream,
@@ -101,12 +101,12 @@ export const pullProjectGitChanges = async (projectPath) => {
   );
   // A conflicted pull aborts the merge it started; it must never abort one
   // the user already has in progress.
-  if (await readGitRef(repoInfo.repoRoot, "MERGE_HEAD")) {
+  if (await gitRepositories.ref(repoInfo.repoRoot, "MERGE_HEAD")) {
     throw new Error(
       "A merge is already in progress. Finish or abort it before pulling.",
     );
   }
-  const previousHead = await readGitHead(repoInfo.repoRoot);
+  const previousHead = await gitRepositories.ref(repoInfo.repoRoot, "HEAD");
   const merging = aheadCount > 0 && behindCount > 0;
   // Fetch followed by an explicit merge is a pull without implicit rebasing or
   // auto-stashing from the user's Git configuration. `--ff` fast-forwards when
@@ -125,7 +125,10 @@ export const pullProjectGitChanges = async (projectPath) => {
     { allowFailure: true },
   );
   if (!mergeResult.ok) {
-    if (merging && (await readGitRef(repoInfo.repoRoot, "MERGE_HEAD"))) {
+    if (
+      merging &&
+      (await gitRepositories.ref(repoInfo.repoRoot, "MERGE_HEAD"))
+    ) {
       // The UI has nowhere to resolve conflicts, so the merge is undone and
       // the branch is left exactly as it was.
       const conflicts = await runGitCommand(
@@ -164,17 +167,6 @@ export const pullProjectGitChanges = async (projectPath) => {
     )),
   };
 };
-
-const readGitRef = async (repoRoot, ref) => {
-  const result = await runGitCommand(
-    repoRoot,
-    ["rev-parse", "--verify", "--quiet", ref],
-    { allowFailure: true },
-  );
-  return result.ok ? result.stdout.trim() || null : null;
-};
-
-const readGitHead = (repoRoot) => readGitRef(repoRoot, "HEAD");
 
 /**
  * What a pull from `previousHead` brought in: the incoming commits, newest
@@ -527,7 +519,7 @@ const resolveGitPushBranch = async (repoInfo, requestedBranch) => {
     return { branch: currentBranch, headRef: "HEAD", named: false };
   }
 
-  if (!(await gitRefExists(repoInfo.repoRoot, `refs/heads/${branch}`))) {
+  if (!(await gitRepositories.ref(repoInfo.repoRoot, `refs/heads/${branch}`))) {
     throw new Error(`Branch ${branch} does not exist.`);
   }
   return { branch, headRef: `refs/heads/${branch}`, named: true };
@@ -626,29 +618,6 @@ export const pushProjectGitChanges = async (
   };
 };
 
-export const getPullRequestBaseRef = async (
-  repoRoot,
-  remoteName,
-  baseBranch,
-) => {
-  if (!baseBranch) {
-    return null;
-  }
-
-  if (
-    remoteName &&
-    (await gitRefExists(repoRoot, `refs/remotes/${remoteName}/${baseBranch}`))
-  ) {
-    return `${remoteName}/${baseBranch}`;
-  }
-
-  if (await gitRefExists(repoRoot, `refs/heads/${baseBranch}`)) {
-    return baseBranch;
-  }
-
-  return null;
-};
-
 const parseGitPushPreviewCommit = (line) => {
   const [
     hash = "",
@@ -665,18 +634,6 @@ const parseGitPushPreviewCommit = (line) => {
     shortHash,
     subject,
   };
-};
-
-export const readGitCommitCount = async (repoRoot, rangeRef) => {
-  const args = rangeRef
-    ? ["rev-list", "--count", rangeRef]
-    : ["rev-list", "--count", "HEAD"];
-  const result = await runGitCommand(repoRoot, args, { allowFailure: true });
-  if (!result.ok) {
-    return 0;
-  }
-
-  return Number.parseInt(result.stdout.trim(), 10) || 0;
 };
 
 export const readGitPushPreviewCommits = async (repoRoot, rangeRef) => {
@@ -787,9 +744,11 @@ export const getProjectGitPushPreview = async (
     throw new Error("No Git remote is configured for this repository.");
   }
 
+  // What is new to the remote: past the upstream, else past the remote
+  // branch of the same name, else past the base (repository-context.js).
   const remoteBranchRef =
     metadata.remoteName &&
-    (await gitRefExists(
+    (await gitRepositories.ref(
       repoInfo.repoRoot,
       `refs/remotes/${metadata.remoteName}/${branch}`,
     ))
@@ -798,32 +757,26 @@ export const getProjectGitPushPreview = async (
   const baseRef =
     metadata.upstreamBranch ||
     remoteBranchRef ||
-    (await getPullRequestBaseRef(
-      repoInfo.repoRoot,
-      metadata.remoteName,
-      metadata.baseBranch,
-    ));
+    ((await gitRepositories.baseOf(repoInfo.repoRoot))?.compareRef ?? null);
   // Without a base, the whole history of the pushed branch is new.
-  const rangeRef = baseRef
-    ? `${baseRef}..${target.headRef}`
-    : target.named
-      ? target.headRef
-      : null;
+  const rangeRef = baseRef ? `${baseRef}..${target.headRef}` : target.headRef;
   const [commits, totalCommits] = await Promise.all([
     readGitPushPreviewCommits(repoInfo.repoRoot, rangeRef),
-    readGitCommitCount(repoInfo.repoRoot, rangeRef),
+    gitRepositories.count(repoInfo.repoRoot, [rangeRef]),
   ]);
 
   return {
-    aheadCount: metadata.upstreamBranch ? metadata.aheadCount : totalCommits,
+    aheadCount: metadata.upstreamBranch
+      ? metadata.aheadCount
+      : (totalCommits ?? 0),
     baseRef,
     behindCount: metadata.behindCount,
     branch,
     commits,
     remoteName: metadata.remoteName,
     target: metadata.upstreamBranch ?? `${metadata.remoteName}/${branch}`,
-    totalCommits,
-    truncated: commits.length < totalCommits,
+    totalCommits: totalCommits ?? 0,
+    truncated: commits.length < (totalCommits ?? 0),
     upstreamBranch: metadata.upstreamBranch,
   };
 };
@@ -1007,20 +960,22 @@ const getProjectPullRequestGenerationContext = async (
     throw new Error("Cannot create a pull request from a detached HEAD.");
   }
 
-  const metadata = await getProjectGitMetadata(repoInfo.repoRoot, headBranch);
-  const baseBranch =
-    normalizeGitActionText(requestedBaseBranch) ||
-    metadata.baseBranch ||
-    "main";
-  const baseRef = await getPullRequestBaseRef(
-    repoInfo.repoRoot,
-    metadata.remoteName,
-    baseBranch,
-  );
+  const requested = normalizeGitActionText(requestedBaseBranch);
+  const base = await gitRepositories.baseOf(repoInfo.repoRoot, {
+    base: requested,
+  });
+  // A base asked for but not fetched here is still proposed to GitHub;
+  // the details then have no commits to read from.
+  const baseBranch = base?.baseBranch ?? requested;
+  if (!baseBranch) {
+    throw new Error(
+      "Unable to determine the base branch for this pull request.",
+    );
+  }
 
   return {
     baseBranch,
-    baseRef,
+    baseRef: base?.compareRef ?? null,
     headBranch,
     repoRoot: repoInfo.repoRoot,
   };

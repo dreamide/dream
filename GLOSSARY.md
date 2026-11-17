@@ -564,7 +564,14 @@ one client's view of it.
 What a host knows about the Git repositories its projects are in, and the
 one way it runs git (`electron/api/project-git/repository-context.js`).
 **Stable facts** (a project's repository root, the remote, the default
-branch) are read once and remembered for a while. **Volatile reads**
+branch, a branch's base) are read once and remembered for a while.
+**A branch's base** (`baseOf`) is the branch its work goes into, the
+default branch unless the caller names one, and which of its local and
+remote refs exist; none when neither does. Work is compared with the remote
+branch when there is one (what it adds for everyone else: the push preview,
+a pull request); a worktree, merged into the local branch, is compared with
+that when there is one. One-line ref reads (`ref`, `count`) go through it
+too. **Volatile reads**
 (status, branches, worktrees) are shared between callers that ask at the
 same moment, as every panel does on a refresh, and a summary status is
 answered from a full one. Any git command not known to only read makes the
@@ -644,9 +651,9 @@ from its status, its pull request, whether it is a worktree and whether a
 write runs: commit, push or publish, fetch, pull, view or create a pull
 request, merge or remove a worktree, and whether the footer's git trigger is
 highlighted. Creating a pull request is not offered while the branch's pull
-request is still loading, nor beside an open or merged one; a failed lookup
-still offers it. The footer menu, the push dialog and the create pull
-request dialog read it.
+request is still loading, nor beside an open or merged one, nor when the
+host found no base branch; a failed lookup still offers it. The footer menu,
+the push dialog and the create pull request dialog read it.
 
 ## Commit draft
 

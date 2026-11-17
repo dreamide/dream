@@ -64,8 +64,8 @@ test("a level, clean branch offers sync and a pull request, nothing to commit or
   assert.equal(result.fetch.enabled, true);
   assert.deepEqual(result.pull, { behindCount: 0, enabled: true });
   assert.equal(result.viewPullRequest, null);
-  assert.equal(result.createPullRequest.offered, true);
-  assert.equal(result.createPullRequest.enabled, true);
+  assert.equal(result.createPullRequest?.offered, true);
+  assert.equal(result.createPullRequest?.enabled, true);
   assert.equal(result.worktree, null);
   assert.equal(result.highlighted, false);
 });
@@ -100,20 +100,20 @@ test("a branch without an upstream is published to its remote", () => {
   assert.deepEqual(result.pull, { behindCount: 0, enabled: false });
   assert.equal(result.fetch.enabled, true);
   assert.equal(result.highlighted, true);
-  assert.equal(result.createPullRequest.nextStep, "push-create");
+  assert.equal(result.createPullRequest?.nextStep, "push-create");
 });
 
 test("a pull request still loading is not offered for creation", () => {
   const result = actions({ pullRequest: "loading" });
   assert.equal(result.viewPullRequest, null);
-  assert.equal(result.createPullRequest.offered, false);
+  assert.equal(result.createPullRequest?.offered, false);
 });
 
 test("a failed pull request lookup still offers creating one", () => {
   const result = actions({ pullRequest: "unavailable" });
   assert.equal(result.viewPullRequest, null);
-  assert.equal(result.createPullRequest.offered, true);
-  assert.equal(result.createPullRequest.enabled, true);
+  assert.equal(result.createPullRequest?.offered, true);
+  assert.equal(result.createPullRequest?.enabled, true);
 });
 
 test("an open or merged pull request is viewed, not created again", () => {
@@ -121,7 +121,7 @@ test("an open or merged pull request is viewed, not created again", () => {
     const pullRequest = pr(state);
     const result = actions({ pullRequest });
     assert.equal(result.viewPullRequest, pullRequest, state);
-    assert.equal(result.createPullRequest.offered, false, state);
+    assert.equal(result.createPullRequest?.offered, false, state);
   }
 });
 
@@ -129,8 +129,8 @@ test("a closed pull request is viewed and a new one offered", () => {
   const pullRequest = pr("closed");
   const result = actions({ pullRequest });
   assert.equal(result.viewPullRequest, pullRequest);
-  assert.equal(result.createPullRequest.offered, true);
-  assert.equal(result.createPullRequest.enabled, true);
+  assert.equal(result.createPullRequest?.offered, true);
+  assert.equal(result.createPullRequest?.enabled, true);
 });
 
 test("a worktree with no remote merges into its base; nothing goes to a remote", () => {
@@ -140,8 +140,8 @@ test("a worktree with no remote merges into its base; nothing goes to a remote",
   assert.equal(result.push.enabled, false);
   assert.equal(result.fetch.enabled, false);
   assert.equal(result.pull.enabled, false);
-  assert.equal(result.createPullRequest.offered, true);
-  assert.equal(result.createPullRequest.enabled, false);
+  assert.equal(result.createPullRequest?.offered, true);
+  assert.equal(result.createPullRequest?.enabled, false);
   assert.equal(result.highlighted, false);
 
   // Without a recorded base ref, the repository's base branch.
@@ -161,45 +161,51 @@ test("a worktree with no remote merges into its base; nothing goes to a remote",
 
 test("a detached HEAD cannot open a pull request", () => {
   const result = actions({ branch: null, fileCount: 1 });
-  assert.equal(result.createPullRequest.problem, "detached-head");
-  assert.equal(result.createPullRequest.enabled, false);
-  assert.deepEqual(result.createPullRequest.nextSteps, []);
+  assert.equal(result.createPullRequest?.problem, "detached-head");
+  assert.equal(result.createPullRequest?.enabled, false);
+  assert.deepEqual(result.createPullRequest?.nextSteps, []);
   assert.equal(result.commit.enabled, true);
 });
 
 test("the base branch cannot open a pull request into itself", () => {
   const result = actions({ branch: "main", upstreamBranch: "origin/main" });
-  assert.equal(result.createPullRequest.problem, "same-branch");
-  assert.equal(result.createPullRequest.enabled, false);
-  assert.deepEqual(result.createPullRequest.nextSteps, []);
+  assert.equal(result.createPullRequest?.problem, "same-branch");
+  assert.equal(result.createPullRequest?.enabled, false);
+  assert.deepEqual(result.createPullRequest?.nextSteps, []);
 
   const named = actions({
     baseBranch: "refs/heads/develop",
     branch: "develop",
   });
-  assert.equal(named.createPullRequest.problem, "same-branch");
-  assert.equal(named.createPullRequest.baseBranch, "refs/heads/develop");
+  assert.equal(named.createPullRequest?.problem, "same-branch");
+  assert.equal(named.createPullRequest?.baseBranch, "refs/heads/develop");
+});
 
-  // Without a known base branch, main.
-  const unknownBase = actions({ baseBranch: null, branch: "main" });
-  assert.equal(unknownBase.createPullRequest.baseBranch, "main");
-  assert.equal(unknownBase.createPullRequest.problem, "same-branch");
+test("without a base branch from the host no pull request is offered", () => {
+  for (const branch of ["main", "feature", null]) {
+    const result = actions({ baseBranch: null, branch, fileCount: 1 });
+    assert.equal(result.createPullRequest, null, String(branch));
+    // Everything that does not go into a base is unchanged.
+    assert.equal(result.commit.enabled, true);
+    assert.equal(result.fetch.enabled, true);
+    assert.equal(result.highlighted, true);
+  }
 });
 
 test("creating a pull request first commits, then pushes, what is pending", () => {
   const changed = actions({ aheadCount: 1, fileCount: 1 }).createPullRequest;
-  assert.equal(changed.nextStep, "commit-push-create");
-  assert.deepEqual(changed.nextSteps, [
+  assert.equal(changed?.nextStep, "commit-push-create");
+  assert.deepEqual(changed?.nextSteps, [
     "create",
     "push-create",
     "commit-push-create",
   ]);
 
   const ahead = actions({ aheadCount: 1 }).createPullRequest;
-  assert.equal(ahead.nextStep, "push-create");
-  assert.deepEqual(ahead.nextSteps, ["create", "push-create"]);
+  assert.equal(ahead?.nextStep, "push-create");
+  assert.deepEqual(ahead?.nextSteps, ["create", "push-create"]);
 
-  assert.equal(actions().createPullRequest.nextStep, "create");
+  assert.equal(actions().createPullRequest?.nextStep, "create");
 });
 
 test("a running git write disables every write and the highlight", () => {
@@ -215,13 +221,13 @@ test("a running git write disables every write and the highlight", () => {
   assert.equal(result.push.enabled, false);
   assert.equal(result.fetch.enabled, false);
   assert.equal(result.pull.enabled, false);
-  assert.equal(result.createPullRequest.offered, true);
-  assert.equal(result.createPullRequest.enabled, false);
+  assert.equal(result.createPullRequest?.offered, true);
+  assert.equal(result.createPullRequest?.enabled, false);
   assert.deepEqual(result.worktree, { enabled: false, mergeBase: "main" });
   assert.equal(result.highlighted, false);
   // Viewing is not a write.
   assert.equal(result.viewPullRequest, pullRequest);
   // What is pending is unchanged; only starting it waits.
   assert.equal(result.commit.fileCount, 3);
-  assert.equal(result.createPullRequest.nextStep, "commit-push-create");
+  assert.equal(result.createPullRequest?.nextStep, "commit-push-create");
 });

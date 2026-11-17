@@ -306,7 +306,7 @@ const GitFooterActionsImpl = ({
           })}
         </DropdownMenuItem>
       ) : null}
-      {actions.createPullRequest.offered ? (
+      {actions.createPullRequest?.offered ? (
         <DropdownMenuItem
           disabled={!actions.createPullRequest.enabled}
           onClick={() => setCreatePrOpen(true)}
@@ -395,7 +395,7 @@ const GitFooterActionsImpl = ({
           status={status}
         />
       ) : null}
-      {createPrOpen ? (
+      {createPrOpen && actions.createPullRequest ? (
         <CreatePrDialog
           action={actions.createPullRequest}
           branch={status.branch}
