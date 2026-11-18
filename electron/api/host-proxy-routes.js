@@ -7,10 +7,14 @@
 // way; the one-time ticket in its URL is H's, issued by H through the
 // forwarded ticket route, so H checks it.
 import WebSocket from "ws";
+import { HOST_ROUTES } from "../shared/host-routes.js";
+import { registerRoute } from "./shared/register-route.js";
 import { API_SESSION_TOKEN_HEADER } from "./shared/session-token.js";
 
-export const HOST_PROXY_PREFIX = "/api/hosts/";
-const HOST_SOCKET_SUFFIX = "/host-socket";
+// What comes before and after the host's id in a proxied path, from the
+// route table's proxied host socket (`/api/hosts/:hostId/host-socket`).
+const [HOST_PROXY_PREFIX, HOST_SOCKET_SUFFIX] =
+  HOST_ROUTES.hostProxySocket.path.split(":hostId");
 
 /** Whether `path` is a proxied host socket (exempt from the token guard). */
 export const isProxiedHostSocketPath = (path) =>
@@ -64,20 +68,24 @@ export function registerHostProxyRoutes(
 ) {
   registerEndpointProxyRoutes(app, {
     fetchImpl,
-    path: `${HOST_PROXY_PREFIX}:hostId/*`,
     resolveEndpoint: (c) => resolveHost(c.req.param("hostId")),
-    socketPath: `${HOST_PROXY_PREFIX}:hostId${HOST_SOCKET_SUFFIX}`,
+    route: HOST_ROUTES.hostProxy,
+    socketRoute: HOST_ROUTES.hostProxySocket,
     targetPath: (c) => splitRoute(c.req.path, c.req.param("hostId")),
     upgradeWebSocket,
   });
 }
 
-/** Shared HTTP/stream and socket forwarding for SSH routes and desktop attach. */
+/**
+ * Shared HTTP/stream and socket forwarding for SSH routes and desktop attach.
+ * `route` forwards requests and `socketRoute` the host socket, each
+ * `{ method, path }` (a route table row, or the desktop edge's own).
+ */
 export function registerEndpointProxyRoutes(
   app,
   {
-    path,
-    socketPath,
+    route,
+    socketRoute,
     targetPath,
     resolveEndpoint,
     upgradeWebSocket,
@@ -85,8 +93,9 @@ export function registerEndpointProxyRoutes(
   },
 ) {
   if (upgradeWebSocket) {
-    app.get(
-      socketPath,
+    registerRoute(
+      app,
+      socketRoute,
       async (c, next) => {
         const endpoint = await resolveEndpoint(c);
         if (!endpoint) return c.text("Host is not connected.", 503);
@@ -95,7 +104,7 @@ export function registerEndpointProxyRoutes(
       },
       upgradeWebSocket((c) => {
         const endpoint = c.get("proxyEndpoint");
-        const remoteUrl = `${endpoint.baseUrl.replace(/^http/, "ws")}/api${HOST_SOCKET_SUFFIX}?ticket=${encodeURIComponent(c.req.query("ticket") ?? "")}`;
+        const remoteUrl = `${endpoint.baseUrl.replace(/^http/, "ws")}${HOST_ROUTES.hostSocket.path}?ticket=${encodeURIComponent(c.req.query("ticket") ?? "")}`;
         let remote = null;
         const pending = [];
         return {
@@ -121,7 +130,7 @@ export function registerEndpointProxyRoutes(
     );
   }
 
-  app.all(path, async (c) => {
+  registerRoute(app, route, async (c) => {
     const endpoint = await resolveEndpoint(c);
     if (!endpoint) {
       return c.text("Host is not connected.", 503);

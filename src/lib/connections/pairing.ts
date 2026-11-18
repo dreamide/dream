@@ -4,6 +4,7 @@
  * on the host is redeemed at once for a session, an HttpOnly cookie this
  * page never sees. Once it is set, the page starts over with it.
  */
+import { HOST_ROUTES } from "../../../electron/shared/host-routes.js";
 import { LOCAL_HOST_ID } from "../host-routing";
 import { hostFetch } from "./host-endpoint";
 
@@ -41,11 +42,14 @@ export class PairingError extends Error {
   override name = "PairingError";
 }
 
-const post = async <T>(path: string, body: object): Promise<T> => {
-  const response = await hostFetch(LOCAL_HOST_ID, path, {
+const send = async <T>(
+  route: { method: string; path: string },
+  body: object,
+): Promise<T> => {
+  const response = await hostFetch(LOCAL_HOST_ID, route.path, {
     body: JSON.stringify(body),
     headers: { "Content-Type": "application/json" },
-    method: "POST",
+    method: route.method,
   });
   if (!response.ok) {
     const reason = (await response.text().catch(() => "")).trim();
@@ -56,7 +60,7 @@ const post = async <T>(path: string, body: object): Promise<T> => {
 
 /** Redeems a pairing code for this browser's session cookie. */
 export const pairWithCode = (code: string, deviceName: string) =>
-  post<{ session: unknown }>("/api/remote/pair/code", {
+  send<{ session: unknown }>(HOST_ROUTES.remotePairCode, {
     clientKind: "web",
     code: code.trim(),
     deviceName,

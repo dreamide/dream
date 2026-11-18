@@ -1,7 +1,10 @@
 // Terminals over the host's API: JSON routes to start, stop and inspect
 // sessions. Their output, status, input, resizes and acknowledgments travel
 // on the host socket's terminal channel (terminals/terminal-stream.js).
+
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { handleJsonRoute } from "./shared/json-route.js";
+import { registerRoute } from "./shared/register-route.js";
 import {
   terminalEmptyRequestSchema,
   terminalStartRequestSchema,
@@ -24,13 +27,13 @@ import {
 export function registerTerminalRoutes(app, terminals) {
   const { detectShells, diagnosticsEnabled = false, sessions } = terminals;
 
-  app.post("/api/terminal-shells", (c) =>
+  registerRoute(app, HOST_ROUTES.terminalShells, (c) =>
     handleJsonRoute(c, terminalEmptyRequestSchema, () => detectShells(), {
       missingBody: {},
     }),
   );
 
-  app.post("/api/terminal-start", (c) =>
+  registerRoute(app, HOST_ROUTES.terminalStart, (c) =>
     handleJsonRoute(
       c,
       terminalStartRequestSchema,
@@ -39,14 +42,14 @@ export function registerTerminalRoutes(app, terminals) {
     ),
   );
 
-  app.post("/api/terminal-stop", (c) =>
+  registerRoute(app, HOST_ROUTES.terminalStop, (c) =>
     handleJsonRoute(c, terminalStopRequestSchema, async ({ sessionId }) => {
       await sessions.stopTerminalSession(sessionId);
       return true;
     }),
   );
 
-  app.post("/api/terminal-stop-all", (c) =>
+  registerRoute(app, HOST_ROUTES.terminalStopAll, (c) =>
     handleJsonRoute(
       c,
       terminalEmptyRequestSchema,
@@ -58,7 +61,7 @@ export function registerTerminalRoutes(app, terminals) {
     ),
   );
 
-  app.post("/api/terminal-diagnostics", (c) =>
+  registerRoute(app, HOST_ROUTES.terminalDiagnostics, (c) =>
     handleJsonRoute(
       c,
       terminalEmptyRequestSchema,

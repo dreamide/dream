@@ -1,5 +1,6 @@
 import { promises as fs, constants as fsConstants } from "node:fs";
 import { TextDecoder } from "node:util";
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import {
   commitProjectGitChanges,
   createProjectPullRequest,
@@ -76,9 +77,10 @@ import {
 } from "./project-git/worktree-lifecycle.js";
 import {
   handleJsonRoute,
-  postProjectRoute,
   RouteError,
+  registerProjectRoute,
 } from "./shared/json-route.js";
+import { registerRoute } from "./shared/register-route.js";
 
 const PROJECT_FILE_PREVIEW_MAX_BYTES = 1024 * 1024;
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
@@ -232,18 +234,18 @@ const writeProjectFile = async ({
 };
 
 export const registerProjectGitRoutes = (app) => {
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-directory",
+    HOST_ROUTES.projectDirectory,
     projectDirectoryRequestSchema,
     ({ directory, projectPath }) =>
       listProjectDirectory(projectPath, directory),
     { errorMessage: "Unable to list directory." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-files",
+    HOST_ROUTES.projectFiles,
     projectFilesRequestSchema,
     async ({ directory, maxResults, projectPath }, c) => {
       const files = await listProjectFiles(
@@ -257,31 +259,31 @@ export const registerProjectGitRoutes = (app) => {
     { errorMessage: "Unable to list files." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-file",
+    HOST_ROUTES.readProjectFile,
     projectFileRequestSchema,
     readProjectFile,
     { errorMessage: "Unable to read file." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-search",
+    HOST_ROUTES.searchProjectFiles,
     projectSearchRequestSchema,
     (request, c) => searchProjectFiles(request, c.req.raw.signal),
     { errorMessage: "Unable to search files." },
   );
 
-  app.put("/api/project-file", (c) =>
+  registerRoute(app, HOST_ROUTES.writeProjectFile, (c) =>
     handleJsonRoute(c, projectFileWriteRequestSchema, writeProjectFile, {
       errorMessage: "Unable to save file.",
     }),
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-icon",
+    HOST_ROUTES.projectIcon,
     projectIconRequestSchema,
     async ({ projectPath }) => ({
       icon: await detectProjectIcon(projectPath),
@@ -289,9 +291,9 @@ export const registerProjectGitRoutes = (app) => {
     { errorMessage: "Unable to detect icon." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-status",
+    HOST_ROUTES.gitStatus,
     projectGitStatusRequestSchema,
     ({ detail, projectPath }) =>
       listProjectGitChanges(projectPath, {
@@ -302,70 +304,70 @@ export const registerProjectGitRoutes = (app) => {
     { errorMessage: "Unable to read Git status." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-branches",
+    HOST_ROUTES.gitBranches,
     projectGitBranchesRequestSchema,
     ({ projectPath }) => listProjectGitBranches(projectPath),
     { errorMessage: "Unable to read Git branches." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-checkout",
+    HOST_ROUTES.gitCheckout,
     projectGitCheckoutRequestSchema,
     ({ branchName, create, projectPath }) =>
       checkoutProjectGitBranch(projectPath, branchName, create),
     { errorMessage: "Unable to switch Git branches." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-branch-delete-preview",
+    HOST_ROUTES.gitBranchDeletePreview,
     projectGitBranchDeletePreviewRequestSchema,
     ({ projectPath, ...options }) =>
       previewProjectGitBranchDelete(projectPath, options),
     { errorMessage: "Unable to check this branch." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-branch-delete",
+    HOST_ROUTES.gitBranchDelete,
     projectGitBranchDeleteRequestSchema,
     ({ projectPath, ...options }) =>
       deleteProjectGitBranch(projectPath, options),
     { errorMessage: "Unable to delete branch." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-worktrees",
+    HOST_ROUTES.gitWorktrees,
     projectGitWorktreesRequestSchema,
     ({ projectPath }) => listProjectGitWorktrees(projectPath),
     { errorMessage: "Unable to read worktrees." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-worktree-create",
+    HOST_ROUTES.gitWorktreeCreate,
     projectGitCreateWorktreeRequestSchema,
     ({ projectPath, ...options }) =>
       createProjectGitWorktree(projectPath, options),
     { errorMessage: "Unable to create worktree." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-commit",
+    HOST_ROUTES.gitCommit,
     projectGitCommitRequestSchema,
     ({ projectPath, ...options }) =>
       commitProjectGitChanges(projectPath, options),
     { errorMessage: "Unable to commit changes." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-commit-message",
+    HOST_ROUTES.gitCommitMessage,
     projectGitCommitMessageRequestSchema,
     async ({ projectPath, ...options }) => ({
       commitMessage: await generatedGitText.commitMessage(projectPath, {
@@ -376,138 +378,138 @@ export const registerProjectGitRoutes = (app) => {
     { errorMessage: "Unable to generate commit message." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-push",
+    HOST_ROUTES.gitPush,
     projectGitPushRequestSchema,
     ({ projectPath, ...options }) =>
       pushProjectGitChanges(projectPath, options),
     { errorMessage: "Unable to push changes." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-fetch",
+    HOST_ROUTES.gitFetch,
     projectGitFetchRequestSchema,
     ({ projectPath }) => fetchProjectGitChanges(projectPath),
     { errorMessage: "Unable to fetch changes." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-pull",
+    HOST_ROUTES.gitPull,
     projectGitPullRequestSchema,
     ({ projectPath }) => pullProjectGitChanges(projectPath),
     { errorMessage: "Unable to pull changes." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-remote-url",
+    HOST_ROUTES.gitRemoteUrl,
     projectGitRemoteUrlRequestSchema,
     ({ projectPath }) => getProjectGitRemoteUrl(projectPath),
     { errorMessage: "Unable to open repository." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-push-preview",
+    HOST_ROUTES.gitPushPreview,
     projectGitPushPreviewRequestSchema,
     ({ branch, projectPath }) =>
       getProjectGitPushPreview(projectPath, { branch }),
     { errorMessage: "Unable to preview push." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-log",
+    HOST_ROUTES.gitLog,
     projectGitLogRequestSchema,
     ({ limit, projectPath, skip }) =>
       getProjectGitLog(projectPath, { limit, skip }),
     { errorMessage: "Unable to read Git history." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-create-pr",
+    HOST_ROUTES.gitCreatePullRequest,
     projectGitCreatePullRequestSchema,
     ({ projectPath, ...options }) =>
       createProjectPullRequest(projectPath, options),
     { errorMessage: "Unable to create a pull request." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-pull-request-details",
+    HOST_ROUTES.gitPullRequestDetails,
     projectGitPullRequestDetailsRequestSchema,
     ({ projectPath, ...options }) =>
       generatedGitText.pullRequestDetails(projectPath, options),
     { errorMessage: "Unable to generate pull request details." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-worktree-compare",
+    HOST_ROUTES.gitWorktreeCompare,
     projectGitWorktreeCompareRequestSchema,
     ({ projectPath, ...options }) =>
       compareProjectGitWorktree(projectPath, options),
     { errorMessage: "Unable to compare worktree." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-worktree-compare-diff",
+    HOST_ROUTES.gitWorktreeCompareDiff,
     projectGitWorktreeCompareDiffRequestSchema,
     ({ projectPath, ...options }) =>
       getProjectGitWorktreeCompareDiff(projectPath, options),
     { errorMessage: "Unable to read worktree diff." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-worktree-merge",
+    HOST_ROUTES.gitWorktreeMerge,
     projectGitWorktreeMergeRequestSchema,
     ({ projectPath, ...options }) =>
       mergeProjectGitWorktree(projectPath, options),
     { errorMessage: "Unable to merge worktree." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-worktree-cleanup",
+    HOST_ROUTES.gitWorktreeCleanup,
     projectGitWorktreeCleanupRequestSchema,
     ({ projectPath, ...options }) =>
       forgetProjectGitWorktree(projectPath, options),
     { errorMessage: "Unable to remove worktree." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-diff",
+    HOST_ROUTES.gitDiff,
     projectGitDiffRequestSchema,
     ({ filePath, previousPath, projectPath, status }) =>
       getProjectGitDiff(projectPath, filePath, { previousPath, status }),
     { errorMessage: "Unable to read Git diff." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-revert-file",
+    HOST_ROUTES.gitRevertFile,
     projectGitRevertFileRequestSchema,
     ({ filePath, previousPath, projectPath, status }) =>
       revertProjectGitFile(projectPath, filePath, { previousPath, status }),
     { errorMessage: "Unable to revert file." },
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/project-git-revert-all",
+    HOST_ROUTES.gitRevertAll,
     projectGitRevertAllRequestSchema,
     ({ projectPath }) => revertAllProjectGitChanges(projectPath),
     { errorMessage: "Unable to revert changes." },
   );
 
-  app.get("/api/project-file-raw", async (c) => {
+  registerRoute(app, HOST_ROUTES.projectFileRaw, async (c) => {
     const projectPath = c.req.query("projectPath");
     const filePath = c.req.query("filePath");
 
@@ -540,7 +542,7 @@ export const registerProjectGitRoutes = (app) => {
     }
   });
 
-  app.get("/api/project-git-file-at-head-raw", async (c) => {
+  registerRoute(app, HOST_ROUTES.gitFileAtHeadRaw, async (c) => {
     const projectPath = c.req.query("projectPath");
     const filePath = c.req.query("filePath");
 

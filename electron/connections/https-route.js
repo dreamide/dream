@@ -8,6 +8,7 @@ import { Readable } from "node:stream";
 import tls from "node:tls";
 import { fingerprintOf } from "../host/identity.js";
 import { hostProofMessage } from "../shared/host-proof.js";
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import {
   hostProtocolProblem,
   matchesPinnedIdentity,
@@ -211,7 +212,7 @@ export function createVerifiedHttps({
       };
       socket.on("data", readProof);
       socket.write(
-        `POST /api/remote/proof HTTP/1.1\r\nHost: ${new URL(origin).host}\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: keep-alive\r\n\r\n${body}`,
+        `${HOST_ROUTES.remoteProof.method} ${HOST_ROUTES.remoteProof.path} HTTP/1.1\r\nHost: ${new URL(origin).host}\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\nConnection: keep-alive\r\n\r\n${body}`,
       );
     });
     // Asynchronous Agent creation: the caller must not use the socket yet.
@@ -338,9 +339,9 @@ export function createHttpsRoutes({
       });
       try {
         const response = await transport.request(
-          `${origin}/api/remote/pair/code`,
+          `${origin}${HOST_ROUTES.remotePairCode.path}`,
           {
-            method: "POST",
+            method: HOST_ROUTES.remotePairCode.method,
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ code, deviceName, clientKind: "native" }),
             signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
@@ -413,8 +414,8 @@ export function createHttpsRoutes({
         return response;
       };
       const renew = (renewSignal) =>
-        request(`${origin}/api/remote/session/renew`, {
-          method: "POST",
+        request(`${origin}${HOST_ROUTES.remoteSessionRenew.path}`, {
+          method: HOST_ROUTES.remoteSessionRenew.method,
           headers: { "content-type": "application/json" },
           body: "{}",
           signal: AbortSignal.any([renewSignal, AbortSignal.timeout(15_000)]),

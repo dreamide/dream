@@ -11,6 +11,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { hostFetch } from "@/lib/connections/host-endpoint";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
+import { HOST_ROUTES } from "../../../../electron/shared/host-routes.js";
 import { RemoteAccessSection } from "./remote-access-section";
 
 /** -1, 0 or 1 as version `a` is older, the same as or newer than `b`. */
@@ -33,7 +34,7 @@ const useHostVersion = () => {
   const [version, setVersion] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    void hostFetch(LOCAL_HOST_ID, "/api/host-info")
+    void hostFetch(LOCAL_HOST_ID, HOST_ROUTES.hostInfo.path)
       .then((response) => (response.ok ? response.json() : null))
       .then((info: { version?: unknown } | null) => {
         if (!cancelled && typeof info?.version === "string")

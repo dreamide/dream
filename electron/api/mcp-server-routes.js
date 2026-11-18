@@ -1,9 +1,11 @@
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { mcpImportCandidatesRequestSchema } from "./mcp-servers/schemas.js";
 import { parseTomlLite } from "./mcp-servers/toml-lite.js";
 import { handleJsonRoute } from "./shared/json-route.js";
+import { registerRoute } from "./shared/register-route.js";
 
 const MCP_SERVER_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
@@ -282,7 +284,7 @@ export const mergeMcpImportCandidates = (sources) => {
 };
 
 export const registerMcpServerRoutes = (app) => {
-  app.post("/api/mcp-servers/import-candidates", (c) =>
+  registerRoute(app, HOST_ROUTES.mcpImportCandidates, (c) =>
     handleJsonRoute(
       c,
       mcpImportCandidatesRequestSchema,

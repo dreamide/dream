@@ -6,7 +6,9 @@ import { readdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { z } from "zod";
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { handleJsonRoute, RouteError } from "./shared/json-route.js";
+import { registerRoute } from "./shared/register-route.js";
 
 /** Folders listed at most per folder; a bigger one says it was cut short. */
 export const HOST_DIRECTORY_LIMIT = 2000;
@@ -98,7 +100,7 @@ export async function listHostDirectories(
  * @param {{ home?: string }} [options]
  */
 export function registerHostDirectoryRoutes(app, options = {}) {
-  app.post("/api/host-directories", (c) =>
+  registerRoute(app, HOST_ROUTES.hostDirectories, (c) =>
     handleJsonRoute(
       c,
       hostDirectoriesRequestSchema,

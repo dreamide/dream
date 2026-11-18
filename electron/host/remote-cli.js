@@ -21,6 +21,7 @@
 // `--json` prints the host's answer as one JSON line instead.
 
 import { API_SESSION_TOKEN_HEADER } from "../api/shared/session-token.js";
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { readRemoteAccess } from "../shared/remote-access-view.js";
 
 const SCOPES = new Set(["view", "operate", "manage"]);
@@ -29,15 +30,18 @@ const SCOPES = new Set(["view", "operate", "manage"]);
 const connect =
   (record) =>
   async (route, body = {}) => {
-    const response = await fetch(`http://127.0.0.1:${record.port}${route}`, {
-      body: JSON.stringify(body),
-      headers: {
-        "content-type": "application/json",
-        [API_SESSION_TOKEN_HEADER]: record.token,
+    const response = await fetch(
+      `http://127.0.0.1:${record.port}${route.path}`,
+      {
+        body: JSON.stringify(body),
+        headers: {
+          "content-type": "application/json",
+          [API_SESSION_TOKEN_HEADER]: record.token,
+        },
+        method: route.method,
+        signal: AbortSignal.timeout(180_000),
       },
-      method: "POST",
-      signal: AbortSignal.timeout(180_000),
-    });
+    );
     if (!response.ok) {
       const reason = (await response.text().catch(() => "")).trim();
       throw new Error(reason || `The host answered ${response.status}.`);
@@ -129,11 +133,11 @@ export async function runRemoteCommand({
     case "remote": {
       const action = args[0] ?? "status";
       let status;
-      if (action === "status") status = await call("/api/remote/access");
+      if (action === "status") status = await call(HOST_ROUTES.remoteAccess);
       else if (action === "check")
-        status = await call("/api/remote/access/check");
+        status = await call(HOST_ROUTES.remoteAccessCheck);
       else if (action === "off")
-        status = await call("/api/remote/access/disable");
+        status = await call(HOST_ROUTES.remoteAccessDisable);
       else if (action === "on") {
         if (
           (values.cloudflare && values.tailscale) ||
@@ -150,7 +154,7 @@ export async function runRemoteCommand({
             : Number(values["https-port"]);
         const port =
           values.port === undefined ? undefined : Number(values.port);
-        status = await call("/api/remote/access/enable", {
+        status = await call(HOST_ROUTES.remoteAccessEnable, {
           ...(values.cloudflare
             ? {
                 mode: "cloudflare",
@@ -188,8 +192,8 @@ export async function runRemoteCommand({
         print("--scopes takes view, operate and manage, comma separated.");
         return 2;
       }
-      const access = await call("/api/remote/access");
-      const pairing = await call("/api/remote/pairings", {
+      const access = await call(HOST_ROUTES.remoteAccess);
+      const pairing = await call(HOST_ROUTES.remotePairingCreate, {
         ...(values.name ? { deviceName: values.name } : {}),
         scopes,
       });
@@ -208,7 +212,7 @@ export async function runRemoteCommand({
     }
 
     case "devices": {
-      const { sessions } = await call("/api/remote/sessions");
+      const { sessions } = await call(HOST_ROUTES.remoteSessions);
       const live = sessions.filter((session) => !session.revokedAt);
       show(
         sessions,
@@ -228,7 +232,7 @@ export async function runRemoteCommand({
         print("Usage: dream-host revoke <sessionId>");
         return 2;
       }
-      const { session } = await call("/api/remote/sessions/revoke", {
+      const { session } = await call(HOST_ROUTES.remoteSessionRevoke, {
         sessionId,
       });
       show(session, [`Revoked “${session.deviceName}”.`]);

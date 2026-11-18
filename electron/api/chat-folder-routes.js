@@ -2,7 +2,9 @@
 // project on this host (host/chat-folders.js).
 import { z } from "zod";
 import { ChatFolderError, createChatFolder } from "../host/chat-folders.js";
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { handleJsonRoute, RouteError } from "./shared/json-route.js";
+import { registerRoute } from "./shared/register-route.js";
 
 export const chatFolderCreateRequestSchema = z.object({
   /** The new Project's id; its start names the folder. */
@@ -16,7 +18,7 @@ export const chatFolderCreateRequestSchema = z.object({
  * @param {{ home?: string, findGitTopLevel?: (folder: string) => Promise<string | null> }} [options]
  */
 export function registerChatFolderRoutes(app, options = {}) {
-  app.post("/api/chat-folders", (c) =>
+  registerRoute(app, HOST_ROUTES.createChatFolder, (c) =>
     handleJsonRoute(
       c,
       chatFolderCreateRequestSchema,

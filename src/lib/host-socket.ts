@@ -19,13 +19,13 @@
  * up to date. A replaced socket's late messages are ignored, so an old
  * connection cannot overwrite what the new one brought.
  */
+
+import { HOST_ROUTES } from "../../electron/shared/host-routes.js";
 import { type ApiClient, apiClient } from "./api-client";
 import { hostWebSocketUrl } from "./connections/host-endpoint";
 import type { ConnectionRecovery } from "./connections/recovery";
 import { connectionRecovery } from "./connections/runtime";
 import { LOCAL_HOST_ID } from "./host-routing";
-
-export const HOST_SOCKET_PATH = "/api/host-socket";
 
 const OUTBOX_LIMIT = 10_000;
 const MIN_RETRY_MS = 250;
@@ -102,7 +102,7 @@ const openSocketTo =
   (hostId: string) =>
   (ticket: string): HostSocketTransport =>
     new WebSocket(
-      hostWebSocketUrl(hostId, HOST_SOCKET_PATH, { ticket }),
+      hostWebSocketUrl(hostId, HOST_ROUTES.hostSocket.path, { ticket }),
     ) as unknown as HostSocketTransport;
 
 export const createHostSocketClient = ({

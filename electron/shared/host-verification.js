@@ -7,6 +7,7 @@
 // Pure apart from the probes, which take the fetch to use: the renderer
 // checks a host descriptor with this module too, so no Node built-ins.
 import { SUPPORTED_HOST_PROTOCOLS } from "../host/protocol.js";
+import { HOST_ROUTES } from "./host-routes.js";
 
 /**
  * @typedef {{ hostId: string, fingerprint?: string | null }} PinnedIdentity
@@ -88,7 +89,7 @@ export function requestHostInfo({
   headers,
   fetchImpl = (...args) => fetch(...args),
 }) {
-  return fetchImpl(`${baseUrl}/api/host-info`, {
+  return fetchImpl(`${baseUrl}${HOST_ROUTES.hostInfo.path}`, {
     headers,
     redirect: "error",
     signal: AbortSignal.timeout(HOST_INFO_TIMEOUT_MS),
@@ -113,8 +114,8 @@ export function requestCatalogProbe({
   signal,
   fetchImpl,
 }) {
-  return fetchImpl(`${baseUrl}/api/catalog`, {
-    method: "POST",
+  return fetchImpl(`${baseUrl}${HOST_ROUTES.catalog.path}`, {
+    method: HOST_ROUTES.catalog.method,
     headers: { ...headers, "content-type": "application/json" },
     body: "{}",
     redirect: "error",

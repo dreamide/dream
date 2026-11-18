@@ -2,8 +2,10 @@
  * The route client: the renderer's one way to call the main process's JSON
  * routes (electron/api/*-routes.js).
  *
- * One method per route. Each request type is inferred from the zod schema the
- * server validates with, so the contract is written once, in the schema. The
+ * One method per route. Its method and path are its row in the route table
+ * (electron/shared/host-routes.js), which the host registers its handlers by.
+ * Each request type is inferred from the zod schema the server validates
+ * with, so the contract is written once, in the schema. The
  * response types are the renderer's own declarations (the server has no
  * response schemas); they sit here, beside the route they describe.
  *
@@ -134,6 +136,10 @@ import type {
   terminalStopRequestSchema,
 } from "../../electron/api/terminals/schemas.js";
 import type { toolApprovalResponseSchema } from "../../electron/api/tool-approvals.js";
+import {
+  HOST_ROUTES,
+  type HostRouteName,
+} from "../../electron/shared/host-routes.js";
 import { hostFetch } from "./connections/host-endpoint";
 import { resolveRequestHost } from "./host-routing";
 
@@ -502,329 +508,337 @@ export interface ApiRoute<Request, Response> {
   readonly types?: { request: Request; response: Response };
 }
 
-const post = <Request, Response>(
-  path: string,
-): ApiRoute<Request, Response> => ({
-  method: "POST",
-  path,
-});
+/** The route table's rows a JSON body is sent to. */
+type JsonRouteName = {
+  [Name in HostRouteName]: (typeof HOST_ROUTES)[Name]["method"] extends
+    | "POST"
+    | "PUT"
+    ? Name
+    : never;
+}[HostRouteName];
 
-const put = <Request, Response>(path: string): ApiRoute<Request, Response> => ({
-  method: "PUT",
-  path,
-});
+/** The route table's row `name`, with its request and response types. */
+const route = <Request, Response>(
+  name: JsonRouteName,
+): ApiRoute<Request, Response> => {
+  const { method, path } = HOST_ROUTES[name];
+  return { method, path };
+};
 
 /**
- * Every JSON route the renderer calls. The keys are the client's method
- * names; `api-client.contract.test.ts` checks each path is served.
+ * Every JSON route the renderer calls: each key is the client's method name
+ * and the route table's row (electron/shared/host-routes.js) it calls, which
+ * gives its method and path.
  */
 export const API_ROUTES = {
   // Project files
-  projectDirectory: post<
+  projectDirectory: route<
     Input<typeof projectDirectoryRequestSchema>,
     ProjectDirectoryResponse
-  >("/api/project-directory"),
-  projectFiles: post<
+  >("projectDirectory"),
+  projectFiles: route<
     Input<typeof projectFilesRequestSchema>,
     ProjectFilesResponse
-  >("/api/project-files"),
-  readProjectFile: post<
+  >("projectFiles"),
+  readProjectFile: route<
     Input<typeof projectFileRequestSchema>,
     ProjectFileReadResponse
-  >("/api/project-file"),
-  writeProjectFile: put<
+  >("readProjectFile"),
+  writeProjectFile: route<
     Input<typeof projectFileWriteRequestSchema>,
     ProjectFileWriteResponse
-  >("/api/project-file"),
-  searchProjectFiles: post<
+  >("writeProjectFile"),
+  searchProjectFiles: route<
     Input<typeof projectSearchRequestSchema>,
     ProjectSearchResponse
-  >("/api/project-search"),
-  projectIcon: post<
+  >("searchProjectFiles"),
+  projectIcon: route<
     Input<typeof projectIconRequestSchema>,
     ProjectIconResponse
-  >("/api/project-icon"),
+  >("projectIcon"),
 
   // Git
-  gitStatus: post<
+  gitStatus: route<
     Input<typeof projectGitStatusRequestSchema>,
     ProjectGitStatusResponse
-  >("/api/project-git-status"),
-  gitBranches: post<
+  >("gitStatus"),
+  gitBranches: route<
     Input<typeof projectGitBranchesRequestSchema>,
     ProjectGitBranchesResponse
-  >("/api/project-git-branches"),
-  gitCheckout: post<
+  >("gitBranches"),
+  gitCheckout: route<
     Input<typeof projectGitCheckoutRequestSchema>,
     ProjectGitCheckoutResponse
-  >("/api/project-git-checkout"),
-  gitBranchDeletePreview: post<
+  >("gitCheckout"),
+  gitBranchDeletePreview: route<
     Input<typeof projectGitBranchDeletePreviewRequestSchema>,
     ProjectGitBranchDeletePreview
-  >("/api/project-git-branch-delete-preview"),
-  gitBranchDelete: post<
+  >("gitBranchDeletePreview"),
+  gitBranchDelete: route<
     Input<typeof projectGitBranchDeleteRequestSchema>,
     ProjectGitBranchDeleteResponse
-  >("/api/project-git-branch-delete"),
-  gitDiff: post<
+  >("gitBranchDelete"),
+  gitDiff: route<
     Input<typeof projectGitDiffRequestSchema>,
     ProjectGitDiffResponse
-  >("/api/project-git-diff"),
-  gitRevertFile: post<
+  >("gitDiff"),
+  gitRevertFile: route<
     Input<typeof projectGitRevertFileRequestSchema>,
     ProjectGitRevertFileResponse
-  >("/api/project-git-revert-file"),
-  gitRevertAll: post<
+  >("gitRevertFile"),
+  gitRevertAll: route<
     Input<typeof projectGitRevertAllRequestSchema>,
     ProjectGitRevertAllResponse
-  >("/api/project-git-revert-all"),
-  gitCommit: post<
+  >("gitRevertAll"),
+  gitCommit: route<
     Input<typeof projectGitCommitRequestSchema>,
     ProjectGitCommitResponse
-  >("/api/project-git-commit"),
-  gitCommitMessage: post<
+  >("gitCommit"),
+  gitCommitMessage: route<
     Input<typeof projectGitCommitMessageRequestSchema>,
     ProjectGitCommitMessageResponse
-  >("/api/project-git-commit-message"),
-  gitPush: post<
+  >("gitCommitMessage"),
+  gitPush: route<
     Input<typeof projectGitPushRequestSchema>,
     ProjectGitPushResponse
-  >("/api/project-git-push"),
-  gitPushPreview: post<
+  >("gitPush"),
+  gitPushPreview: route<
     Input<typeof projectGitPushPreviewRequestSchema>,
     ProjectGitPushPreviewResponse
-  >("/api/project-git-push-preview"),
-  gitFetch: post<
+  >("gitPushPreview"),
+  gitFetch: route<
     Input<typeof projectGitFetchRequestSchema>,
     { remote: string }
-  >("/api/project-git-fetch"),
-  gitPull: post<
+  >("gitFetch"),
+  gitPull: route<
     Input<typeof projectGitPullRequestSchema>,
     ProjectGitPullResponse
-  >("/api/project-git-pull"),
-  gitRemoteUrl: post<
+  >("gitPull"),
+  gitRemoteUrl: route<
     Input<typeof projectGitRemoteUrlRequestSchema>,
     { url: string }
-  >("/api/project-git-remote-url"),
-  gitLog: post<Input<typeof projectGitLogRequestSchema>, ProjectGitLogResponse>(
-    "/api/project-git-log",
-  ),
-  gitCreatePullRequest: post<
+  >("gitRemoteUrl"),
+  gitLog: route<
+    Input<typeof projectGitLogRequestSchema>,
+    ProjectGitLogResponse
+  >("gitLog"),
+  gitCreatePullRequest: route<
     Input<typeof projectGitCreatePullRequestSchema>,
     ProjectGitCreatePrResponse
-  >("/api/project-git-create-pr"),
-  gitPullRequestDetails: post<
+  >("gitCreatePullRequest"),
+  gitPullRequestDetails: route<
     Input<typeof projectGitPullRequestDetailsRequestSchema>,
     ProjectGitPullRequestDetailsResponse
-  >("/api/project-git-pull-request-details"),
+  >("gitPullRequestDetails"),
 
   // Worktrees
-  gitWorktrees: post<
+  gitWorktrees: route<
     Input<typeof projectGitWorktreesRequestSchema>,
     ProjectGitWorktreesResponse
-  >("/api/project-git-worktrees"),
-  gitWorktreeCreate: post<
+  >("gitWorktrees"),
+  gitWorktreeCreate: route<
     Input<typeof projectGitCreateWorktreeRequestSchema>,
     ProjectGitCreateWorktreeResponse
-  >("/api/project-git-worktree-create"),
-  gitWorktreeCompare: post<
+  >("gitWorktreeCreate"),
+  gitWorktreeCompare: route<
     Input<typeof projectGitWorktreeCompareRequestSchema>,
     ProjectGitWorktreeCompareResponse
-  >("/api/project-git-worktree-compare"),
-  gitWorktreeCompareDiff: post<
+  >("gitWorktreeCompare"),
+  gitWorktreeCompareDiff: route<
     Input<typeof projectGitWorktreeCompareDiffRequestSchema>,
     ProjectGitDiffResponse
-  >("/api/project-git-worktree-compare-diff"),
-  gitWorktreeMerge: post<
+  >("gitWorktreeCompareDiff"),
+  gitWorktreeMerge: route<
     Input<typeof projectGitWorktreeMergeRequestSchema>,
     ProjectGitWorktreeMergeResponse
-  >("/api/project-git-worktree-merge"),
-  gitWorktreeCleanup: post<
+  >("gitWorktreeMerge"),
+  gitWorktreeCleanup: route<
     Input<typeof projectGitWorktreeCleanupRequestSchema>,
     ProjectGitWorktreeCleanupResponse
-  >("/api/project-git-worktree-cleanup"),
+  >("gitWorktreeCleanup"),
 
   // Checkpoints
-  checkpointChanges: post<
+  checkpointChanges: route<
     Input<typeof checkpointChangesRequestSchema>,
     CheckpointChangesResponse
-  >("/api/checkpoint-changes"),
-  checkpointDiff: post<
+  >("checkpointChanges"),
+  checkpointDiff: route<
     Input<typeof checkpointDiffRequestSchema>,
     CheckpointDiffResponse
-  >("/api/checkpoint-diff"),
-  checkpointRestore: post<
+  >("checkpointDiff"),
+  checkpointRestore: route<
     Input<typeof checkpointRestoreRequestSchema>,
     CheckpointRestoreResponse
-  >("/api/checkpoint-restore"),
-  checkpointDeleteChats: post<
+  >("checkpointRestore"),
+  checkpointDeleteChats: route<
     Input<typeof checkpointDeleteChatsRequestSchema>,
     CheckpointDeleteChatsResponse
-  >("/api/checkpoint-delete-chats"),
+  >("checkpointDeleteChats"),
 
   // Providers
-  providerModels: post<
+  providerModels: route<
     NonNullable<Input<typeof providerModelsRequestSchema>>,
     ProviderModelsResponse
-  >("/api/provider-models"),
-  providerUsageLimits: post<
+  >("providerModels"),
+  providerUsageLimits: route<
     Input<typeof providerUsageLimitsRequestSchema>,
     UsageLimitsResponse
-  >("/api/provider-usage-limits"),
-  cliUpdates: post<Input<typeof cliUpdatesRequestSchema>, CliUpdatesResponse>(
-    "/api/cli-updates",
+  >("providerUsageLimits"),
+  cliUpdates: route<Input<typeof cliUpdatesRequestSchema>, CliUpdatesResponse>(
+    "cliUpdates",
   ),
-  cliUpgrade: post<Input<typeof cliUpgradeRequestSchema>, CliUpgradeResponse>(
-    "/api/cli-upgrade",
+  cliUpgrade: route<Input<typeof cliUpgradeRequestSchema>, CliUpgradeResponse>(
+    "cliUpgrade",
   ),
 
   // Skills
-  skills: post<Input<typeof skillsRequestSchema>, ProviderSkillsResponse>(
-    "/api/skills",
+  skills: route<Input<typeof skillsRequestSchema>, ProviderSkillsResponse>(
+    "skills",
   ),
-  readSkill: post<Input<typeof readSkillRequestSchema>, SkillFileContents>(
-    "/api/skills/read",
+  readSkill: route<Input<typeof readSkillRequestSchema>, SkillFileContents>(
+    "readSkill",
   ),
-  createSkill: post<
+  createSkill: route<
     Input<typeof createSkillRequestSchema>,
     CreateSkillResponse
-  >("/api/skills/create"),
-  setSkillEnabled: post<
+  >("createSkill"),
+  setSkillEnabled: route<
     Input<typeof setSkillEnabledRequestSchema>,
     { ok: true }
-  >("/api/skills/set-enabled"),
+  >("setSkillEnabled"),
 
   // Chat
-  chatTitle: post<Input<typeof chatTitleRequestBodySchema>, ChatTitleResponse>(
-    "/api/chat-title",
+  chatTitle: route<Input<typeof chatTitleRequestBodySchema>, ChatTitleResponse>(
+    "chatTitle",
   ),
   /** Stops the chat's running turn (dropping the request does not). */
-  stopChatTurn: post<Input<typeof chatStopRequestSchema>, { stopped: boolean }>(
-    "/api/chat/stop",
-  ),
-  toolApprovalResponse: post<
+  stopChatTurn: route<
+    Input<typeof chatStopRequestSchema>,
+    { stopped: boolean }
+  >("stopChatTurn"),
+  toolApprovalResponse: route<
     Input<typeof toolApprovalResponseSchema>,
     ToolApprovalResolution
-  >("/api/tool-approval-response"),
+  >("toolApprovalResponse"),
 
   // The host catalog (projects, chats, transcripts)
-  submitChat: post<
+  submitChat: route<
     Input<typeof chatSubmitRequestSchema>,
     { id: string; duplicate: boolean }
-  >("/api/chat/submit"),
-  chatQueue: post<Input<typeof chatQueueRequestSchema>, ChatQueueResponse>(
-    "/api/chat/queue",
+  >("submitChat"),
+  chatQueue: route<Input<typeof chatQueueRequestSchema>, ChatQueueResponse>(
+    "chatQueue",
   ),
-  controlChatQueue: post<
+  controlChatQueue: route<
     Input<typeof chatQueueControlSchema>,
     ChatQueueResponse
-  >("/api/chat/queue/control"),
-  catalog: post<Input<typeof catalogListRequestSchema>, CatalogResponse>(
-    "/api/catalog",
+  >("controlChatQueue"),
+  catalog: route<Input<typeof catalogListRequestSchema>, CatalogResponse>(
+    "catalog",
   ),
-  catalogChanges: post<
+  catalogChanges: route<
     Input<typeof catalogChangesRequestSchema>,
     CatalogChangesResponse
-  >("/api/catalog/changes"),
-  catalogTranscript: post<
+  >("catalogChanges"),
+  catalogTranscript: route<
     Input<typeof catalogTranscriptRequestSchema>,
     UIMessage[]
-  >("/api/catalog/transcript"),
-  catalogTranscriptPage: post<
+  >("catalogTranscript"),
+  catalogTranscriptPage: route<
     Input<typeof catalogTranscriptPageSchema>,
     TranscriptPage
-  >("/api/catalog/transcript/page"),
-  catalogSearch: post<
+  >("catalogTranscriptPage"),
+  catalogSearch: route<
     Input<typeof catalogSearchRequestSchema>,
     CatalogSearchResponse
-  >("/api/catalog/search"),
-  saveCatalogTranscript: put<
+  >("catalogSearch"),
+  saveCatalogTranscript: route<
     Input<typeof catalogTranscriptSaveRequestSchema>,
     { saved: boolean }
-  >("/api/catalog/transcript"),
+  >("saveCatalogTranscript"),
 
   // A browser tool call from an SSH host's agent, run on this window's
   // browser (the local host's API; the result is the tool's MCP content)
-  callBrowserTool: post<Input<typeof browserToolCallRequestSchema>, unknown>(
-    "/api/browser-tools/call",
+  callBrowserTool: route<Input<typeof browserToolCallRequestSchema>, unknown>(
+    "callBrowserTool",
   ),
 
   // A host's folders, for picking a project folder on it
-  hostDirectories: post<
+  hostDirectories: route<
     Input<typeof hostDirectoriesRequestSchema>,
     HostDirectoriesResponse
-  >("/api/host-directories"),
+  >("hostDirectories"),
 
   // The folder of a new standalone chat, created on its host
-  createChatFolder: post<
+  createChatFolder: route<
     Input<typeof chatFolderCreateRequestSchema>,
     ChatFolderResponse
-  >("/api/chat-folders"),
+  >("createChatFolder"),
 
   // Remote access and paired devices (this machine's operator only)
-  remoteAccess: post<Record<string, never>, RemoteAccessStatus>(
-    "/api/remote/access",
+  remoteAccess: route<Record<string, never>, RemoteAccessStatus>(
+    "remoteAccess",
   ),
-  remoteAccessEnable: post<
+  remoteAccessEnable: route<
     Input<typeof remoteAccessEnableSchema>,
     RemoteAccessStatus
-  >("/api/remote/access/enable"),
-  remoteAccessDisable: post<Record<string, never>, RemoteAccessStatus>(
-    "/api/remote/access/disable",
+  >("remoteAccessEnable"),
+  remoteAccessDisable: route<Record<string, never>, RemoteAccessStatus>(
+    "remoteAccessDisable",
   ),
-  remoteAccessCheck: post<Record<string, never>, RemoteAccessStatus>(
-    "/api/remote/access/check",
+  remoteAccessCheck: route<Record<string, never>, RemoteAccessStatus>(
+    "remoteAccessCheck",
   ),
-  remotePairingCreate: post<
+  remotePairingCreate: route<
     Input<typeof remotePairingCreateRequestSchema>,
     RemotePairing
-  >("/api/remote/pairings"),
-  remoteSessions: post<
+  >("remotePairingCreate"),
+  remoteSessions: route<
     Record<string, never>,
     { sessions: RemoteDeviceSession[] }
-  >("/api/remote/sessions"),
-  remoteSessionRevoke: post<
+  >("remoteSessions"),
+  remoteSessionRevoke: route<
     Input<typeof remoteSessionRevokeRequestSchema>,
     { session: RemoteDeviceSession }
-  >("/api/remote/sessions/revoke"),
+  >("remoteSessionRevoke"),
 
   // The host socket (live traffic: terminals, catalog events)
-  hostSocketTicket: post<
+  hostSocketTicket: route<
     Input<typeof hostSocketTicketRequestSchema>,
     { ticket: string }
-  >("/api/host-socket-ticket"),
+  >("hostSocketTicket"),
 
   // Terminals (output and input travel on the host socket)
-  terminalShells: post<
+  terminalShells: route<
     Input<typeof terminalEmptyRequestSchema>,
     TerminalShellOption[]
-  >("/api/terminal-shells"),
-  terminalStart: post<
+  >("terminalShells"),
+  terminalStart: route<
     Input<typeof terminalStartRequestSchema>,
     TerminalStartResponse
-  >("/api/terminal-start"),
-  terminalStop: post<Input<typeof terminalStopRequestSchema>, boolean>(
-    "/api/terminal-stop",
+  >("terminalStart"),
+  terminalStop: route<Input<typeof terminalStopRequestSchema>, boolean>(
+    "terminalStop",
   ),
-  terminalStopAll: post<Input<typeof terminalEmptyRequestSchema>, boolean>(
-    "/api/terminal-stop-all",
+  terminalStopAll: route<Input<typeof terminalEmptyRequestSchema>, boolean>(
+    "terminalStopAll",
   ),
-  terminalDiagnostics: post<
+  terminalDiagnostics: route<
     Input<typeof terminalEmptyRequestSchema>,
     TerminalOutputDiagnostics[]
-  >("/api/terminal-diagnostics"),
+  >("terminalDiagnostics"),
 
   // Other
-  mcpImportCandidates: post<
+  mcpImportCandidates: route<
     Input<typeof mcpImportCandidatesRequestSchema>,
     McpImportCandidatesResponse
-  >("/api/mcp-servers/import-candidates"),
+  >("mcpImportCandidates"),
   /**
    * One route for every GitHub pull request action; the response depends on
    * the action, so the caller names it (`pull-requests/api.ts`).
    */
-  codePullRequests: post<Input<typeof codePullRequestRequestSchema>, unknown>(
-    "/api/code-pull-requests",
+  codePullRequests: route<Input<typeof codePullRequestRequestSchema>, unknown>(
+    "codePullRequests",
   ),
 } as const;
 
@@ -995,15 +1009,14 @@ export const getProjectFileRawUrl = (
   projectPath: string,
   filePath: string,
   hostId?: string,
-) => rawRoute("/api/project-file-raw", projectPath, filePath, hostId);
+) => rawRoute(HOST_ROUTES.projectFileRaw.path, projectPath, filePath, hostId);
 
 /** A file's bytes as committed at HEAD. */
 export const getProjectGitFileAtHeadRawUrl = (
   projectPath: string,
   filePath: string,
   hostId?: string,
-) =>
-  rawRoute("/api/project-git-file-at-head-raw", projectPath, filePath, hostId);
+) => rawRoute(HOST_ROUTES.gitFileAtHeadRaw.path, projectPath, filePath, hostId);
 
 /**
  * Loads one of the raw routes above as a blob, with its host's credential,

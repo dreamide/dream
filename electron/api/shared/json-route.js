@@ -4,6 +4,7 @@
 // side of this contract: it takes its request types from the same schemas
 // and reads the plain-text error back as the message.
 import { ensureProjectDirectory } from "../project-git/files.js";
+import { registerRoute } from "./register-route.js";
 
 /**
  * An error a handler throws to answer with a specific status. Any other
@@ -90,11 +91,17 @@ export const handleJsonRoute = async (c, schema, handler, options = {}) => {
 };
 
 /**
- * Registers a POST JSON route whose `projectPath` must be a directory, the
- * common case for the project routes.
+ * Registers a JSON route (a row of the route table) whose `projectPath` must
+ * be a directory, the common case for the project routes.
  */
-export const postProjectRoute = (app, path, schema, handler, options = {}) =>
-  app.post(path, (c) =>
+export const registerProjectRoute = (
+  app,
+  route,
+  schema,
+  handler,
+  options = {},
+) =>
+  registerRoute(app, route, (c) =>
     handleJsonRoute(c, schema, handler, {
       requireProjectDirectory: true,
       ...options,

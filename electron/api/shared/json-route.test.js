@@ -5,7 +5,11 @@ import path from "node:path";
 import { Hono } from "hono";
 import { test } from "vitest";
 import { z } from "zod";
-import { handleJsonRoute, postProjectRoute, RouteError } from "./json-route.js";
+import {
+  handleJsonRoute,
+  RouteError,
+  registerProjectRoute,
+} from "./json-route.js";
 
 const schema = z.object({ count: z.number().int().default(1) });
 
@@ -115,9 +119,9 @@ test("a Response from the handler is sent as is", async () => {
 
 test("project routes check the project directory first", async () => {
   const app = new Hono();
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/project",
+    { method: "POST", path: "/project" },
     z.object({ projectPath: z.string() }),
     () => ({ ok: true }),
   );

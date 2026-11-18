@@ -23,6 +23,7 @@ import {
   registerHostProxyRoutes,
 } from "./api/host-proxy-routes.js";
 import { HOST_SOCKET_PATH } from "./api/host-socket-routes.js";
+import { registerRoute } from "./api/shared/register-route.js";
 import { API_SESSION_TOKEN_HEADER } from "./api/shared/session-token.js";
 import { ensureDaemon, probeDaemon, stopRunningDaemon } from "./host/daemon.js";
 import { NO_PROCESS_SESSIONS } from "./host/home-host.js";
@@ -35,11 +36,19 @@ import {
   readHostRecord,
 } from "./host/run-directory.js";
 import { isStateLockHeld, readStateLockRecord } from "./host/state-lock.js";
+import { HOST_ROUTES } from "./shared/host-routes.js";
 import {
   hostProtocolProblem,
   matchesPinnedIdentity,
   requestHostInfo,
 } from "./shared/host-verification.js";
+
+/**
+ * The desktop edge's forwarding of every `/api/*` path its own routes do
+ * not answer to its host: not a host route (the route table does not list
+ * it), the edge's catch-all in front of them.
+ */
+const EDGE_FORWARD_ROUTE = Object.freeze({ method: "ALL", path: "/api/*" });
 
 /** The host home of the desktop's own host, beside its database. */
 export const childHostHome = (stateDatabasePath) => `${stateDatabasePath}.host`;
@@ -217,11 +226,14 @@ function createHostAttachment({
         resolveHost: resolveRemoteHost,
         upgradeWebSocket,
       });
-      app.post("/api/host/shutdown", (c) => c.text(shutdownMessage, 409));
+      registerRoute(app, HOST_ROUTES.hostShutdown, (c) =>
+        c.text(shutdownMessage, 409),
+      );
+      // Everything else, and the host socket, to the host.
       registerEndpointProxyRoutes(app, {
-        path: "/api/*",
         resolveEndpoint: verify,
-        socketPath: HOST_SOCKET_PATH,
+        route: EDGE_FORWARD_ROUTE,
+        socketRoute: HOST_ROUTES.hostSocket,
         targetPath: (c) => c.req.path,
         upgradeWebSocket,
       });

@@ -18,6 +18,7 @@ import { serve, upgradeWebSocket } from "@hono/node-server";
 import { Hono } from "hono";
 import { WebSocketServer } from "ws";
 import { LOCAL_PRINCIPAL } from "../host/auth/host-auth.js";
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { setBrowserMcpEndpoint } from "./browser-bridge.js";
 import {
   BROWSER_MCP_PATH,
@@ -44,6 +45,7 @@ import { registerMcpServerRoutes } from "./mcp-server-routes.js";
 import { registerProjectGitRoutes } from "./project-git-routes.js";
 import { registerProviderRoutes } from "./provider-routes.js";
 import { registerRemoteAccessRoutes } from "./remote-access-routes.js";
+import { registerRoute } from "./shared/register-route.js";
 import { trackRequestActivity } from "./shared/request-activity.js";
 import { API_SESSION_TOKEN_HEADER } from "./shared/session-token.js";
 import { registerSkillsRoutes } from "./skills-routes.js";
@@ -90,14 +92,16 @@ export function registerHostRoutes(
     // A daemon asked to stop by its local operator (`dream-host stop`):
     // answered first, then the host closes and flushes its writes.
     if (onShutdownRequest) {
-      app.post("/api/host/shutdown", (c) => {
+      registerRoute(app, HOST_ROUTES.hostShutdown, (c) => {
         setTimeout(() => onShutdownRequest("requested"), 0);
         return c.json({ shuttingDown: true });
       });
     }
     registerHostInfoRoute(app, getHostInfo);
     if (delegation)
-      app.all(ORCHESTRATION_MCP_PATH, (c) => delegation.handle(c.req.raw));
+      registerRoute(app, HOST_ROUTES.orchestrationMcp, (c) =>
+        delegation.handle(c.req.raw),
+      );
     // Projects on other hosts, through this one (see host-proxy-routes.js).
     if (resolveRemoteHost) {
       registerHostProxyRoutes(app, {

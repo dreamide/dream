@@ -19,7 +19,9 @@ import {
   SESSION_IDLE_TTL_MS,
 } from "../host/auth/host-auth.js";
 import { SCOPES } from "../host/auth/scopes.js";
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { handleJsonRoute, RouteError } from "./shared/json-route.js";
+import { registerRoute } from "./shared/register-route.js";
 
 /** The web client's session cookie: host-only, HTTPS-only, same-site only. */
 export const SESSION_COOKIE = "__Host-dream-session";
@@ -124,9 +126,11 @@ export function registerRemoteAccessRoutes(
   const principalOf = (c) => c.get("principal") ?? LOCAL_PRINCIPAL;
 
   if (remote) {
-    app.get("/api/remote/descriptor", (c) => c.json(describeHost()));
+    registerRoute(app, HOST_ROUTES.remoteDescriptor, (c) =>
+      c.json(describeHost()),
+    );
 
-    app.post("/api/remote/proof", (c) =>
+    registerRoute(app, HOST_ROUTES.remoteProof, (c) =>
       handleJsonRoute(
         c,
         z.object({
@@ -150,7 +154,7 @@ export function registerRemoteAccessRoutes(
     );
 
     // A pairing code, redeemed for this computer's session at once.
-    app.post("/api/remote/pair/code", (c) =>
+    registerRoute(app, HOST_ROUTES.remotePairCode, (c) =>
       handleJsonRoute(c, remotePairCodeRequestSchema, (data) =>
         authorized(async () =>
           deliverSession(
@@ -163,11 +167,13 @@ export function registerRemoteAccessRoutes(
     );
   }
 
-  app.get("/api/remote/session", (c) => c.json(auth.describe(principalOf(c))));
+  registerRoute(app, HOST_ROUTES.remoteSession, (c) =>
+    c.json(auth.describe(principalOf(c))),
+  );
 
   // Extends the session from now. The credential does not change, so open
   // sockets and streams carry on; a web client's cookie is extended too.
-  app.post("/api/remote/session/renew", (c) =>
+  registerRoute(app, HOST_ROUTES.remoteSessionRenew, (c) =>
     handleJsonRoute(
       c,
       emptyRequestSchema,
@@ -184,7 +190,7 @@ export function registerRemoteAccessRoutes(
   );
 
   // Signs this device out: its session ends here and everywhere it is open.
-  app.post("/api/remote/session/end", (c) =>
+  registerRoute(app, HOST_ROUTES.remoteSessionEnd, (c) =>
     handleJsonRoute(
       c,
       emptyRequestSchema,
@@ -201,13 +207,13 @@ export function registerRemoteAccessRoutes(
     ),
   );
 
-  app.post("/api/remote/pairings", (c) =>
+  registerRoute(app, HOST_ROUTES.remotePairingCreate, (c) =>
     handleJsonRoute(c, remotePairingCreateRequestSchema, (data) =>
       authorized(() => auth.createPairing(principalOf(c), data)),
     ),
   );
 
-  app.post("/api/remote/sessions", (c) =>
+  registerRoute(app, HOST_ROUTES.remoteSessions, (c) =>
     handleJsonRoute(
       c,
       emptyRequestSchema,
@@ -219,7 +225,7 @@ export function registerRemoteAccessRoutes(
     ),
   );
 
-  app.post("/api/remote/sessions/revoke", (c) =>
+  registerRoute(app, HOST_ROUTES.remoteSessionRevoke, (c) =>
     handleJsonRoute(c, remoteSessionRevokeRequestSchema, ({ sessionId }) =>
       authorized(async () => ({
         session: await auth.revoke(principalOf(c), sessionId),
@@ -232,23 +238,23 @@ export function registerRemoteAccessRoutes(
   // business, so only on the local listener, for its local operator: a
   // paired device never turns its own access on or off.
   if (!remoteAccess) return;
-  app.post("/api/remote/access", (c) =>
+  registerRoute(app, HOST_ROUTES.remoteAccess, (c) =>
     handleJsonRoute(c, emptyRequestSchema, () => remoteAccess.status(), {
       missingBody: {},
     }),
   );
   if (remote) return;
-  app.post("/api/remote/access/enable", (c) =>
+  registerRoute(app, HOST_ROUTES.remoteAccessEnable, (c) =>
     handleJsonRoute(c, remoteAccessEnableSchema, (options) =>
       remoteAccess.enable(options),
     ),
   );
-  app.post("/api/remote/access/disable", (c) =>
+  registerRoute(app, HOST_ROUTES.remoteAccessDisable, (c) =>
     handleJsonRoute(c, emptyRequestSchema, () => remoteAccess.disable(), {
       missingBody: {},
     }),
   );
-  app.post("/api/remote/access/check", (c) =>
+  registerRoute(app, HOST_ROUTES.remoteAccessCheck, (c) =>
     handleJsonRoute(c, emptyRequestSchema, () => remoteAccess.refresh(), {
       missingBody: {},
     }),

@@ -1,3 +1,4 @@
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import {
   checkpointChangesRequestSchema,
   checkpointDeleteChatsRequestSchema,
@@ -10,7 +11,7 @@ import {
   listCheckpointChanges,
   restoreCheckpointFiles,
 } from "./checkpoints/service.js";
-import { postProjectRoute } from "./shared/json-route.js";
+import { registerProjectRoute } from "./shared/json-route.js";
 
 const CHECKPOINT_ERROR = { errorMessage: "Checkpoint request failed." };
 
@@ -18,33 +19,33 @@ const CHECKPOINT_ERROR = { errorMessage: "Checkpoint request failed." };
 const CLEANUP_OPTIONS = { ...CHECKPOINT_ERROR, requireProjectDirectory: false };
 
 export const registerCheckpointRoutes = (app) => {
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/checkpoint-changes",
+    HOST_ROUTES.checkpointChanges,
     checkpointChangesRequestSchema,
     listCheckpointChanges,
     CHECKPOINT_ERROR,
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/checkpoint-diff",
+    HOST_ROUTES.checkpointDiff,
     checkpointDiffRequestSchema,
     getCheckpointFileDiff,
     CHECKPOINT_ERROR,
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/checkpoint-restore",
+    HOST_ROUTES.checkpointRestore,
     checkpointRestoreRequestSchema,
     restoreCheckpointFiles,
     CHECKPOINT_ERROR,
   );
 
-  postProjectRoute(
+  registerProjectRoute(
     app,
-    "/api/checkpoint-delete-chats",
+    HOST_ROUTES.checkpointDeleteChats,
     checkpointDeleteChatsRequestSchema,
     async ({ chatIds, projectPath }) => {
       let deletedRefs = 0;

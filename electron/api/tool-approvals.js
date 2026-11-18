@@ -5,7 +5,9 @@
 // host publishes it on its catalog channel and lists it with the catalog,
 // so every client shows a chat waiting for its user, open or not.
 import { z } from "zod";
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { handleJsonRoute } from "./shared/json-route.js";
+import { registerRoute } from "./shared/register-route.js";
 
 const pendingToolApprovals = new Map();
 /** @type {Set<(event: { chatId: string, awaiting: boolean }) => void>} */
@@ -145,7 +147,7 @@ export const resolveToolApproval = async (payload) => {
 };
 
 export const registerToolApprovalRoutes = (app) => {
-  app.post("/api/tool-approval-response", (c) =>
+  registerRoute(app, HOST_ROUTES.toolApprovalResponse, (c) =>
     handleJsonRoute(c, toolApprovalResponseSchema, resolveToolApproval, {
       errorMessage: "Failed to resolve approval.",
       errorStatus: 500,

@@ -4,7 +4,9 @@
 // a change names itself in the client id header, so its own echo can be
 // told apart.
 import { z } from "zod";
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { handleJsonRoute } from "./shared/json-route.js";
+import { registerRoute } from "./shared/register-route.js";
 
 export const CLIENT_ID_HEADER = "x-dream-client-id";
 
@@ -55,14 +57,14 @@ export const catalogSearchRequestSchema = z.object({
  *   the same response it applies.
  */
 export function registerCatalogRoutes(app, catalog, { describeHost } = {}) {
-  app.post("/api/catalog/transcript/page", (c) =>
+  registerRoute(app, HOST_ROUTES.catalogTranscriptPage, (c) =>
     handleJsonRoute(c, catalogTranscriptPageSchema, (data) =>
       catalog.transcriptPage(data),
     ),
   );
   const origin = (c) => c.req.header(CLIENT_ID_HEADER) ?? null;
 
-  app.post("/api/catalog", (c) =>
+  registerRoute(app, HOST_ROUTES.catalog, (c) =>
     handleJsonRoute(
       c,
       catalogListRequestSchema,
@@ -74,7 +76,7 @@ export function registerCatalogRoutes(app, catalog, { describeHost } = {}) {
     ),
   );
 
-  app.post("/api/catalog/changes", (c) =>
+  registerRoute(app, HOST_ROUTES.catalogChanges, (c) =>
     handleJsonRoute(
       c,
       catalogChangesRequestSchema,
@@ -84,7 +86,7 @@ export function registerCatalogRoutes(app, catalog, { describeHost } = {}) {
   );
 
   // The transcript's JSON as stored, sent without parsing it here.
-  app.post("/api/catalog/transcript", (c) =>
+  registerRoute(app, HOST_ROUTES.catalogTranscript, (c) =>
     handleJsonRoute(c, catalogTranscriptRequestSchema, async ({ chatId }) =>
       c.body(await catalog.getTranscriptJson(chatId), 200, {
         "Content-Type": "application/json",
@@ -92,13 +94,13 @@ export function registerCatalogRoutes(app, catalog, { describeHost } = {}) {
     ),
   );
 
-  app.post("/api/catalog/search", (c) =>
+  registerRoute(app, HOST_ROUTES.catalogSearch, (c) =>
     handleJsonRoute(c, catalogSearchRequestSchema, ({ limit, query }) =>
       catalog.search(query, { limit }),
     ),
   );
 
-  app.put("/api/catalog/transcript", (c) =>
+  registerRoute(app, HOST_ROUTES.saveCatalogTranscript, (c) =>
     handleJsonRoute(
       c,
       catalogTranscriptSaveRequestSchema,

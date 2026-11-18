@@ -35,6 +35,10 @@ import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
 import { resolveEffectiveMcpServers } from "@/lib/mcp-servers";
 import type { AiProvider, ProjectReference } from "@/types/ide";
 import { isAiSdkApproval } from "../../../../electron/shared/agent-turn-contract.js";
+import {
+  HOST_ROUTES,
+  routePath,
+} from "../../../../electron/shared/host-routes.js";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { getProviderCapabilities } from "../../../../electron/shared/provider-capabilities.js";
 import { getActivityAttention } from "../activity-status";
@@ -240,7 +244,7 @@ class HostChatTransport extends DefaultChatTransport<UIMessage> {
 }
 
 const transport = new HostChatTransport({
-  api: "/api/chat",
+  api: HOST_ROUTES.chatTurn.path,
   fetch: chatFetch,
   // A turn runs on the host, detached from the request: reconnecting asks
   // for the running turn's stream (204 when none runs), from where this
@@ -249,7 +253,7 @@ const transport = new HostChatTransport({
     const chatId = toHostChatId(id);
     return chatRequestOptions(
       resolveRequestHost({ chatId }),
-      `/api/chat/${encodeURIComponent(chatId)}/stream`,
+      routePath(HOST_ROUTES.chatStream, { chatId }),
       chatId,
     );
   },
@@ -263,7 +267,7 @@ const transport = new HostChatTransport({
     // To the host of the chat's project, with its credential.
     ...chatRequestOptions(
       resolveRequestHost({ chatId: toHostChatId(id) }),
-      "/api/chat",
+      HOST_ROUTES.chatTurn.path,
       toHostChatId(id),
     ),
     body: {

@@ -11,9 +11,11 @@
 import { z } from "zod";
 import { LOCAL_PRINCIPAL } from "../host/auth/host-auth.js";
 import { allowsSocketMessage } from "../host/auth/route-policy.js";
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { handleJsonRoute } from "./shared/json-route.js";
+import { registerRoute } from "./shared/register-route.js";
 
-export const HOST_SOCKET_PATH = "/api/host-socket";
+export const HOST_SOCKET_PATH = HOST_ROUTES.hostSocket.path;
 
 export const hostSocketTicketRequestSchema = z.object({}).passthrough();
 
@@ -34,7 +36,7 @@ export function registerHostSocketRoutes(
   app,
   { socket, tickets, auth = null, upgradeWebSocket },
 ) {
-  app.post("/api/host-socket-ticket", (c) =>
+  registerRoute(app, HOST_ROUTES.hostSocketTicket, (c) =>
     handleJsonRoute(
       c,
       hostSocketTicketRequestSchema,
@@ -45,8 +47,9 @@ export function registerHostSocketRoutes(
 
   if (!upgradeWebSocket) return;
 
-  app.get(
-    HOST_SOCKET_PATH,
+  registerRoute(
+    app,
+    HOST_ROUTES.hostSocket,
     (c, next) => {
       const principal = tickets.redeem(c.req.query("ticket"));
       if (!principal || (auth && !auth.isActive(principal))) {

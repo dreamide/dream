@@ -1,3 +1,4 @@
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { isProviderId } from "../shared/provider-capabilities.js";
 import { fetchLatestCliVersions, upgradeCli } from "./providers/cli-updates.js";
 import {
@@ -22,6 +23,7 @@ import {
 } from "./providers/usage-limits.js";
 import { isCliCommandAvailable } from "./shared/cli.js";
 import { handleJsonRoute } from "./shared/json-route.js";
+import { registerRoute } from "./shared/register-route.js";
 
 export {
   CLAUDE_REASONING_EFFORT_MAP,
@@ -40,7 +42,7 @@ const PROVIDER_ROUTE = { errorStatus: 500 };
 
 export const registerProviderRoutes = (app) => {
   // Long-running: resolves when the CLI's updater exits (up to 10 minutes).
-  app.post("/api/cli-upgrade", (c) =>
+  registerRoute(app, HOST_ROUTES.cliUpgrade, (c) =>
     handleJsonRoute(
       c,
       cliUpgradeRequestSchema,
@@ -49,7 +51,7 @@ export const registerProviderRoutes = (app) => {
     ),
   );
 
-  app.post("/api/cli-updates", (c) =>
+  registerRoute(app, HOST_ROUTES.cliUpdates, (c) =>
     handleJsonRoute(
       c,
       cliUpdatesRequestSchema,
@@ -64,7 +66,7 @@ export const registerProviderRoutes = (app) => {
     ),
   );
 
-  app.post("/api/provider-models", (c) =>
+  registerRoute(app, HOST_ROUTES.providerModels, (c) =>
     handleJsonRoute(
       c,
       providerModelsRequestSchema,
@@ -93,7 +95,7 @@ export const registerProviderRoutes = (app) => {
     ),
   );
 
-  app.post("/api/provider-usage-limits", (c) =>
+  registerRoute(app, HOST_ROUTES.providerUsageLimits, (c) =>
     handleJsonRoute(
       c,
       providerUsageLimitsRequestSchema,

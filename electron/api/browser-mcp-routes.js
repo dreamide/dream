@@ -1,9 +1,11 @@
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { resolveSharedBrowserProject } from "./chat/browser-attach.js";
 import {
   BROWSER_MCP_SERVER_NAME,
   createAvailableBrowserToolDefinitions,
 } from "./chat/browser-tools.js";
 import { createMcpRequestHandler } from "./shared/mcp-handler.js";
+import { registerRoute } from "./shared/register-route.js";
 
 /**
  * Streamable HTTP MCP endpoint exposing Dream's browser tools to agent CLIs
@@ -20,7 +22,7 @@ import { createMcpRequestHandler } from "./shared/mcp-handler.js";
  * lifetime. Requests are already authenticated by the `/api/*` token guard.
  */
 
-export const BROWSER_MCP_PATH = "/api/mcp/browser";
+export const BROWSER_MCP_PATH = HOST_ROUTES.browserMcp.path;
 
 /**
  * @param {{ tools: Record<string, any> }} options the browser tool
@@ -79,6 +81,6 @@ export const registerBrowserMcpRoutes = (app) => {
     return createBrowserMcpRequestHandler({ tools })(c.req.raw);
   };
 
-  app.all(`${BROWSER_MCP_PATH}/:projectId`, handle);
-  app.all(BROWSER_MCP_PATH, handle);
+  registerRoute(app, HOST_ROUTES.browserMcpProject, handle);
+  registerRoute(app, HOST_ROUTES.browserMcp, handle);
 };

@@ -1,158 +1,61 @@
-// Which scope each host route needs from a remote client, written out route
-// by route. The remote listener serves exactly the routes listed here and
-// refuses to start if it would serve one that is not (assertRoutePolicy):
-// a new route is unreachable remotely until someone decides its scope.
+// Which scope each host route needs from a remote client. Each route's
+// answer is its `remote` in the route table (shared/host-routes.js); this
+// module turns those rows into the remote listener's checks. The remote
+// listener serves only the routes the table gives a scope or makes public,
+// and refuses to start if it would serve one it does not
+// (assertRoutePolicy): a new route is unreachable remotely until its row
+// says otherwise.
 //
-// Some routes are never served remotely at all (LOCAL_ONLY_ROUTES): the
+// Some routes are never served remotely at all (`remote: "local"`): the
 // host's own diagnostics, endpoints agent CLIs on this machine call with
-// run-scoped or launch credentials, the desktop window's browser, and the
-// desktop's proxy to its SSH hosts.
+// run-scoped or launch credentials, the desktop window's browser, the
+// desktop's proxy to its SSH hosts, and changing remote access itself.
 //
 // The host socket's channels are checked the same way, per message
 // (socketMessageScope).
-import { hasScope } from "./scopes.js";
+import { HOST_ROUTES } from "../../shared/host-routes.js";
+import { hasScope, SCOPES } from "./scopes.js";
 
 /** @typedef {import("./scopes.js").Scope} Scope */
 /** @typedef {Scope | ((c: import("hono").Context) => Promise<Scope>)} RoutePolicy */
 
-/** Pull request actions that only read. */
-const PULL_REQUEST_READS = new Set([
-  "comments",
-  "context",
-  "detail",
-  "files",
-  "list",
-  "mergeInfo",
-  "reviews",
-  "threads",
-]);
+const keyOf = (route) => `${route.method} ${route.path}`;
 
-/** Never served by the remote listener. */
-export const LOCAL_ONLY_ROUTES = Object.freeze([
-  // A daemon's clean stop, for its local operator.
-  "POST /api/host/shutdown",
-  // Process id and platform: the descriptor is the remote's view of a host.
-  "GET /api/host-info",
-  // Agent CLIs on this host, with run-scoped or launch credentials.
-  "ALL /api/mcp/orchestration",
-  "ALL /api/mcp/browser",
-  "ALL /api/mcp/browser/:projectId",
-  // The desktop window's own browser.
-  "POST /api/browser-tools/call",
-  // The desktop's forwarding to its SSH hosts.
-  "ALL /api/hosts/:hostId/*",
-]);
-
-/** @type {Readonly<Record<string, RoutePolicy>>} */
-export const REMOTE_ROUTE_POLICY = Object.freeze({
-  // Host catalog
-  "POST /api/catalog": "view",
-  "POST /api/catalog/search": "view",
-  "POST /api/catalog/transcript": "view",
-  "POST /api/catalog/transcript/page": "view",
-  "POST /api/catalog/changes": "operate",
-  "PUT /api/catalog/transcript": "operate",
-
-  // Chats, runs and approvals
-  "GET /api/chat/:chatId/stream": "view",
-  "POST /api/chat/queue": "view",
-  "POST /api/chat": "operate",
-  "POST /api/chat/submit": "operate",
-  "POST /api/chat/queue/control": "operate",
-  "POST /api/chat/stop": "operate",
-  "POST /api/chat-title": "operate",
-  "POST /api/tool-approval-response": "operate",
-
-  // Files
-  "POST /api/host-directories": "operate",
-  "POST /api/chat-folders": "operate",
-  "POST /api/project-directory": "view",
-  "POST /api/project-files": "view",
-  "POST /api/project-file": "view",
-  "GET /api/project-file-raw": "view",
-  "POST /api/project-search": "view",
-  "POST /api/project-icon": "view",
-  "PUT /api/project-file": "operate",
-
-  // Git
-  "POST /api/project-git-status": "view",
-  "POST /api/project-git-branches": "view",
-  "POST /api/project-git-branch-delete-preview": "view",
-  "POST /api/project-git-worktrees": "view",
-  "POST /api/project-git-remote-url": "view",
-  "POST /api/project-git-push-preview": "view",
-  "POST /api/project-git-log": "view",
-  "POST /api/project-git-pull-request-details": "view",
-  "POST /api/project-git-worktree-compare": "view",
-  "POST /api/project-git-worktree-compare-diff": "view",
-  "POST /api/project-git-diff": "view",
-  "GET /api/project-git-file-at-head-raw": "view",
-  "POST /api/project-git-checkout": "operate",
-  "POST /api/project-git-branch-delete": "operate",
-  "POST /api/project-git-worktree-create": "operate",
-  "POST /api/project-git-commit": "operate",
-  "POST /api/project-git-commit-message": "operate",
-  "POST /api/project-git-push": "operate",
-  "POST /api/project-git-fetch": "operate",
-  "POST /api/project-git-pull": "operate",
-  "POST /api/project-git-create-pr": "operate",
-  "POST /api/project-git-worktree-merge": "operate",
-  "POST /api/project-git-worktree-cleanup": "operate",
-  "POST /api/project-git-revert-file": "operate",
-  "POST /api/project-git-revert-all": "operate",
-  "POST /api/code-pull-requests": async (c) => {
+/**
+ * A row's policy: its scope, or for a route whose body names an action,
+ * `view` for the actions that only read and the row's scope otherwise.
+ * @param {import("../../shared/host-routes.js").HostRouteSpec} route
+ * @returns {RoutePolicy}
+ */
+const policyOf = (route) => {
+  const scope = /** @type {Scope} */ (route.remote);
+  if (!route.remoteViewActions) return scope;
+  const viewActions = new Set(route.remoteViewActions);
+  return async (c) => {
     const body = await c.req.json().catch(() => null);
-    return PULL_REQUEST_READS.has(body?.action) ? "view" : "operate";
-  },
+    return viewActions.has(body?.action) ? "view" : scope;
+  };
+};
 
-  // Checkpoints
-  "POST /api/checkpoint-changes": "view",
-  "POST /api/checkpoint-diff": "view",
-  "POST /api/checkpoint-restore": "operate",
-  "POST /api/checkpoint-delete-chats": "operate",
+const rows = Object.values(HOST_ROUTES);
 
-  // Terminals (their output and input travel on the host socket)
-  "POST /api/terminal-shells": "view",
-  "POST /api/terminal-diagnostics": "view",
-  "POST /api/terminal-start": "operate",
-  "POST /api/terminal-stop": "operate",
-  "POST /api/terminal-stop-all": "operate",
-
-  // Providers, skills and MCP servers
-  "POST /api/provider-models": "view",
-  "POST /api/provider-usage-limits": "view",
-  "POST /api/cli-updates": "view",
-  "POST /api/skills": "view",
-  "POST /api/skills/read": "view",
-  "POST /api/cli-upgrade": "manage",
-  "POST /api/skills/create": "manage",
-  "POST /api/skills/set-enabled": "manage",
-  "POST /api/mcp-servers/import-candidates": "manage",
-
-  // The host socket: the ticket is bound to the session, and each channel
-  // message is checked by socketMessageScope.
-  "POST /api/host-socket-ticket": "view",
-  "GET /api/host-socket": "view",
-
-  // Remote access (remote-access-routes.js). Each checks the caller's own
-  // scope too: a device may end its own session, a manager any.
-  "GET /api/remote/session": "view",
-  "POST /api/remote/session/renew": "view",
-  "POST /api/remote/session/end": "view",
-  "POST /api/remote/pairings": "manage",
-  "POST /api/remote/sessions": "manage",
-  "POST /api/remote/sessions/revoke": "manage",
-
-  // The host's own settings and where they came from (Remote access).
-  "POST /api/remote/access": "manage",
-});
+/**
+ * Each remotely served route that needs a session, by `METHOD path`, and
+ * the scope it needs.
+ * @type {Readonly<Record<string, RoutePolicy>>}
+ */
+export const REMOTE_ROUTE_POLICY = Object.freeze(
+  Object.fromEntries(
+    rows
+      .filter((route) => SCOPES.includes(route.remote))
+      .map((route) => [keyOf(route), policyOf(route)]),
+  ),
+);
 
 /** Routes anyone may call: they grant nothing without a secret. */
-export const PUBLIC_REMOTE_ROUTES = Object.freeze([
-  "POST /api/remote/proof",
-  "GET /api/remote/descriptor",
-  "POST /api/remote/pair/code",
-]);
+export const PUBLIC_REMOTE_ROUTES = Object.freeze(
+  rows.filter((route) => route.remote === "public").map(keyOf),
+);
 
 const compile = (pattern) =>
   new RegExp(
@@ -209,7 +112,7 @@ export const assertRoutePolicy = (app, { middlewarePaths }) => {
     .filter((key) => !known.has(key));
   if (unclassified.length > 0) {
     throw new Error(
-      `Routes without a remote access policy: ${[...new Set(unclassified)].join(", ")}. Add each to electron/host/auth/route-policy.js.`,
+      `Routes without a remote access policy: ${[...new Set(unclassified)].join(", ")}. Give each a remote scope in electron/shared/host-routes.js.`,
     );
   }
 };

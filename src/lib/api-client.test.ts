@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
+import { HOST_ROUTES } from "../../electron/shared/host-routes.js";
 import {
   API_ROUTES,
   ApiError,
@@ -58,6 +59,17 @@ describe("createApiClient", () => {
   test("has one method per route", () => {
     const client = createApiClient(async () => null);
     expect(Object.keys(client).sort()).toEqual(Object.keys(API_ROUTES).sort());
+  });
+
+  test("calls each route by its row in the route table", () => {
+    for (const [name, route] of Object.entries(API_ROUTES)) {
+      const row = HOST_ROUTES[name as keyof typeof HOST_ROUTES];
+      expect({ name, ...route }).toEqual({
+        method: row.method,
+        name,
+        path: row.path,
+      });
+    }
   });
 });
 

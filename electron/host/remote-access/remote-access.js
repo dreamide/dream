@@ -59,6 +59,7 @@ import {
 import path from "node:path";
 import getPort from "get-port";
 import { createVerifiedHttps } from "../../connections/https-route.js";
+import { HOST_ROUTES } from "../../shared/host-routes.js";
 import { TailscaleProblem } from "./tailscale.js";
 
 const SETTINGS_FILE = "remote-access.json";
@@ -479,7 +480,7 @@ export function createRemoteAccess({
       : null;
     try {
       const response = await (verified?.request ?? fetchImpl)(
-        `${candidate}/api/remote/descriptor`,
+        `${candidate}${HOST_ROUTES.remoteDescriptor.path}`,
         {
           redirect: "error",
           signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS),

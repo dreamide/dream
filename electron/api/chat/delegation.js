@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { HOST_ROUTES } from "../../shared/host-routes.js";
 import { getProvider, listProviders } from "../providers/registry.js";
 import { createMcpRequestHandler } from "../shared/mcp-handler.js";
 
-export const ORCHESTRATION_MCP_PATH = "/api/mcp/orchestration";
+export const ORCHESTRATION_MCP_PATH = HOST_ROUTES.orchestrationMcp.path;
 const providerId = z.enum([
   "openai",
   "anthropic",

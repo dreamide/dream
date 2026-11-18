@@ -541,8 +541,9 @@ Socket tickets are bound to the principal that asked for them.
 The host's second HTTP listener, for paired devices (`electron/api/remote-app.js`).
 It calls the same host services as the local listener. It checks the Host
 header and the Origin, authenticates the session, and enforces the route
-policy (`electron/host/auth/route-policy.js`), which assigns every served
-route a scope. It refuses to start while any registered route lacks a policy.
+policy (`electron/host/auth/route-policy.js`), which gives every served
+route the scope its route table row names. It refuses to start while any
+registered route lacks a scope or a public row.
 Host-info, the agents' MCP endpoints, the window's browser tools and the
 desktop's SSH proxy are never registered on it. It binds to loopback by
 default; a reverse proxy is what exposes it.
@@ -1085,10 +1086,26 @@ The skills a provider can load for a project, fetched from the project's Host
 and cached briefly by provider, Host and path (`provider-skills.ts`). Not to be confused with a skill
 _mention_, which is text in a draft.
 
+## Route table
+
+Every route a host serves over HTTP, in one shared table
+(`electron/shared/host-routes.js`, `HOST_ROUTES`): each row's name, method,
+path and `remote`, which says what a paired device needs to call it (a
+scope, `public`, or `local` for routes only this machine's own clients may
+call). A route's method and path are written there only. The host registers
+its handlers by the rows (`registerRoute`), the route policy reads `remote`,
+and the route client builds its methods from the rows it calls; other
+callers (pairing, the daemon's stop, host verification) read their row too.
+`electron/api/host-routes.test.js` holds the table against both listeners'
+registrations. Not routes in it: the remote listener's client files, each
+listener's middleware, and the desktop edge's forwarding of every other
+`/api/*` path to its host.
+
 ## Route client
 
 The renderer's one way to call the main process's JSON routes
-(`src/lib/api-client.ts`): one method per route, named in `API_ROUTES`.
+(`src/lib/api-client.ts`): one method per route, named in `API_ROUTES`
+after its row in the route table, which gives its method and path.
 Request types are inferred from the zod schemas the routes validate with,
 so the contract lives in the schema files (`electron/api/**/schemas.js`).
 A failed call throws `ApiError` with the server's plain-text reason.

@@ -14,6 +14,7 @@
  * drops what the page holds in memory (transcripts, caches).
  */
 
+import { HOST_ROUTES } from "../../../electron/shared/host-routes.js";
 import { LOCAL_HOST_ID } from "../host-routing";
 import { forgetHostSocketClient } from "../host-socket";
 import { hostFetch } from "./host-endpoint";
@@ -33,10 +34,11 @@ export const forgetHomeConnection = async (): Promise<boolean> => {
   }
   let confirmed = false;
   try {
-    const response = await hostFetch(LOCAL_HOST_ID, "/api/remote/session/end", {
+    const { method, path } = HOST_ROUTES.remoteSessionEnd;
+    const response = await hostFetch(LOCAL_HOST_ID, path, {
       body: "{}",
       headers: { "Content-Type": "application/json" },
-      method: "POST",
+      method,
     });
     confirmed = response.ok;
   } catch {

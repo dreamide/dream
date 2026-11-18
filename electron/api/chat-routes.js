@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import { z } from "zod";
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { attachBrowser } from "./chat/browser-attach.js";
 import { startProviderSession } from "./chat/provider-session.js";
 import {
@@ -27,6 +28,7 @@ import {
 } from "./checkpoints/service.js";
 import { getProvider } from "./providers/registry.js";
 import { handleJsonRoute, RouteError } from "./shared/json-route.js";
+import { registerRoute } from "./shared/register-route.js";
 
 export const chatStopRequestSchema = z.object({ chatId: z.string().min(1) });
 
@@ -83,17 +85,17 @@ export const registerChatRoutes = (
   { catalog = null, turns = createTurnRegistry(), scheduler = null } = {},
 ) => {
   if (scheduler) {
-    app.post("/api/chat/submit", (c) =>
+    registerRoute(app, HOST_ROUTES.submitChat, (c) =>
       handleJsonRoute(c, chatSubmitRequestSchema, (data) =>
         scheduler.submit(data),
       ),
     );
-    app.post("/api/chat/queue", (c) =>
+    registerRoute(app, HOST_ROUTES.chatQueue, (c) =>
       handleJsonRoute(c, chatQueueRequestSchema, ({ chatId }) =>
         scheduler.list(chatId),
       ),
     );
-    app.post("/api/chat/queue/control", (c) =>
+    registerRoute(app, HOST_ROUTES.controlChatQueue, (c) =>
       handleJsonRoute(c, chatQueueControlSchema, (data) =>
         scheduler.control(data),
       ),
@@ -102,7 +104,7 @@ export const registerChatRoutes = (
   // A running turn's stream, for a client that reconnects (the AI SDK's
   // resumable stream): from its start, or from `from` for a client that
   // holds the bytes before it (`turn` names which turn); 204 when none runs.
-  app.get("/api/chat/:chatId/stream", (c) => {
+  registerRoute(app, HOST_ROUTES.chatStream, (c) => {
     const from = Number(c.req.query("from"));
     const resumed = turns.resume(c.req.param("chatId"), {
       from: Number.isSafeInteger(from) ? from : null,
@@ -112,7 +114,7 @@ export const registerChatRoutes = (
   });
 
   // The only way a turn ends early: a dropped request does not stop it.
-  app.post("/api/chat/stop", (c) =>
+  registerRoute(app, HOST_ROUTES.stopChatTurn, (c) =>
     handleJsonRoute(c, chatStopRequestSchema, async ({ chatId }) => {
       if (scheduler) {
         await scheduler.control({ chatId, action: "stop" });
@@ -122,7 +124,7 @@ export const registerChatRoutes = (
     }),
   );
 
-  app.post("/api/chat-title", (c) =>
+  registerRoute(app, HOST_ROUTES.chatTitle, (c) =>
     handleJsonRoute(
       c,
       chatTitleRequestBodySchema,
@@ -153,7 +155,7 @@ export const registerChatRoutes = (
     ),
   );
 
-  app.post("/api/chat", async (c) => {
+  registerRoute(app, HOST_ROUTES.chatTurn, async (c) => {
     let rawBody;
     try {
       rawBody = await c.req.json();

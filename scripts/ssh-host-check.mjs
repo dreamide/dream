@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
 import { parseArgs } from "node:util";
+import { HOST_ROUTES } from "../electron/shared/host-routes.js";
 import { DEV_RUNTIME_VERSION } from "../electron/ssh/host-install.js";
 import { createSshHostManager } from "../electron/ssh/ssh-hosts.js";
 
@@ -45,7 +46,7 @@ const hosts = createSshHostManager({
 try {
   const endpoint = await hosts.connect({ target });
   const info = await (
-    await fetch(`${endpoint.baseUrl}/api/host-info`, {
+    await fetch(`${endpoint.baseUrl}${HOST_ROUTES.hostInfo.path}`, {
       headers: { "x-dream-api-token": endpoint.token },
     })
   ).json();

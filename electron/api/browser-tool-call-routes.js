@@ -4,9 +4,11 @@
 // hands it here, where the browser bridge lives, and sends the result back
 // (host-socket/browser-relay.js, src/lib/browser-relay-client.ts).
 import { z } from "zod";
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { getBrowserBridge } from "./browser-bridge.js";
 import { createBrowserToolDefinitions } from "./chat/browser-tools.js";
 import { handleJsonRoute, RouteError } from "./shared/json-route.js";
+import { registerRoute } from "./shared/register-route.js";
 
 export const browserToolCallRequestSchema = z.object({
   args: z.record(z.string(), z.unknown()).default({}),
@@ -36,7 +38,7 @@ export const runBrowserToolCall = async ({ bridge, projectId, tool, args }) => {
 
 /** @param {import("hono").Hono} app */
 export function registerBrowserToolCallRoutes(app) {
-  app.post("/api/browser-tools/call", (c) =>
+  registerRoute(app, HOST_ROUTES.callBrowserTool, (c) =>
     handleJsonRoute(
       c,
       browserToolCallRequestSchema,

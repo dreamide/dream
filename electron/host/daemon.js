@@ -28,6 +28,7 @@ import {
   API_SESSION_TOKEN_HEADER,
   createApiSessionToken,
 } from "../api/shared/session-token.js";
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { requestHostInfo } from "../shared/host-verification.js";
 import { createDaemonEnvironment } from "./daemon-environment.js";
 import { createIdleMonitor } from "./idle-monitor.js";
@@ -404,10 +405,10 @@ export const stopRunningDaemon = async (runDirectory) => {
   let clean = false;
   try {
     const response = await fetch(
-      `http://127.0.0.1:${running.port}/api/host/shutdown`,
+      `http://127.0.0.1:${running.port}${HOST_ROUTES.hostShutdown.path}`,
       {
         headers: { [API_SESSION_TOKEN_HEADER]: running.token },
-        method: "POST",
+        method: HOST_ROUTES.hostShutdown.method,
         signal: AbortSignal.timeout(5_000),
       },
     );

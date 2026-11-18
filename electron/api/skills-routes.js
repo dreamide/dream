@@ -1,4 +1,6 @@
+import { HOST_ROUTES } from "../shared/host-routes.js";
 import { handleJsonRoute } from "./shared/json-route.js";
+import { registerRoute } from "./shared/register-route.js";
 import { listProviderSkills } from "./skills/index.js";
 import { createSkill, setSkillEnabled } from "./skills/manage.js";
 import { readSkillFile } from "./skills/read.js";
@@ -14,7 +16,7 @@ import {
 const SKILL_ROUTE = { missingBody: {} };
 
 export const registerSkillsRoutes = (app) => {
-  app.post("/api/skills", (c) =>
+  registerRoute(app, HOST_ROUTES.skills, (c) =>
     handleJsonRoute(
       c,
       skillsRequestSchema,
@@ -33,7 +35,7 @@ export const registerSkillsRoutes = (app) => {
     ),
   );
 
-  app.post("/api/skills/read", (c) =>
+  registerRoute(app, HOST_ROUTES.readSkill, (c) =>
     handleJsonRoute(
       c,
       readSkillRequestSchema,
@@ -52,7 +54,7 @@ export const registerSkillsRoutes = (app) => {
     ),
   );
 
-  app.post("/api/skills/create", (c) =>
+  registerRoute(app, HOST_ROUTES.createSkill, (c) =>
     handleJsonRoute(
       c,
       createSkillRequestSchema,
@@ -69,7 +71,7 @@ export const registerSkillsRoutes = (app) => {
     ),
   );
 
-  app.post("/api/skills/set-enabled", (c) =>
+  registerRoute(app, HOST_ROUTES.setSkillEnabled, (c) =>
     handleJsonRoute(
       c,
       setSkillEnabledRequestSchema,
