@@ -311,13 +311,16 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
   const projectHostId = getProjectHostId(project);
 
   const handleAddChat = useCallback(() => {
-    // A new standalone chat gets a folder of its own, never this one's.
-    if (standalone) {
-      void startStandaloneChat(projectHostId);
-      return;
-    }
+    // Side by side, a new chat joins this project, standalone or not: only
+    // one standalone project is open, so a chat in another one would replace
+    // this one rather than sit beside it.
     if (multiChat) {
       addChatBeside(projectId);
+      return;
+    }
+    // Alone, a new standalone chat gets a folder of its own, never this one's.
+    if (standalone) {
+      void startStandaloneChat(projectHostId);
       return;
     }
 

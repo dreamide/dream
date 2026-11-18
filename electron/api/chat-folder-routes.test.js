@@ -14,7 +14,9 @@ import { describe, expect, test } from "vitest";
 import {
   createChatFolder,
   getChatFolderName,
+  getChatFolderOwner,
   getChatFoldersRoot,
+  restoreChatFolder,
   sweepChatFolders,
 } from "../host/chat-folders.js";
 import { registerChatFolderRoutes } from "./chat-folder-routes.js";
@@ -23,9 +25,18 @@ const createHome = () => mkdtemp(path.join(os.tmpdir(), "dream-chat-home-"));
 
 const noGit = async () => null;
 
+/** This test host's owner tag; another database's below. */
+const OWNER = "0aaaaaa0";
+const OTHER_OWNER = "0bbbbbb0";
+
 const create = (home, body, options = {}) => {
   const app = new Hono();
-  registerChatFolderRoutes(app, { findGitTopLevel: noGit, home, ...options });
+  registerChatFolderRoutes(app, {
+    findGitTopLevel: noGit,
+    home,
+    owner: OWNER,
+    ...options,
+  });
   return app.request("/api/chat-folders", {
     body: JSON.stringify(body),
     headers: { "Content-Type": "application/json" },
@@ -33,13 +44,25 @@ const create = (home, body, options = {}) => {
   });
 };
 
-test("names a chat folder after the local date and the Project id's start", () => {
+test("names a chat folder after the local date, the Project id's start and its owner", () => {
   expect(
     getChatFolderName(
       "1a2b3c4d-0000-4000-8000-000000000000",
       new Date(2026, 0, 5),
+      OWNER,
     ),
-  ).toBe("2026-01-05-1a2b3c4d");
+  ).toBe(`2026-01-05-1a2b3c4d-${OWNER}`);
+});
+
+test("each state database has its own owner tag, however its path is spelled", () => {
+  const dev = path.join(os.tmpdir(), "dreamide", "dev.db");
+  const installed = path.join(os.tmpdir(), "dreamide", "dream.db");
+
+  expect(getChatFolderOwner(dev)).toMatch(/^[0-9a-f]{8}$/);
+  expect(getChatFolderOwner(dev)).not.toBe(getChatFolderOwner(installed));
+  expect(
+    getChatFolderOwner(path.join(path.dirname(dev), ".", "dev.db") + path.sep),
+  ).toBe(getChatFolderOwner(dev));
 });
 
 test("creates an empty folder under ~/.dream/chats and returns its path", async () => {
@@ -52,7 +75,9 @@ test("creates an empty folder under ~/.dream/chats and returns its path", async 
   expect(response.status).toBe(200);
   const { path: folder } = await response.json();
   expect(path.dirname(folder)).toBe(path.join(home, ".dream", "chats"));
-  expect(path.basename(folder)).toMatch(/^\d{4}-\d{2}-\d{2}-1a2b3c4d$/);
+  expect(path.basename(folder)).toMatch(
+    new RegExp(String.raw`^\d{4}-\d{2}-\d{2}-1a2b3c4d-${OWNER}$`),
+  );
   expect((await stat(folder)).isDirectory()).toBe(true);
   expect(await readdir(folder)).toEqual([]);
 });
@@ -65,12 +90,14 @@ test("distinct Projects get distinct folders; an existing folder is refused", as
     findGitTopLevel: noGit,
     home,
     now,
+    owner: OWNER,
     projectId: "aaaaaaaa-1",
   });
   const second = await createChatFolder({
     findGitTopLevel: noGit,
     home,
     now,
+    owner: OWNER,
     projectId: "bbbbbbbb-1",
   });
   expect(first.path).not.toBe(second.path);
@@ -81,6 +108,7 @@ test("distinct Projects get distinct folders; an existing folder is refused", as
       findGitTopLevel: noGit,
       home,
       now,
+      owner: OWNER,
       projectId: "aaaaaaaa-2",
     }),
   ).rejects.toMatchObject({ code: "exists" });
@@ -117,7 +145,7 @@ test("the default check finds a real git repository around the root", async () =
   await mkdir(path.join(home, ".dream"));
 
   await expect(
-    createChatFolder({ home, projectId: "1a2b3c4d" }),
+    createChatFolder({ home, owner: OWNER, projectId: "1a2b3c4d" }),
   ).rejects.toMatchObject({ code: "inside-git" });
 });
 
@@ -135,8 +163,14 @@ describe("sweeping chat folders", () => {
   const catalogOf = (paths) => ({
     list: async () => ({ projects: paths.map((path) => ({ path })) }),
   });
-  const folderIn = async (home, name, files = []) => {
-    const folder = path.join(getChatFoldersRoot(home), name);
+  const sweep = (catalog, options) =>
+    sweepChatFolders(catalog, { owner: OWNER, ...options });
+  /** A folder named `name` and tagged `owner` (this host's; null for none). */
+  const folderIn = async (home, name, files = [], owner = OWNER) => {
+    const folder = path.join(
+      getChatFoldersRoot(home),
+      owner ? `${name}-${owner}` : name,
+    );
     await mkdir(folder, { recursive: true });
     for (const file of files) {
       const target = path.join(folder, file);
@@ -158,7 +192,7 @@ describe("sweeping chat folders", () => {
       "node_modules/pkg/index.js",
     ]);
 
-    const removed = await sweepChatFolders(catalogOf([]), {
+    const removed = await sweep(catalogOf([]), {
       home,
       now: Date.now() + 2 * HOUR,
     });
@@ -175,7 +209,7 @@ describe("sweeping chat folders", () => {
       "node_modules/pkg/index.js",
     ]);
 
-    await sweepChatFolders(catalogOf([]), { home, now: Date.now() + 2 * HOUR });
+    await sweep(catalogOf([]), { home, now: Date.now() + 2 * HOUR });
 
     expect(await exists(kept)).toBe(true);
   });
@@ -184,7 +218,7 @@ describe("sweeping chat folders", () => {
     const home = await createHome();
     const owned = await folderIn(home, "2026-11-01-dddddddd");
 
-    await sweepChatFolders(catalogOf([owned]), {
+    await sweep(catalogOf([owned]), {
       home,
       now: Date.now() + 2 * HOUR,
     });
@@ -192,11 +226,27 @@ describe("sweeping chat folders", () => {
     expect(await exists(owned)).toBe(true);
   });
 
+  test("never removes another database's folders, or untagged ones", async () => {
+    const home = await createHome();
+    // The installed app's empty chat, which this host's catalog never lists.
+    const other = await folderIn(home, "2026-11-01-abababab", [], OTHER_OWNER);
+    const untagged = await folderIn(home, "2026-11-01-cdcdcdcd", [], null);
+
+    const removed = await sweep(catalogOf([]), {
+      home,
+      now: Date.now() + 2 * HOUR,
+    });
+
+    expect(removed).toEqual([]);
+    expect(await exists(other)).toBe(true);
+    expect(await exists(untagged)).toBe(true);
+  });
+
   test("skips folders younger than the grace period", async () => {
     const home = await createHome();
     const fresh = await folderIn(home, "2026-11-16-eeeeeeee");
 
-    expect(await sweepChatFolders(catalogOf([]), { home })).toEqual([]);
+    expect(await sweep(catalogOf([]), { home })).toEqual([]);
     expect(await exists(fresh)).toBe(true);
   });
 
@@ -204,20 +254,53 @@ describe("sweeping chat folders", () => {
     const home = await createHome();
     const outside = await mkdtemp(path.join(os.tmpdir(), "dream-outside-"));
     await mkdir(getChatFoldersRoot(home), { recursive: true });
-    const link = path.join(getChatFoldersRoot(home), "2026-11-01-ffffffff");
+    const link = path.join(
+      getChatFoldersRoot(home),
+      `2026-11-01-ffffffff-${OWNER}`,
+    );
     try {
       await symlink(outside, link, "junction");
     } catch {
       return; // No permission to make links here.
     }
 
-    await sweepChatFolders(catalogOf([]), { home, now: Date.now() + 2 * HOUR });
+    await sweep(catalogOf([]), { home, now: Date.now() + 2 * HOUR });
 
     expect(await exists(outside)).toBe(true);
   });
 
   test("a missing root is nothing to sweep", async () => {
     const home = await createHome();
-    expect(await sweepChatFolders(catalogOf([]), { home })).toEqual([]);
+    expect(await sweep(catalogOf([]), { home })).toEqual([]);
+  });
+});
+
+describe("restoring a missing chat folder", () => {
+  test("recreates a chat folder that was removed", async () => {
+    const home = await createHome();
+    const folder = path.join(getChatFoldersRoot(home), "2026-11-17-5a7c6b98");
+
+    expect(await restoreChatFolder(folder, { home })).toBe(true);
+    expect((await stat(folder)).isDirectory()).toBe(true);
+    expect(await readdir(folder)).toEqual([]);
+    // Already there: nothing to do.
+    expect(await restoreChatFolder(folder, { home })).toBe(false);
+  });
+
+  test("never makes a folder outside the root or deeper inside it", async () => {
+    const home = await createHome();
+    const root = getChatFoldersRoot(home);
+    const paths = [
+      path.join(home, "projects", "app"),
+      path.join(root, "2026-11-17-aaaaaaaa", "nested"),
+      path.join(root, "2026-11-17-aaaaaaaa", "..", "..", "escape"),
+      root,
+      "",
+    ];
+
+    for (const projectPath of paths) {
+      expect(await restoreChatFolder(projectPath, { home })).toBe(false);
+    }
+    await expect(stat(root)).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

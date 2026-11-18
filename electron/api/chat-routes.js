@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import { z } from "zod";
+import { restoreChatFolder } from "../host/chat-folders.js";
 import { HOST_ROUTES } from "../shared/host-routes.js";
 import { attachBrowser } from "./chat/browser-attach.js";
 import { startProviderSession } from "./chat/provider-session.js";
@@ -61,6 +62,8 @@ const resolveTurnCheckpointId = async ({
 
 const validateProjectPath = async (projectPath) => {
   try {
+    // A standalone chat's folder is Dream's own: made again when missing.
+    await restoreChatFolder(projectPath);
     const projectStats = await fs.stat(projectPath);
     return projectStats.isDirectory()
       ? null

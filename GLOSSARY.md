@@ -74,14 +74,18 @@ once.
 
 A Chat not tied to a folder the user picked. Its Project is a **standalone
 project** (`ProjectConfig.standalone` non-null) whose folder is a **chat
-folder** Dream made on the chat's Host, `~/.dream/chats/<date>-<id8>`
+folder** Dream made on the chat's Host, `~/.dream/chats/<date>-<id8>-<owner>`
 (`electron/host/chat-folders.js`). The folder is created with the Project and
 refused when the root is inside a git checkout; otherwise it is an ordinary
 Project folder, so agents, terminals and checkpoints work in it unchanged.
 At most one standalone project is open, and the Chats tab stands for it.
-Showing another closes it (`store/standalone-chat-actions.ts`). A standalone
+Showing another closes it (`store/standalone-chat-actions.ts`). A new chat
+gets a chat folder of its own, except in multi-chat, where it joins the open
+standalone project beside its chats and shares its folder. A standalone
 project closes when its last live chat is deleted, and is removed when its
-chats are purged.
+chats are purged. `<owner>` is a hash of the Host's state database path:
+every database on a machine shares the root, and a Host removes only empty
+chat folders carrying its own tag that its catalog no longer lists.
 
 ## Branch deletion
 

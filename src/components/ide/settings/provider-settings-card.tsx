@@ -154,25 +154,29 @@ export const ProviderSettingsCard = ({
   const toggleModel = (modelId: string, selected: boolean) =>
     toggleProviderModel(provider, modelId, selected);
   const refreshLabel = settingsT("refreshProvider", { provider: label });
+  const enabled = isProviderEnabled(provider, settings);
 
   return (
     <ProviderStatusCard
       action={
-        <Button
-          aria-label={refreshLabel}
-          disabled={state.loading}
-          onClick={() => {
-            void refreshProviderModels({ force: true, provider });
-          }}
-          size="icon-xs"
-          title={refreshLabel}
-          type="button"
-          variant="ghost"
-        >
-          <RotateCw className="size-3.5" />
-        </Button>
+        // A disabled provider's models are not offered, so nothing to refresh.
+        enabled ? (
+          <Button
+            aria-label={refreshLabel}
+            disabled={state.loading}
+            onClick={() => {
+              void refreshProviderModels({ force: true, provider });
+            }}
+            size="icon-xs"
+            title={refreshLabel}
+            type="button"
+            variant="ghost"
+          >
+            <RotateCw className="size-3.5" />
+          </Button>
+        ) : null
       }
-      enabled={isProviderEnabled(provider, settings)}
+      enabled={enabled}
       error={state.error ? uiT("unableToFetchModels") : null}
       icon={
         "iconClassName" in cardMark ? (
