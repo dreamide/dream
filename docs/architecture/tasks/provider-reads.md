@@ -79,7 +79,8 @@ Limitation: no live provider API, CLI or credential store was called. The
 tests replace the reads.
 
 Remaining/deferred: tests for the credential reads and Claude's token
-refresh.
+refresh. Done by ARC17-13 (`tasks/review-20261117.md#arc17-13`), which
+moved them into per-Provider credentials modules.
 
 Recovery: docs/architecture/tasks/provider-reads.md#prd-01. Check the status
 above and the validation results.

@@ -934,6 +934,17 @@ its own steps:
   remembered when it answers; on failure the last good answer, then limits
   the CLI left on disk, then nothing, each with the error.
 
+The usage limits read reaches each Provider's stored login through that
+Provider's **credentials module** beside it, the only place its paths and
+parsing live: `codex-auth.js` (Codex's `~/.codex/auth.json`),
+`claude-auth.js` (`claudeAuth`: Claude Code's keychain entry or
+credentials file, and the token refresh on a 401 or 429 that writes the
+new tokens back), `grok-auth.js` (`grokAuth`: which credential in the
+Grok CLI's `auth.json` to send) and `opencode-auth.js` (`openCodeAuth`:
+the OpenCode Go API key). The last three are factories over the file
+system, the keychain command, the clock and `fetch`, with an instance over
+the real ones.
+
 **Settling the model selection** (`settleModelSelection` in
 `electron/shared/model-selection.js`) keeps every open project and its
 chats on a model the settings offer, and the defaults on a picked model.

@@ -1,23 +1,21 @@
-import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 import { execCliCommand, isCliCommandAvailable } from "../shared/cli.js";
 import {
   execAntigravityCliCommand,
   getAntigravityCliUnavailableMessage,
   isAntigravityCliAvailable,
 } from "./antigravity-cli.js";
+import { claudeAuth } from "./claude-auth.js";
 import { readCodexChatGptAuthTokens } from "./codex-auth.js";
+import { grokAuth } from "./grok-auth.js";
+import { openCodeAuth } from "./opencode-auth.js";
 import { withOpenCodeServer } from "./opencode-server.js";
 
 const OPENAI_CODEX_CHATGPT_USAGE_URL =
   "https://chatgpt.com/backend-api/wham/usage";
 const CLAUDE_OAUTH_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
-const CLAUDE_OAUTH_TOKEN_URL = "https://console.anthropic.com/v1/oauth/token";
-const CLAUDE_OAUTH_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-const CLAUDE_KEYCHAIN_SERVICES = ["Claude Code-credentials", "Claude Code"];
 const OPENCODE_STATS_DAYS = 30;
 const OPENCODE_STATS_MODEL_LIMIT = 10;
 const OPENCODE_STATS_SERVER_TIMEOUT_MS = 10_000;
@@ -27,7 +25,7 @@ const GROK_CLI_CHAT_PROXY_DEFAULT_BASE_URL =
   "https://cli-chat-proxy.grok.com/v1";
 const GROK_TOKEN_AUTH_VALUE = "xai-grok-cli";
 const GROK_USAGE_REQUEST_TIMEOUT_MS = 15_000;
-/** How long a provider's usage (or token) request may take. */
+/** How long a provider's usage request may take. */
 const USAGE_REQUEST_TIMEOUT_MS = 15_000;
 const PROVIDER_USAGE_SESSION_FILE_LIMIT = 80;
 const ANSI_ESCAPE_PATTERN = new RegExp(
@@ -41,7 +39,6 @@ const ANSI_ESCAPE_PATTERN = new RegExp(
  * too (storeProviderUsageLimitSnapshot). Each is a full result.
  */
 const providerUsageLimitSnapshots = new Map();
-const execFileAsync = promisify(execFile);
 
 const toFiniteNumber = (value) => {
   const number = Number(value);
@@ -690,34 +687,6 @@ const fetchOpenCodeUsageStatsWithCli = async ({ projectPath } = {}) => {
   });
 };
 
-const getOpenCodeDataPath = () => {
-  const xdgDataHome = process.env.XDG_DATA_HOME?.trim();
-  return path.join(
-    xdgDataHome || path.join(os.homedir(), ".local", "share"),
-    "opencode",
-  );
-};
-
-const getOpenCodeAuthPath = () => path.join(getOpenCodeDataPath(), "auth.json");
-
-const readOpenCodeGoApiKey = async () => {
-  let raw;
-  try {
-    raw = await fs.readFile(getOpenCodeAuthPath(), "utf8");
-  } catch {
-    return null;
-  }
-
-  try {
-    const auth = JSON.parse(raw);
-    const entry = auth?.["opencode-go"];
-    const key = typeof entry?.key === "string" ? entry.key.trim() : "";
-    return key || null;
-  } catch {
-    return null;
-  }
-};
-
 const normalizeOpenCodeGoUsageWindow = (entry, label) => {
   if (!entry || typeof entry !== "object") {
     return null;
@@ -777,7 +746,7 @@ const fetchOpenCodeGoUsagePayload = async (apiKey) => {
 };
 
 export const fetchOpenCodeGoUsageLimits = async () => {
-  const apiKey = await readOpenCodeGoApiKey();
+  const apiKey = await openCodeAuth.readGoApiKey();
   if (!apiKey) {
     return null;
   }
@@ -914,168 +883,6 @@ export const fetchOpenAiUsageLimits = async () => {
   });
 };
 
-const getClaudeCredentialsPaths = () => [
-  path.join(os.homedir(), ".claude", ".credentials.json"),
-  path.join(os.homedir(), ".claude", "credentials.json"),
-];
-
-const parseClaudeCredentials = (raw, storage) => {
-  const parsed = JSON.parse(raw);
-  const oauth = parsed.claudeAiOauth;
-  const accessToken = oauth?.accessToken?.trim();
-  const refreshToken = oauth?.refreshToken?.trim();
-  if (!accessToken || !refreshToken) {
-    return null;
-  }
-
-  return {
-    accessToken,
-    parsed,
-    refreshToken,
-    storage,
-  };
-};
-
-const readClaudeCredentialsFromKeychain = async () => {
-  if (process.platform !== "darwin") {
-    return null;
-  }
-
-  for (const service of CLAUDE_KEYCHAIN_SERVICES) {
-    let stdout;
-    try {
-      ({ stdout } = await execFileAsync("security", [
-        "find-generic-password",
-        "-s",
-        service,
-        "-w",
-      ]));
-    } catch {
-      continue;
-    }
-
-    const raw = stdout.trim();
-    if (!raw) {
-      continue;
-    }
-
-    try {
-      const credentials = parseClaudeCredentials(raw, {
-        service,
-        type: "keychain",
-      });
-      if (credentials) {
-        return credentials;
-      }
-    } catch {
-      // Try the next known keychain service.
-    }
-  }
-
-  return null;
-};
-
-const readClaudeCredentials = async () => {
-  const keychainCredentials = await readClaudeCredentialsFromKeychain();
-  if (keychainCredentials) {
-    return keychainCredentials;
-  }
-
-  for (const credentialsPath of getClaudeCredentialsPaths()) {
-    let raw;
-    try {
-      raw = await fs.readFile(credentialsPath, "utf8");
-    } catch {
-      continue;
-    }
-
-    try {
-      const credentials = parseClaudeCredentials(raw, {
-        path: credentialsPath,
-        type: "file",
-      });
-      if (credentials) {
-        return credentials;
-      }
-    } catch {
-      // Try the next known credential location.
-    }
-  }
-
-  return null;
-};
-
-const writeClaudeCredentials = async (
-  credentials,
-  { accessToken, expiresIn, refreshToken },
-) => {
-  const expiresAt = Date.now() + expiresIn * 1000;
-  const nextCredentials = {
-    ...credentials.parsed,
-    claudeAiOauth: {
-      ...credentials.parsed.claudeAiOauth,
-      accessToken,
-      expiresAt,
-      refreshToken,
-    },
-  };
-
-  const serialized = JSON.stringify(nextCredentials);
-  if (credentials.storage?.type === "keychain") {
-    await execFileAsync("security", [
-      "add-generic-password",
-      "-U",
-      "-a",
-      process.env.USER || "claude",
-      "-s",
-      credentials.storage.service,
-      "-w",
-      serialized,
-    ]);
-    return;
-  }
-
-  if (credentials.storage?.path) {
-    await fs.writeFile(credentials.storage.path, serialized, "utf8");
-  }
-};
-
-const refreshClaudeCredentials = async (credentials) => {
-  const body = new URLSearchParams({
-    client_id: CLAUDE_OAUTH_CLIENT_ID,
-    grant_type: "refresh_token",
-    refresh_token: credentials.refreshToken,
-  });
-  const response = await fetch(CLAUDE_OAUTH_TOKEN_URL, {
-    body,
-    method: "POST",
-    signal: AbortSignal.timeout(USAGE_REQUEST_TIMEOUT_MS),
-  });
-  if (!response.ok) {
-    throw new Error(`Claude token refresh failed (${response.status}).`);
-  }
-
-  const payload = await response.json();
-  const accessToken = payload.access_token?.trim();
-  const refreshToken = payload.refresh_token?.trim();
-  const expiresIn = toFiniteNumber(payload.expires_in);
-  if (!accessToken || !refreshToken || expiresIn === null) {
-    throw new Error("Claude token refresh returned incomplete credentials.");
-  }
-
-  await writeClaudeCredentials(credentials, {
-    accessToken,
-    expiresIn,
-    refreshToken,
-  });
-
-  return {
-    ...credentials,
-    accessToken,
-    refreshToken,
-  };
-};
-
 const fetchClaudeUsageWithToken = async (accessToken) => {
   const response = await fetch(CLAUDE_OAUTH_USAGE_URL, {
     headers: {
@@ -1187,7 +994,7 @@ const readClaudeSessionUsageLimits = () =>
   );
 
 export const fetchAnthropicUsageLimits = async () => {
-  const credentials = await readClaudeCredentials();
+  const credentials = await claudeAuth.read();
   if (!credentials) {
     // Without a login only what Claude Code left on disk can be shown.
     const local = await readClaudeSessionUsageLimits();
@@ -1205,21 +1012,11 @@ export const fetchAnthropicUsageLimits = async () => {
     label: "Claude",
     provider: "anthropic",
     readLive: async () => {
-      let payload;
-      try {
-        payload = await fetchClaudeUsageWithToken(credentials.accessToken);
-      } catch (error) {
-        if (error?.status !== 401 && error?.status !== 429) {
-          throw error;
-        }
-
-        const refreshedCredentials =
-          await refreshClaudeCredentials(credentials);
-        payload = await fetchClaudeUsageWithToken(
-          refreshedCredentials.accessToken,
-        );
-      }
-
+      // A refused token (401 or 429) is refreshed once; see claude-auth.js.
+      const payload = await claudeAuth.withAccessToken(
+        credentials,
+        fetchClaudeUsageWithToken,
+      );
       const limits = normalizeClaudeUsageLimits(payload);
       if (limits.length === 0) {
         throw new Error("Claude returned no usage limit windows.");
@@ -1228,11 +1025,6 @@ export const fetchAnthropicUsageLimits = async () => {
     },
   });
 };
-
-const getGrokHomePath = () =>
-  process.env.GROK_HOME?.trim() || path.join(os.homedir(), ".grok");
-
-const getGrokAuthPath = () => path.join(getGrokHomePath(), "auth.json");
 
 const getGrokCliProxyBaseUrl = () =>
   (
@@ -1246,72 +1038,6 @@ const getCentValue = (value) => {
   }
 
   return toFiniteNumber(value);
-};
-
-const isGrokAuthExpired = (entry) => {
-  const expiresAt = normalizeResetAt(entry?.expires_at ?? entry?.expiresAt);
-  if (!expiresAt) {
-    return false;
-  }
-
-  return Date.parse(expiresAt) <= Date.now();
-};
-
-const scoreGrokAuthEntry = (scope, entry) => {
-  let score = 0;
-  if (typeof scope === "string" && scope.startsWith("https://auth.x.ai::")) {
-    score += 4;
-  } else if (typeof scope === "string" && scope.includes("accounts.x.ai")) {
-    score += 2;
-  }
-
-  if (
-    String(entry?.auth_mode ?? entry?.authMode ?? "").toLowerCase() === "oidc"
-  ) {
-    score += 1;
-  }
-
-  if (!isGrokAuthExpired(entry)) {
-    score += 8;
-  }
-
-  return score;
-};
-
-const readGrokAuthCredentials = async () => {
-  let parsed;
-  try {
-    parsed = JSON.parse(await fs.readFile(getGrokAuthPath(), "utf8"));
-  } catch {
-    return null;
-  }
-
-  if (!parsed || typeof parsed !== "object") {
-    return null;
-  }
-
-  const candidates = Object.entries(parsed).flatMap(([scope, entry]) => {
-    const accessToken = entry?.key?.trim?.() || entry?.access_token?.trim?.();
-    if (!accessToken) {
-      return [];
-    }
-
-    return [
-      {
-        accessToken,
-        scope,
-        userId: entry.user_id?.trim?.() || entry.userId?.trim?.() || "",
-        score: scoreGrokAuthEntry(scope, entry),
-      },
-    ];
-  });
-
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  candidates.sort((left, right) => right.score - left.score);
-  return candidates[0];
 };
 
 const getGrokPeriodWindow = (config) => {
@@ -1498,7 +1224,7 @@ const fetchGrokJson = async (url, headers) => {
 };
 
 export const fetchGrokUsageLimits = async () => {
-  const credentials = await readGrokAuthCredentials();
+  const credentials = await grokAuth.read();
   if (!credentials) {
     return makeUsageLimitsResult({
       error: "Run `grok login` to fetch Grok usage limits.",
