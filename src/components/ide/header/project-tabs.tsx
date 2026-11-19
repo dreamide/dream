@@ -317,7 +317,10 @@ export const ProjectTabs = () => {
     [closeEditDialog, editTarget, editValue, updateProject],
   );
 
-  const chatsTabItem = useMemo<ProjectTabItem>(() => {
+  const chatsTabItem = useMemo<ProjectTabItem | null>(() => {
+    // The Chats tab stands for the open standalone project; closing that
+    // closes the tab, and starting or showing a chat brings it back.
+    if (!openStandalone) return null;
     const anyStandalone = (ids: Set<string>) => {
       for (const id of standaloneProjectIds) if (ids.has(id)) return true;
       return false;
@@ -327,8 +330,7 @@ export const ProjectTabs = () => {
     const activeChatPalette =
       chats.find(
         (chat) =>
-          chat.id === openStandalone?.ui.activeChatId &&
-          chat.deletedAt === null,
+          chat.id === openStandalone.ui.activeChatId && chat.deletedAt === null,
       )?.sparklesPalette ?? DEFAULT_SPARKLES_PALETTE;
     return {
       awaitingAnswer,
@@ -482,22 +484,27 @@ export const ProjectTabs = () => {
   );
 
   const tabItems = useMemo(
-    () => [chatsTabItem, ...projectTabItems],
+    () => (chatsTabItem ? [chatsTabItem, ...projectTabItems] : projectTabItems),
     [chatsTabItem, projectTabItems],
   );
 
-  // The Chats tab stays first: a move to or from it is ignored, and the
-  // open standalone project keeps its place after the project tabs.
+  // The Chats tab, when open, stays first: a move to or from it is ignored,
+  // and the open standalone project keeps its place after the project tabs.
   const handleProjectReorder = useCallback(
     (fromIndex: number, toIndex: number) => {
-      if (fromIndex === 0 || toIndex === 0) return;
+      const offset = openStandalone ? 1 : 0;
+      if (fromIndex < offset || toIndex < offset) return;
       setProjects([
-        ...moveTabItem(projects, fromIndex - 1, toIndex - 1),
+        ...moveTabItem(projects, fromIndex - offset, toIndex - offset),
         ...(openStandalone ? [openStandalone] : []),
       ]);
     },
     [openStandalone, projects, setProjects],
   );
+
+  const handleCloseChatsTab = useCallback(() => {
+    if (openStandalone) closeProject(openStandalone.id);
+  }, [closeProject, openStandalone]);
 
   const handleActivate = useCallback(
     (id: string) => {
@@ -531,9 +538,15 @@ export const ProjectTabs = () => {
               ) : null
             }
             ariaLabel={projectsT("projects")}
+            // Its menu would hold only Close, so the Chats tab gets the
+            // close button; project tabs close from their actions menu.
+            canClose={(project) => project.id === CHATS_TAB_ID}
             interactiveClassName="[-webkit-app-region:no-drag]"
             items={tabItems}
             onActivate={handleActivate}
+            onClose={(id) => {
+              if (id === CHATS_TAB_ID) handleCloseChatsTab();
+            }}
             onDoubleClick={(project) => {
               if (project.id === CHATS_TAB_ID) return;
               setOpenProjectMenuId(null);
