@@ -1,6 +1,25 @@
 import { useCallback } from "react";
 import { getDesktopApi } from "@/lib/electron";
+import { LOCAL_HOST_ID } from "@/lib/host-routing";
+import type { ProjectConfig } from "@/types/ide";
+import { getProjectHostId } from "../../../electron/shared/persisted-state-codec.js";
 import { useIdeStore } from "./ide-store";
+
+/**
+ * Whether the OS file manager can show a project's folder: only the desktop
+ * app can open one, and only for a folder on this machine (not an SSH host's,
+ * nor a host's seen from a browser client).
+ */
+export const useCanOpenProjectFolder = (
+  project: ProjectConfig | null | undefined,
+) => {
+  const isElectron = useIdeStore((state) => state.isElectron);
+  return (
+    isElectron &&
+    Boolean(project?.path) &&
+    getProjectHostId(project) === LOCAL_HOST_ID
+  );
+};
 
 /**
  * Opens a project's folder in the OS file manager. A folder on an SSH host is
