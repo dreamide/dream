@@ -49,6 +49,34 @@ const gatedHost = ({ fail = false } = {}) => {
   };
 };
 
+/**
+ * A host whose `/api/stream` sends one event and then stays open, as a
+ * chat stream waiting on a question does. `requests` holds each request
+ * it is answering, to cut short or watch close.
+ */
+const streamingHost = () => {
+  const requests = [];
+  return {
+    requests,
+    startApi: async ({ port }) => {
+      const server = http.createServer((request, response) => {
+        response.writeHead(200, { "content-type": "text/event-stream" });
+        response.write("data: one\n\n");
+        requests.push({ request, response });
+      });
+      await new Promise((resolve) => server.listen(port, "127.0.0.1", resolve));
+      cleanups.push(
+        () =>
+          new Promise((resolve) => {
+            server.closeAllConnections();
+            server.close(resolve);
+          }),
+      );
+      return port;
+    },
+  };
+};
+
 const startManager = async (host) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "dream-renderer-server-"));
   mkdirSync(path.join(root, "dist"));
@@ -107,6 +135,43 @@ test("the window loads while the host starts, and its API requests wait for the 
   socket.send("hello");
   expect(String(await reply)).toBe("echo hello");
   socket.close();
+});
+
+test("a stream the API cuts short fails in the window instead of hanging", async () => {
+  const host = streamingHost();
+  const manager = await startManager(host);
+  await manager.whenHostListening();
+
+  const response = await fetch(`${manager.getUrl()}/api/stream`);
+  const reader = response.body.getReader();
+  const { value } = await reader.read();
+  expect(new TextDecoder().decode(value)).toBe("data: one\n\n");
+
+  // The desktop edge's own fetch gives up on an idle body and drops it.
+  host.requests[0].response.destroy();
+  const next = reader.read().then(
+    () => "read",
+    () => "failed",
+  );
+  const hung = new Promise((resolve) => setTimeout(resolve, 2_000, "hung"));
+  expect(await Promise.race([next, hung])).toBe("failed");
+});
+
+test("a window that stops reading a stream stops the forwarded request", async () => {
+  const host = streamingHost();
+  const manager = await startManager(host);
+  await manager.whenHostListening();
+
+  const controller = new AbortController();
+  const response = await fetch(`${manager.getUrl()}/api/stream`, {
+    signal: controller.signal,
+  });
+  await response.body.getReader().read();
+  const closed = new Promise((resolve) =>
+    host.requests[0].response.once("close", resolve),
+  );
+  controller.abort();
+  expect(await settledWithin(closed, 2_000)).toBe(true);
 });
 
 test("a host that does not start answers held requests and says why", async () => {

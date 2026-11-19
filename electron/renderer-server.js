@@ -1,6 +1,7 @@
 import { spawn as spawnProcess } from "node:child_process";
 import http from "node:http";
 import path from "node:path";
+import { pipeline } from "node:stream";
 import sirv from "sirv";
 
 import { createApiSessionToken } from "./api-server.js";
@@ -33,7 +34,13 @@ function getNodeExecutable() {
   return "node";
 }
 
-/** Forwards an `/api/*` request to the API server. */
+/**
+ * Forwards an `/api/*` request to the API server. An answer the API cuts
+ * short (a chat stream its own proxy dropped) is cut short for the window
+ * too, so its reader fails and reconnects instead of waiting forever on a
+ * body that will never end; a window that stops reading stops the
+ * forwarded request.
+ */
 function proxyApiRequest(request, response, apiServerPort) {
   const proxyReq = http.request(
     new URL(request.url, `http://127.0.0.1:${apiServerPort}`),
@@ -43,13 +50,20 @@ function proxyApiRequest(request, response, apiServerPort) {
     },
     (proxyRes) => {
       response.writeHead(proxyRes.statusCode, proxyRes.headers);
-      proxyRes.pipe(response, { end: true });
+      pipeline(proxyRes, response, () => {});
     },
   );
   proxyReq.on("error", (error) => {
     console.error("API proxy error:", error);
+    if (response.headersSent) {
+      response.destroy(error);
+      return;
+    }
     response.statusCode = 502;
     response.end("API proxy error");
+  });
+  response.on("close", () => {
+    if (!response.writableFinished) proxyReq.destroy();
   });
   request.pipe(proxyReq, { end: true });
 }
