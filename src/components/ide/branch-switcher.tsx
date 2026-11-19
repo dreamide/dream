@@ -96,6 +96,10 @@ const BranchSwitcherImpl = ({
   const [listScrolled, setListScrolled] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [createBranchName, setCreateBranchName] = useState("");
+  // Set from the submit until the dialog closes or the checkout fails. A
+  // successful checkout lists the new branch before the dialog closes, which
+  // would otherwise flash "already exists" for the branch just created.
+  const [createBranchSubmitted, setCreateBranchSubmitted] = useState(false);
   const normalizedSearchValue = normalizeBranchName(searchValue);
   const normalizedCreateBranchName = normalizeBranchName(createBranchName);
 
@@ -130,6 +134,7 @@ const BranchSwitcherImpl = ({
     }
 
     setCreateBranchName("");
+    setCreateBranchSubmitted(false);
   }, [createBranchOpen]);
 
   const handleCheckout = useCallback(
@@ -167,12 +172,15 @@ const BranchSwitcherImpl = ({
       return;
     }
 
+    setCreateBranchSubmitted(true);
     try {
       await handleCheckout(normalizedCreateBranchName, true);
       setCreateBranchOpen(false);
       setCreateBranchName("");
     } catch {
-      // checkoutBranch stores the displayable error in hook state.
+      // checkoutBranch stores the displayable error in hook state; the
+      // dialog stays open to show it.
+      setCreateBranchSubmitted(false);
     }
   }, [canSubmitCreateBranch, handleCheckout, normalizedCreateBranchName]);
 
@@ -406,7 +414,9 @@ const BranchSwitcherImpl = ({
                 placeholder="feature/my-branch"
                 value={createBranchName}
               />
-              {normalizedCreateBranchName && createBranchAlreadyExists ? (
+              {normalizedCreateBranchName &&
+              createBranchAlreadyExists &&
+              !createBranchSubmitted ? (
                 <div className="text-destructive text-xs">
                   {branchT("branchAlreadyExists")}
                 </div>
