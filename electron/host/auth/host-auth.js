@@ -1,6 +1,6 @@
 // Pairing and device sessions for a host's remote clients.
 //
-// The contract (CONN-02):
+// The contract:
 //
 //   Pairing    A locally authorized operator (the desktop or a CLI holding
 //              the host's launch token) or a device with `manage` mints a

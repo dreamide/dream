@@ -46,4 +46,4 @@ are refused. Revocation on the host closes the device's live observers.
 
 Arbitrary site port forwarding and the desktop browser relay require a selected
 SSH route. HTTPS-only clients can work with host projects, chats, files and
-terminals; the host-owned browser is tracked separately in CONN-11.
+terminals; a host-owned browser for them is not built yet.

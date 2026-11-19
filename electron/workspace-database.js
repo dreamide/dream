@@ -6,7 +6,7 @@
 // open where and their layout) is this client's, not the host's, and lives
 // beside it in `<name>.workspace.db`. Each file has exactly one writer: the
 // host's save queue for the catalog, the desktop's for its workspace, so a
-// host can move to a background service (CONN-06) without two processes
+// host can run in a process of its own (`dream-host`) without two processes
 // writing one file.
 //
 // Both use the one schema and its migrations; each uses only its own

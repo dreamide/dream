@@ -166,8 +166,8 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
                 />
               </RightPanelViewSlot>
             ) : null}
-            {/* The webview browser is the desktop window's (a host-owned
-                browser for every client is CONN-11). */}
+            {/* The webview browser is the desktop window's; there is no
+                host-owned browser for web clients yet. */}
             {visitedPersistentViews.has("browser") && hasDesktopApi() ? (
               <RightPanelViewSlot active={rightPanelView === "browser"}>
                 <BrowserPanel

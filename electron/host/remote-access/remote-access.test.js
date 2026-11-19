@@ -164,7 +164,7 @@ test("an unusable Cloudflare setup is refused and saves nothing", async () => {
   ).toBe("quick-tunnel");
 });
 
-/** Remote access the host was started with (`--remote-port`, DH-14). */
+/** Remote access the host was started with (`--remote-port`). */
 const withOverride = (override, saved = { enabled: false, version: 1 }) => {
   const dataDirectory = mkdtempSync(path.join(os.tmpdir(), "dream-remote-"));
   const settingsFile = path.join(dataDirectory, "remote-access.json");

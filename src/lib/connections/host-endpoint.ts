@@ -11,7 +11,7 @@
  *            holds that host's own token in the main process.
  *   web      `local` (the paired host serving this page): this origin's
  *            API; the session cookie travels on its own (HttpOnly). Other
- *            hosts are not reachable from a browser yet (CONN-07).
+ *            hosts are not reachable from a browser yet.
  */
 import { API_SESSION_TOKEN_HEADER } from "../api-session";
 import { CLIENT_ID, CLIENT_ID_HEADER } from "../client-id";

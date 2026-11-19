@@ -39,4 +39,12 @@ Route tests with a fake provider do not establish real adapter wiring.
 Use GLOSSARY.md to identify the owner on each side of a seam. For caches,
 review identity, invalidation after external writes, concurrent reads, and
 hidden subscribers. For saves, review ordering, retry, and closing the window.
-Record deliberately deferred behavior in the task document's completion scope.
+Record deliberately deferred behavior in the task document's completion scope,
+and in `docs/architecture/backlog.md` once the task is done.
+
+## Comments
+
+Task documents are temporary and are deleted once their work ships. Do not
+cite task IDs (`CONN-02`, `DH-14`) or task documents in code comments; say what
+the code does and why on its own terms. Leave history to git, and record work
+that is not built yet in `docs/architecture/backlog.md`.

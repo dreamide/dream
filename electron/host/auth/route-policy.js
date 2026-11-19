@@ -123,7 +123,7 @@ export const assertRoutePolicy = (app, { middlewarePaths }) => {
  *   terminal  output is followed with view; input and resizing operate
  *   catalog   view
  *   browser   local only: a remote client cannot run an agent's browser
- *             tools (CONN-11 adds a host-owned browser)
+ *             tools (there is no host-owned browser yet)
  *   resume    view, per channel
  * @param {string} channel
  * @param {{ type?: unknown }} message

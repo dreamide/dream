@@ -250,7 +250,7 @@ async function ensure({ home, runDirectory, values, env, write }) {
   }
 }
 
-/** The remote access a host was started with (DH-14), or null. */
+/** The remote access a host was started with (`--remote-port`), or null. */
 const remoteOverride = ({ options, from }) =>
   options.remotePort === null
     ? null
@@ -286,7 +286,7 @@ async function serve({ runDirectory, values, log, resolved }) {
   const host = createHost({
     // What runs it, named in its state lock: a desktop's own host says so,
     // so a second host can tell the user which app has the data, and the
-    // record says where this host's run record is (DH-09).
+    // record says where this host's run record is.
     kind: options.owner === "desktop" ? "desktop" : "daemon",
     lockDetails: { owner: options.owner, runDirectory },
     diagnosticsEnabled: options.diagnostics,
