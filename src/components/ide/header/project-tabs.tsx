@@ -13,7 +13,7 @@ import {
 } from "@/lib/sparkles-palettes";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
-import type { DetectedEditor, ProjectIconInfo } from "@/types/ide";
+import type { ProjectIconInfo } from "@/types/ide";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import {
   chatIdsWaitingOnUser,
@@ -29,6 +29,7 @@ import {
   type StandardTabItem,
   StandardTabs,
 } from "../standard-tabs";
+import { useDetectedEditors } from "../use-detected-editors";
 import { ProjectActionsMenu } from "./project-actions-menu";
 import {
   ProjectEditDialog,
@@ -51,39 +52,6 @@ export type ProjectTabItem = StandardTabItem & {
   sparklesPalette: SparklesPaletteName | string[];
   streaming: boolean;
   worktreeBranch: string | null;
-};
-
-const useDetectedEditors = (isMacOs: boolean) => {
-  const [detectedEditors, setDetectedEditors] = useState<DetectedEditor[]>([]);
-
-  useEffect(() => {
-    const api = getDesktopApi();
-    if (!api) {
-      return;
-    }
-
-    void api.detectEditors().then(setDetectedEditors);
-  }, []);
-
-  return useMemo<DetectedEditor[]>(() => {
-    const fileExplorer = detectedEditors.find(
-      (editor) => editor.id === "file-explorer",
-    );
-    const otherEditors = detectedEditors.filter(
-      (editor) => editor.id !== "file-explorer",
-    );
-
-    return [
-      fileExplorer ?? {
-        executable: "",
-        id: "file-explorer",
-        isFileExplorer: true,
-        isTerminal: false,
-        name: isMacOs ? "Finder" : "File Explorer",
-      },
-      ...otherEditors,
-    ];
-  }, [detectedEditors, isMacOs]);
 };
 
 const useProjectIconScanner = ({
