@@ -95,6 +95,29 @@ test("offers speed tiers only for OpenAI gpt-5.4 and gpt-5.5 families", () => {
   assert.deepEqual(getModelSpeedTiers("anthropic", "gpt-5.4"), []);
 });
 
+test("offers fast mode only on Claude models that support it", () => {
+  for (const id of [
+    "claude-opus-5-5",
+    "claude-opus-5",
+    "claude-fable-5-2",
+    " Opus ",
+    "opus[1m]",
+  ]) {
+    assert.deepEqual(getModelSpeedTiers("anthropic", id), ["standard", "fast"]);
+  }
+  for (const id of [
+    "claude-opus-4-8",
+    "claude-opus-4-7",
+    "claude-sonnet-5-5",
+    "sonnet",
+    "claude-haiku-5-5",
+    "claude-fable-5-1",
+  ]) {
+    assert.deepEqual(getModelSpeedTiers("anthropic", id), []);
+  }
+  assert.deepEqual(getModelSpeedTiers("grok", "claude-opus-5-5"), []);
+});
+
 test("normalizes reasoning efforts from strings and objects while deduping", () => {
   assert.deepEqual(
     normalizeReasoningEfforts([

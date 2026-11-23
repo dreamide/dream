@@ -21,6 +21,7 @@ import {
 import {
   CLAUDE_REASONING_EFFORT_MAP,
   getModelReasoningEfforts,
+  getModelSpeedTiers,
   normalizeClaudeCodeModel,
 } from "../../shared/model-options.js";
 import { resolveProjectPath } from "../project-git/files.js";
@@ -501,6 +502,9 @@ export const streamClaudeResponse = async ({
 }) => {
   const usesReasoningModel =
     getModelReasoningEfforts("anthropic", model).length > 0;
+  const offersFastMode = getModelSpeedTiers("anthropic", model).includes(
+    "fast",
+  );
   const claudePermissionHandlerMode =
     permissionMode === "auto-accept-edits"
       ? "accept-edits"
@@ -641,6 +645,12 @@ export const streamClaudeResponse = async ({
         : {}),
       ...(usesReasoningModel
         ? { effort: CLAUDE_REASONING_EFFORT_MAP[reasoningEffort ?? "medium"] }
+        : {}),
+      // Dream's speed picker is authoritative for models that offer fast
+      // mode, overriding any `fastMode` in the user's settings.json. Headless
+      // Claude Code only honours fast mode passed as a launch settings layer.
+      ...(offersFastMode
+        ? { settings: { fastMode: modelSpeed === "fast" } }
         : {}),
     });
   };

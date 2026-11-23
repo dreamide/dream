@@ -201,17 +201,32 @@ export const getModelReasoningEfforts = (provider, modelId) => {
   return [];
 };
 
+// Claude Code fast mode (https://code.claude.com/docs/en/fast-mode): Opus 5.5
+// and Fable 5.2, plus Opus 5 in research preview. The `opus` aliases resolve
+// to Opus 5.5 on current Claude Code. Opus 4.8 is left out: its fast mode is
+// removed on 2026-11-30, and Opus 4.7, Sonnet and Haiku never had it.
+const CLAUDE_FAST_MODE_MODELS = new Set([
+  "opus",
+  "opus[1m]",
+  "claude-opus-5-5",
+  "claude-opus-5",
+  "claude-fable-5-2",
+]);
+
 /**
  * @param {AiProvider} provider
  * @param {string} modelId
  * @returns {ModelSpeed[]}
  */
 export const getModelSpeedTiers = (provider, modelId) => {
-  if (provider !== "openai") return [];
-
   const id = modelId.trim().toLowerCase();
-  if (/^gpt-5\.(4|5)(?:$|[-.])/.test(id)) {
-    return ["standard", "fast"];
+
+  if (provider === "openai") {
+    return /^gpt-5\.(4|5)(?:$|[-.])/.test(id) ? ["standard", "fast"] : [];
+  }
+
+  if (provider === "anthropic") {
+    return CLAUDE_FAST_MODE_MODELS.has(id) ? ["standard", "fast"] : [];
   }
 
   return [];
