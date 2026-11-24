@@ -7,7 +7,7 @@ import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { ProjectConfig } from "@/types/ide";
 import {
   getProjectHostId,
-  normalizeProjectPathKey,
+  projectDirectoryKey,
 } from "../../../../electron/shared/persisted-state-codec.js";
 import { createHostReach, type HostReach } from "./host-reach";
 import type {
@@ -62,14 +62,12 @@ export const createStandaloneChatActions = (
     hostId: string,
     create?: (project: ProjectConfig) => ProjectConfig,
   ) => {
+    const directory = projectDirectoryKey(path, hostId);
     for (const project of get().projects) {
       if (
         project.standalone &&
-        !(
-          getProjectHostId(project) === hostId &&
-          normalizeProjectPathKey(project.path) ===
-            normalizeProjectPathKey(path)
-        )
+        projectDirectoryKey(project.path, getProjectHostId(project)) !==
+          directory
       ) {
         get().closeProject(project.id);
       }

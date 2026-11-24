@@ -10,6 +10,10 @@ model selection. `ProjectConfig` in `src/types/ide.ts`. A project is **open**
 (in the tab strip) or **closed** (kept in the closed list so it can be
 reopened with its chats intact).
 
+A **Project directory** is identified by its Host and normalized path. Two
+Hosts can have Projects at the same path, each with its own Chats and place
+in the open or closed list.
+
 An **open-project attempt** is one request from the open-folder dialog to
 open a typed or selected directory on a chosen Host. Dismissing the dialog,
 changing the Host or path, or starting another attempt retires the old one;

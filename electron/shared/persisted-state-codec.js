@@ -1160,7 +1160,10 @@ const decodeProjects = (rawOpen, rawClosed, settings, kept) => {
       }
 
       // A path is unique on its host; two hosts can each have /home/me/app.
-      const pathKey = `${getProjectHostId(project)}\u0000${normalizeProjectPathKey(project.path)}`;
+      const pathKey = projectDirectoryKey(
+        project.path,
+        getProjectHostId(project),
+      );
       if (seenIds.has(project.id) || seenPathKeys.has(pathKey)) {
         continue;
       }
@@ -1433,6 +1436,13 @@ export function getProjectHostId(project) {
     ? hostId.trim()
     : LOCAL_HOST_ID;
 }
+
+/** A directory is unique within its Host.
+ * @param {string} path
+ * @param {string} [hostId]
+ */
+export const projectDirectoryKey = (path, hostId = LOCAL_HOST_ID) =>
+  `${hostId}\u0000${normalizeProjectPathKey(path)}`;
 
 /**
  * A project's catalog row: what its host owns and every client sees.

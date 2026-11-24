@@ -32,7 +32,7 @@ import {
   getProjectHostId,
   LOCAL_HOST_ID,
   mergeWorkspaceAndCatalog,
-  normalizeProjectPathKey,
+  projectDirectoryKey,
   sanitizeProjectUiForChats,
 } from "../../../../electron/shared/persisted-state-codec.js";
 
@@ -88,19 +88,8 @@ export interface HostCatalog {
 const isLiveChatOf = (chat: ChatConfig, projectId: string) =>
   chat.projectId === projectId && chat.deletedAt === null;
 
-/** The project at `path` on `hostId` (paths are unique per host). */
-const findByPath = (
-  projects: ProjectConfig[],
-  path: string,
-  hostId: string = LOCAL_HOST_ID,
-) => {
-  const pathKey = normalizeProjectPathKey(path);
-  return projects.find(
-    (project) =>
-      getProjectHostId(project) === hostId &&
-      normalizeProjectPathKey(project.path) === pathKey,
-  );
-};
+const directoryOf = (project: ProjectConfig) =>
+  projectDirectoryKey(project.path, getProjectHostId(project));
 
 const replaceProject = (projects: ProjectConfig[], project: ProjectConfig) =>
   projects.map((item) => (item.id === project.id ? project : item));
@@ -426,22 +415,19 @@ export const openProject = (
   let draftChatIdByProject = doc.draftChatIdByProject;
 
   const hostId = options.hostId ?? LOCAL_HOST_ID;
-  const openProject = findByPath(doc.projects, path, hostId);
+  const directory = projectDirectoryKey(path, hostId);
+  const atDirectory = (project: ProjectConfig) =>
+    directoryOf(project) === directory;
+  const openProject = doc.projects.find(atDirectory);
   if (openProject) {
     project = withWorktree({ ...openProject, lastUsedAt });
     projects = replaceProject(doc.projects, project);
   } else {
-    const closedProject = findByPath(doc.closedProjects, path, hostId);
+    const closedProject = doc.closedProjects.find(atDirectory);
     if (closedProject) {
       project = withWorktree({ ...closedProject, lastUsedAt, path });
-      const pathKey = normalizeProjectPathKey(path);
       closedProjects = doc.closedProjects.filter(
-        (item) =>
-          item.id !== closedProject.id &&
-          !(
-            getProjectHostId(item) === hostId &&
-            normalizeProjectPathKey(item.path) === pathKey
-          ),
+        (item) => item.id !== closedProject.id && !atDirectory(item),
       );
     } else {
       project = withWorktree(createProjectConfig(path, settings));
@@ -496,7 +482,7 @@ export const closeProject = (
   if (!closedProject) {
     return settle(doc, settings);
   }
-  const pathKey = normalizeProjectPathKey(closedProject.path);
+  const directory = directoryOf(closedProject);
   const projects = doc.projects.filter((project) => project.id !== projectId);
   return settle(
     {
@@ -509,7 +495,7 @@ export const closeProject = (
         ...doc.closedProjects.filter(
           (project) =>
             project.id !== closedProject.id &&
-            normalizeProjectPathKey(project.path) !== pathKey,
+            directoryOf(project) !== directory,
         ),
         { ...closedProject, lastUsedAt: new Date().toISOString() },
       ],
@@ -522,10 +508,6 @@ export const closeProject = (
 // ---------------------------------------------------------------------------
 // Standalone projects (GLOSSARY.md, Standalone chat)
 // ---------------------------------------------------------------------------
-
-const isAt = (project: ProjectConfig, path: string, hostId: string) =>
-  getProjectHostId(project) === hostId &&
-  normalizeProjectPathKey(project.path) === normalizeProjectPathKey(path);
 
 /**
  * Shows the standalone project at `path` on `hostId`, opening it (or
@@ -548,8 +530,11 @@ export const showStandaloneProject = (
   closedProjectIds: string[];
 } => {
   const hostId = options.hostId ?? LOCAL_HOST_ID;
+  const directory = projectDirectoryKey(path, hostId);
   const closedProjectIds = doc.projects
-    .filter((project) => project.standalone && !isAt(project, path, hostId))
+    .filter(
+      (project) => project.standalone && directoryOf(project) !== directory,
+    )
     .map((project) => project.id);
   let next = doc;
   for (const projectId of closedProjectIds) {
