@@ -1,64 +1,55 @@
 import { useCallback } from "react";
 import { getDesktopApi } from "@/lib/electron";
-import { LOCAL_HOST_ID } from "@/lib/host-routing";
-import type { ProjectConfig } from "@/types/ide";
-import { getProjectHostId } from "../../../electron/shared/persisted-state-codec.js";
-import { useIdeStore } from "./ide-store";
+import type { DesktopApi, DetectedEditor, ProjectConfig } from "@/types/ide";
+import {
+  getProjectHostId,
+  LOCAL_HOST_ID,
+} from "../../../electron/shared/persisted-state-codec.js";
+import { useHostChoices } from "./ssh/use-host-choices";
+import { useDetectedEditors } from "./use-detected-editors";
 
-/**
- * Whether the OS file manager can show a project's folder: only the desktop
- * app can open one, and only for a folder on this machine (not an SSH host's,
- * nor a host's seen from a browser client).
- */
-export const useCanOpenProjectFolder = (
-  project: ProjectConfig | null | undefined,
+type ProjectDirectory = Pick<ProjectConfig, "hostId" | "path">;
+
+export const projectEditorDestinations = (
+  project: ProjectDirectory | null,
+  editors: DetectedEditor[],
+  hosts: ReadonlyArray<{ id: string; target: string }>,
+  desktop: Pick<DesktopApi, "openInEditor"> | null,
 ) => {
-  const isElectron = useIdeStore((state) => state.isElectron);
-  return (
-    isElectron &&
-    Boolean(project?.path) &&
-    getProjectHostId(project) === LOCAL_HOST_ID
-  );
+  if (!desktop || !project?.path) return [];
+
+  const hostId = getProjectHostId(project);
+  const local = hostId === LOCAL_HOST_ID;
+  const sshTarget = local
+    ? undefined
+    : hosts.find((host) => host.id === hostId)?.target.trim();
+  if (!local && !sshTarget) return [];
+
+  return editors
+    .filter((editor) => local || editor.supportsRemote)
+    .map((editor) => ({
+      editor,
+      open: () =>
+        desktop.openInEditor({
+          editorId: editor.id,
+          hostId: local ? undefined : hostId,
+          projectPath: project.path,
+          sshTarget,
+        }),
+    }));
 };
 
-/**
- * Opens a project's folder in an editor (or the OS file manager, the
- * "file-explorer" editor). A folder on an SSH host goes along with the host
- * and target, so main can open it remotely or refuse it.
- */
-export const useOpenProjectInEditor = () =>
-  useCallback(
-    async (
-      projectId: string | null,
-      projectPath: string | null,
-      editorId: string,
-    ) => {
-      if (!projectPath) {
-        return;
-      }
+export type ProjectEditorDestination = ReturnType<
+  typeof projectEditorDestinations
+>[number];
 
-      const state = useIdeStore.getState();
-      const hostId = [...state.projects, ...state.closedProjects].find(
-        (project) => project.id === projectId,
-      )?.hostId;
-      await getDesktopApi()?.openInEditor({
-        hostId,
-        editorId,
-        projectPath,
-        sshTarget: hostId
-          ? state.settings.sshHosts.find((host) => host.id === hostId)?.target
-          : undefined,
-      });
-    },
-    [],
-  );
-
-/** Opens a project's folder in the OS file manager. */
-export const useOpenProjectFolder = () => {
-  const openProjectInEditor = useOpenProjectInEditor();
+/** Each displayed destination carries the same launch decision that admitted it. */
+export const useProjectEditorDestinations = (isMacOs: boolean) => {
+  const editors = useDetectedEditors(isMacOs);
+  const hosts = useHostChoices();
   return useCallback(
-    (projectId: string | null, projectPath: string | null) =>
-      openProjectInEditor(projectId, projectPath, "file-explorer"),
-    [openProjectInEditor],
+    (project: ProjectDirectory | null) =>
+      projectEditorDestinations(project, editors, hosts, getDesktopApi()),
+    [editors, hosts],
   );
 };

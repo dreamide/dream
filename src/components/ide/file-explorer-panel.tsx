@@ -68,10 +68,7 @@ import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 import { useShortcutMatcher } from "./shortcuts/shortcuts";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 import type { ProjectFilePosition } from "./store/ide-store-types";
-import {
-  useCanOpenProjectFolder,
-  useOpenProjectFolder,
-} from "./use-open-project-folder";
+import { useProjectEditorDestinations } from "./use-open-project-folder";
 import { WordWrapToggle } from "./word-wrap-toggle";
 
 const FILE_TREE_MIN_WIDTH_PX = 250;
@@ -669,12 +666,9 @@ const FileExplorerPanelImpl = ({
     [],
   );
 
-  const openProjectFolder = useOpenProjectFolder();
-  const canOpenProjectFolder = useCanOpenProjectFolder(activeProject);
-  const handleOpenProjectPath = useCallback(
-    () => openProjectFolder(projectId, projectPath),
-    [openProjectFolder, projectId, projectPath],
-  );
+  const isMacOs = useIdeStore((s) => s.isMacOs);
+  const destinations = useProjectEditorDestinations(isMacOs)(activeProject);
+  const fileManager = destinations.find(({ editor }) => editor.isFileExplorer);
 
   const handleWordWrapChange = useCallback(
     (enabled: boolean) => {
@@ -998,10 +992,10 @@ const FileExplorerPanelImpl = ({
           <RightPanelHeaderIconButton icon={Files} onClose={onClosePanel} />
           <div className="truncate text-sm font-medium">{commonT("files")}</div>
         </div>
-        {canOpenProjectFolder ? (
+        {fileManager ? (
           <button
             className="min-w-0 max-w-full justify-self-center truncate rounded px-2 py-1 text-center text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-surface-400 dark:focus-visible:ring-surface-500"
-            onClick={handleOpenProjectPath}
+            onClick={() => void fileManager.open()}
             title={commonT("open")}
             type="button"
           >

@@ -5,7 +5,6 @@ import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
 import { StatusDot } from "@/components/ui/status-dot";
 import { apiClient } from "@/lib/api-client";
-import { getDesktopApi } from "@/lib/electron";
 import {
   createAccentSparklesPalette,
   DEFAULT_SPARKLES_PALETTE,
@@ -29,7 +28,7 @@ import {
   type StandardTabItem,
   StandardTabs,
 } from "../standard-tabs";
-import { useDetectedEditors } from "../use-detected-editors";
+import { useProjectEditorDestinations } from "../use-open-project-folder";
 import { ProjectActionsMenu } from "./project-actions-menu";
 import {
   ProjectEditDialog,
@@ -48,6 +47,7 @@ const PROJECT_TABS_END_DRAG_SPACE = 48;
 export type ProjectTabItem = StandardTabItem & {
   awaitingAnswer: boolean;
   completed: boolean;
+  hostId?: string;
   path: string;
   sparklesPalette: SparklesPaletteName | string[];
   streaming: boolean;
@@ -175,18 +175,6 @@ export const ProjectTabs = () => {
     () => new Map(sshHosts.map((host) => [host.id, host.label])),
     [sshHosts],
   );
-  /** The SSH target of a project on an SSH host; null for a local one. */
-  const sshTargetOf = useCallback(
-    (projectId: string) => {
-      const hostId = projects.find(
-        (project) => project.id === projectId,
-      )?.hostId;
-      return hostId
-        ? (sshHosts.find((host) => host.id === hostId)?.target ?? null)
-        : null;
-    },
-    [projects, sshHosts],
-  );
   // Running and waiting, here or on the host, whether or not this window
   // follows the turn (chat-activity.ts).
   const activity = useIdeStore(useShallow(selectChatActivity));
@@ -221,14 +209,13 @@ export const ProjectTabs = () => {
   const projectIconScanSignature = projects
     .map((project) => `${project.id}\x00${project.path}`)
     .join("\x01");
-  const projectOpenInEditors = useDetectedEditors(isMacOs);
+  const editorDestinations = useProjectEditorDestinations(isMacOs);
 
   const [openProjectMenuId, setOpenProjectMenuId] = useState<string | null>(
     null,
   );
   const [editTarget, setEditTarget] = useState<ProjectEditTarget | null>(null);
   const [editValue, setEditValue] = useState("");
-  const desktopApi = getDesktopApi();
 
   useProjectIconScanner({
     appReady,
@@ -239,28 +226,6 @@ export const ProjectTabs = () => {
   const handleAddProject = useCallback(() => {
     setActiveProjectId(null);
   }, [setActiveProjectId]);
-
-  const handleOpenProjectInEditor = useCallback(
-    (
-      project: {
-        id: string;
-        path: string;
-      },
-      editorId: string,
-    ) => {
-      if (!desktopApi) {
-        return;
-      }
-
-      void desktopApi.openInEditor({
-        hostId: projects.find((item) => item.id === project.id)?.hostId,
-        editorId,
-        projectPath: project.path,
-        sshTarget: sshTargetOf(project.id) ?? undefined,
-      });
-    },
-    [desktopApi, sshTargetOf, projects],
-  );
 
   const closeEditDialog = useCallback(() => {
     setEditTarget(null);
@@ -422,6 +387,7 @@ export const ProjectTabs = () => {
         return {
           awaitingAnswer,
           completed,
+          hostId: project.hostId,
           id: project.id,
           // A project on an SSH host says which.
           label: project.hostId
@@ -526,15 +492,8 @@ export const ProjectTabs = () => {
               project.id === CHATS_TAB_ID ? null : (
                 <ProjectActionsMenu
                   closeProject={closeProject}
-                  editors={
-                    sshTargetOf(project.id)
-                      ? projectOpenInEditors.filter(
-                          (editor) => editor.supportsRemote,
-                        )
-                      : projectOpenInEditors
-                  }
+                  destinations={editorDestinations(project)}
                   isMacOs={isMacOs}
-                  onOpenInEditor={handleOpenProjectInEditor}
                   open={openProjectMenuId === project.id}
                   project={project}
                   setOpen={(open) =>

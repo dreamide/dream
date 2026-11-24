@@ -14,6 +14,10 @@ A **Project directory** is identified by its Host and normalized path. Two
 Hosts can have Projects at the same path, each with its own Chats and place
 in the open or closed list.
 
+An **editor destination** is an editor or file manager that can open a
+Project directory from this desktop. Remote Projects need a saved SSH target
+and an editor that supports remote opening.
+
 An **open-project attempt** is one request from the open-folder dialog to
 open a typed or selected directory on a chosen Host. Dismissing the dialog,
 changing the Host or path, or starting another attempt retires the old one;

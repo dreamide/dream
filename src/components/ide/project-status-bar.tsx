@@ -34,8 +34,7 @@ import { GitFooterActions } from "./git-panel/footer-actions";
 import { OpenInEditorIcon } from "./header/open-in-editor-icon";
 import { useIdeStore } from "./ide-store";
 import { ProjectHostLabel } from "./ssh/project-host-label";
-import { useDetectedEditors } from "./use-detected-editors";
-import { useOpenProjectInEditor } from "./use-open-project-folder";
+import { useProjectEditorDestinations } from "./use-open-project-folder";
 import { slugifyWorktreeBranchName, WorktreeFields } from "./worktree-fields";
 
 const CreateWorktreeDialog = ({
@@ -155,18 +154,8 @@ export const ProjectBranchFooter = ({
   });
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
   const commonT = useTranslations("common");
-  const isElectron = useIdeStore((s) => s.isElectron);
   const isMacOs = useIdeStore((s) => s.isMacOs);
-  const detectedEditors = useDetectedEditors(isMacOs);
-  // Only the desktop app can open a folder in an editor, and a folder on an
-  // SSH host opens only in editors that reach it remotely. (Only a project on
-  // another host carries a hostId.)
-  const editors = !isElectron
-    ? []
-    : project.hostId
-      ? detectedEditors.filter((editor) => editor.supportsRemote)
-      : detectedEditors;
-  const openProjectInEditor = useOpenProjectInEditor();
+  const destinations = useProjectEditorDestinations(isMacOs)(project);
 
   // A breadcrumb of where the chat works: the host, the project (which opens
   // the "Open In" menu), then (for a repository) its branch. The branch's git
@@ -186,7 +175,7 @@ export const ProjectBranchFooter = ({
               </BreadcrumbItem>
               <BreadcrumbSeparator className="shrink-0 [&>svg]:size-3" />
               <BreadcrumbItem className="min-w-0">
-                {editors.length === 0 ? (
+                {destinations.length === 0 ? (
                   <div
                     className="flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 px-2 text-muted-foreground text-xs"
                     title={project.path}
@@ -215,16 +204,10 @@ export const ProjectBranchFooter = ({
                         <DropdownMenuLabel>
                           {commonT("openIn")}
                         </DropdownMenuLabel>
-                        {editors.map((editor) => (
+                        {destinations.map(({ editor, open }) => (
                           <DropdownMenuItem
                             key={editor.id}
-                            onClick={() =>
-                              void openProjectInEditor(
-                                project.id,
-                                project.path,
-                                editor.id,
-                              )
-                            }
+                            onClick={() => void open()}
                           >
                             <OpenInEditorIcon
                               editor={editor}

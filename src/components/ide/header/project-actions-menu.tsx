@@ -12,16 +12,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { DetectedEditor } from "@/types/ide";
+import type { ProjectEditorDestination } from "../use-open-project-folder";
 import { OpenInEditorIcon } from "./open-in-editor-icon";
 import type { ProjectEditTarget } from "./project-edit-dialog";
 import type { ProjectTabItem } from "./project-tabs";
 
 export const ProjectActionsMenu = ({
   closeProject,
-  editors,
+  destinations,
   isMacOs,
-  onOpenInEditor,
   open,
   project,
   setEditTarget,
@@ -29,15 +28,8 @@ export const ProjectActionsMenu = ({
   setOpen,
 }: {
   closeProject: (projectId: string) => void;
-  editors: DetectedEditor[];
+  destinations: ProjectEditorDestination[];
   isMacOs: boolean;
-  onOpenInEditor: (
-    project: {
-      id: string;
-      path: string;
-    },
-    editorId: string,
-  ) => void;
   open: boolean;
   project: ProjectTabItem;
   setEditTarget: (target: ProjectEditTarget) => void;
@@ -90,18 +82,15 @@ export const ProjectActionsMenu = ({
             <FilePenLine className="size-4" />
             {commonT("edit")}
           </DropdownMenuItem>
-          {editors.length > 0 ? (
+          {destinations.length > 0 ? (
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
                 <ExternalLink className="size-4" />
                 {commonT("openIn")}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="[-webkit-app-region:no-drag]">
-                {editors.map((editor) => (
-                  <DropdownMenuItem
-                    key={editor.id}
-                    onClick={() => onOpenInEditor(project, editor.id)}
-                  >
+                {destinations.map(({ editor, open }) => (
+                  <DropdownMenuItem key={editor.id} onClick={() => void open()}>
                     <OpenInEditorIcon editor={editor} isMacOs={isMacOs} />
                     {editor.name}
                   </DropdownMenuItem>
