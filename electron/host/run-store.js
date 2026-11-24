@@ -16,17 +16,23 @@ const row = (value) =>
     updatedAt: value.updated_at,
   };
 
-export const readRunQueue = (db, chatId) => ({
-  paused: Boolean(
-    db.prepare("SELECT paused FROM chat_queues WHERE chat_id = ?").get(chatId)
-      ?.paused ||
-      db.prepare("SELECT deleted_at FROM chats WHERE id = ?").get(chatId)
-        ?.deleted_at,
-  ),
-  // Queue views need neither attachment bodies nor MCP credentials. Keep
-  // actionable runs plus a small terminal tail; receipts remain on disk.
-  runs: db
-    .prepare(`SELECT id, chat_id AS chatId, position, status, error,
+export const readRunQueue = (db, chatId) => {
+  // The save worker can commit a failure between these reads. Read the
+  // pause flag and run statuses from the same SQLite snapshot.
+  db.exec("SAVEPOINT run_queue_snapshot");
+  try {
+    return {
+      paused: Boolean(
+        db
+          .prepare("SELECT paused FROM chat_queues WHERE chat_id = ?")
+          .get(chatId)?.paused ||
+          db.prepare("SELECT deleted_at FROM chats WHERE id = ?").get(chatId)
+            ?.deleted_at,
+      ),
+      // Queue views need neither attachment bodies nor MCP credentials. Keep
+      // actionable runs plus a small terminal tail; receipts remain on disk.
+      runs: db
+        .prepare(`SELECT id, chat_id AS chatId, position, status, error,
     created_at AS createdAt, updated_at AS updatedAt,
     json_extract(request, '$.provider') AS provider, json_extract(request, '$.model') AS model,
     COALESCE((SELECT substr(group_concat(json_extract(value, '$.text'), char(10)), 1, 1500)
@@ -34,8 +40,12 @@ export const readRunQueue = (db, chatId) => ({
     FROM chat_runs WHERE chat_id = ? AND (status NOT IN ('completed', 'cancelled') OR
       id IN (SELECT id FROM chat_runs WHERE chat_id = ? ORDER BY position DESC LIMIT 20))
     ORDER BY position, id`)
-    .all(chatId, chatId),
-});
+        .all(chatId, chatId),
+    };
+  } finally {
+    db.exec("RELEASE run_queue_snapshot");
+  }
+};
 
 /**
  * One Chat run queue operation. The `run-queue` write (state-writes.js),
