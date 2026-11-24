@@ -6,11 +6,6 @@ import { getProjectHostId } from "../../../electron/shared/persisted-state-codec
 import { useIdeStore } from "./ide-store";
 
 /**
-<<<<<<< HEAD
- * Opens a project's folder in an editor (or the OS file manager, the
- * "file-explorer" editor). A folder on an SSH host goes along with the host
- * and target, so main can open it remotely or refuse it.
-=======
  * Whether the OS file manager can show a project's folder: only the desktop
  * app can open one, and only for a folder on this machine (not an SSH host's,
  * nor a host's seen from a browser client).
@@ -27,9 +22,9 @@ export const useCanOpenProjectFolder = (
 };
 
 /**
- * Opens a project's folder in the OS file manager. A folder on an SSH host is
- * not on this machine, so the host and target go along and main refuses it.
->>>>>>> b316da739ccddabc8cba30e74d06fdbb62d6c320
+ * Opens a project's folder in an editor (or the OS file manager, the
+ * "file-explorer" editor). A folder on an SSH host goes along with the host
+ * and target, so main can open it remotely or refuse it.
  */
 export const useOpenProjectInEditor = () =>
   useCallback(

@@ -34,15 +34,8 @@ import { GitFooterActions } from "./git-panel/footer-actions";
 import { OpenInEditorIcon } from "./header/open-in-editor-icon";
 import { useIdeStore } from "./ide-store";
 import { ProjectHostLabel } from "./ssh/project-host-label";
-<<<<<<< HEAD
 import { useDetectedEditors } from "./use-detected-editors";
 import { useOpenProjectInEditor } from "./use-open-project-folder";
-=======
-import {
-  useCanOpenProjectFolder,
-  useOpenProjectFolder,
-} from "./use-open-project-folder";
->>>>>>> b316da739ccddabc8cba30e74d06fdbb62d6c320
 import { slugifyWorktreeBranchName, WorktreeFields } from "./worktree-fields";
 
 const CreateWorktreeDialog = ({
@@ -161,20 +154,19 @@ export const ProjectBranchFooter = ({
     hostId: getProjectHostId(project),
   });
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
-<<<<<<< HEAD
   const commonT = useTranslations("common");
+  const isElectron = useIdeStore((s) => s.isElectron);
   const isMacOs = useIdeStore((s) => s.isMacOs);
   const detectedEditors = useDetectedEditors(isMacOs);
-  // A folder on an SSH host opens only in editors that reach it remotely.
-  // (Only a project on another host carries a hostId.)
-  const editors = project.hostId
-    ? detectedEditors.filter((editor) => editor.supportsRemote)
-    : detectedEditors;
+  // Only the desktop app can open a folder in an editor, and a folder on an
+  // SSH host opens only in editors that reach it remotely. (Only a project on
+  // another host carries a hostId.)
+  const editors = !isElectron
+    ? []
+    : project.hostId
+      ? detectedEditors.filter((editor) => editor.supportsRemote)
+      : detectedEditors;
   const openProjectInEditor = useOpenProjectInEditor();
-=======
-  const openProjectFolder = useOpenProjectFolder();
-  const canOpenProjectFolder = useCanOpenProjectFolder(project);
->>>>>>> b316da739ccddabc8cba30e74d06fdbb62d6c320
 
   // A breadcrumb of where the chat works: the host, the project (which opens
   // the "Open In" menu), then (for a repository) its branch. The branch's git
@@ -194,60 +186,7 @@ export const ProjectBranchFooter = ({
               </BreadcrumbItem>
               <BreadcrumbSeparator className="shrink-0 [&>svg]:size-3" />
               <BreadcrumbItem className="min-w-0">
-<<<<<<< HEAD
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    disabled={editors.length === 0}
-                    render={
-                      <Button
-                        className="h-8 min-w-0 max-w-[220px] gap-1.5 px-2 text-muted-foreground text-xs hover:text-foreground aria-expanded:text-foreground"
-                        size="sm"
-                        title={project.path}
-                        type="button"
-                        variant="ghost"
-                      />
-                    }
-                  >
-                    <Folder className="size-3.5 shrink-0" />
-                    <span className="truncate">{project.name}</span>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-48">
-                    <DropdownMenuGroup>
-                      <DropdownMenuLabel>{commonT("openIn")}</DropdownMenuLabel>
-                      {editors.map((editor) => (
-                        <DropdownMenuItem
-                          key={editor.id}
-                          onClick={() =>
-                            void openProjectInEditor(
-                              project.id,
-                              project.path,
-                              editor.id,
-                            )
-                          }
-                        >
-                          <OpenInEditorIcon editor={editor} isMacOs={isMacOs} />
-                          {editor.name}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuGroup>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-=======
-                {canOpenProjectFolder ? (
-                  <Button
-                    className="h-8 min-w-0 max-w-[220px] gap-1.5 px-2 text-muted-foreground text-xs hover:text-foreground"
-                    onClick={() =>
-                      void openProjectFolder(project.id, project.path)
-                    }
-                    size="sm"
-                    title={project.path}
-                    type="button"
-                    variant="ghost"
-                  >
-                    <Folder className="size-3.5 shrink-0" />
-                    <span className="truncate">{project.name}</span>
-                  </Button>
-                ) : (
+                {editors.length === 0 ? (
                   <div
                     className="flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 px-2 text-muted-foreground text-xs"
                     title={project.path}
@@ -255,8 +194,49 @@ export const ProjectBranchFooter = ({
                     <Folder className="size-3.5 shrink-0" />
                     <span className="truncate">{project.name}</span>
                   </div>
+                ) : (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          className="h-8 min-w-0 max-w-[220px] gap-1.5 px-2 text-muted-foreground text-xs hover:text-foreground aria-expanded:text-foreground"
+                          size="sm"
+                          title={project.path}
+                          type="button"
+                          variant="ghost"
+                        />
+                      }
+                    >
+                      <Folder className="size-3.5 shrink-0" />
+                      <span className="truncate">{project.name}</span>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-48">
+                      <DropdownMenuGroup>
+                        <DropdownMenuLabel>
+                          {commonT("openIn")}
+                        </DropdownMenuLabel>
+                        {editors.map((editor) => (
+                          <DropdownMenuItem
+                            key={editor.id}
+                            onClick={() =>
+                              void openProjectInEditor(
+                                project.id,
+                                project.path,
+                                editor.id,
+                              )
+                            }
+                          >
+                            <OpenInEditorIcon
+                              editor={editor}
+                              isMacOs={isMacOs}
+                            />
+                            {editor.name}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
->>>>>>> b316da739ccddabc8cba30e74d06fdbb62d6c320
               </BreadcrumbItem>
               {!showBranch ? null : (
                 <>
