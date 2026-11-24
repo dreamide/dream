@@ -35,7 +35,10 @@ const commitFile = (cwd, name, message) => {
 };
 
 const createRoot = () => {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), "dream-base-")));
+  // The native realpath expands Windows short names (RUNNER~1), as git does.
+  const root = realpathSync.native(
+    mkdtempSync(path.join(tmpdir(), "dream-base-")),
+  );
   roots.push(root);
   return root;
 };

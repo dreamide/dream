@@ -34,8 +34,15 @@ import { GitFooterActions } from "./git-panel/footer-actions";
 import { OpenInEditorIcon } from "./header/open-in-editor-icon";
 import { useIdeStore } from "./ide-store";
 import { ProjectHostLabel } from "./ssh/project-host-label";
+<<<<<<< HEAD
 import { useDetectedEditors } from "./use-detected-editors";
 import { useOpenProjectInEditor } from "./use-open-project-folder";
+=======
+import {
+  useCanOpenProjectFolder,
+  useOpenProjectFolder,
+} from "./use-open-project-folder";
+>>>>>>> b316da739ccddabc8cba30e74d06fdbb62d6c320
 import { slugifyWorktreeBranchName, WorktreeFields } from "./worktree-fields";
 
 const CreateWorktreeDialog = ({
@@ -154,6 +161,7 @@ export const ProjectBranchFooter = ({
     hostId: getProjectHostId(project),
   });
   const [createWorktreeOpen, setCreateWorktreeOpen] = useState(false);
+<<<<<<< HEAD
   const commonT = useTranslations("common");
   const isMacOs = useIdeStore((s) => s.isMacOs);
   const detectedEditors = useDetectedEditors(isMacOs);
@@ -163,6 +171,10 @@ export const ProjectBranchFooter = ({
     ? detectedEditors.filter((editor) => editor.supportsRemote)
     : detectedEditors;
   const openProjectInEditor = useOpenProjectInEditor();
+=======
+  const openProjectFolder = useOpenProjectFolder();
+  const canOpenProjectFolder = useCanOpenProjectFolder(project);
+>>>>>>> b316da739ccddabc8cba30e74d06fdbb62d6c320
 
   // A breadcrumb of where the chat works: the host, the project (which opens
   // the "Open In" menu), then (for a repository) its branch. The branch's git
@@ -182,6 +194,7 @@ export const ProjectBranchFooter = ({
               </BreadcrumbItem>
               <BreadcrumbSeparator className="shrink-0 [&>svg]:size-3" />
               <BreadcrumbItem className="min-w-0">
+<<<<<<< HEAD
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     disabled={editors.length === 0}
@@ -219,6 +232,31 @@ export const ProjectBranchFooter = ({
                     </DropdownMenuGroup>
                   </DropdownMenuContent>
                 </DropdownMenu>
+=======
+                {canOpenProjectFolder ? (
+                  <Button
+                    className="h-8 min-w-0 max-w-[220px] gap-1.5 px-2 text-muted-foreground text-xs hover:text-foreground"
+                    onClick={() =>
+                      void openProjectFolder(project.id, project.path)
+                    }
+                    size="sm"
+                    title={project.path}
+                    type="button"
+                    variant="ghost"
+                  >
+                    <Folder className="size-3.5 shrink-0" />
+                    <span className="truncate">{project.name}</span>
+                  </Button>
+                ) : (
+                  <div
+                    className="flex h-8 min-w-0 max-w-[220px] items-center gap-1.5 px-2 text-muted-foreground text-xs"
+                    title={project.path}
+                  >
+                    <Folder className="size-3.5 shrink-0" />
+                    <span className="truncate">{project.name}</span>
+                  </div>
+                )}
+>>>>>>> b316da739ccddabc8cba30e74d06fdbb62d6c320
               </BreadcrumbItem>
               {!showBranch ? null : (
                 <>
