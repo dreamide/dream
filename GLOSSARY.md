@@ -200,11 +200,11 @@ its **turn status** (running, waiting on its user, finished, failed or
 interrupted, kept across reloads), its **unread mark** (the turn ended while
 the chat was not shown, until the user sees it) and the message on its
 banner. Two sources report turns: this window's session while it follows one
-(how it ended, what it asks), and the host catalog's `turn` and `approval`
-events, as the store's host sets hold them, for every turn whoever started
-it. A turn both report is one turn: it ends when the last source does, with
-the most telling ending either gave. A session that only stops following
-leaves the end to the host. Notifications watch the turn status.
+(how it ended, what it asks), and the Host catalog's `turn` and `approval`
+events. The Host can report the ending to windows that never followed the
+turn. A turn both sources report is one turn. It ends when the last source
+does, using the Host's settled ending when present. Notifications watch
+the turn status.
 Chat activity, not this, answers whether a chat runs or waits now.
 
 ## Live transcript
@@ -837,6 +837,10 @@ and Provider session have been saved, and its checkpoint finalization has
 finished. A failed save fails the turn; a failed checkpoint is reported but
 does not fail it. Stopping waits for this settlement; a client ceasing to
 observe does not stop the host's work.
+
+The **Agent turn ending** is the result the Host reports after settlement.
+It records success, a failure with its reason, or an interruption caused by
+Stop or Host shutdown. The Chat run queue and observing windows use it.
 
 A **turn lifetime** (`electron/api/chat/turn-lifetime.js`) is how a
 Provider adapter ends its turn exactly once. `streamAgentTurn` makes one

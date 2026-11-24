@@ -29,15 +29,12 @@ export function createRunScheduler({ catalog, turns, execute }) {
           await change(chatId, run.id, "queued");
           return;
         }
-        let failure = null;
-        let signal;
         let status = "running";
         let scope;
         try {
-          await turns.run({
+          const ending = await turns.run({
             chatId,
-            run: async (abortSignal) => {
-              signal = abortSignal;
+            run: async (signal) => {
               scope = delegation?.open(run, signal);
               const chat = await catalog.getChat(chatId);
               if (!chat || chat.deletedAt)
@@ -77,8 +74,6 @@ export function createRunScheduler({ catalog, turns, execute }) {
                   signal,
                   orchestration: scope,
                   onChunk: async (chunk) => {
-                    if (chunk.type === "error")
-                      failure = chunk.errorText || "Provider failed.";
                     const next =
                       chunk.type === "tool-approval-request"
                         ? "waiting"
@@ -98,24 +93,18 @@ export function createRunScheduler({ catalog, turns, execute }) {
               );
             },
           });
-          if (signal?.aborted) await ended(chatId, run.id);
-          else
-            await change(
-              chatId,
-              run.id,
-              failure ? "failed" : "completed",
-              failure,
-            );
-          if (failure || signal?.aborted) return;
+          if (ending.status === "interrupted") {
+            await ended(chatId, run.id);
+            return;
+          }
+          await change(chatId, run.id, "completed");
         } catch (error) {
-          if (signal?.aborted) await ended(chatId, run.id);
-          else
-            await change(
-              chatId,
-              run.id,
-              "failed",
-              error instanceof Error ? error.message : String(error),
-            );
+          await change(
+            chatId,
+            run.id,
+            "failed",
+            error instanceof Error ? error.message : String(error),
+          );
           return;
         } finally {
           scope?.close();

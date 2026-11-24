@@ -10,14 +10,15 @@
  * (`hostRunningChatIds`, `hostAwaitingApprovalChatIds`) hold them, know every
  * turn, followed here or not. A turn both report is one turn: it starts when
  * the first source reports it and ends when the last one does, with the most
- * telling ending either gave (a failure, then the session's own end, then the
- * host's plain end, then a session that only stopped following).
+ * telling ending either gave (the Host's settled ending, then the session's
+ * own end, then an older Host's plain end, then loss of a follow).
  *
  * Not here: whether a chat runs, waits or accepts a message now. Chat
  * activity (chat-activity.ts) answers those from the store's signals.
  */
 import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
+import type { AgentTurnEnding } from "../../../electron/shared/agent-turn-contract.js";
 import type { IdeState } from "./store/ide-store-types";
 
 export type TurnStatus =
@@ -28,7 +29,7 @@ export type TurnStatus =
   | "interrupted";
 
 /** How a turn ended, as this window's session saw it. */
-export type TurnEnding = "finished" | "failed" | "interrupted";
+export type TurnEnding = AgentTurnEnding["status"];
 
 export interface ChatTurn {
   status: TurnStatus;
@@ -75,6 +76,8 @@ export interface ChatTurnOutcomes {
    * on the chat's banner at once, even after its turn ended.
    */
   ended: (chatId: string, how?: TurnEnding, detail?: string) => void;
+  /** The Host's ending, supplied before its running flag is cleared. */
+  reportHostEnding: (chatId: string, ending: AgentTurnEnding) => void;
   /** Puts a message on the chat's banner; null clears it. */
   reportError: (chatId: string, message: string | null) => void;
   /** The user saw these chats: their unread marks go. */
@@ -148,6 +151,7 @@ interface LiveTurn {
   /** What the session's transcript asks of the user (null: nothing). */
   sessionAttention: string | null;
   hostAwaiting: boolean;
+  hostEnding?: AgentTurnEnding;
   ending: Ending | null;
 }
 
@@ -157,7 +161,7 @@ const reportOf = (
   detail: string,
 ): Ending =>
   source === "host"
-    ? { how: "finished", detail: "", rank: 1 }
+    ? { how: how ?? "finished", detail, rank: how === undefined ? 1 : 4 }
     : how === undefined
       ? { how: "interrupted", detail: "", rank: 0 }
       : { how, detail, rank: how === "failed" ? 3 : 2 };
@@ -315,7 +319,9 @@ export const createChatTurnOutcomes = ({
       if (
         !into.ending ||
         report.rank > into.ending.rank ||
-        (report.how === "failed" && report.detail)
+        (report.rank === into.ending.rank &&
+          report.how === "failed" &&
+          report.detail)
       )
         into.ending = report;
     };
@@ -399,8 +405,15 @@ export const createChatTurnOutcomes = ({
     }
 
     if (running !== wasRunning)
-      for (const chatId of keysAdded(wasRunning, running))
-        end(chatId, "host", undefined);
+      for (const chatId of keysAdded(wasRunning, running)) {
+        const ending = live.get(chatId)?.hostEnding;
+        end(
+          chatId,
+          "host",
+          ending?.status,
+          ending?.status === "failed" ? ending.detail : undefined,
+        );
+      }
 
     if (state.chats !== previous.chats) {
       const deletedAt = new Map(
@@ -424,6 +437,10 @@ export const createChatTurnOutcomes = ({
     started: (chatId) => begin(chatId, "session"),
     attention: (chatId, detail) => ask(chatId, "session", detail),
     ended: (chatId, how, detail) => end(chatId, "session", how, detail),
+    reportHostEnding: (chatId, ending) => {
+      const turn = live.get(chatId);
+      if (turn?.host) turn.hostEnding = ending;
+    },
     reportError: (chatId, message) => {
       const state = current();
       if (message) {

@@ -10,6 +10,24 @@
 /** @typedef {import("../../src/types/ide").ProjectReference} ProjectReference */
 /** @typedef {import("ai").LanguageModelUsage} LanguageModelUsage */
 
+/** @typedef {{ status: "finished" | "interrupted" } | { status: "failed", detail: string }} AgentTurnEnding */
+
+/** A Host may omit the ending if it only reports running state.
+ * @param {unknown} value
+ * @returns {AgentTurnEnding | undefined}
+ */
+export const readAgentTurnEnding = (value) => {
+  if (!value || typeof value !== "object" || !("status" in value)) return;
+  const { status } = value;
+  if (status === "finished" || status === "interrupted") return { status };
+  if (
+    status === "failed" &&
+    "detail" in value &&
+    typeof value.detail === "string"
+  )
+    return { status, detail: value.detail };
+};
+
 /**
  * The metadata a response message carries. The server stamps the request
  * fields when the turn starts, the remote session once the provider names

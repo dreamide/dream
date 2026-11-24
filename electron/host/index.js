@@ -156,12 +156,13 @@ export function createHost({
   // Turns run on the host, detached from the requests that start them;
   // every client hears when one starts and ends.
   const turns = createTurnRegistry({
-    onChange: ({ chatId, running }) => {
+    onChange: ({ chatId, running, ending }) => {
       hostSocket.catalog.publish({
         chatId,
         kind: "turn",
         origin: null,
         running,
+        ...(ending ? { ending } : {}),
       });
       if (!running) scheduler.dispatch(chatId);
     },

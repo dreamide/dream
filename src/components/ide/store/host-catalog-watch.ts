@@ -8,6 +8,7 @@
 import { getCatalogEventsClient } from "@/lib/catalog-events";
 import { refreshChatQueue, useChatQueueStore } from "@/lib/chat-queue";
 import { CLIENT_ID } from "@/lib/client-id";
+import { readAgentTurnEnding } from "../../../../electron/shared/agent-turn-contract.js";
 import type { CatalogChanges, HostCatalog } from "./catalog-actions";
 import type { FollowedStore } from "./host-reach";
 
@@ -70,7 +71,11 @@ export const watchHostCatalog = (
           : {}),
       });
     } else if (event.kind === "turn" && typeof event.chatId === "string") {
-      catalog.setHostTurnRunning(event.chatId, event.running === true);
+      catalog.setHostTurnRunning(
+        event.chatId,
+        event.running === true,
+        readAgentTurnEnding(event.ending),
+      );
     } else if (event.kind === "approval" && typeof event.chatId === "string") {
       catalog.setHostChatAwaitingApproval(
         event.chatId,

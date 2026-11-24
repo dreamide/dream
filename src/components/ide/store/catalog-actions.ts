@@ -13,7 +13,9 @@
  * adopts a host's projects through it.
  */
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
+import type { AgentTurnEnding } from "../../../../electron/shared/agent-turn-contract.js";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
+import { chatTurnOutcomes } from "../chat-turn-outcome";
 import { catalogBaselines } from "./catalog-baselines";
 import { createHostCatalogLifecycle } from "./host-catalog-lifecycle";
 import { getLoadedWorkspace } from "./ide-store-persistence";
@@ -186,12 +188,19 @@ export const createCatalogActions = (
   };
 
   /** A turn started or ended on the host. */
-  const setHostTurnRunning = (chatId: string, running: boolean) => {
+  const setHostTurnRunning = (
+    chatId: string,
+    running: boolean,
+    ending?: AgentTurnEnding,
+  ) => {
     const current = get().hostRunningChatIds;
     if (Boolean(current[chatId]) === running) return;
     const next = { ...current };
     if (running) next[chatId] = true;
-    else delete next[chatId];
+    else {
+      if (ending) chatTurnOutcomes.reportHostEnding(chatId, ending);
+      delete next[chatId];
+    }
     // A turn that ended waits on nothing.
     if (!running && get().hostAwaitingApprovalChatIds[chatId]) {
       const awaiting = { ...get().hostAwaitingApprovalChatIds };

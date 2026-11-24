@@ -18,6 +18,9 @@
 // subscribers do, keeping every chunk until the turn ends.
 
 import { randomUUID } from "node:crypto";
+import { getTurnProviderFailure } from "./turn-execution.js";
+
+/** @typedef {import("../../shared/agent-turn-contract.js").AgentTurnEnding} AgentTurnEnding */
 
 export const TURN_ID_HEADER = "x-dream-turn-id";
 export const TURN_OFFSET_HEADER = "x-dream-turn-offset";
@@ -32,7 +35,7 @@ export class TurnInProgressError extends Error {
 }
 
 /**
- * @param {{ onChange?: (event: { chatId: string, running: boolean }) => void }} [options]
+ * @param {{ onChange?: (event: { chatId: string, running: boolean, ending?: AgentTurnEnding }) => void }} [options]
  *   `onChange`: told when a turn starts and when it ends.
  */
 export function createTurnRegistry({ onChange = () => {} } = {}) {
@@ -81,8 +84,8 @@ export function createTurnRegistry({ onChange = () => {} } = {}) {
     return new Response(stream, { headers, status: turn.status });
   };
 
-  const pump = async (chatId, turn, body) => {
-    const reader = body.getReader();
+  const pump = async (chatId, turn, response) => {
+    const reader = response.body.getReader();
     try {
       for (;;) {
         const { done, value } = await reader.read();
@@ -99,8 +102,31 @@ export function createTurnRegistry({ onChange = () => {} } = {}) {
       for (const waiter of [...turn.waiters]) waiter();
       turn.waiters.clear();
       if (turns.get(chatId) === turn) turns.delete(chatId);
-      onChange({ chatId, running: false });
     }
+    // The execution stream closes after its transcript and checkpoint settle.
+    // Its Provider error chunk can reach EOF normally. A stream failure
+    // includes a failed final save and must still fail completion.
+    const providerFailure = getTurnProviderFailure(response);
+    const failure =
+      turn.failure ??
+      (!turn.controller.signal.aborted && providerFailure
+        ? new Error(providerFailure)
+        : null);
+    /** @type {AgentTurnEnding} */
+    const ending = failure
+      ? {
+          status: "failed",
+          detail: failure instanceof Error ? failure.message : String(failure),
+        }
+      : { status: turn.controller.signal.aborted ? "interrupted" : "finished" };
+    onChange({
+      chatId,
+      running: false,
+      ...(providerFailure !== undefined || ending.status !== "finished"
+        ? { ending }
+        : {}),
+    });
+    return { ending, failure };
   };
 
   const start = async ({ chatId, run }, observe) => {
@@ -127,23 +153,28 @@ export function createTurnRegistry({ onChange = () => {} } = {}) {
       response = await run(controller.signal);
     } catch (error) {
       turns.delete(chatId);
+      if (!observe && controller.signal.aborted)
+        return { status: "interrupted" };
       throw error;
     }
     if (!(response instanceof Response) || !response.body || !response.ok) {
       turns.delete(chatId);
-      if (!observe && !response?.ok)
+      if (observe) return response;
+      if (controller.signal.aborted) return { status: "interrupted" };
+      if (!response?.ok)
         throw new Error(response ? await response.text() : "No turn response.");
-      return observe ? response : undefined;
+      return { status: "finished" };
     }
 
     placeholder.headers = response.headers;
     placeholder.status = response.status;
     placeholder.ready = true;
     onChange({ chatId, running: true });
-    const completion = pump(chatId, placeholder, response.body);
+    const completion = pump(chatId, placeholder, response);
     if (observe) return subscribe(placeholder);
-    await completion;
-    if (placeholder.failure) throw placeholder.failure;
+    const { ending, failure } = await completion;
+    if (failure) throw failure;
+    return ending;
   };
 
   return {
@@ -164,7 +195,7 @@ export function createTurnRegistry({ onChange = () => {} } = {}) {
      */
     start: (options) => start(options, true),
 
-    /** Runs to completion without creating a replay subscriber. */
+    /** Runs to completion without a replay subscriber. Rejects on failure. */
     run: (options) => start(options, false),
 
     /**

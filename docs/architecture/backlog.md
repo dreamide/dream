@@ -61,9 +61,6 @@ written. The originals are in git history:
 
 ## Chats & turns
 
-- The host's turn event carries only `running`, so a turn that failed or was
-  stopped on another client is recorded as finished in windows that did not
-  follow it. (was ARC17-01, review-20261117.md)
 - The renderer still writes its own copy of the chat row's Provider session in
   `chat-runtime.ts` and clears it on a model or speed change. Removing the copy
   touches the codec, `src/types/ide.ts`, branching, stash and the delegation

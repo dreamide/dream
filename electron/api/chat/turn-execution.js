@@ -4,6 +4,12 @@ import { turnObservers } from "./agent-turn.js";
 import { prepareTurnTranscript } from "./turn-transcript.js";
 
 const HOST_ORIGIN = "host";
+const providerFailures = new WeakMap();
+
+/** The Provider failure observed during execution. Null means a clean turn
+ * stream, undefined means the response never went through execution. */
+export const getTurnProviderFailure = (response) =>
+  providerFailures.get(response)?.();
 
 /**
  * What the host keeps of a turn while it runs: the transcript as the turn
@@ -42,18 +48,16 @@ export const createTurnRecorder = ({
 
   const save = (message) => {
     const write = async () => {
-      if (beforeSaved) {
-        await catalog.saveTranscript(chatId, [message], {
-          fromIndex: before.length,
-          origin: HOST_ORIGIN,
-        });
-      } else {
-        beforeSaved = await catalog.saveTranscript(
-          chatId,
-          [...before, message],
-          { origin: HOST_ORIGIN },
-        );
-      }
+      const saved = beforeSaved
+        ? await catalog.saveTranscript(chatId, [message], {
+            fromIndex: before.length,
+            origin: HOST_ORIGIN,
+          })
+        : await catalog.saveTranscript(chatId, [...before, message], {
+            origin: HOST_ORIGIN,
+          });
+      if (saved === false) throw new Error("Unable to save turn transcript.");
+      beforeSaved = true;
     };
     saving = saving.then(write, write);
     return saving;
@@ -106,6 +110,7 @@ export const executeAgentTurn = async (
   },
   streamTurn,
 ) => {
+  let providerFailure = null;
   const recorder =
     catalog && chatId
       ? createTurnRecorder({
@@ -114,7 +119,11 @@ export const executeAgentTurn = async (
           requestMessages,
           transcript,
           providerSession,
-          onChunk,
+          onChunk: (chunk) => {
+            if (chunk.type === "error")
+              providerFailure ??= chunk.errorText || "Provider failed.";
+            return onChunk?.(chunk);
+          },
           onSessionId,
           saveIntervalMs,
         })
@@ -151,7 +160,7 @@ export const executeAgentTurn = async (
         await finalizeCheckpoint();
       }
     })());
-  return new Response(
+  const streamResponse = new Response(
     new ReadableStream({
       async pull(controller) {
         try {
@@ -183,4 +192,6 @@ export const executeAgentTurn = async (
       statusText: response.statusText,
     },
   );
+  providerFailures.set(streamResponse, () => providerFailure);
+  return streamResponse;
 };
