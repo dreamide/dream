@@ -15,6 +15,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import {
   collectProjectAncestors,
+  dedupeSkillsByName,
   directoryExists,
   getHomeDirectory,
   readTextFileIfSmall,
@@ -135,9 +136,16 @@ export const scanPluginSkillsDirectory = async ({
     });
 
     for (const skill of discovered) {
+      const prefix = `${pluginId}:`;
+      const qualifiedName = skill.name
+        .toLowerCase()
+        .startsWith(prefix.toLowerCase())
+        ? skill.name
+        : `${prefix}${skill.name}`;
       pluginSkills.push({
         ...skill,
         enabled: enabled ? skill.enabled : false,
+        name: qualifiedName,
         pluginId,
         scope: defaultScope,
       });
@@ -145,26 +153,6 @@ export const scanPluginSkillsDirectory = async ({
   }
 
   return pluginSkills;
-};
-
-/**
- * Deduplicates Antigravity skills preserving precedence (project > user > plugin > system).
- * Plugin skills are identified by pluginId and skill name so distinct plugins can offer
- * the same skill name without colliding with each other or global/workspace skills.
- */
-export const dedupeAntigravitySkills = (skills) => {
-  const seen = new Set();
-  const deduped = [];
-  for (const skill of skills) {
-    const key = skill.pluginId
-      ? `plugin:${skill.pluginId.toLowerCase()}:${skill.name.toLowerCase()}`
-      : skill.name.toLowerCase();
-    if (!seen.has(key)) {
-      seen.add(key);
-      deduped.push(skill);
-    }
-  }
-  return deduped;
 };
 
 export const discoverAntigravitySkills = async ({ projectPath } = {}) => {
@@ -278,5 +266,5 @@ export const discoverAntigravitySkills = async ({ projectPath } = {}) => {
     ...systemSkills,
   ];
 
-  return { errors: [], skills: sortSkills(dedupeAntigravitySkills(combined)) };
+  return { errors: [], skills: sortSkills(dedupeSkillsByName(combined)) };
 };

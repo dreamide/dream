@@ -444,13 +444,17 @@ test("discoverAntigravitySkills discovers plugin skills with pluginId and respec
   const result = await discoverAntigravitySkills();
   assert.equal(result.errors.length, 0);
 
-  const skill1 = result.skills.find((s) => s.name === "plugin-skill-1");
+  const skill1 = result.skills.find(
+    (s) => s.name === "active-plugin:plugin-skill-1",
+  );
   assert.ok(skill1);
   assert.equal(skill1.scope, "plugin");
   assert.equal(skill1.pluginId, "active-plugin");
   assert.equal(skill1.enabled, true);
 
-  const skill2 = result.skills.find((s) => s.name === "plugin-skill-2");
+  const skill2 = result.skills.find(
+    (s) => s.name === "disabled-plugin:plugin-skill-2",
+  );
   assert.ok(skill2);
   assert.equal(skill2.scope, "plugin");
   assert.equal(skill2.pluginId, "disabled-plugin");
@@ -607,12 +611,16 @@ test("discoverAntigravitySkills respects .antigravity-plugin manifest precedence
   const result = await discoverAntigravitySkills();
   assert.equal(result.errors.length, 0);
 
-  const altSkill = result.skills.find((s) => s.name === "alt-manifest-skill");
+  const altSkill = result.skills.find(
+    (s) => s.name === "alt-manifest:alt-manifest-skill",
+  );
   assert.ok(altSkill);
   // Disabled by .antigravity-plugin/plugin.json overriding root plugin.json
   assert.equal(altSkill.enabled, false);
 
-  const overrideSkill = result.skills.find((s) => s.name === "override-skill");
+  const overrideSkill = result.skills.find(
+    (s) => s.name === "override-plugin:override-skill",
+  );
   assert.ok(overrideSkill);
   // Enabled by config.json overriding plugin manifest
   assert.equal(overrideSkill.enabled, true);
@@ -637,18 +645,18 @@ test("discoverAntigravitySkills preserves plugin skills distinct by pluginId wit
   const result = await discoverAntigravitySkills({ projectPath: project });
   assert.equal(result.errors.length, 0);
 
-  const deploys = result.skills.filter((s) => s.name === "deploy");
-  assert.equal(deploys.length, 3);
-
-  const projectDeploy = deploys.find((s) => s.scope === "project");
+  const projectDeploy = result.skills.find((s) => s.name === "deploy");
   assert.ok(projectDeploy);
+  assert.equal(projectDeploy.scope, "project");
   assert.equal(projectDeploy.description, "Project deploy");
 
-  const pluginADeploy = deploys.find((s) => s.pluginId === "plugin-a");
+  const pluginADeploy = result.skills.find((s) => s.name === "plugin-a:deploy");
   assert.ok(pluginADeploy);
+  assert.equal(pluginADeploy.pluginId, "plugin-a");
   assert.equal(pluginADeploy.description, "Plugin A deploy");
 
-  const pluginBDeploy = deploys.find((s) => s.pluginId === "plugin-b");
+  const pluginBDeploy = result.skills.find((s) => s.name === "plugin-b:deploy");
   assert.ok(pluginBDeploy);
+  assert.equal(pluginBDeploy.pluginId, "plugin-b");
   assert.equal(pluginBDeploy.description, "Plugin B deploy");
 });
