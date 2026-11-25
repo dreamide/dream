@@ -33,6 +33,7 @@ const SKILL_PROVIDERS: AiProvider[] = [
   "openai",
   "opencode",
   "cursor",
+  "antigravity",
 ];
 
 const NO_PROJECT_VALUE = "__none__";
