@@ -2,10 +2,11 @@
  * Antigravity skill discovery.
  *
  * Antigravity CLI (`agy`) loads skills from:
- * - Project roots: `.gemini/skills`, `.agents/skills`, and `.gemini/plugins`, `.agents/plugins`
- * - User roots: `~/.gemini/config/skills`, `~/.gemini/antigravity-cli/skills`, `~/.agents/skills`,
- *   and `~/.gemini/config/plugins`, `~/.gemini/antigravity-cli/plugins`
- * - System roots: `~/.gemini/antigravity-cli/builtin/skills`
+ * - Project roots: `.gemini/skills`, `.agents/skills` (and aliases `.agent/`, `_agents/`, `_agent/`),
+ *   plus project plugins in the same directories.
+ * - User roots: `~/.gemini/config/skills`, `~/.gemini/antigravity-cli/skills`, `~/.gemini/skills`,
+ *   `~/.agents/skills`, and user plugins under `~/.gemini/config/plugins` and `~/.gemini/antigravity-cli/plugins`.
+ * - System roots: `~/.gemini/antigravity-cli/builtin/skills`.
  *
  * Precedence order: project > user > plugin > system.
  */
@@ -14,13 +15,34 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import {
   collectProjectAncestors,
-  dedupeSkillsByName,
   directoryExists,
   getHomeDirectory,
   readTextFileIfSmall,
   scanSkillRoot,
   sortSkills,
 } from "./scan.js";
+
+const WORKSPACE_SKILL_ROOTS = [
+  { directory: [".gemini", "skills"], source: "gemini" },
+  { directory: [".agents", "skills"], source: "agents" },
+  { directory: [".agent", "skills"], source: "agents" },
+  { directory: ["_agents", "skills"], source: "agents" },
+  { directory: ["_agent", "skills"], source: "agents" },
+];
+
+const WORKSPACE_PLUGIN_ROOTS = [
+  { directory: [".gemini", "plugins"], source: "gemini" },
+  { directory: [".agents", "plugins"], source: "agents" },
+  { directory: [".agent", "plugins"], source: "agents" },
+  { directory: ["_agents", "plugins"], source: "agents" },
+  { directory: ["_agent", "plugins"], source: "agents" },
+];
+
+const PLUGIN_MANIFEST_FILENAMES = [
+  [".antigravity-plugin", "plugin.json"],
+  [".gemini-plugin", "plugin.json"],
+  ["plugin.json"],
+];
 
 export const getAntigravityConfigDirectory = () =>
   process.env.ANTIGRAVITY_CONFIG_DIR?.trim() ||
@@ -32,10 +54,43 @@ export const getAntigravityCliDirectory = () =>
   process.env.GEMINI_CLI_DIR?.trim() ||
   path.join(getHomeDirectory(), ".gemini", "antigravity-cli");
 
+export const readAntigravityConfig = async (configDir) => {
+  const configPath = path.join(configDir, "config.json");
+  const text = await readTextFileIfSmall(configPath);
+  if (text === null) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const readPluginManifest = async (pluginDir) => {
+  for (const relativePath of PLUGIN_MANIFEST_FILENAMES) {
+    const manifestPath = path.join(pluginDir, ...relativePath);
+    const text = await readTextFileIfSmall(manifestPath);
+    if (text !== null) {
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed === "object") {
+          return parsed;
+        }
+      } catch {
+        // Continue checking fallback manifest paths
+      }
+    }
+  }
+  return null;
+};
+
 export const scanPluginSkillsDirectory = async ({
-  directory,
+  config,
   defaultScope = "plugin",
   defaultSource = "gemini",
+  directory,
 }) => {
   const root = path.resolve(directory);
   if (!(await directoryExists(root))) {
@@ -62,17 +117,14 @@ export const scanPluginSkillsDirectory = async ({
     const pluginDir = path.join(root, pluginId);
     const skillsDir = path.join(pluginDir, "skills");
 
-    let disabled = false;
-    const pluginJsonPath = path.join(pluginDir, "plugin.json");
-    const pluginJsonText = await readTextFileIfSmall(pluginJsonPath);
-    if (pluginJsonText !== null) {
-      try {
-        const parsed = JSON.parse(pluginJsonText);
-        if (parsed?.disabled === true) {
-          disabled = true;
-        }
-      } catch {
-        // Ignore malformed JSON
+    let enabled = true;
+    const configPlugin = config?.plugins?.[pluginId];
+    if (typeof configPlugin?.enabled === "boolean") {
+      enabled = configPlugin.enabled;
+    } else {
+      const manifest = await readPluginManifest(pluginDir);
+      if (manifest?.disabled === true) {
+        enabled = false;
       }
     }
 
@@ -85,7 +137,7 @@ export const scanPluginSkillsDirectory = async ({
     for (const skill of discovered) {
       pluginSkills.push({
         ...skill,
-        enabled: disabled ? false : skill.enabled,
+        enabled: enabled ? skill.enabled : false,
         pluginId,
         scope: defaultScope,
       });
@@ -95,10 +147,31 @@ export const scanPluginSkillsDirectory = async ({
   return pluginSkills;
 };
 
+/**
+ * Deduplicates Antigravity skills preserving precedence (project > user > plugin > system).
+ * Plugin skills are identified by pluginId and skill name so distinct plugins can offer
+ * the same skill name without colliding with each other or global/workspace skills.
+ */
+export const dedupeAntigravitySkills = (skills) => {
+  const seen = new Set();
+  const deduped = [];
+  for (const skill of skills) {
+    const key = skill.pluginId
+      ? `plugin:${skill.pluginId.toLowerCase()}:${skill.name.toLowerCase()}`
+      : skill.name.toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(skill);
+    }
+  }
+  return deduped;
+};
+
 export const discoverAntigravitySkills = async ({ projectPath } = {}) => {
   const home = getHomeDirectory();
   const configDir = getAntigravityConfigDirectory();
   const cliDir = getAntigravityCliDirectory();
+  const config = await readAntigravityConfig(configDir);
 
   const ancestors = projectPath
     ? await collectProjectAncestors(projectPath)
@@ -108,31 +181,26 @@ export const discoverAntigravitySkills = async ({ projectPath } = {}) => {
   const projectPluginPromises = [];
 
   for (const ancestor of ancestors) {
-    projectSkillPromises.push(
-      scanSkillRoot({
-        directory: path.join(ancestor, ".gemini", "skills"),
-        scope: "project",
-        source: "gemini",
-      }),
-      scanSkillRoot({
-        directory: path.join(ancestor, ".agents", "skills"),
-        scope: "project",
-        source: "agents",
-      }),
-    );
+    for (const root of WORKSPACE_SKILL_ROOTS) {
+      projectSkillPromises.push(
+        scanSkillRoot({
+          directory: path.join(ancestor, ...root.directory),
+          scope: "project",
+          source: root.source,
+        }),
+      );
+    }
 
-    projectPluginPromises.push(
-      scanPluginSkillsDirectory({
-        defaultScope: "plugin",
-        defaultSource: "gemini",
-        directory: path.join(ancestor, ".gemini", "plugins"),
-      }),
-      scanPluginSkillsDirectory({
-        defaultScope: "plugin",
-        defaultSource: "agents",
-        directory: path.join(ancestor, ".agents", "plugins"),
-      }),
-    );
+    for (const root of WORKSPACE_PLUGIN_ROOTS) {
+      projectPluginPromises.push(
+        scanPluginSkillsDirectory({
+          config,
+          defaultScope: "plugin",
+          defaultSource: root.source,
+          directory: path.join(ancestor, ...root.directory),
+        }),
+      );
+    }
   }
 
   const userSkillPromises = [
@@ -147,6 +215,11 @@ export const discoverAntigravitySkills = async ({ projectPath } = {}) => {
       source: "gemini",
     }),
     scanSkillRoot({
+      directory: path.join(home, ".gemini", "skills"),
+      scope: "user",
+      source: "gemini",
+    }),
+    scanSkillRoot({
       directory: path.join(home, ".agents", "skills"),
       scope: "user",
       source: "agents",
@@ -155,11 +228,13 @@ export const discoverAntigravitySkills = async ({ projectPath } = {}) => {
 
   const userPluginPromises = [
     scanPluginSkillsDirectory({
+      config,
       defaultScope: "plugin",
       defaultSource: "gemini",
       directory: path.join(configDir, "plugins"),
     }),
     scanPluginSkillsDirectory({
+      config,
       defaultScope: "plugin",
       defaultSource: "gemini",
       directory: path.join(cliDir, "plugins"),
@@ -203,6 +278,5 @@ export const discoverAntigravitySkills = async ({ projectPath } = {}) => {
     ...systemSkills,
   ];
 
-  const deduped = dedupeSkillsByName(combined);
-  return { errors: [], skills: sortSkills(deduped) };
+  return { errors: [], skills: sortSkills(dedupeAntigravitySkills(combined)) };
 };
