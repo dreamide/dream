@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "vitest";
+import { discoverAntigravitySkills } from "./antigravity-skills.js";
 import {
   applyClaudeSkillOverride,
   discoverClaudeSkills,
@@ -46,11 +47,22 @@ beforeEach(async () => {
   await fs.mkdir(home, { recursive: true });
   await fs.mkdir(path.join(tempRoot, "repo", ".git"), { recursive: true });
   await fs.mkdir(project, { recursive: true });
-  for (const key of ["DREAM_SKILLS_HOME", "CLAUDE_CONFIG_DIR"]) {
+  for (const key of [
+    "DREAM_SKILLS_HOME",
+    "CLAUDE_CONFIG_DIR",
+    "ANTIGRAVITY_CONFIG_DIR",
+    "ANTIGRAVITY_CLI_DIR",
+    "GEMINI_CONFIG_DIR",
+    "GEMINI_CLI_DIR",
+  ]) {
     previousEnv[key] = process.env[key];
   }
   process.env.DREAM_SKILLS_HOME = home;
   process.env.CLAUDE_CONFIG_DIR = "";
+  process.env.ANTIGRAVITY_CONFIG_DIR = "";
+  process.env.ANTIGRAVITY_CLI_DIR = "";
+  process.env.GEMINI_CONFIG_DIR = "";
+  process.env.GEMINI_CLI_DIR = "";
 });
 
 afterEach(async () => {
@@ -339,4 +351,169 @@ test("dedupeSkillsByName keeps the first occurrence case-insensitively", () => {
   ]);
   assert.equal(result.length, 1);
   assert.equal(result[0].scope, "user");
+});
+
+test("discoverAntigravitySkills discovers project skills in .gemini/skills and .agents/skills up ancestor tree", async () => {
+  const projectGemini = path.join(project, ".gemini", "skills");
+  const repoAgents = path.join(tempRoot, "repo", ".agents", "skills");
+  await writeSkill(projectGemini, "project-gemini-skill", {
+    description: "Project Gemini",
+  });
+  await writeSkill(repoAgents, "repo-agents-skill", {
+    description: "Repo Agents",
+  });
+
+  const result = await discoverAntigravitySkills({ projectPath: project });
+  assert.equal(result.errors.length, 0);
+  const geminiSkill = result.skills.find(
+    (s) => s.name === "project-gemini-skill",
+  );
+  assert.ok(geminiSkill);
+  assert.equal(geminiSkill.scope, "project");
+  assert.equal(geminiSkill.source, "gemini");
+
+  const agentsSkill = result.skills.find((s) => s.name === "repo-agents-skill");
+  assert.ok(agentsSkill);
+  assert.equal(agentsSkill.scope, "project");
+  assert.equal(agentsSkill.source, "agents");
+});
+
+test("discoverAntigravitySkills discovers user skills across config, cli, and agents roots", async () => {
+  const configSkills = path.join(home, ".gemini", "config", "skills");
+  const cliSkills = path.join(home, ".gemini", "antigravity-cli", "skills");
+  const agentsSkills = path.join(home, ".agents", "skills");
+  await writeSkill(configSkills, "user-config-skill", {
+    description: "User config",
+  });
+  await writeSkill(cliSkills, "user-cli-skill", {
+    description: "User CLI",
+  });
+  await writeSkill(agentsSkills, "user-agents-skill", {
+    description: "User agents",
+  });
+
+  const result = await discoverAntigravitySkills();
+  assert.equal(result.errors.length, 0);
+
+  const configSkill = result.skills.find((s) => s.name === "user-config-skill");
+  assert.ok(configSkill);
+  assert.equal(configSkill.scope, "user");
+  assert.equal(configSkill.source, "gemini");
+
+  const cliSkill = result.skills.find((s) => s.name === "user-cli-skill");
+  assert.ok(cliSkill);
+  assert.equal(cliSkill.scope, "user");
+  assert.equal(cliSkill.source, "gemini");
+
+  const agentsSkill = result.skills.find((s) => s.name === "user-agents-skill");
+  assert.ok(agentsSkill);
+  assert.equal(agentsSkill.scope, "user");
+  assert.equal(agentsSkill.source, "agents");
+});
+
+test("discoverAntigravitySkills discovers plugin skills with pluginId and respects disabled state", async () => {
+  const pluginsDir = path.join(home, ".gemini", "config", "plugins");
+  const activePluginDir = path.join(pluginsDir, "active-plugin");
+  const disabledPluginDir = path.join(pluginsDir, "disabled-plugin");
+
+  await writeSkill(path.join(activePluginDir, "skills"), "plugin-skill-1", {
+    description: "Active",
+  });
+  await fs.writeFile(
+    path.join(activePluginDir, "plugin.json"),
+    JSON.stringify({ name: "active-plugin" }),
+  );
+
+  await writeSkill(path.join(disabledPluginDir, "skills"), "plugin-skill-2", {
+    description: "Disabled",
+  });
+  await fs.writeFile(
+    path.join(disabledPluginDir, "plugin.json"),
+    JSON.stringify({ disabled: true, name: "disabled-plugin" }),
+  );
+
+  const result = await discoverAntigravitySkills();
+  assert.equal(result.errors.length, 0);
+
+  const skill1 = result.skills.find((s) => s.name === "plugin-skill-1");
+  assert.ok(skill1);
+  assert.equal(skill1.scope, "plugin");
+  assert.equal(skill1.pluginId, "active-plugin");
+  assert.equal(skill1.enabled, true);
+
+  const skill2 = result.skills.find((s) => s.name === "plugin-skill-2");
+  assert.ok(skill2);
+  assert.equal(skill2.scope, "plugin");
+  assert.equal(skill2.pluginId, "disabled-plugin");
+  assert.equal(skill2.enabled, false);
+});
+
+test("discoverAntigravitySkills discovers system skills from builtin directory", async () => {
+  const builtinSkills = path.join(
+    home,
+    ".gemini",
+    "antigravity-cli",
+    "builtin",
+    "skills",
+  );
+  await writeSkill(builtinSkills, "system-skill", {
+    description: "Builtin system skill",
+  });
+
+  const result = await discoverAntigravitySkills();
+  assert.equal(result.errors.length, 0);
+
+  const skill = result.skills.find((s) => s.name === "system-skill");
+  assert.ok(skill);
+  assert.equal(skill.scope, "system");
+  assert.equal(skill.source, "gemini");
+});
+
+test("discoverAntigravitySkills enforces precedence order: project > user > plugin > system", async () => {
+  const projectSkills = path.join(project, ".gemini", "skills");
+  const userSkills = path.join(home, ".gemini", "config", "skills");
+  const pluginSkills = path.join(
+    home,
+    ".gemini",
+    "config",
+    "plugins",
+    "some-plugin",
+    "skills",
+  );
+  const systemSkills = path.join(
+    home,
+    ".gemini",
+    "antigravity-cli",
+    "builtin",
+    "skills",
+  );
+
+  await writeSkill(projectSkills, "shared-skill", {
+    description: "Project version",
+  });
+  await writeSkill(userSkills, "shared-skill", {
+    description: "User version",
+  });
+  await writeSkill(pluginSkills, "shared-skill", {
+    description: "Plugin version",
+  });
+  await writeSkill(systemSkills, "shared-skill", {
+    description: "System version",
+  });
+
+  const resultProject = await discoverAntigravitySkills({
+    projectPath: project,
+  });
+  const foundProject = resultProject.skills.find(
+    (s) => s.name === "shared-skill",
+  );
+  assert.ok(foundProject);
+  assert.equal(foundProject.scope, "project");
+  assert.equal(foundProject.description, "Project version");
+
+  const resultUser = await discoverAntigravitySkills();
+  const foundUser = resultUser.skills.find((s) => s.name === "shared-skill");
+  assert.ok(foundUser);
+  assert.equal(foundUser.scope, "user");
+  assert.equal(foundUser.description, "User version");
 });
