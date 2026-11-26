@@ -56,6 +56,7 @@ import { RightPanelHeaderIconButton } from "./right-panel-header-icon-button";
 import { type StandardTabItem, StandardTabs } from "./standard-tabs";
 
 const EMPTY_BROWSER_TABS: BrowserTabState[] = [];
+const EMPTY_TAB_IDS: string[] = [];
 const BROWSER_ZOOM_STEP = 0.1;
 const MIN_BROWSER_ZOOM = 0.25;
 const MAX_BROWSER_ZOOM = 3;
@@ -312,8 +313,11 @@ const BrowserWebview = memo(
         partition="persist:dream-browser"
         ref={setWebviewRef}
         src={src}
+        // A hidden tab keeps its layout size, so an agent working in it in
+        // the background still gets a real viewport and screenshots.
         style={{
-          display: active ? "flex" : "none",
+          pointerEvents: active ? undefined : "none",
+          visibility: active ? undefined : "hidden",
         }}
         webpreferences="contextIsolation=yes,sandbox=yes"
       />
@@ -360,6 +364,9 @@ const BrowserPanelImpl = ({
   const activeTabId = useIdeStore(
     (state) => state.activeBrowserTabIdByProject[project.id] ?? null,
   );
+  const agentTabIds = useIdeStore(
+    (state) => state.agentBrowserTabIdsByProject[project.id] ?? EMPTY_TAB_IDS,
+  );
   const setBrowserError = useIdeStore((state) => state.setBrowserError);
   const setBrowserLoading = useIdeStore((state) => state.setBrowserLoading);
   const openExternalUrl = useIdeStore((state) => state.openExternalUrl);
@@ -382,6 +389,18 @@ const BrowserPanelImpl = ({
   const browserZoomPercent = `${Math.round(browserZoomFactor * 100)}%`;
   const browserVisible = Boolean(activeTab?.url);
   const shouldMountBrowserWebview = active && browserVisible;
+  // The tab on screen, plus every tab an agent is using: those stay mounted
+  // (hidden) so the agent keeps working in them without switching the view.
+  const mountedTabs = useMemo(
+    () =>
+      tabs.filter(
+        (tab) =>
+          tab.url &&
+          ((shouldMountBrowserWebview && tab.id === activeTab?.id) ||
+            agentTabIds.includes(tab.id)),
+      ),
+    [activeTab?.id, agentTabIds, shouldMountBrowserWebview, tabs],
+  );
   const canOpenExternalBrowserUrl = Boolean(activeTab?.url);
   const browserTabItems = useMemo<StandardTabItem[]>(
     () =>
@@ -468,26 +487,37 @@ const BrowserPanelImpl = ({
     [browserT, projectId, updateBrowserTab],
   );
 
+  // The load error banner belongs to the tab on screen; a background tab's
+  // failure reaches the agent through its tool result instead.
+  const isActiveTab = useCallback(
+    (tabId: string) =>
+      useIdeStore.getState().getActiveBrowserTab(projectId)?.id === tabId,
+    [projectId],
+  );
+
   const handleWebviewLoadingChange = useCallback(
     (tabId: string, loading: boolean) => {
       setBrowserLoading(tabId, loading);
-      if (loading) {
+      if (loading && isActiveTab(tabId)) {
         setBrowserError(null);
       }
     },
-    [setBrowserError, setBrowserLoading],
+    [isActiveTab, setBrowserError, setBrowserLoading],
   );
 
   const handleWebviewError = useCallback(
     (tabId: string, event: WebviewFailEvent) => {
       setBrowserLoading(tabId, false);
+      if (!isActiveTab(tabId)) {
+        return;
+      }
       setBrowserError(
         `${String(event.errorCode ?? "LOAD_FAILED")}${
           event.errorDescription ? `: ${event.errorDescription}` : ""
         }`,
       );
     },
-    [setBrowserError, setBrowserLoading],
+    [isActiveTab, setBrowserError, setBrowserLoading],
   );
 
   const handleActivateTab = useCallback(
@@ -1065,19 +1095,19 @@ const BrowserPanelImpl = ({
 
       <div className="min-h-0 flex-1 overflow-hidden" data-right-panel-body>
         <div className="relative h-full">
-          {shouldMountBrowserWebview && activeTab?.url ? (
+          {mountedTabs.map((tab) => (
             <BrowserWebview
-              active={true}
-              key={activeTab.id}
+              active={shouldMountBrowserWebview && tab.id === activeTab?.id}
+              key={tab.id}
               onError={handleWebviewError}
               onLoadingChange={handleWebviewLoadingChange}
-              onRef={handleWebviewRef(activeTab.id)}
+              onRef={handleWebviewRef(tab.id)}
               hostId={project.hostId}
               onStateChange={handleWebviewStateChange}
               projectId={projectId}
-              tab={activeTab}
+              tab={tab}
             />
-          ) : null}
+          ))}
           {!shouldMountBrowserWebview ? (
             <div className="flex h-full items-center justify-center bg-background px-6 text-center text-muted-foreground text-sm">
               {browserT("enterUrlToStart")}

@@ -261,7 +261,7 @@ const tabIdField = z
   .string()
   .optional()
   .describe(
-    "Target tab id from browser_list_tabs. Defaults to the active browser tab.",
+    "Target tab id from browser_list_tabs. Defaults to the tab the agent used last, or the active browser tab if it has used none.",
   );
 
 const locatorFields = {
@@ -316,13 +316,20 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
     };
   };
 
-  /** Ask the renderer which tab is active (and make sure the panel exists). */
+  /**
+   * The tab a call without a tabId means: the one the agent used last (it
+   * may be in the background), else the tab on screen.
+   */
   const resolveTabId = async (tabId) => {
     if (tabId) {
       return tabId;
     }
     const result = await requireBridge().sendCommand("list-tabs");
-    const active = result?.tabs?.find((tab) => tab.active) ?? result?.tabs?.[0];
+    const tabs = result?.tabs ?? [];
+    const active =
+      tabs.find((tab) => tab.id === result?.agentTabId) ??
+      tabs.find((tab) => tab.active) ??
+      tabs[0];
     if (!active) {
       throw new Error(
         "No browser tab is open. Use browser_open_tab to open one first.",
@@ -332,8 +339,9 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
   };
 
   /**
-   * Make sure the tab is visible and its guest is mounted, then return the
-   * live guest webContents. Opens the panel / activates the tab as needed.
+   * Make sure the tab's guest is mounted, then return the live guest
+   * webContents. The renderer mounts it in the background; the user's view
+   * does not change.
    */
   const acquireGuest = async (tabId) => {
     const resolvedTabId = await resolveTabId(tabId);
@@ -387,10 +395,11 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
     browser_list_tabs: {
       annotations: { readOnlyHint: true },
       description:
-        "List the tabs open in Dream's built-in browser panel for this project, with ids, URLs, titles, and which one is active.",
+        "List the tabs open in Dream's built-in browser panel for this project, with ids, URLs, titles, which one the user sees (active), which ones agents have used (agent), and the agent's most recent tab (agentTabId).",
       handler: withErrors(async () => {
         const result = await requireBridge().sendCommand("list-tabs");
         return textResult({
+          agentTabId: result?.agentTabId ?? null,
           panelOpen: Boolean(result?.panelOpen),
           tabs: (result?.tabs ?? []).map((tab) => ({
             ...tab,
@@ -403,7 +412,7 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
 
     browser_open_tab: {
       description:
-        "Open a new tab in Dream's built-in browser panel and load a URL. Opens the panel if it is hidden and makes the new tab active. Returns the tab id; pass it to other browser tools. Use this to preview a local dev server (e.g. http://localhost:3000) or any website.",
+        "Open a new tab in Dream's built-in browser panel and load a URL. The tab opens in the background: the user's view does not change, and every browser tool works in it. Returns the tab id; pass it to other browser tools. Use this to preview a local dev server (e.g. http://localhost:3000) or any website.",
       handler: withErrors(async ({ url }) => {
         const normalized = normalizeAgentUrl(url);
         if (!normalized) {
@@ -431,7 +440,7 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
 
     browser_navigate: {
       description:
-        "Navigate a browser tab to a URL and wait for the page to finish loading. Defaults to the active tab.",
+        "Navigate a browser tab to a URL and wait for the page to finish loading. Defaults to the tab the agent used last, or the active tab.",
       handler: withErrors(async ({ tabId, url }) => {
         const normalized = normalizeAgentUrl(url);
         if (!normalized) {
@@ -440,7 +449,8 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
         const resolvedTabId = await resolveTabId(tabId);
         const existing = requireBridge().getGuest(resolvedTabId);
         if (existing) {
-          // Mounted already: bring it to front and drive the guest directly.
+          // Mounted already: mark it as the agent's (or bring it to the front
+          // when the user follows the agent) and drive the guest directly.
           // The renderer's did-navigate listeners keep tab state in sync.
           await requireBridge().sendCommand("show-tab", {
             tabId: resolvedTabId,
@@ -450,7 +460,7 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
           });
           return settleAndSummarize(existing, resolvedTabId);
         }
-        // The tab is not mounted (empty URL or hidden panel): let the renderer
+        // The tab is not mounted (empty URL, or not yet the agent's): let the renderer
         // set the URL, which mounts the <webview> and starts the load itself.
         await requireBridge().sendCommand("show-tab", {
           tabId: resolvedTabId,
@@ -517,9 +527,10 @@ export const createBrowserToolDefinitions = ({ bridge, projectId }) => {
 
     browser_activate_tab: {
       description:
-        "Switch the browser panel to a tab so it is visible and interactive.",
+        "Show a tab to the user: open the browser panel and bring the tab to the front. Other browser tools work in background tabs, so use this only when the user should see the page.",
       handler: withErrors(async ({ tabId }) => {
         const result = await requireBridge().sendCommand("show-tab", {
+          activate: true,
           tabId,
         });
         return textResult(result ?? { tabId });

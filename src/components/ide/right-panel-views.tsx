@@ -4,6 +4,7 @@ import { hasDesktopApi } from "@/lib/electron";
 import { useUiStore } from "@/lib/ui-store";
 import { cn } from "@/lib/utils";
 import type { ProjectConfig } from "@/types/ide";
+import { useIdeStore } from "./ide-store";
 import type { RightPanelView } from "./ide-types";
 import { useHostAway } from "./ssh/host-away-notice";
 
@@ -105,6 +106,12 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
   const [visitedPersistentViews, setVisitedPersistentViews] = useState(
     () => new Set<RightPanelView>(props.open ? [rightPanelView] : []),
   );
+  // An agent can use the browser before the user ever opens it; its tabs
+  // live in the browser view, so the view mounts (hidden) for them.
+  const agentUsesBrowser = useIdeStore(
+    (state) =>
+      (state.agentBrowserTabIdsByProject[props.project.id]?.length ?? 0) > 0,
+  );
 
   useEffect(() => {
     if (props.open) {
@@ -168,7 +175,8 @@ export const RightPanelViews = (props: RightPanelViewsProps) => {
             ) : null}
             {/* The webview browser is the desktop window's; there is no
                 host-owned browser for web clients yet. */}
-            {visitedPersistentViews.has("browser") && hasDesktopApi() ? (
+            {(visitedPersistentViews.has("browser") || agentUsesBrowser) &&
+            hasDesktopApi() ? (
               <RightPanelViewSlot active={rightPanelView === "browser"}>
                 <BrowserPanel
                   active={

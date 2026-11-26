@@ -404,6 +404,8 @@
     "enableModelFirst": "Bật một mô hình trước",
     "expandToolCalls": "Mở rộng lệnh gọi công cụ",
     "expandToolCallsDescription": "Hiển thị lệnh gọi công cụ ở trạng thái mở rộng theo mặc định",
+    "followAgentBrowser": "Theo dõi tác nhân trong trình duyệt",
+    "followAgentBrowserDescription": "Hiển thị tab trình duyệt mà tác nhân đang dùng",
     "groupToolCalls": "Nhóm lệnh gọi công cụ",
     "groupToolCallsDescription": "Thu gọn lệnh gọi công cụ thành chip đếm nhỏ gọn",
     "installProviders": "Cài đặt Codex CLI, Claude Code CLI, OpenCode CLI, Cursor Agent CLI, Grok Build CLI hoặc Google Antigravity CLI, rồi làm mới phần này.",

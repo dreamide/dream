@@ -161,6 +161,12 @@ export interface IdeStateFields {
   browserLoading: Record<string, boolean>;
   browserTabsByProject: Record<string, BrowserTabState[]>;
   activeBrowserTabIdByProject: Record<string, string | null>;
+  /**
+   * Browser tabs an agent has driven, per project. Their webviews stay
+   * mounted (hidden when not shown) so agent tools can work in them without
+   * bringing them to the front. A tab leaves the list when it is closed.
+   */
+  agentBrowserTabIdsByProject: Record<string, string[]>;
   projectGitRefreshKeys: Record<string, number>;
   /** The git write running for each project, if any (git-write-actions.ts). */
   gitWriteByProject: Record<string, GitWrite>;

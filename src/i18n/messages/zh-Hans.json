@@ -404,6 +404,8 @@
     "enableModelFirst": "请先启用模型",
     "expandToolCalls": "展开工具调用",
     "expandToolCallsDescription": "默认展开显示工具调用",
+    "followAgentBrowser": "在浏览器中跟随智能体",
+    "followAgentBrowserDescription": "显示智能体正在使用的浏览器标签页",
     "groupToolCalls": "分组工具调用",
     "groupToolCallsDescription": "将工具调用折叠为紧凑的数量标签",
     "installProviders": "请安装 Codex CLI、Claude Code CLI、OpenCode CLI、Cursor Agent CLI、Grok Build CLI 或 Google Antigravity CLI，然后刷新此部分。",

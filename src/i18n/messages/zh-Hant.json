@@ -404,6 +404,8 @@
     "enableModelFirst": "請先啟用模型",
     "expandToolCalls": "展開工具呼叫",
     "expandToolCallsDescription": "預設展開顯示工具呼叫",
+    "followAgentBrowser": "在瀏覽器中跟隨代理程式",
+    "followAgentBrowserDescription": "顯示代理程式正在使用的瀏覽器分頁",
     "groupToolCalls": "群組工具呼叫",
     "groupToolCallsDescription": "將工具呼叫收合成精簡數量標籤",
     "installProviders": "請安裝 Codex CLI、Claude Code CLI、OpenCode CLI、Cursor Agent CLI、Grok Build CLI 或 Google Antigravity CLI，然後重新整理此區段。",

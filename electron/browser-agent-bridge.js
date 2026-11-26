@@ -237,6 +237,14 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
       networkById: new Map(),
     });
 
+    // An agent may drive a tab while it is hidden; keep its timers and
+    // rendering running at full speed so pages behave as when shown.
+    try {
+      guest.setBackgroundThrottling(false);
+    } catch {
+      // Older guests without the API keep the default.
+    }
+
     // Attach eagerly so requests made during the first load are captured.
     void attachDebugger(guest);
   };

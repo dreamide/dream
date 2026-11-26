@@ -793,6 +793,7 @@ const FULL_SETTINGS = {
   chatNotifications: false,
   chatNotificationSound: true,
   expandToolCalls: true,
+  followAgentBrowser: true,
   groupToolCalls: true,
   cursorSelectedModels: ["cursor-composer"],
   grokSelectedModels: ["grok-4"],

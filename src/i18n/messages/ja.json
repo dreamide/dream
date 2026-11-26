@@ -404,6 +404,8 @@
     "enableModelFirst": "先にモデルを有効化してください",
     "expandToolCalls": "ツール呼び出しを展開",
     "expandToolCallsDescription": "ツール呼び出しを既定で展開表示します",
+    "followAgentBrowser": "ブラウザでエージェントを追従",
+    "followAgentBrowserDescription": "エージェントが使用中のブラウザタブを表示します",
     "groupToolCalls": "ツール呼び出しをグループ化",
     "groupToolCallsDescription": "ツール呼び出しをコンパクトな件数チップに折りたたみます",
     "installProviders": "Codex CLI、Claude Code CLI、OpenCode CLI、Cursor Agent CLI、Grok Build CLI、または Google Antigravity CLI をインストールしてから、このセクションを更新してください。",

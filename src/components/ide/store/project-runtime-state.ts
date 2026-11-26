@@ -14,6 +14,7 @@ type RecordKeyOf<T> = {
 /** Runtime maps keyed by project id. */
 export const PROJECT_KEYED_RUNTIME_STATE = [
   "activeTerminalSessionIdByProject",
+  "agentBrowserTabIdsByProject",
   "draftChatIdByProject",
   "gitWriteByProject",
   "nextTerminalOrdinalByProject",

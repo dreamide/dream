@@ -13,32 +13,52 @@ import { useIdeStore } from "./ide-store";
  * Tab state and the `<webview>` elements live in the renderer, so anything
  * that changes which tab exists or is visible has to happen here. Once a tab
  * is mounted, the main process drives it directly through its webContents.
+ *
+ * Agents work in the background: a tab they use is held (its webview stays
+ * mounted, hidden unless it is the tab on screen) and the user's project,
+ * panel and tab stay as they are. A tab comes to the front only when the
+ * agent asks for it (browser_activate_tab) or the user follows the agent.
  */
 
 const getProject = (projectId: string) =>
   useIdeStore.getState().projects.find((project) => project.id === projectId) ??
   null;
 
+/** The tab the agent used last, if it is still open. */
+const getAgentTab = (projectId: string) => {
+  const state = useIdeStore.getState();
+  const tabs = state.browserTabsByProject[projectId] ?? [];
+  const held = state.agentBrowserTabIdsByProject[projectId] ?? [];
+  return tabs.find((tab) => tab.id === held.at(-1)) ?? null;
+};
+
 const listTabs = (projectId: string): BrowserAgentCommandResult => {
   const state = useIdeStore.getState();
   const project = getProject(projectId);
   const tabs = state.browserTabsByProject[projectId] ?? [];
   const activeTabId = state.activeBrowserTabIdByProject[projectId] ?? null;
+  const held = state.agentBrowserTabIdsByProject[projectId] ?? [];
   const panelOpen = Boolean(
     project?.ui.rightPanelOpen && project.ui.rightPanelView === "browser",
   );
 
   return {
+    agentTabId: getAgentTab(projectId)?.id ?? null,
     panelOpen,
     projectPath: project?.path ?? null,
     tabs: tabs.map<BrowserAgentTabInfo>((tab) => ({
       active: tab.id === activeTabId,
+      agent: held.includes(tab.id),
       id: tab.id,
       title: tab.title,
       url: tab.url,
     })),
   };
 };
+
+const followsAgent = (payload: { activate?: boolean }) =>
+  payload.activate === true ||
+  useIdeStore.getState().settings.followAgentBrowser;
 
 /** Make the browser panel visible for the project and bring it to front. */
 const revealBrowserPanel = (projectId: string) => {
@@ -59,31 +79,37 @@ const setTabUrl = (projectId: string, tabId: string, url: string) => {
 
 const showTab = (
   projectId: string,
-  payload: { tabId?: string; url?: string },
+  payload: { activate?: boolean; tabId?: string; url?: string },
 ): BrowserAgentCommandResult => {
   const state = useIdeStore.getState();
   state.ensureBrowserTabs(projectId, getProject(projectId)?.browserUrl ?? "");
   const tabs = useIdeStore.getState().browserTabsByProject[projectId] ?? [];
   const tab = payload.tabId
     ? tabs.find((item) => item.id === payload.tabId)
-    : (tabs.find(
+    : (getAgentTab(projectId) ??
+      tabs.find(
         (item) =>
           item.id ===
           useIdeStore.getState().activeBrowserTabIdByProject[projectId],
-      ) ?? tabs[0]);
+      ) ??
+      tabs[0]);
   if (!tab) {
     throw new Error(`No browser tab with id ${payload.tabId ?? "(active)"}.`);
   }
 
-  revealBrowserPanel(projectId);
-  state.setActiveBrowserTab(projectId, tab.id);
+  state.holdAgentBrowserTab(projectId, tab.id);
+  if (followsAgent(payload)) {
+    revealBrowserPanel(projectId);
+    state.setActiveBrowserTab(projectId, tab.id);
+  }
   const nextUrl = payload.url ?? tab.url;
   if (nextUrl) {
     setTabUrl(projectId, tab.id, nextUrl);
   }
 
   return {
-    active: true,
+    active:
+      useIdeStore.getState().activeBrowserTabIdByProject[projectId] === tab.id,
     id: tab.id,
     tabId: tab.id,
     title: tab.title,
@@ -93,7 +119,7 @@ const showTab = (
 
 const openTab = (
   projectId: string,
-  payload: { url?: string },
+  payload: { activate?: boolean; url?: string },
 ): BrowserAgentCommandResult => {
   const url = payload.url ?? "";
   const state = useIdeStore.getState();
@@ -107,13 +133,19 @@ const openTab = (
     tabs.find((tab) => tab.id === activeTabId && !tab.url) ??
     (tabs.length === 1 && !tabs[0].url ? tabs[0] : null);
 
-  const tabId = blankTab ? blankTab.id : state.createBrowserTab(projectId, url);
+  const follow = followsAgent(payload);
+  const tabId = blankTab
+    ? blankTab.id
+    : state.createBrowserTab(projectId, url, { activate: follow });
   if (!tabId) {
     throw new Error("Could not create a browser tab.");
   }
 
-  revealBrowserPanel(projectId);
-  state.setActiveBrowserTab(projectId, tabId);
+  state.holdAgentBrowserTab(projectId, tabId);
+  if (follow) {
+    revealBrowserPanel(projectId);
+    state.setActiveBrowserTab(projectId, tabId);
+  }
   if (url) {
     setTabUrl(projectId, tabId, url);
   }

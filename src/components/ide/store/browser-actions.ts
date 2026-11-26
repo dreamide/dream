@@ -16,7 +16,15 @@ export interface BrowserActions {
   setBrowserError: (error: string | null) => void;
   setBrowserLoading: (id: string, loading: boolean) => void;
   ensureBrowserTabs: (projectId: string, initialUrl?: string) => void;
-  createBrowserTab: (projectId: string, initialUrl?: string) => string | null;
+  /**
+   * Add a tab and return its id. It becomes the active tab unless
+   * `activate` is false (an agent opening a tab in the background).
+   */
+  createBrowserTab: (
+    projectId: string,
+    initialUrl?: string,
+    options?: { activate?: boolean },
+  ) => string | null;
   updateBrowserTab: (
     projectId: string,
     tabId: string,
@@ -29,6 +37,11 @@ export interface BrowserActions {
     toIndex: number,
   ) => void;
   setActiveBrowserTab: (projectId: string, tabId: string | null) => void;
+  /**
+   * Keep a tab's webview mounted for agent tools and make it the agent's
+   * most recent tab (last in `agentBrowserTabIdsByProject`).
+   */
+  holdAgentBrowserTab: (projectId: string, tabId: string) => void;
 }
 
 /** Tab transitions settle selection, the saved URL and removed loading state together. */
@@ -36,10 +49,11 @@ export const createBrowserActions = (set: IdeStoreSet): BrowserActions => {
   const changeTabs = (
     projectId: string,
     update: (current: Tabs) => Tabs,
-  ): string | null => {
+  ): { activeId: string | null; createdId: string | null } => {
     const id = projectId.trim();
     let activeId: string | null = null;
-    if (!id) return activeId;
+    let createdId: string | null = null;
+    if (!id) return { activeId, createdId };
     set((state) => {
       const project = state.projects.find((item) => item.id === id);
       // A late webview event cannot recreate a closed project's runtime state.
@@ -47,6 +61,9 @@ export const createBrowserActions = (set: IdeStoreSet): BrowserActions => {
       const tabs = state.browserTabsByProject[id] ?? [];
       const activeTabId = state.activeBrowserTabIdByProject[id] ?? null;
       const next = update({ tabs, activeTabId });
+      createdId =
+        next.tabs.find((tab) => !tabs.some((item) => item.id === tab.id))?.id ??
+        null;
       if (!next.tabs.length && next.tabs === tabs) return state;
       const active = resolveActiveBrowserTab(next.tabs, next.activeTabId);
       activeId = active?.id ?? null;
@@ -64,7 +81,15 @@ export const createBrowserActions = (set: IdeStoreSet): BrowserActions => {
         ? { ...state.browserLoading }
         : state.browserLoading;
       for (const tab of removed) delete browserLoading[tab.id];
+      const held = state.agentBrowserTabIdsByProject[id];
+      const keptHeld = held?.filter(
+        (tabId) => !removed.some((tab) => tab.id === tabId),
+      );
       return {
+        agentBrowserTabIdsByProject:
+          held && keptHeld && keptHeld.length !== held.length
+            ? { ...state.agentBrowserTabIdsByProject, [id]: keptHeld }
+            : state.agentBrowserTabIdsByProject,
         browserLoading,
         browserTabsByProject:
           next.tabs === tabs
@@ -82,7 +107,7 @@ export const createBrowserActions = (set: IdeStoreSet): BrowserActions => {
               ),
       };
     });
-    return activeId;
+    return { activeId, createdId };
   };
 
   return {
@@ -110,11 +135,20 @@ export const createBrowserActions = (set: IdeStoreSet): BrowserActions => {
       });
     },
 
-    createBrowserTab: (projectId, initialUrl = "") =>
-      changeTabs(projectId, ({ tabs }) => {
-        const tab = createBrowserTabState(initialUrl);
-        return { tabs: [...tabs, tab], activeTabId: tab.id };
-      }),
+    createBrowserTab: (projectId, initialUrl = "", options = {}) => {
+      const { activeId, createdId } = changeTabs(
+        projectId,
+        ({ tabs, activeTabId }) => {
+          const tab = createBrowserTabState(initialUrl);
+          return {
+            tabs: [...tabs, tab],
+            activeTabId:
+              options.activate === false && activeTabId ? activeTabId : tab.id,
+          };
+        },
+      );
+      return options.activate === false ? createdId : activeId;
+    },
 
     updateBrowserTab: (projectId, tabId, updater) => {
       changeTabs(projectId, (current) => {
@@ -145,7 +179,7 @@ export const createBrowserActions = (set: IdeStoreSet): BrowserActions => {
               ? tabs[Math.min(index, tabs.length - 1)].id
               : current.activeTabId,
         };
-      }),
+      }).activeId,
 
     reorderBrowserTabs: (projectId, fromIndex, toIndex) => {
       changeTabs(projectId, (current) => ({
@@ -156,6 +190,25 @@ export const createBrowserActions = (set: IdeStoreSet): BrowserActions => {
 
     setActiveBrowserTab: (projectId, tabId) => {
       changeTabs(projectId, (current) => ({ ...current, activeTabId: tabId }));
+    },
+
+    holdAgentBrowserTab: (projectId, tabId) => {
+      set((state) => {
+        const held = state.agentBrowserTabIdsByProject[projectId] ?? [];
+        if (
+          held.at(-1) === tabId ||
+          !state.browserTabsByProject[projectId]?.some(
+            (tab) => tab.id === tabId,
+          )
+        )
+          return state;
+        return {
+          agentBrowserTabIdsByProject: {
+            ...state.agentBrowserTabIdsByProject,
+            [projectId]: [...held.filter((id) => id !== tabId), tabId],
+          },
+        };
+      });
     },
   };
 };

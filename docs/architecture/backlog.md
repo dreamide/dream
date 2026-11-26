@@ -158,6 +158,9 @@ written. The originals are in git history:
   one-workspace-save-path.md)
 - The xterm view still reads the terminal output buffer and sends resizes
   itself, outside the Terminal session owner. (was ARC14-05, review-20261114.md)
+- A browser tab an agent has used stays mounted, hidden, until it is closed;
+  nothing releases it when the agent's turn ends, so hidden pages keep their
+  memory and CPU (`agentBrowserTabIdsByProject`).
 
 ## Performance
 
@@ -349,7 +352,10 @@ network, platform, provider or a person looking at the running app.
   chat-drafts.md; ACT-01, chat-activity.md; PERF11-03,
   review-20261111-performance.md; RPN-01, right-panel-navigation.md)
 - Browser panel tab operations and agent browser commands in live webviews,
-  and multi-host UI where two hosts share a project path. (was BTN-01 and
+  including an agent working in a background tab (panel closed, another view,
+  another project) without changing the view, screenshots of a hidden tab,
+  and "Follow agent in browser"; and multi-host UI where two hosts share a
+  project path. (was BTN-01 and
   PRR-01, review-20261018.md; ARC14-02, review-20261114.md)
 - Settings changes that settle models (unpicking a chat's model, disabling a
   provider) and the chat sort surviving a restart. (was MSS-01,

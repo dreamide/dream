@@ -236,6 +236,11 @@ export interface AppSettings {
    */
   chatNotificationSound: boolean;
   expandToolCalls: boolean;
+  /**
+   * Bring the browser panel and tab to the front whenever an agent uses the
+   * browser. Off, agents work in background tabs.
+   */
+  followAgentBrowser: boolean;
   groupToolCalls: boolean;
   /**
    * Keyboard shortcuts the user changed, by action id
@@ -544,13 +549,19 @@ export type BrowserAgentCommandType =
 /** Main -> renderer: a request from an agent browser tool. */
 export interface BrowserAgentCommand {
   id: string;
-  payload?: { tabId?: string; url?: string };
+  /**
+   * `activate` brings the tab to the front (browser_activate_tab). Without
+   * it the agent works in the background unless the user follows the agent.
+   */
+  payload?: { activate?: boolean; tabId?: string; url?: string };
   projectId: string;
   type: BrowserAgentCommandType;
 }
 
 export interface BrowserAgentTabInfo {
   active: boolean;
+  /** An agent has used this tab; it stays loaded in the background. */
+  agent: boolean;
   id: string;
   title: string;
   url: string;

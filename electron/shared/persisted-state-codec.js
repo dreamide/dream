@@ -83,6 +83,7 @@ export const DEFAULT_SETTINGS = {
   chatNotifications: true,
   chatNotificationSound: false,
   expandToolCalls: false,
+  followAgentBrowser: false,
   groupToolCalls: false,
   keybindings: {},
   locale: "en",
@@ -910,6 +911,10 @@ const normalizeSettings = (value) => {
           ? raw.expandShellToolParts === true ||
             raw.expandEditToolParts === true
           : DEFAULT_SETTINGS.expandToolCalls,
+    followAgentBrowser: asBoolean(
+      raw.followAgentBrowser,
+      DEFAULT_SETTINGS.followAgentBrowser,
+    ),
     groupToolCalls: asBoolean(
       raw.groupToolCalls,
       DEFAULT_SETTINGS.groupToolCalls,

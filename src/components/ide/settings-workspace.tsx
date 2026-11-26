@@ -939,6 +939,17 @@ export const SettingsWorkspace = () => {
                         }))
                       }
                     />
+                    <SettingsSwitchRow
+                      checked={settings.followAgentBrowser}
+                      description={settingsT("followAgentBrowserDescription")}
+                      label={settingsT("followAgentBrowser")}
+                      onCheckedChange={(checked) =>
+                        setSettings((previous) => ({
+                          ...previous,
+                          followAgentBrowser: checked,
+                        }))
+                      }
+                    />
                   </SettingsGroup>
                 </div>
               ) : null}

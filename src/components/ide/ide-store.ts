@@ -150,6 +150,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   browserLoading: {},
   browserTabsByProject: {},
   activeBrowserTabIdByProject: {},
+  agentBrowserTabIdsByProject: {},
   projectGitRefreshKeys: {},
   gitWriteByProject: {},
   projectFilesRefreshKeys: {},

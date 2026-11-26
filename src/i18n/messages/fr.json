@@ -404,6 +404,8 @@
     "enableModelFirst": "Activez d’abord un modèle",
     "expandToolCalls": "Développer les appels d’outils",
     "expandToolCallsDescription": "Affiche les appels d’outils développés par défaut",
+    "followAgentBrowser": "Suivre l’agent dans le navigateur",
+    "followAgentBrowserDescription": "Afficher l’onglet du navigateur utilisé par un agent",
     "groupToolCalls": "Grouper les appels d’outils",
     "groupToolCallsDescription": "Réduit les appels d’outils en pastilles de comptage compactes",
     "installProviders": "Installez Codex CLI, Claude Code CLI, OpenCode CLI, Cursor Agent CLI, Grok Build CLI ou Google Antigravity CLI, puis actualisez cette section.",
