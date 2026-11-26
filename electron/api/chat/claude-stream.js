@@ -31,6 +31,10 @@ import {
   BROWSER_MCP_SERVER_NAME,
   BROWSER_READ_ONLY_TOOL_IDS,
 } from "./browser-tools.js";
+import {
+  CLAUDE_IN_CHROME_EXTRA_ARGS,
+  isClaudeInChromeEnabledByDefault,
+} from "./claude-in-chrome.js";
 import { formatStreamError } from "./errors.js";
 import { toClaudeMcpServers } from "./mcp-servers.js";
 import {
@@ -512,6 +516,7 @@ export const streamClaudeResponse = async ({
         ? "bypass"
         : "ask";
   const claudeExecutablePath = await resolveCliCommandPath("claude");
+  const claudeInChrome = await isClaudeInChromeEnabledByDefault();
   // `browserMcpServer`: Dream's built-in browser as an in-process MCP server
   // (browser-attach.js), so the agent drives the same <webview> tabs the
   // user sees. Null when the turn has no project or no browser.
@@ -634,6 +639,11 @@ export const streamClaudeResponse = async ({
       // never prompts; every mutating browser tool still reaches canUseTool.
       ...(browserMcpServer ? { allowedTools: BROWSER_READ_ONLY_TOOL_IDS } : {}),
       strictMcpConfig: true,
+      // Claude in Chrome is built into the CLI rather than configured as an
+      // MCP server, so strict mode does not exclude it. Its tools go through
+      // canUseTool like any other MCP tool: they act in the user's own
+      // signed-in browser.
+      ...(claudeInChrome ? { extraArgs: CLAUDE_IN_CHROME_EXTRA_ARGS } : {}),
       // The provider defaults to `settingSources: []`, which isolates the SDK
       // from all filesystem config. Opt in so the user's ~/.claude/settings.json
       // (e.g. attribution overrides), project .claude/ settings, and CLAUDE.md

@@ -490,3 +490,56 @@ test("an image-only turn gains no saved path or extra directory", async () => {
     assert.equal(claudeCode.mock.calls[0][1].additionalDirectories, undefined);
   });
 });
+
+const withClaudeGlobalConfig = async (config, run) => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "dream-claude-home-"));
+  const saved = {
+    DREAM_SKILLS_HOME: process.env.DREAM_SKILLS_HOME,
+    CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
+  };
+  process.env.DREAM_SKILLS_HOME = home;
+  process.env.CLAUDE_CONFIG_DIR = "";
+  try {
+    if (config !== null) {
+      await fs.writeFile(
+        path.join(home, ".claude.json"),
+        typeof config === "string" ? config : JSON.stringify(config),
+      );
+    }
+    await run();
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    await fs.rm(home, { force: true, recursive: true });
+  }
+};
+
+test("launches with Claude in Chrome when the user enabled it by default in Claude Code", async () => {
+  await withClaudeGlobalConfig(
+    { claudeInChromeDefaultEnabled: true },
+    async () => {
+      await readChunks(await streamClaudeResponse(request));
+
+      assert.deepEqual(claudeCode.mock.calls[0][1].extraArgs, { chrome: null });
+      assert.equal(claudeCode.mock.calls[0][1].strictMcpConfig, true);
+    },
+  );
+});
+
+test("leaves Claude in Chrome off when it is disabled, unset or unreadable", async () => {
+  for (const config of [
+    { claudeInChromeDefaultEnabled: false },
+    {},
+    "{not json",
+    null,
+  ]) {
+    vi.clearAllMocks();
+    await withClaudeGlobalConfig(config, async () => {
+      await readChunks(await streamClaudeResponse(request));
+
+      assert.equal(claudeCode.mock.calls[0][1].extraArgs, undefined);
+    });
+  }
+});
