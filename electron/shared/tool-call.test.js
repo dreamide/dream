@@ -26,6 +26,10 @@ import {
 // ── Kinds ─────────────────────────────────────────────────────────────
 
 const KIND_BY_PROVIDER_TOOL_NAME = {
+  antigravity: {
+    edit_file: "write",
+    update_steps: "todo",
+  },
   // Claude Code names its tools itself; they reach Dream unrenamed.
   claude: {
     Agent: "agent",

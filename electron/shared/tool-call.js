@@ -109,6 +109,7 @@ export const TOOL_NAMES_BY_KIND = {
     "todos",
     "todowrite",
     "updateplan",
+    "updatesteps",
     "updatetodo",
     "updatetodos",
   ],
@@ -117,6 +118,7 @@ export const TOOL_NAMES_BY_KIND = {
   write: [
     "applypatch",
     "edit",
+    "editfile",
     "filechange",
     "multiedit",
     "notebookedit",
