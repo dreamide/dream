@@ -45,7 +45,12 @@ const WorkspaceRightPanelImpl = ({
 }: WorkspaceRightPanelProps) => (
   <WorkspaceSlidingPanel
     className={cn(panelExpanded && "left-0 z-50")}
-    contentClassName={panelExpanded ? "pb-0" : "pb-2"}
+    // Expanded, the panel floats over the chats, so it paints the workspace
+    // color into its left and bottom gutters.
+    contentClassName={cn(
+      "pb-2",
+      panelExpanded && "bg-surface-50 pl-2 dark:bg-surface-900",
+    )}
     contentMinWidth={BROWSER_PANEL_MIN_WIDTH_PX}
     handleVisible={panelExpanded ? false : handleVisible}
     maxWidth={maxWidth}
