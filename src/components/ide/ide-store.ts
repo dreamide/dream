@@ -228,7 +228,10 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     persistTranscript: transcriptCache.persistMessagesForChat,
     terminals: terminalSessionOwner,
   }),
-  ...createStandaloneChatActions(set, get, { reach: hostReach }),
+  ...createStandaloneChatActions(set, get, {
+    reach: hostReach,
+    terminals: terminalSessionOwner,
+  }),
   ...createGitWriteActions(set, get),
   ...createChatActions(set, get, {
     persist,

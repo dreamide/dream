@@ -103,17 +103,26 @@ export const dropProjectRuntimeState = (
 });
 
 /**
- * Everything keyed by projects that are gone for good, and by the chats
- * that went with them: the runtime state a close drops, plus the persisted
- * per-project and per-chat maps.
+ * Closed projects lose their runtime state. Purged projects and chats
+ * also lose their persisted state.
  */
-const dropPurgedProjectState = (
+export const applyWorkspaceRemoval = (
   state: IdeState,
-  projectIds: readonly string[],
-  chatIds: readonly string[],
+  {
+    doc,
+    closedProjectIds,
+    removedProjectIds,
+    removedChatIds,
+  }: WorkspaceRemoval,
 ): Partial<IdeState> => {
-  let next: Partial<IdeState> = {};
-  for (const projectId of projectIds) {
+  if (
+    !closedProjectIds.length &&
+    !removedProjectIds.length &&
+    !removedChatIds.length
+  )
+    return doc;
+  let next: Partial<IdeState> = doc;
+  for (const projectId of [...closedProjectIds, ...removedProjectIds]) {
     next = {
       ...next,
       ...dropProjectRuntimeState({ ...state, ...next }, projectId),
@@ -122,31 +131,12 @@ const dropPurgedProjectState = (
   const withProjects = { ...state, ...next };
   return {
     ...next,
-    ...dropKeysFrom(withProjects, PROJECT_KEYED_PERSISTED_STATE, projectIds),
-    ...dropKeysFrom(withProjects, CHAT_KEYED_STATE, chatIds),
-  };
-};
-
-/**
- * Sets the document a workspace operation produced and drops everything the
- * store keeps for the projects and chats that left it. Every path that
- * removes a project or chat goes through here, so none leaves its runtime
- * state behind.
- */
-export const applyWorkspaceRemoval = (
-  state: IdeState,
-  { doc, removedChatIds, removedProjectIds }: WorkspaceRemoval,
-): Partial<IdeState> => {
-  if (removedProjectIds.length === 0 && removedChatIds.length === 0) {
-    return doc;
-  }
-  return {
-    ...doc,
-    ...dropPurgedProjectState(
-      { ...state, ...doc },
+    ...dropKeysFrom(
+      withProjects,
+      PROJECT_KEYED_PERSISTED_STATE,
       removedProjectIds,
-      removedChatIds,
     ),
+    ...dropKeysFrom(withProjects, CHAT_KEYED_STATE, removedChatIds),
   };
 };
 
@@ -162,8 +152,8 @@ export const commitWorkspaceRemoval = (
   removal: WorkspaceRemoval,
 ): Promise<void> => {
   const stops = Promise.all(
-    removal.removedProjectIds.map((projectId) =>
-      terminals.dropProject(projectId),
+    [...removal.closedProjectIds, ...removal.removedProjectIds].map(
+      (projectId) => terminals.dropProject(projectId),
     ),
   ).then(() => undefined);
   set((state) => applyWorkspaceRemoval(state, removal));

@@ -112,7 +112,8 @@ The maps the store keeps per project outside the project record: refresh
 keys, terminal sessions and their status, browser tab loading, the draft
 chat. They are registered in `store/project-runtime-state.ts`, which is
 what closing or purging a project drops; a new per-project map is added
-there, once. Every workspace removal reaches the store through
+there, once. The workspace document reports Projects that close as well as
+Projects that are purged, including changes from a Host catalog. Both reach the store through
 `commitWorkspaceRemoval`, which stops the removed projects' terminals and
 then drops their runtime state, so no path that removes a project or chat
 leaves a shell or a map behind.

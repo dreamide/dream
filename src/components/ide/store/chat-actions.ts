@@ -25,18 +25,6 @@ import {
 } from "./terminal-actions";
 import * as workspace from "./workspace-document";
 
-/**
- * Finishes closing the projects a chat removal took out of the tab strip: a
- * standalone project closes when its last live chat goes (`settle`). The
- * close action stops their terminals and drops their runtime state.
- */
-const closeProjectsLeftOpen = (get: IdeStoreGet, openBefore: string[]) => {
-  const open = new Set(get().projects.map((project) => project.id));
-  for (const projectId of openBefore) {
-    if (!open.has(projectId)) get().closeProject(projectId);
-  }
-};
-
 /** The chat actions in the store (`IdeState`). */
 export interface ChatActions {
   addChat: (
@@ -295,10 +283,14 @@ export const createChatActions = (
   },
 
   deleteChat: (chatId: string) => {
-    const openBefore = get().projects.map((project) => project.id);
+    const state = get();
     // The Chat turn outcome forgets its mark (chat-turn-outcome.ts).
-    set((state) => workspace.deleteChat(state, state.settings, chatId));
-    closeProjectsLeftOpen(get, openBefore);
+    const doc = workspace.deleteChat(state, state.settings, chatId);
+    void commitWorkspaceRemoval(
+      set,
+      terminals,
+      workspace.removalBetween(state, doc),
+    );
   },
 
   permanentlyDeleteChats: (chatIds: string[]) => {
@@ -317,21 +309,23 @@ export const createChatActions = (
     );
 
     const deletedChatIds = deletedChats.map((chat) => chat.id);
-    const openBefore = get().projects.map((project) => project.id);
-    set((state) =>
-      workspace.removeChats(state, state.settings, deletedChatIds),
+    const doc = workspace.removeChats(
+      current,
+      current.settings,
+      deletedChatIds,
     );
-    closeProjectsLeftOpen(get, openBefore);
 
     // A standalone project goes with its last chat; nothing could show it.
-    const emptied = workspace.standaloneProjectsWithoutChats(get());
+    const emptied = workspace.standaloneProjectsWithoutChats(doc);
+    const after = emptied.length
+      ? workspace.removeProjects(doc, current.settings, emptied).doc
+      : doc;
+    void commitWorkspaceRemoval(
+      set,
+      terminals,
+      workspace.removalBetween(current, after),
+    );
     if (emptied.length > 0) {
-      const state = get();
-      void commitWorkspaceRemoval(
-        set,
-        terminals,
-        workspace.removeProjects(state, state.settings, emptied),
-      );
       persist();
     }
   },

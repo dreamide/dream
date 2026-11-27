@@ -163,6 +163,7 @@ test("removing a Project stops its terminals and cancels their pending commands"
     doc: { projects: [] },
     removedChatIds: [],
     removedProjectIds: ["project-a"],
+    closedProjectIds: [],
   } as unknown as Parameters<typeof commitWorkspaceRemoval>[2]);
   vi.advanceTimersByTime(TERMINAL_COMMAND_QUIET_MS);
 

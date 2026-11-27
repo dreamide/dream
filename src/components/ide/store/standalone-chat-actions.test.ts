@@ -80,6 +80,7 @@ const createTestStore = (handlers: FakeApiHandlers = {}) => {
     }),
     ...createStandaloneChatActions(store.setState, store.getState, {
       api: api.client,
+      terminals,
     }),
   });
   store.getState().addProject(plain.path);

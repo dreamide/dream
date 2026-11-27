@@ -63,6 +63,7 @@ export interface SeededChat {
  */
 export interface WorkspaceRemoval {
   doc: WorkspaceDocument;
+  closedProjectIds: string[];
   removedChatIds: string[];
   removedProjectIds: string[];
 }
@@ -147,14 +148,18 @@ export const reassignHost = (
 };
 
 /** Everything that was in `before` and is not in `after`. */
-const removalBetween = (
+export const removalBetween = (
   before: WorkspaceDocument,
   after: WorkspaceDocument,
 ): WorkspaceRemoval => {
   const projectIds = new Set(allProjectsOf(after).map((project) => project.id));
+  const closedIds = new Set(after.closedProjects.map((project) => project.id));
   const chatIds = new Set(after.chats.map((chat) => chat.id));
   return {
     doc: after,
+    closedProjectIds: before.projects
+      .filter((project) => closedIds.has(project.id))
+      .map((project) => project.id),
     removedChatIds: before.chats
       .map((chat) => chat.id)
       .filter((id) => !chatIds.has(id)),

@@ -5,16 +5,18 @@
 import { apiClient } from "@/lib/api-client";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { ProjectConfig } from "@/types/ide";
-import {
-  getProjectHostId,
-  projectDirectoryKey,
-} from "../../../../electron/shared/persisted-state-codec.js";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { createHostReach, type HostReach } from "./host-reach";
 import type {
   IdeStoreGet,
   IdeStoreSet,
   StoreActionDependencies,
 } from "./ide-store-types";
+import { commitWorkspaceRemoval } from "./project-runtime-state";
+import {
+  createTerminalSessionOwner,
+  type TerminalSessionOwner,
+} from "./terminal-actions";
 import * as workspace from "./workspace-document";
 
 /** The standalone chat actions in the store (`IdeState`). */
@@ -51,7 +53,11 @@ export const createStandaloneChatActions = (
   {
     api = apiClient,
     reach = createHostReach(get),
-  }: StoreActionDependencies & { reach?: Pick<HostReach, "reach"> } = {},
+    terminals = createTerminalSessionOwner(set, get),
+  }: StoreActionDependencies & {
+    reach?: Pick<HostReach, "reach">;
+    terminals?: Pick<TerminalSessionOwner, "dropProject">;
+  } = {},
 ): StandaloneChatActions => {
   /** A Host other than this machine is connected and loaded first. */
   const reachHost = (hostId: string) => reach.reach(hostId);
@@ -62,31 +68,19 @@ export const createStandaloneChatActions = (
     hostId: string,
     create?: (project: ProjectConfig) => ProjectConfig,
   ) => {
-    const directory = projectDirectoryKey(path, hostId);
-    for (const project of get().projects) {
-      if (
-        project.standalone &&
-        projectDirectoryKey(project.path, getProjectHostId(project)) !==
-          directory
-      ) {
-        get().closeProject(project.id);
-      }
-    }
-    let shown: { chatId: string | null; projectId: string } = {
-      chatId: null,
-      projectId: "",
-    };
-    set((state) => {
-      const result = workspace.showStandaloneProject(
-        state,
-        state.settings,
-        path,
-        { create, hostId },
-      );
-      shown = result;
-      return result.doc;
+    const state = get();
+    const { doc, closedProjectIds, chatId, projectId } =
+      workspace.showStandaloneProject(state, state.settings, path, {
+        create,
+        hostId,
+      });
+    void commitWorkspaceRemoval(set, terminals, {
+      doc,
+      closedProjectIds,
+      removedProjectIds: [],
+      removedChatIds: [],
     });
-    return shown;
+    return { chatId, projectId };
   };
 
   return {

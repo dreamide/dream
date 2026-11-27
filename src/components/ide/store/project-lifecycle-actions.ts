@@ -3,10 +3,7 @@ import type { ProjectConfig, ProjectWorktreeInfo } from "@/types/ide";
 import { chatTurnOutcomes } from "../chat-turn-outcome";
 import { createHostReach, type HostReach } from "./host-reach";
 import type { IdeStoreGet, IdeStoreSet } from "./ide-store-types";
-import {
-  commitWorkspaceRemoval,
-  dropProjectRuntimeState,
-} from "./project-runtime-state";
+import { commitWorkspaceRemoval } from "./project-runtime-state";
 import {
   createTerminalSessionOwner,
   type TerminalSessionOwner,
@@ -123,18 +120,13 @@ export const createProjectLifecycleActions = (
   },
 
   closeProject: (projectId: string) => {
-    void terminals.dropProject(projectId);
-    set((state) => {
-      const runtime = dropProjectRuntimeState(state, projectId);
-      return {
-        ...runtime,
-        ...workspace.closeProject(
-          { ...state, ...runtime },
-          state.settings,
-          projectId,
-        ),
-      };
-    });
+    const state = get();
+    const doc = workspace.closeProject(state, state.settings, projectId);
+    void commitWorkspaceRemoval(
+      set,
+      terminals,
+      workspace.removalBetween(state, doc),
+    );
   },
 
   forgetClosedProject: (projectId: string) => {

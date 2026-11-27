@@ -133,6 +133,31 @@ test("a removed project takes its chats with it", () => {
   );
 });
 
+test("catalog deletion of the last standalone chat closes its project and stops its terminals once", () => {
+  const { catalog, open, openChat, stoppedSessions, store } = createTestStore();
+  store.setState({
+    projects: store.getState().projects.map((project) => ({
+      ...project,
+      standalone: { createdAt: new Date().toISOString() },
+    })),
+    projectTerminalSessionIds: { [open.id]: ["shell"] },
+    terminalStatus: { shell: "running" },
+  });
+  const deletion = {
+    chats: [{ ...openChat, deletedAt: new Date().toISOString() }],
+  };
+  catalog.applyCatalogChanges(deletion);
+  catalog.applyCatalogChanges(deletion);
+  expect(stoppedSessions).toEqual(["shell"]);
+  const state = store.getState();
+  expect(state.terminalStatus).toEqual({});
+  expect(state.projectTerminalSessionIds).toEqual({});
+  expect(state.closedProjects.some((p) => p.id === open.id)).toBe(true);
+  expect(state.chats.find((c) => c.id === openChat.id)?.deletedAt).toBe(
+    deletion.chats[0].deletedAt,
+  );
+});
+
 test("a project its host removed has its terminals stopped and leaves no runtime state behind", () => {
   const { catalog, open, stoppedSessions, store } = createTestStore();
   store.setState({
