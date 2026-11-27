@@ -739,6 +739,10 @@
 }
 
 /* Streamdown markdown list styling overrides */
+[data-streamdown="ordered-list"] {
+  list-style-type: decimal;
+}
+
 [data-streamdown="unordered-list"],
 [data-streamdown="ordered-list"] {
   list-style-position: outside;
