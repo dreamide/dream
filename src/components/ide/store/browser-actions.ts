@@ -11,10 +11,18 @@ interface Tabs {
   activeTabId: string | null;
 }
 
+export interface BrowserTabStatus {
+  loading: boolean;
+  error: string | null;
+}
+
 /** The browser tab actions in the store (`IdeState`). */
 export interface BrowserActions {
-  setBrowserError: (error: string | null) => void;
-  setBrowserLoading: (id: string, loading: boolean) => void;
+  updateBrowserTabStatus: (
+    projectId: string,
+    tabId: string,
+    update: Partial<BrowserTabStatus>,
+  ) => void;
   ensureBrowserTabs: (projectId: string, initialUrl?: string) => void;
   /**
    * Add a tab and return its id. It becomes the active tab unless
@@ -29,6 +37,12 @@ export interface BrowserActions {
     projectId: string,
     tabId: string,
     updater: (tab: BrowserTabState) => BrowserTabState,
+  ) => void;
+  navigateBrowserTab: (
+    projectId: string,
+    tabId: string,
+    url: string,
+    title?: string,
   ) => void;
   closeBrowserTab: (projectId: string, tabId: string) => string | null;
   reorderBrowserTabs: (
@@ -49,6 +63,7 @@ export const createBrowserActions = (set: IdeStoreSet): BrowserActions => {
   const changeTabs = (
     projectId: string,
     update: (current: Tabs) => Tabs,
+    navigatingTabId?: string,
   ): { activeId: string | null; createdId: string | null } => {
     const id = projectId.trim();
     let activeId: string | null = null;
@@ -59,6 +74,8 @@ export const createBrowserActions = (set: IdeStoreSet): BrowserActions => {
       // A late webview event cannot recreate a closed project's runtime state.
       if (!project) return state;
       const tabs = state.browserTabsByProject[id] ?? [];
+      if (navigatingTabId && !tabs.some((tab) => tab.id === navigatingTabId))
+        return state;
       const activeTabId = state.activeBrowserTabIdByProject[id] ?? null;
       const next = update({ tabs, activeTabId });
       createdId =
@@ -77,10 +94,17 @@ export const createBrowserActions = (set: IdeStoreSet): BrowserActions => {
       const removed = tabs.filter(
         (tab) => !next.tabs.some((item) => item.id === tab.id),
       );
-      const browserLoading = removed.length
-        ? { ...state.browserLoading }
-        : state.browserLoading;
-      for (const tab of removed) delete browserLoading[tab.id];
+      const navigation = navigatingTabId
+        ? state.browserStatusByTab[navigatingTabId]
+        : undefined;
+      const browserStatusByTab =
+        removed.length || navigation?.error
+          ? { ...state.browserStatusByTab }
+          : state.browserStatusByTab;
+      for (const tab of removed) delete browserStatusByTab[tab.id];
+      if (navigation?.error && navigatingTabId) {
+        browserStatusByTab[navigatingTabId] = { ...navigation, error: null };
+      }
       const held = state.agentBrowserTabIdsByProject[id];
       const keptHeld = held?.filter(
         (tabId) => !removed.some((tab) => tab.id === tabId),
@@ -90,7 +114,7 @@ export const createBrowserActions = (set: IdeStoreSet): BrowserActions => {
           held && keptHeld && keptHeld.length !== held.length
             ? { ...state.agentBrowserTabIdsByProject, [id]: keptHeld }
             : state.agentBrowserTabIdsByProject,
-        browserLoading,
+        browserStatusByTab,
         browserTabsByProject:
           next.tabs === tabs
             ? state.browserTabsByProject
@@ -111,19 +135,29 @@ export const createBrowserActions = (set: IdeStoreSet): BrowserActions => {
   };
 
   return {
-    setBrowserError: (error) => set({ browserError: error }),
-
-    setBrowserLoading: (id, loading) => {
+    updateBrowserTabStatus: (projectId, tabId, update) => {
       set((state) => {
         if (
-          !state.projects.some((project) =>
-            state.browserTabsByProject[project.id]?.some(
-              (tab) => tab.id === id,
-            ),
+          !state.projects.some((project) => project.id === projectId) ||
+          !state.browserTabsByProject[projectId]?.some(
+            (tab) => tab.id === tabId,
           )
         )
           return state;
-        return { browserLoading: { ...state.browserLoading, [id]: loading } };
+        const previous = state.browserStatusByTab[tabId];
+        const status = {
+          loading: update.loading ?? previous?.loading ?? false,
+          error: update.loading ? null : (previous?.error ?? null),
+          ...update,
+        };
+        if (
+          status.loading === (previous?.loading ?? false) &&
+          status.error === (previous?.error ?? null)
+        )
+          return state;
+        return {
+          browserStatusByTab: { ...state.browserStatusByTab, [tabId]: status },
+        };
       });
     },
 
@@ -148,6 +182,19 @@ export const createBrowserActions = (set: IdeStoreSet): BrowserActions => {
         },
       );
       return options.activate === false ? createdId : activeId;
+    },
+
+    navigateBrowserTab: (projectId, tabId, url, title) => {
+      changeTabs(
+        projectId,
+        (current) => ({
+          ...current,
+          tabs: current.tabs.map((tab) =>
+            tab.id === tabId ? { ...tab, url, title: title ?? tab.title } : tab,
+          ),
+        }),
+        tabId,
+      );
     },
 
     updateBrowserTab: (projectId, tabId, updater) => {

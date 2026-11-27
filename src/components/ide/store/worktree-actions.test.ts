@@ -69,7 +69,7 @@ const createTestStore = (handlers: FakeApiHandlers = {}) => {
         activeBrowserTabIdByProject: {},
         activeTerminalSessionIdByProject: {},
         awaitingAnswerChatIds: {},
-        browserLoading: {},
+        browserStatusByTab: {},
         browserTabsByProject: {},
         nextTerminalOrdinalByProject: {},
         sendingChatIds: {},
@@ -261,7 +261,7 @@ test("purging a worktree leaves no state keyed by it, its sessions, tabs or chat
     activeBrowserTabIdByProject: { [worktree.id]: tab.id },
     activeTerminalSessionIdByProject: { [worktree.id]: sessionId },
     awaitingAnswerChatIds: { [worktreeChat.id]: true },
-    browserLoading: { [tab.id]: true },
+    browserStatusByTab: { [tab.id]: { loading: true, error: null } },
     browserTabsByProject: { [worktree.id]: [tab] },
     draftChatIdByProject: { [worktree.id]: null },
     nextTerminalOrdinalByProject: { [worktree.id]: 2 },
@@ -296,7 +296,7 @@ test("closing a project drops its runtime state but keeps its browser tabs", () 
   const tab = { id: "tab-1" } as BrowserTabState;
   store.setState({
     activeBrowserTabIdByProject: { [worktree.id]: tab.id },
-    browserLoading: { [tab.id]: true },
+    browserStatusByTab: { [tab.id]: { loading: true, error: null } },
     browserTabsByProject: { [worktree.id]: [tab] },
     projectGitRefreshKeys: { [worktree.id]: 3 },
     projectTerminalSessionIds: { [worktree.id]: [sessionId] },
@@ -309,7 +309,7 @@ test("closing a project drops its runtime state but keeps its browser tabs", () 
   assert.equal(state.projectGitRefreshKeys[worktree.id], undefined);
   assert.equal(state.projectTerminalSessionIds[worktree.id], undefined);
   assert.equal(state.terminalStatus[sessionId], undefined);
-  assert.equal(state.browserLoading[tab.id], undefined);
+  assert.equal(state.browserStatusByTab[tab.id], undefined);
   assert.deepEqual(state.browserTabsByProject[worktree.id], [tab]);
   assert.equal(state.activeBrowserTabIdByProject[worktree.id], tab.id);
   assert.equal(

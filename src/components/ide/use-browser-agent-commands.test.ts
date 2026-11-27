@@ -33,7 +33,7 @@ const resetStore = ({ follow = false } = {}) => {
         activeBrowserTabIdByProject: {},
         activeProjectId: userProject.id,
         agentBrowserTabIdsByProject: {},
-        browserLoading: {},
+        browserStatusByTab: {},
         browserTabsByProject: {},
         projects: [userProject, agentProject],
         setActiveProjectId,
@@ -121,6 +121,41 @@ test("activate brings the tab to the front", () => {
   );
   expect(setActiveProjectId).toHaveBeenCalledWith(agentProject.id);
   expect(showRightPanelView).toHaveBeenCalledWith(agentProject.id, "browser");
+});
+
+test("a background navigation, failure and close affect only the agent's tab", () => {
+  const store = harness.store;
+  const { createBrowserTab, updateBrowserTabStatus } = store.getState();
+  const userTab = createBrowserTab(
+    userProject.id,
+    "https://user.test/",
+  ) as string;
+  updateBrowserTabStatus(userProject.id, userTab, {
+    error: "user load failed",
+  });
+  const agentTab = command("open-tab", { url: "https://agent.test/" })
+    .tabId as string;
+  updateBrowserTabStatus(agentProject.id, agentTab, {
+    loading: false,
+    error: "agent load failed",
+  });
+  command("show-tab", { tabId: agentTab });
+  expect(store.getState().browserStatusByTab[agentTab].error).toBe(
+    "agent load failed",
+  );
+  command("show-tab", { tabId: agentTab, url: "https://retry.test/" });
+  expect(store.getState().browserStatusByTab[agentTab].error).toBeNull();
+  command("close-tab", { tabId: agentTab });
+  updateBrowserTabStatus(agentProject.id, agentTab, { error: "late failure" });
+  expect(store.getState().browserStatusByTab[agentTab]).toBeUndefined();
+  expect(store.getState().browserStatusByTab[userTab].error).toBe(
+    "user load failed",
+  );
+  updateBrowserTabStatus(userProject.id, userTab, { loading: true });
+  expect(store.getState().browserStatusByTab[userTab]).toEqual({
+    loading: true,
+    error: null,
+  });
 });
 
 test("following the agent reveals every tab it opens", () => {

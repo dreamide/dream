@@ -520,6 +520,8 @@ export interface TerminalStatusEvent {
 }
 
 export interface BrowserErrorEvent {
+  projectId?: string;
+  tabId?: string;
   code: number | string;
   description: string;
 }

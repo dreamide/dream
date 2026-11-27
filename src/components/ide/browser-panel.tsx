@@ -356,8 +356,7 @@ const BrowserPanelImpl = ({
     });
   }, [project.id]);
 
-  const browserError = useIdeStore((state) => state.browserError);
-  const browserLoading = useIdeStore((state) => state.browserLoading);
+  const browserStatusByTab = useIdeStore((state) => state.browserStatusByTab);
   const tabs = useIdeStore(
     (state) => state.browserTabsByProject[project.id] ?? EMPTY_BROWSER_TABS,
   );
@@ -367,12 +366,14 @@ const BrowserPanelImpl = ({
   const agentTabIds = useIdeStore(
     (state) => state.agentBrowserTabIdsByProject[project.id] ?? EMPTY_TAB_IDS,
   );
-  const setBrowserError = useIdeStore((state) => state.setBrowserError);
-  const setBrowserLoading = useIdeStore((state) => state.setBrowserLoading);
+  const updateBrowserTabStatus = useIdeStore(
+    (state) => state.updateBrowserTabStatus,
+  );
   const openExternalUrl = useIdeStore((state) => state.openExternalUrl);
   const ensureBrowserTabs = useIdeStore((state) => state.ensureBrowserTabs);
   const createBrowserTab = useIdeStore((state) => state.createBrowserTab);
   const updateBrowserTab = useIdeStore((state) => state.updateBrowserTab);
+  const navigateBrowserTab = useIdeStore((state) => state.navigateBrowserTab);
   const closeBrowserTab = useIdeStore((state) => state.closeBrowserTab);
   const reorderBrowserTabs = useIdeStore((state) => state.reorderBrowserTabs);
   const setActiveBrowserTab = useIdeStore((state) => state.setActiveBrowserTab);
@@ -382,9 +383,9 @@ const BrowserPanelImpl = ({
   const resolvedActiveTabId = activeTabId ?? tabs[0]?.id ?? null;
   const activeTab =
     tabs.find((tab) => tab.id === resolvedActiveTabId) ?? tabs[0] ?? null;
-  const isBrowserLoading = activeTab
-    ? (browserLoading[activeTab.id] ?? false)
-    : false;
+  const tabStatus = activeTab ? browserStatusByTab[activeTab.id] : undefined;
+  const browserError = tabStatus?.error;
+  const isBrowserLoading = tabStatus?.loading ?? false;
   const browserZoomFactor = activeTab?.zoomFactor ?? 1;
   const browserZoomPercent = `${Math.round(browserZoomFactor * 100)}%`;
   const browserVisible = Boolean(activeTab?.url);
@@ -405,7 +406,7 @@ const BrowserPanelImpl = ({
   const browserTabItems = useMemo<StandardTabItem[]>(
     () =>
       tabs.map((tab) => {
-        const tabLoading = browserLoading[tab.id] ?? false;
+        const tabLoading = browserStatusByTab[tab.id]?.loading ?? false;
         const faviconUrl = getBrowserFaviconUrl(tab.url);
 
         return {
@@ -423,7 +424,7 @@ const BrowserPanelImpl = ({
           ) : null,
         };
       }),
-    [browserLoading, browserT, tabs],
+    [browserStatusByTab, browserT, tabs],
   );
 
   useEffect(() => {
@@ -438,12 +439,6 @@ const BrowserPanelImpl = ({
   useEffect(() => {
     setBrowserUrlDraft(activeTab?.url ?? "");
   }, [activeTab?.id, activeTab?.url]);
-
-  useEffect(() => {
-    if (!activeTab?.url && browserError) {
-      setBrowserError(null);
-    }
-  }, [activeTab?.url, browserError, setBrowserError]);
 
   const getActiveWebview = useCallback(
     () => (activeTab ? (webviewRefs.current.get(activeTab.id) ?? null) : null),
@@ -487,37 +482,20 @@ const BrowserPanelImpl = ({
     [browserT, projectId, updateBrowserTab],
   );
 
-  // The load error banner belongs to the tab on screen; a background tab's
-  // failure reaches the agent through its tool result instead.
-  const isActiveTab = useCallback(
-    (tabId: string) =>
-      useIdeStore.getState().getActiveBrowserTab(projectId)?.id === tabId,
-    [projectId],
-  );
-
   const handleWebviewLoadingChange = useCallback(
-    (tabId: string, loading: boolean) => {
-      setBrowserLoading(tabId, loading);
-      if (loading && isActiveTab(tabId)) {
-        setBrowserError(null);
-      }
-    },
-    [isActiveTab, setBrowserError, setBrowserLoading],
+    (tabId: string, loading: boolean) =>
+      updateBrowserTabStatus(projectId, tabId, { loading }),
+    [projectId, updateBrowserTabStatus],
   );
 
   const handleWebviewError = useCallback(
     (tabId: string, event: WebviewFailEvent) => {
-      setBrowserLoading(tabId, false);
-      if (!isActiveTab(tabId)) {
-        return;
-      }
-      setBrowserError(
-        `${String(event.errorCode ?? "LOAD_FAILED")}${
-          event.errorDescription ? `: ${event.errorDescription}` : ""
-        }`,
-      );
+      updateBrowserTabStatus(projectId, tabId, {
+        loading: false,
+        error: `${event.errorCode ?? "LOAD_FAILED"}${event.errorDescription ? `: ${event.errorDescription}` : ""}`,
+      });
     },
-    [isActiveTab, setBrowserError, setBrowserLoading],
+    [projectId, updateBrowserTabStatus],
   );
 
   const handleActivateTab = useCallback(
@@ -526,9 +504,8 @@ const BrowserPanelImpl = ({
       setBrowserUrlDraft(
         useIdeStore.getState().getActiveBrowserTab(projectId)?.url ?? "",
       );
-      setBrowserError(null);
     },
-    [projectId, setActiveBrowserTab, setBrowserError],
+    [projectId, setActiveBrowserTab],
   );
 
   const handleReorderTab = useCallback(
@@ -540,9 +517,8 @@ const BrowserPanelImpl = ({
 
   const handleAddTab = useCallback(() => {
     createBrowserTab(projectId);
-    setBrowserError(null);
     setBrowserUrlDraft("");
-  }, [createBrowserTab, projectId, setBrowserError]);
+  }, [createBrowserTab, projectId]);
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
@@ -551,12 +527,11 @@ const BrowserPanelImpl = ({
       webviewRefs.current.delete(tabId);
       closeBrowserTab(projectId, tabId);
       if (closingLastTab) closeRightPanel(projectId);
-      setBrowserError(null);
       setBrowserUrlDraft(
         useIdeStore.getState().getActiveBrowserTab(projectId)?.url ?? "",
       );
     },
-    [closeBrowserTab, projectId, setBrowserError, closeRightPanel],
+    [closeBrowserTab, projectId, closeRightPanel],
   );
 
   const handleNavigate = useCallback(() => {
@@ -569,19 +544,19 @@ const BrowserPanelImpl = ({
       return;
     }
 
-    setBrowserError(null);
-    setBrowserLoading(activeTab.id, true);
-    updateBrowserTab(projectId, activeTab.id, (tab) => ({
-      ...tab,
-      title: getBrowserTabTitle(nextUrl, browserT("newTab")),
-      url: nextUrl,
-    }));
+    handleWebviewLoadingChange(activeTab.id, true);
+    navigateBrowserTab(
+      projectId,
+      activeTab.id,
+      nextUrl,
+      getBrowserTabTitle(nextUrl, browserT("newTab")),
+    );
     setBrowserUrlDraft(nextUrl);
 
     void toLoadableUrl(project.hostId, nextUrl)
       .then((loadable) => getActiveWebview()?.loadURL(loadable))
       .catch(() => {
-        setBrowserLoading(activeTab.id, false);
+        handleWebviewLoadingChange(activeTab.id, false);
       });
   }, [
     activeTab,
@@ -589,9 +564,8 @@ const BrowserPanelImpl = ({
     getActiveWebview,
     projectId,
     browserT,
-    setBrowserError,
-    setBrowserLoading,
-    updateBrowserTab,
+    handleWebviewLoadingChange,
+    navigateBrowserTab,
     project.hostId,
   ]);
 
@@ -608,21 +582,22 @@ const BrowserPanelImpl = ({
     try {
       if (isBrowserLoading) {
         webview.stop();
-        setBrowserLoading(activeTab.id, false);
+        handleWebviewLoadingChange(activeTab.id, false);
         return;
       }
 
-      setBrowserError(null);
+      updateBrowserTabStatus(projectId, activeTab.id, { error: null });
       webview.reload();
     } catch {
-      setBrowserLoading(activeTab.id, false);
+      handleWebviewLoadingChange(activeTab.id, false);
     }
   }, [
     activeTab,
     getActiveWebview,
     isBrowserLoading,
-    setBrowserError,
-    setBrowserLoading,
+    projectId,
+    updateBrowserTabStatus,
+    handleWebviewLoadingChange,
   ]);
 
   const handleForceReload = useCallback(() => {
@@ -630,13 +605,13 @@ const BrowserPanelImpl = ({
       return;
     }
 
-    setBrowserError(null);
+    updateBrowserTabStatus(projectId, activeTab.id, { error: null });
     try {
       getActiveWebview()?.reloadIgnoringCache();
     } catch {
       // ignore reload failures; webview events will surface load errors
     }
-  }, [activeTab?.url, getActiveWebview, setBrowserError]);
+  }, [activeTab, projectId, getActiveWebview, updateBrowserTabStatus]);
 
   const handleOpenExternal = useCallback(() => {
     if (!activeTab?.url) {
@@ -651,26 +626,26 @@ const BrowserPanelImpl = ({
       return;
     }
 
-    setBrowserError(null);
+    updateBrowserTabStatus(projectId, activeTab.id, { error: null });
     try {
       getActiveWebview()?.goBack();
     } catch {
       // ignore history failures
     }
-  }, [activeTab?.canGoBack, getActiveWebview, setBrowserError]);
+  }, [activeTab, projectId, getActiveWebview, updateBrowserTabStatus]);
 
   const handleGoForward = useCallback(() => {
     if (!activeTab?.canGoForward) {
       return;
     }
 
-    setBrowserError(null);
+    updateBrowserTabStatus(projectId, activeTab.id, { error: null });
     try {
       getActiveWebview()?.goForward();
     } catch {
       // ignore history failures
     }
-  }, [activeTab?.canGoForward, getActiveWebview, setBrowserError]);
+  }, [activeTab, projectId, getActiveWebview, updateBrowserTabStatus]);
 
   const handleOpenDevTools = useCallback(() => {
     const webview = getActiveWebview();
@@ -678,14 +653,14 @@ const BrowserPanelImpl = ({
       return;
     }
 
-    setBrowserError(null);
+    updateBrowserTabStatus(projectId, activeTab.id, { error: null });
     getDesktopApi()?.updateBrowser({
       openDevTools: true,
       projectId,
       tabId: activeTab.id,
       webContentsId: webview.getWebContentsId(),
     });
-  }, [activeTab, getActiveWebview, projectId, setBrowserError]);
+  }, [activeTab, getActiveWebview, projectId, updateBrowserTabStatus]);
 
   const updateActiveZoomFactor = useCallback(
     (updater: (current: number) => number) => {
@@ -734,7 +709,7 @@ const BrowserPanelImpl = ({
         return;
       }
 
-      setBrowserError(null);
+      updateBrowserTabStatus(projectId, activeTab.id, { error: null });
       getDesktopApi()?.updateBrowser({
         ...payload,
         projectId,
@@ -742,7 +717,7 @@ const BrowserPanelImpl = ({
         webContentsId: webview.getWebContentsId(),
       });
     },
-    [activeTab, getActiveWebview, projectId, setBrowserError],
+    [activeTab, getActiveWebview, projectId, updateBrowserTabStatus],
   );
 
   const handleClearCookies = useCallback(() => {
@@ -778,7 +753,7 @@ const BrowserPanelImpl = ({
     }
 
     const tabId = activeTab.id;
-    setBrowserError(null);
+    updateBrowserTabStatus(projectId, activeTab.id, { error: null });
     setElementSelection(null);
     setInspectingTabId(tabId);
     let element: InspectedElement | null = null;
@@ -788,7 +763,9 @@ const BrowserPanelImpl = ({
         true,
       )) as InspectedElement | null;
     } catch {
-      setBrowserError(browserT("inspectFailed"));
+      updateBrowserTabStatus(projectId, tabId, {
+        error: browserT("inspectFailed"),
+      });
     } finally {
       setInspectingTabId((current) => (current === tabId ? null : current));
     }
@@ -812,7 +789,13 @@ const BrowserPanelImpl = ({
     }
 
     setElementSelection({ element, imageDataUrl, tabId });
-  }, [activeTab, browserT, getActiveWebview, setBrowserError]);
+  }, [
+    activeTab,
+    browserT,
+    getActiveWebview,
+    projectId,
+    updateBrowserTabStatus,
+  ]);
 
   const handleToggleInspecting = useCallback(() => {
     if (isInspecting) {

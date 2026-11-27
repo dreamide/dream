@@ -78,7 +78,6 @@ export const IdeShell = () => {
   const hydrate = useIdeStore((s) => s.hydrate);
   const setIsMacOs = useIdeStore((s) => s.setIsMacOs);
   const setIsElectron = useIdeStore((s) => s.setIsElectron);
-  const setBrowserError = useIdeStore((s) => s.setBrowserError);
   const refreshProviderModels = useIdeStore((s) => s.refreshProviderModels);
   const checkCliUpdates = useIdeStore((s) => s.checkCliUpdates);
 
@@ -188,9 +187,13 @@ export const IdeShell = () => {
     );
 
     const removeBrowserError = desktopApi?.onBrowserError((event) => {
-      setBrowserError(
-        `${String(event.code)}${event.description ? `: ${event.description}` : ""}`,
-      );
+      if (event.projectId && event.tabId) {
+        useIdeStore
+          .getState()
+          .updateBrowserTabStatus(event.projectId, event.tabId, {
+            error: `${event.code}${event.description ? `: ${event.description}` : ""}`,
+          });
+      }
     });
 
     return () => {
@@ -198,7 +201,7 @@ export const IdeShell = () => {
       removeTerminalStatus();
       removeBrowserError?.();
     };
-  }, [setBrowserError]);
+  }, []);
 
   // Discover a detached host's terminals after the workspace knows their projects.
   useEffect(

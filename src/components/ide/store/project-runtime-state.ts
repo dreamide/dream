@@ -44,7 +44,7 @@ export const TERMINAL_SESSION_KEYED_STATE = [
 
 /** Runtime maps keyed by browser tab id. */
 export const BROWSER_TAB_KEYED_STATE = [
-  "browserLoading",
+  "browserStatusByTab",
 ] as const satisfies readonly RecordKeyOf<IdeState>[];
 
 /** Maps keyed by chat id, runtime and persisted alike. */

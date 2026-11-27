@@ -16,7 +16,7 @@ import type {
   SavedPrompt,
 } from "@/types/ide";
 import type { ProviderModelState, SettingsSection } from "../ide-types";
-import type { BrowserActions } from "./browser-actions";
+import type { BrowserActions, BrowserTabStatus } from "./browser-actions";
 import type { CatalogActions } from "./catalog-actions";
 import type { ChatActions } from "./chat-actions";
 import type { GitWriteActions } from "./git-write-actions";
@@ -157,8 +157,7 @@ export interface IdeStateFields {
   /** The Git panel tab each project last showed (absent: overview). */
   projectGitPanelTabByProject: Record<string, GitPanelTab>;
   outputPanelOpen: boolean;
-  browserError: string | null;
-  browserLoading: Record<string, boolean>;
+  browserStatusByTab: Record<string, BrowserTabStatus>;
   browserTabsByProject: Record<string, BrowserTabState[]>;
   activeBrowserTabIdByProject: Record<string, string | null>;
   /**

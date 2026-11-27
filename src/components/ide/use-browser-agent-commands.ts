@@ -69,14 +69,6 @@ const revealBrowserPanel = (projectId: string) => {
   state.showRightPanelView(projectId, "browser");
 };
 
-const setTabUrl = (projectId: string, tabId: string, url: string) => {
-  const state = useIdeStore.getState();
-  state.setBrowserError(null);
-  state.updateBrowserTab(projectId, tabId, (tab) =>
-    tab.url === url ? tab : { ...tab, url },
-  );
-};
-
 const showTab = (
   projectId: string,
   payload: { activate?: boolean; tabId?: string; url?: string },
@@ -103,8 +95,8 @@ const showTab = (
     state.setActiveBrowserTab(projectId, tab.id);
   }
   const nextUrl = payload.url ?? tab.url;
-  if (nextUrl) {
-    setTabUrl(projectId, tab.id, nextUrl);
+  if (payload.url) {
+    state.navigateBrowserTab(projectId, tab.id, nextUrl);
   }
 
   return {
@@ -146,8 +138,8 @@ const openTab = (
     revealBrowserPanel(projectId);
     state.setActiveBrowserTab(projectId, tabId);
   }
-  if (url) {
-    setTabUrl(projectId, tabId, url);
+  if (url && blankTab) {
+    state.navigateBrowserTab(projectId, tabId, url);
   }
 
   return { reused: Boolean(blankTab), tabId, url };

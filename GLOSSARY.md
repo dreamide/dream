@@ -1041,7 +1041,9 @@ to the view.
 
 ## Browser tab
 
-A page open in a project's Browser panel. A project's active browser tab is
+A page open in a project's Browser panel. Each tab owns its transient loading
+state and error, including when an agent navigates in the background. The
+panel shows the active tab's error. A project's active browser tab is
 one of its tabs; its saved browser URL follows that tab, including a blank URL.
 Closing the active tab selects its neighbor; closing the final tab leaves a
 blank replacement. The panel also closes itself on final-tab close, while an

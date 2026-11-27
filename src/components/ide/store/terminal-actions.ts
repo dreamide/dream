@@ -296,7 +296,6 @@ export const createTerminalSessionOwner = (
 
       set({
         outputPanelOpen: true,
-        browserError: null,
       });
 
       await client.start({

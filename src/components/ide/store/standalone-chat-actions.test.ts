@@ -41,7 +41,7 @@ const createTestStore = (handlers: FakeApiHandlers = {}) => {
         activeProjectId: null,
         activeTerminalSessionIdByProject: {},
         awaitingAnswerChatIds: {},
-        browserLoading: {},
+        browserStatusByTab: {},
         browserTabsByProject: {},
         chats: [],
         chatSort: "recent",
