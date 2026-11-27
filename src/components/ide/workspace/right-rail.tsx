@@ -43,15 +43,6 @@ const WorkspaceRightRailImpl = ({
 
   return (
     <aside className="relative z-20 flex w-12 shrink-0 flex-col items-center gap-1 py-2">
-      {showGit ? (
-        <GitNavButton
-          active={rightVisible && rightPanelView === "git"}
-          onClick={() => onSelectRightPanelView("git")}
-          projectId={projectId}
-          projectPath={projectPath}
-          visible={active}
-        />
-      ) : null}
       <WorkspaceNavButton
         active={rightVisible && rightPanelView === "explorer"}
         onClick={() => onSelectRightPanelView("explorer")}
@@ -79,6 +70,15 @@ const WorkspaceRightRailImpl = ({
       >
         <TerminalSquare className="size-4" />
       </WorkspaceNavButton>
+      {showGit ? (
+        <GitNavButton
+          active={rightVisible && rightPanelView === "git"}
+          onClick={() => onSelectRightPanelView("git")}
+          projectId={projectId}
+          projectPath={projectPath}
+          visible={active}
+        />
+      ) : null}
       <WorkspaceNavButton
         active={rightVisible && rightPanelView === "stash"}
         accent={stashAvailable}

@@ -29,13 +29,22 @@ const GitNavButtonImpl = ({
   const projectHostId = useIdeStore((s) =>
     getProjectHostId(s.projects.find((item) => item.id === projectId)),
   );
-  const { status } = useProjectGitStatus(projectPath, {
+  const { isRepo, status } = useProjectGitStatus(projectPath, {
     active: visible,
     detail: "summary",
     hostId: projectHostId,
   });
-  const { data } = usePullRequestContext(projectPath, visible, projectHostId);
+  const { data } = usePullRequestContext(
+    projectPath,
+    visible && isRepo,
+    projectHostId,
+  );
   const hasOpenPullRequest = data?.current?.state === "open";
+
+  // Not a repository, or not known to be one yet.
+  if (!isRepo) {
+    return null;
+  }
 
   return (
     <WorkspaceNavButton
