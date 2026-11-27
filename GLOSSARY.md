@@ -806,7 +806,9 @@ Stop ends the live turn as cancelled and holds queued work; Pause holds queued
 work and lets the live turn finish. A failure or a host restart marks the run
 failed or interrupted and pauses the queue. A failed or interrupted run
 retries only by explicit action; sending a new message instead dismisses it
-and resumes the queue.
+and resumes the queue in the transaction that records the new run. A duplicate
+receipt preserves the queue's pause state. A Pause after enqueue holds even
+if the submitting client is still waiting for its receipt.
 A run saves only its submission (one row after the transcript it read) and
 tells the turn its request is saved, so the turn writes only its assistant
 message. The turn's request is prepared once (`turn-transcript.js`): where

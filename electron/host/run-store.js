@@ -92,9 +92,11 @@ export function mutateRunQueue(
       }
       return { id, duplicate: true };
     }
-    db.prepare("INSERT OR IGNORE INTO chat_queues (chat_id) VALUES (?)").run(
-      chatId,
-    );
+    // Only a fresh submission resumes the queue. Commit that decision with
+    // the run, so a later Pause still holds when the receipt reaches its client.
+    db.prepare(
+      "INSERT INTO chat_queues (chat_id, paused) VALUES (?, 0) ON CONFLICT(chat_id) DO UPDATE SET paused = 0",
+    ).run(chatId);
     const position = db
       .prepare(
         "SELECT COALESCE(MAX(position), 0) + 1 AS position FROM chat_runs WHERE chat_id = ?",

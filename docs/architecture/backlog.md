@@ -329,7 +329,8 @@ network, platform, provider or a person looking at the running app.
   themes. (was OPEN-01, open-project-flow.md; D26-03, review-20261026.md)
 - The Chats tab end to end: creating, listing, swapping and deleting standalone
   chats, composer focus after each entry point, the refusal toast, two hosts in
-  one list, and git features after `git init` in a promoted chat.
+  one list, and git features after `git init` in a promoted chat. With two
+  desktop windows, soft-delete the last Chat in one and check the other's terminal exits.
   (was SC-03 and SC-04, standalone-chats.md)
 - Git panel flows: expand-all and revert in the Changes tab, refresh while a
   diff shows, commit and commit-and-push, the worktree commit dialog, a failing
@@ -353,7 +354,8 @@ network, platform, provider or a person looking at the running app.
   review-20261111-performance.md; RPN-01, right-panel-navigation.md)
 - Browser panel tab operations and agent browser commands in live webviews,
   including an agent working in a background tab (panel closed, another view,
-  another project) without changing the view, screenshots of a hidden tab,
+  another project) without changing the view or clearing a visible tab's
+  error, screenshots of a hidden tab,
   and "Follow agent in browser"; and multi-host UI where two hosts share a
   project path. (was BTN-01 and
   PRR-01, review-20261018.md; ARC14-02, review-20261114.md)

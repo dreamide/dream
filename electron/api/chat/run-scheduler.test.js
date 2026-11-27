@@ -62,6 +62,88 @@ function schedulerFor(catalog, execute) {
   return { scheduler, turns };
 }
 
+// Hold the first receipt of this kind after its SQLite write has committed.
+function delayReceipt(catalog, type) {
+  const committed = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  let delayed = false;
+  return {
+    committed: committed.promise,
+    release: release.resolve,
+    catalog: {
+      ...catalog,
+      async mutateRunQueue(operation) {
+        const result = await catalog.mutateRunQueue(operation);
+        if (operation.type === type && !delayed) {
+          delayed = true;
+          committed.resolve();
+          await release.promise;
+        }
+        return result;
+      },
+    },
+  };
+}
+
+test("Pause after enqueue survives a delayed receipt and a duplicate submission", async () => {
+  const { catalog } = await setup();
+  const gate = delayReceipt(catalog, "enqueue");
+  const started = [];
+  const { scheduler } = schedulerFor(gate.catalog, (data) => {
+    started.push(data.message.id);
+    return new Response("data: [DONE]\n\n");
+  });
+  const first = scheduler.submit(request("one"));
+  try {
+    await gate.committed;
+    assert.equal((await scheduler.list("c")).runs[0].status, "queued");
+    await scheduler.control({ chatId: "c", action: "pause" });
+  } finally {
+    gate.release();
+  }
+  await first;
+  assert.equal((await scheduler.submit(request("one"))).duplicate, true);
+  const held = await scheduler.list("c");
+  assert.equal(held.paused, true);
+  assert.equal(held.runs[0].status, "queued");
+  assert.deepEqual(started, []);
+
+  await scheduler.submit(request("two"));
+  await until(
+    () => scheduler.list("c"),
+    (queue) => queue.runs.every((run) => run.status === "completed"),
+  );
+  assert.deepEqual(started, ["one", "two"]);
+});
+
+test("Stop during a claim returns the run to the paused queue before dispatch", async () => {
+  const { catalog } = await setup();
+  const gate = delayReceipt(catalog, "claim");
+  let started = 0;
+  const { scheduler } = schedulerFor(gate.catalog, () => {
+    started++;
+    return new Response("data: [DONE]\n\n");
+  });
+  await scheduler.submit(request("one"));
+  try {
+    await gate.committed;
+    await scheduler.control({ chatId: "c", action: "stop" });
+  } finally {
+    gate.release();
+  }
+  await until(
+    () => scheduler.list("c"),
+    (queue) => queue.paused && queue.runs[0].status === "queued",
+  );
+  assert.equal(started, 0);
+  await scheduler.control({ chatId: "c", action: "resume" });
+  await until(
+    () => scheduler.list("c"),
+    (queue) => queue.runs[0].status === "completed",
+  );
+  assert.equal(started, 1);
+});
+
 test("ordered durable submissions deduplicate and each sees the previous saved answer", async () => {
   const { catalog } = await setup();
   const inputs = [];

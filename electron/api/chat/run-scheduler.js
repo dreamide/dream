@@ -5,7 +5,10 @@ export function createRunScheduler({ catalog, turns, execute }) {
   let closed = false;
   let delegation;
   const workers = new Map();
-  const held = new Set();
+  // SQLite owns Pause. These guards cover only the gap between a durable
+  // claim and starting its turn, and Stop's work on live descendants.
+  const claiming = new Set();
+  const pendingHolds = new Map();
   const initialize = () =>
     (ready ??= catalog.mutateRunQueue({ type: "recover" }));
   const change = (chatId, id, status, error) =>
@@ -18,13 +21,15 @@ export function createRunScheduler({ catalog, turns, execute }) {
       : change(chatId, id, "cancelled", "Stopped.");
 
   const drain = (chatId) => {
-    if (closed || workers.has(chatId)) return;
+    if (closed || workers.has(chatId) || pendingHolds.has(chatId)) return;
     const worker = (async () => {
       await initialize();
-      while (!closed && !held.has(chatId) && !turns.isRunning(chatId)) {
+      while (!closed && !pendingHolds.has(chatId) && !turns.isRunning(chatId)) {
+        claiming.add(chatId);
         const run = await catalog.mutateRunQueue({ type: "claim", chatId });
+        const mayStart = claiming.delete(chatId);
         if (!run) return;
-        if (closed || held.has(chatId)) {
+        if (closed || !mayStart) {
           // Held while claiming: it never started, so it goes back in line.
           await change(chatId, run.id, "queued");
           return;
@@ -113,8 +118,10 @@ export function createRunScheduler({ catalog, turns, execute }) {
     })()
       .catch((error) => console.warn("[queue] Dispatch failed.", error))
       .finally(async () => {
+        claiming.delete(chatId);
         workers.delete(chatId);
-        if (closed || held.has(chatId) || turns.isRunning(chatId)) return;
+        if (closed || pendingHolds.has(chatId) || turns.isRunning(chatId))
+          return;
         // Enqueue can race the last empty claim. Recheck after releasing ownership.
         const queue = await catalog.runQueue(chatId).catch(() => null);
         if (
@@ -143,14 +150,7 @@ export function createRunScheduler({ catalog, turns, execute }) {
         id,
         request: payload,
       });
-      // A new message is consent to continue a held chat (after Stop or a
-      // failure): resume it. A resent duplicate is not.
-      if (
-        !receipt.duplicate &&
-        (held.has(chatId) || (await catalog.runQueue(chatId)).paused)
-      )
-        await this.control({ chatId, action: "resume" });
-      else drain(chatId);
+      drain(chatId);
       return receipt;
     },
     async list(chatId) {
@@ -162,20 +162,34 @@ export function createRunScheduler({ catalog, turns, execute }) {
     // live turn: a running worker picks the work up when its turn settles.
     async control({ chatId, action, id }) {
       const holds = action === "pause" || action === "stop";
-      if (holds) held.add(chatId);
-      await initialize();
-      await catalog.mutateRunQueue({
-        type: holds ? "pause" : action,
-        chatId,
-        id,
-      });
-      if (action === "stop") {
-        turns.stop(chatId);
-        for (const child of (await catalog.delegatedTasks?.(chatId)) ?? []) {
-          await this.cancelTask(child.childChatId);
+      if (holds) {
+        claiming.delete(chatId);
+        pendingHolds.set(chatId, (pendingHolds.get(chatId) ?? 0) + 1);
+      }
+      try {
+        await initialize();
+        await catalog.mutateRunQueue({
+          type: holds ? "pause" : action,
+          chatId,
+          id,
+        });
+        if (action === "stop") {
+          turns.stop(chatId);
+          for (const child of (await catalog.delegatedTasks?.(chatId)) ?? []) {
+            await this.cancelTask(child.childChatId);
+          }
+        }
+      } finally {
+        if (holds) {
+          const remaining = pendingHolds.get(chatId) - 1;
+          if (remaining) pendingHolds.set(chatId, remaining);
+          else {
+            pendingHolds.delete(chatId);
+            // A newer submission or Resume could have arrived during Stop.
+            drain(chatId);
+          }
         }
       }
-      if (action === "resume") held.delete(chatId);
       if (action === "resume" || action === "retry") drain(chatId);
       return this.list(chatId);
     },
