@@ -57,6 +57,10 @@ export const watchHostCatalog = (
     const state = store.getState();
     if (event.kind === "queue" && typeof event.chatId === "string") {
       void queues.refresh(event.chatId, hostId);
+      const parentId = state.chats.find(
+        (chat) => chat.id === event.chatId,
+      )?.delegatedByChatId;
+      if (parentId) void queues.refresh(parentId, hostId);
       return;
     }
     if (event.kind === "changes") {

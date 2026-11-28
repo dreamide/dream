@@ -1,7 +1,10 @@
 // Durable command receipts and queue state. All mutations run on the one
 // catalog writer; claiming work commits before invoking a provider.
 import { createHash } from "node:crypto";
-import { enqueueDelegatedTask } from "./delegation-store.js";
+import {
+  enqueueDelegatedTask,
+  readDelegatedTasks,
+} from "./delegation-store.js";
 
 const live = "'running', 'waiting'";
 const DATA_URL_DIGEST_MARKER = ";sha256=";
@@ -117,7 +120,18 @@ export const readRunQueue = (db, chatId) => {
   // pause flag and run statuses from the same SQLite snapshot.
   db.exec("SAVEPOINT run_queue_snapshot");
   try {
+    const delegatedTasks = readDelegatedTasks(db, chatId).map(
+      ({ id, title, status, model, prompt, error }) => ({
+        id,
+        title,
+        status,
+        model,
+        prompt,
+        error,
+      }),
+    );
     return {
+      ...(delegatedTasks.length ? { delegatedTasks } : {}),
       paused: Boolean(
         db
           .prepare("SELECT paused FROM chat_queues WHERE chat_id = ?")

@@ -527,6 +527,16 @@ test("delegated tasks deduplicate, retain results across service restart, and en
     () => scheduler.list(child.childChatId),
     (queue) => queue.runs[0]?.status === "completed",
   );
+  assert.deepEqual((await scheduler.list("c")).delegatedTasks, [
+    {
+      id: child.id,
+      title: "Task: Review the change",
+      status: "completed",
+      model: input.model,
+      prompt: input.prompt,
+      error: null,
+    },
+  ]);
   assert.equal(
     (await call("task_status", { id: child.id })).result,
     "Review complete.",

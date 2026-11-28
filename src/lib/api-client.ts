@@ -429,6 +429,14 @@ export interface ChatRunSummary {
 export interface ChatQueueResponse {
   paused: boolean;
   runs: ChatRunSummary[];
+  delegatedTasks?: {
+    id: string;
+    title: string;
+    model?: string;
+    prompt?: string;
+    error?: string | null;
+    status: ChatRunSummary["status"];
+  }[];
 }
 export interface TranscriptPage {
   messages: UIMessage[];

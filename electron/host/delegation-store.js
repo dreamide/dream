@@ -7,8 +7,11 @@ export const readDelegatedTasks = (db, parentChatId) =>
   db
     .prepare(`
   SELECT d.id, d.child_chat_id AS childChatId, d.parent_run_id AS parentRunId,
-    r.status, r.error, r.updated_at AS updatedAt
+    r.status, r.error, r.updated_at AS updatedAt, c.title,
+    json_extract(r.request, '$.model') AS model,
+    substr(json_extract(r.request, '$.message.parts[0].text'), 1, 1500) AS prompt
   FROM delegated_tasks d JOIN chat_runs r ON r.id = d.id
+  JOIN chats c ON c.id = d.child_chat_id
   WHERE d.parent_chat_id = ? ORDER BY r.created_at, d.id
 `)
     .all(parentChatId);

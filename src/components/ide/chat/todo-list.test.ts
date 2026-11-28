@@ -27,6 +27,87 @@ const createMessage = (
   role: UIMessage["role"] = "assistant",
 ): UIMessage => ({ id, parts, role });
 
+test("delegation pills feed the checklist and live runs update the same rows", () => {
+  const launch = createToolPart(
+    "tool-mcp__dream-orchestration__delegate_task",
+    {
+      input: {
+        key: "internal-review-key",
+        prompt: "Review the change",
+        model: "opus",
+      },
+      output: { content: [{ type: "text", text: '{"id":"child"}' }] },
+    },
+  );
+  const poll = createToolPart("tool-task_status", {
+    output: [
+      { id: "child", status: "running" },
+      { id: "retry", status: "failed" },
+    ],
+  });
+  const messages = [
+    createMessage("one", [
+      launch,
+      poll,
+      launch,
+      createToolPart("tool-TodoWrite", { input: { todos: ["Ship"] } }),
+    ]),
+  ];
+  assert.equal(isTodoListPart(launch), false);
+  const saved = getLatestChatTodoSummary(messages);
+  assert.deepEqual(
+    saved.todos.map((todo) => todo.status),
+    ["pending", "running", "failed"],
+  );
+  const tasks = [
+    { id: "child", title: "Review", status: "completed" },
+    { id: "retry", title: "Retry review", status: "failed" },
+  ] as const;
+  const updated = getLatestChatTodoSummary(messages, [...tasks]);
+  assert.deepEqual(
+    updated.todos.map((todo) => todo.text),
+    ["Ship", "Review the change", "Retry review"],
+  );
+  assert.equal(updated.completedCount, 1);
+  assert.equal(updated.totalCount, 3);
+  assert.equal(getLatestChatTodoSummary([], [...tasks]).totalCount, 2);
+});
+
+test("a status-only page keeps the ID internal and recovers the assignment from the host or a later receipt", () => {
+  const id = "task-deadbeef";
+  const status = createMessage("poll", [
+    createToolPart("tool-task_status", {
+      output: [{ id, status: "failed", error: "Model unavailable" }],
+    }),
+  ]);
+  const launch = createMessage("launch", [
+    createToolPart("tool-delegate_task", {
+      input: { prompt: "Inspect the UI", key: "retry-1", model: "Gemini" },
+      output: { id },
+    }),
+  ]);
+  const saved = getLatestChatTodoSummary([status]).todos[0];
+  assert.equal(saved.text, "");
+  assert.equal(saved.error, "Model unavailable");
+  const recovered = getLatestChatTodoSummary([status, launch]).todos[0];
+  assert.equal(recovered.text, "Inspect the UI");
+  assert.equal(recovered.status, "failed");
+  const host = getLatestChatTodoSummary(
+    [status],
+    [
+      {
+        id,
+        title: "Short title",
+        prompt: "Inspect the UI",
+        model: "Gemini",
+        status: "completed",
+      },
+    ],
+  ).todos[0];
+  assert.equal(host.text, "Inspect the UI");
+  assert.equal(host.description, "Gemini");
+});
+
 test("normalizeChatTodos converts plain strings into pending items", () => {
   assert.deepEqual(normalizeChatTodos(["Write tests", "  ", "Ship it"]), [
     { description: null, id: "todo-0", status: "pending", text: "Write tests" },

@@ -1,9 +1,20 @@
 import type { UIMessage } from "ai";
-import { getToolKind } from "../assistant-message-tools";
+import type { ChatQueueResponse, ChatRunSummary } from "@/lib/api-client";
+import {
+  describeOrchestration,
+  getToolCallSource,
+  getToolKind,
+  isToolLikePart,
+} from "../assistant-message-tools";
 
-export type ChatTodoStatus = "pending" | "inProgress" | "completed";
+export type ChatTodoStatus =
+  | "pending"
+  | "inProgress"
+  | ChatRunSummary["status"];
 
 export interface ChatTodoItem {
+  delegated?: boolean;
+  error?: string | null;
   description: string | null;
   id: string;
   status: ChatTodoStatus;
@@ -461,20 +472,50 @@ const applyTaskUpdate = (todos: ChatTodoItem[], update: TaskUpdate) => {
 
 /** Where the todo list stands after some of a transcript's parts. */
 type TodoFold = {
+  delegated: ChatTodoItem[];
   latestTodos: ChatTodoItem[];
   taskCreateIndex: number;
   taskCreateTodos: ChatTodoItem[];
 };
 
 const EMPTY_TODO_FOLD: TodoFold = {
+  delegated: [],
   latestTodos: [],
   taskCreateIndex: 0,
   taskCreateTodos: [],
 };
 
 const foldMessageTodos = (fold: TodoFold, message: UIMessage): TodoFold => {
-  let { latestTodos, taskCreateIndex, taskCreateTodos } = fold;
+  let { delegated, latestTodos, taskCreateIndex, taskCreateTodos } = fold;
   for (const part of message.parts) {
+    if (isToolLikePart(part) && getToolKind(part) === "orchestration") {
+      const call = describeOrchestration(getToolCallSource(part));
+      for (const row of call.rows) {
+        if (!row.id) continue;
+        const launch = call.operation === "delegate_task";
+        const status = isRunStatus(row.status) ? row.status : undefined;
+        if (!launch && !status) continue;
+        const previous = delegated.find((task) => task.id === row.id);
+        delegated = upsertTodo(delegated, {
+          delegated: true,
+          id: row.id,
+          text:
+            (launch && call.prompt) ||
+            row.prompt ||
+            previous?.text ||
+            row.title ||
+            "",
+          description:
+            (launch && call.model) ||
+            row.model ||
+            previous?.description ||
+            null,
+          status: status ?? previous?.status ?? "queued",
+          error: status ? row.error : previous?.error,
+        });
+      }
+      continue;
+    }
     const taskCreateTodo = getTaskCreateItemFromPart(part, taskCreateIndex);
     if (taskCreateTodo) {
       taskCreateTodos = upsertTodo(taskCreateTodos, taskCreateTodo);
@@ -496,8 +537,20 @@ const foldMessageTodos = (fold: TodoFold, message: UIMessage): TodoFold => {
       taskCreateTodos = [];
     }
   }
-  return { latestTodos, taskCreateIndex, taskCreateTodos };
+  return { delegated, latestTodos, taskCreateIndex, taskCreateTodos };
 };
+
+function isRunStatus(value: string | null): value is ChatRunSummary["status"] {
+  return (
+    value === "queued" ||
+    value === "running" ||
+    value === "waiting" ||
+    value === "completed" ||
+    value === "failed" ||
+    value === "interrupted" ||
+    value === "cancelled"
+  );
+}
 
 // A message's fold, remembered with the fold it started from: the same
 // message after the same history folds the same way.
@@ -508,6 +561,7 @@ const messageTodoFolds = new WeakMap<
 
 export const getLatestChatTodoSummary = (
   messages: UIMessage[],
+  delegatedTasks?: ChatQueueResponse["delegatedTasks"],
 ): ChatTodoSummary => {
   let fold = EMPTY_TODO_FOLD;
   messages.forEach((message, index) => {
@@ -525,19 +579,33 @@ export const getLatestChatTodoSummary = (
     messageTodoFolds.set(message, { after, before: fold });
     fold = after;
   });
-  const { latestTodos } = fold;
+  const delegated = new Map(fold.delegated.map((todo) => [todo.id, todo]));
+  for (const task of delegatedTasks ?? []) {
+    const receipt = delegated.get(task.id);
+    delegated.set(task.id, {
+      delegated: true,
+      id: task.id,
+      description: task.model ?? receipt?.description ?? null,
+      error: task.error ?? receipt?.error,
+      status: task.status,
+      text: task.prompt || receipt?.text || task.title,
+    });
+  }
+  const latestTodos = [...fold.latestTodos, ...delegated.values()];
 
   const completedCount = latestTodos.filter(
     (todo) => todo.status === "completed",
   ).length;
   const currentCount = latestTodos.filter(
-    (todo) => todo.status === "inProgress",
+    (todo) => todo.status === "inProgress" || todo.status === "running",
   ).length;
   const currentTaskIndex = latestTodos.findIndex(
     (todo) => todo.status === "inProgress",
   );
   const currentTaskNumber =
-    currentTaskIndex === -1 ? completedCount : currentTaskIndex + 1;
+    delegated.size > 0 || currentTaskIndex === -1
+      ? completedCount
+      : currentTaskIndex + 1;
 
   return {
     completedCount,

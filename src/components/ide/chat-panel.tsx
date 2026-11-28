@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useStore } from "zustand";
 import dreamSvg from "@/assets/dream.svg";
 import {
   Conversation,
@@ -67,7 +68,7 @@ import {
   getTranscriptWindow,
 } from "./chat/transcript-window";
 import { chatTurnOutcomes, useChatTurnOutcomes } from "./chat-turn-outcome";
-import { useIdeStore } from "./ide-store";
+import { chatQueues, useIdeStore } from "./ide-store";
 import { ProjectBranchFooter } from "./project-status-bar";
 import { RunSavedPromptSubmenu } from "./saved-prompts/run-saved-prompt-submenu";
 import { HostAwayNotice, useHostAway } from "./ssh/host-away-notice";
@@ -261,9 +262,13 @@ export const ChatPanel = ({
   const contextUsedTokens =
     (contextUsage ? getUsageContextTokens(contextUsage) : undefined) ??
     fallbackEstimatedTokens;
+  const delegatedTasks = useStore(
+    chatQueues.views,
+    (views) => views.get(chat.id)?.queue?.delegatedTasks,
+  );
   const todoSummary = useMemo(
-    () => getLatestChatTodoSummary(messages),
-    [messages],
+    () => getLatestChatTodoSummary(messages, delegatedTasks),
+    [messages, delegatedTasks],
   );
 
   // Priced by provider and model (tokenlens).

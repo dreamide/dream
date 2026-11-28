@@ -57,6 +57,8 @@ const isSameQueueView = (previous: QueueView | undefined, next: QueueView) => {
   if (!previous.queue || !next.queue) return false;
   return (
     previous.queue.paused === next.queue.paused &&
+    !previous.queue.delegatedTasks?.length &&
+    !next.queue.delegatedTasks?.length &&
     previous.queue.runs.length === 0 &&
     next.queue.runs.length === 0
   );

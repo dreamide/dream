@@ -229,6 +229,9 @@ export function describeOrchestration({ input, output, toolName }) {
     text: stringOrNull(payload),
     rows: rows.map((row) => ({
       id: stringOrNull(row.id),
+      title: stringOrNull(row.title),
+      prompt: stringOrNull(row.prompt),
+      model: stringOrNull(row.model),
       provider: stringOrNull(row.provider),
       status: stringOrNull(row.status),
       result: stringOrNull(row.result),
