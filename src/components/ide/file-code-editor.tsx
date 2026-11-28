@@ -166,6 +166,17 @@ const getLanguageExtension = (filePath: string): Extension | null => {
   }
 };
 
+const FILE_EDITOR_BASIC_SETUP = {
+  autocompletion: false,
+  bracketMatching: true,
+  closeBrackets: true,
+  foldGutter: false,
+  highlightActiveLine: true,
+  highlightActiveLineGutter: true,
+  highlightSelectionMatches: true,
+  lineNumbers: true,
+} as const;
+
 const FileCodeEditor = ({
   disabled = false,
   filePath,
@@ -182,14 +193,19 @@ const FileCodeEditor = ({
   const translateRef = useRef(t);
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const previousSearchRequestRef = useRef(searchRequest);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const lineEndingRef = useRef(lineEnding);
+  lineEndingRef.current = lineEnding;
   const editorValue = useMemo(
     () => normalizeFileContentForEditor(value, lineEnding),
     [lineEnding, value],
   );
-  const handleChange = useCallback(
-    (content: string) => onChange(serializeEditorContent(content, lineEnding)),
-    [lineEnding, onChange],
-  );
+  // Keep a stable identity across keystrokes so @uiw/react-codemirror does
+  // not dispatch StateEffect.reconfigure of all extensions on every edit.
+  const handleChange = useCallback((content: string) => {
+    onChangeRef.current(serializeEditorContent(content, lineEndingRef.current));
+  }, []);
   const extensions = useMemo(() => {
     const language = getLanguageExtension(filePath);
     return [
@@ -284,16 +300,7 @@ const FileCodeEditor = ({
 
   return (
     <CodeMirror
-      basicSetup={{
-        autocompletion: false,
-        bracketMatching: true,
-        closeBrackets: true,
-        foldGutter: false,
-        highlightActiveLine: true,
-        highlightActiveLineGutter: true,
-        highlightSelectionMatches: true,
-        lineNumbers: true,
-      }}
+      basicSetup={FILE_EDITOR_BASIC_SETUP}
       className="h-full overflow-hidden [&_.cm-editor]:h-full"
       editable={!disabled}
       extensions={extensions}

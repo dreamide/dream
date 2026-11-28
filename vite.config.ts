@@ -30,6 +30,12 @@ export default defineConfig({
       },
     },
   },
+  worker: {
+    // ES module workers allow dynamic Shiki grammar imports inside @pierre/diffs'
+    // worker to code-split on demand instead of inlining all ~300 grammars into
+    // a single monolithic 11 MB IIFE bundle per worker.
+    format: "es",
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,

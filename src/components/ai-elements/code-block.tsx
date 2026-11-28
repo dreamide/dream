@@ -39,15 +39,7 @@ const isUnderline = (fontStyle: number | undefined) =>
   // oxlint-disable-next-line eslint(no-bitwise)
   fontStyle && fontStyle & 4;
 
-// Transform tokens to include pre-computed keys to avoid noArrayIndexKey lint
-interface KeyedToken {
-  token: ThemedToken;
-  key: string;
-}
-interface KeyedLine {
-  tokens: KeyedToken[];
-  key: string;
-}
+const EMPTY_CODE_SEARCH_MATCHES: CodeSearchMatch[] = [];
 
 export interface CodeSearchMatch {
   end: number;
@@ -89,15 +81,6 @@ export const findCodeSearchMatches = (
 
   return matches;
 };
-
-const addKeysToTokens = (lines: ThemedToken[][]): KeyedLine[] =>
-  lines.map((line, lineIdx) => ({
-    key: `line-${lineIdx}`,
-    tokens: line.map((token, tokenIdx) => ({
-      key: `line-${lineIdx}-${tokenIdx}`,
-      token,
-    })),
-  }));
 
 interface TokenSearchSegment {
   key: string;
@@ -206,51 +189,55 @@ const TokenSpan = ({
   );
 };
 
-// Line rendering component
-const LineSpan = ({
-  activeSearchMatchIndex,
-  keyedLine,
-  lineMatches,
-  lineNumber,
-  showLineNumbers,
-}: {
-  activeSearchMatchIndex: number;
-  keyedLine: KeyedLine;
-  lineMatches: CodeSearchMatch[];
-  lineNumber: number;
-  showLineNumbers: boolean;
-}) => {
-  let tokenOffset = 0;
-  const lineContent =
-    keyedLine.tokens.length === 0
-      ? " "
-      : keyedLine.tokens.map(({ token, key }) => {
-          const currentTokenOffset = tokenOffset;
-          tokenOffset += token.content.length;
-          return (
-            <TokenSpan
-              activeSearchMatchIndex={activeSearchMatchIndex}
-              key={key}
-              lineMatches={lineMatches}
-              token={token}
-              tokenOffset={currentTokenOffset}
-            />
-          );
-        });
+// Memoized line component: incremental tokenization keeps committed line arrays
+// referentially stable, so streaming ticks reconcile only changed/new lines.
+const LineSpan = memo(
+  ({
+    activeSearchMatchIndex,
+    lineMatches,
+    lineNumber,
+    showLineNumbers,
+    tokens,
+  }: {
+    activeSearchMatchIndex: number;
+    lineMatches: CodeSearchMatch[];
+    lineNumber: number;
+    showLineNumbers: boolean;
+    tokens: ThemedToken[];
+  }) => {
+    let tokenOffset = 0;
+    const lineContent =
+      tokens.length === 0
+        ? " "
+        : tokens.map((token) => {
+            const currentTokenOffset = tokenOffset;
+            tokenOffset += token.content.length;
+            return (
+              <TokenSpan
+                activeSearchMatchIndex={activeSearchMatchIndex}
+                key={`${currentTokenOffset}:${token.content.length}`}
+                lineMatches={lineMatches}
+                token={token}
+                tokenOffset={currentTokenOffset}
+              />
+            );
+          });
 
-  if (!showLineNumbers) {
-    return <span className="block min-h-[1.5em]">{lineContent}</span>;
-  }
+    if (!showLineNumbers) {
+      return <span className="block min-h-[1.5em]">{lineContent}</span>;
+    }
 
-  return (
-    <span className={LINE_NUMBER_CLASSES}>
-      <span className="select-none text-right font-mono text-surface-500 dark:text-surface-400 tabular-nums">
-        {lineNumber}
+    return (
+      <span className={LINE_NUMBER_CLASSES}>
+        <span className="select-none text-right font-mono text-surface-500 dark:text-surface-400 tabular-nums">
+          {lineNumber}
+        </span>
+        <span className="min-w-0">{lineContent}</span>
       </span>
-      <span className="min-w-0">{lineContent}</span>
-    </span>
-  );
-};
+    );
+  },
+);
+LineSpan.displayName = "LineSpan";
 
 // Types
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
@@ -372,18 +359,40 @@ const getCodeBlockDownloadFilename = (language: string) => {
 };
 
 // Finished results, so remounting a block (switching chats, scrolling a
-// virtualized list) does not tokenize it again. Bounded by total source size.
-const TOKENS_CACHE_MAX_CHARS = 2_000_000;
-const tokensCache = new Map<string, TokenizedCode>();
+// virtualized list) does not tokenize it again. Bounded by source size to keep
+// Shiki's expanded ThemedToken object graphs within a modest heap budget.
+const TOKENS_CACHE_MAX_CHARS = 500_000;
+const tokensCache = new Map<
+  string,
+  { chars: number; tokenized: TokenizedCode }
+>();
 let tokensCacheChars = 0;
 
-// Language ids never contain ":", so full-source keys cannot collide.
+// Compact content-hash key so the cache does not pin duplicate full source strings.
+const hashCodeText = (text: string) => {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 =
+    Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^
+    Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 =
+    Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^
+    Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return `${(h2 >>> 0).toString(36)}-${(h1 >>> 0).toString(36)}`;
+};
+
 const getTokensCacheKey = (code: string, language: string) =>
-  `${language}:${code}`;
+  `${language}:${code.length}:${hashCodeText(code)}`;
 
 const deleteCachedTokens = (key: string) => {
-  if (tokensCache.delete(key)) {
-    tokensCacheChars -= key.length;
+  const existing = tokensCache.get(key);
+  if (existing && tokensCache.delete(key)) {
+    tokensCacheChars -= existing.chars;
   }
 };
 
@@ -393,15 +402,20 @@ const getCachedTokens = (key: string) => {
     // Refresh recency: Map iteration order is insertion order.
     tokensCache.delete(key);
     tokensCache.set(key, cached);
+    return cached.tokenized;
   }
-  return cached;
+  return undefined;
 };
 
-const setCachedTokens = (key: string, tokenized: TokenizedCode) => {
-  if (key.length > TOKENS_CACHE_MAX_CHARS) return;
+const setCachedTokens = (
+  key: string,
+  tokenized: TokenizedCode,
+  chars: number,
+) => {
+  if (chars > TOKENS_CACHE_MAX_CHARS) return;
   deleteCachedTokens(key);
-  tokensCache.set(key, tokenized);
-  tokensCacheChars += key.length;
+  tokensCache.set(key, { chars, tokenized });
+  tokensCacheChars += chars;
   for (const oldestKey of tokensCache.keys()) {
     if (tokensCacheChars <= TOKENS_CACHE_MAX_CHARS) break;
     deleteCachedTokens(oldestKey);
@@ -479,20 +493,20 @@ const useHighlightedTokens = (
 
   // While a block streams, each version extends the last. Replace this
   // block's previous entry instead of caching every partial version.
-  const cachedKeyRef = useRef<string | null>(null);
+  const cachedRef = useRef<{ code: string; key: string } | null>(null);
   useEffect(() => {
     if (!tokenize || !tokenized) return;
-    const previousKey = cachedKeyRef.current;
+    const previous = cachedRef.current;
     if (
-      previousKey &&
-      previousKey !== cacheKey &&
-      cacheKey.startsWith(previousKey)
+      previous &&
+      previous.key !== cacheKey &&
+      code.startsWith(previous.code)
     ) {
-      deleteCachedTokens(previousKey);
+      deleteCachedTokens(previous.key);
     }
-    setCachedTokens(cacheKey, tokenized);
-    cachedKeyRef.current = cacheKey;
-  }, [cacheKey, tokenize, tokenized]);
+    setCachedTokens(cacheKey, tokenized, code.length);
+    cachedRef.current = { code, key: cacheKey };
+  }, [cacheKey, code, tokenize, tokenized]);
 
   return tokenized;
 };
@@ -532,10 +546,6 @@ const CodeBlockBody = memo(
       [tokenized.bg, tokenized.fg],
     );
 
-    const keyedLines = useMemo(
-      () => addKeysToTokens(tokenized.tokens),
-      [tokenized.tokens],
-    );
     const searchMatchesByLine = useMemo(() => {
       const grouped = new Map<number, CodeSearchMatch[]>();
       for (const match of searchMatches) {
@@ -556,16 +566,23 @@ const CodeBlockBody = memo(
         style={preStyle}
       >
         <code className={cn("font-mono !text-[12px]")}>
-          {keyedLines.map((keyedLine, lineIndex) => (
-            <LineSpan
-              activeSearchMatchIndex={activeSearchMatchIndex}
-              key={keyedLine.key}
-              keyedLine={keyedLine}
-              lineMatches={searchMatchesByLine.get(lineIndex) ?? []}
-              lineNumber={startingLineNumber + lineIndex}
-              showLineNumbers={showLineNumbers}
-            />
-          ))}
+          {tokenized.tokens.map((lineTokens, lineIndex) => {
+            const lineNumber = startingLineNumber + lineIndex;
+            const lineMatches =
+              searchMatchesByLine.get(lineIndex) ?? EMPTY_CODE_SEARCH_MATCHES;
+            return (
+              <LineSpan
+                activeSearchMatchIndex={
+                  lineMatches.length > 0 ? activeSearchMatchIndex : -1
+                }
+                key={lineNumber}
+                lineMatches={lineMatches}
+                lineNumber={lineNumber}
+                showLineNumbers={showLineNumbers}
+                tokens={lineTokens}
+              />
+            );
+          })}
         </code>
       </pre>
     );

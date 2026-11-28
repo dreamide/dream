@@ -6,7 +6,29 @@ import {
   getMarkdownBlockStartOffsets,
   StreamingMarkdownBlockContext,
   type StreamingMarkdownBlockContextValue,
+  setActiveStreamingBlockOptions,
 } from "./streaming-message";
+
+type RehypePlugins = NonNullable<BlockProps["rehypePlugins"]>;
+
+// Reuse a single optionless plugin list per base `props.rehypePlugins` so
+// Streamdown's unified processor LRU cache hits on every streaming tick.
+const EMPTY_STREAMING_PLUGINS: RehypePlugins = [dreamStreamingRehypePlugin];
+const streamingPluginsCache = new WeakMap<RehypePlugins, RehypePlugins>();
+
+const getStreamingRehypePlugins = (
+  basePlugins: BlockProps["rehypePlugins"],
+): RehypePlugins => {
+  if (!basePlugins || basePlugins.length === 0) {
+    return EMPTY_STREAMING_PLUGINS;
+  }
+  let cached = streamingPluginsCache.get(basePlugins);
+  if (!cached) {
+    cached = [...basePlugins, dreamStreamingRehypePlugin];
+    streamingPluginsCache.set(basePlugins, cached);
+  }
+  return cached;
+};
 
 type StreamingAnimationLayout = {
   blockStartOffsets: number[];
@@ -70,27 +92,19 @@ const StreamingMarkdownBlock = (props: BlockProps) => {
   const rehypePlugins = useMemo<BlockProps["rehypePlugins"]>(
     () =>
       animatesBlock
-        ? [
-            ...(props.rehypePlugins ?? []),
-            // The per-block offsets are plugin options on purpose: Streamdown
-            // caches processors by plugin name and options, so state captured
-            // in a closure would be shared across blocks. See
-            // dreamStreamingRehypePlugin.
-            [
-              dreamStreamingRehypePlugin,
-              {
-                animationStartOffset: blockAnimationStartOffset,
-                animationTokenStartIndex,
-              },
-            ],
-          ]
+        ? getStreamingRehypePlugins(props.rehypePlugins)
         : props.rehypePlugins,
-    [
-      animatesBlock,
-      animationTokenStartIndex,
-      blockAnimationStartOffset,
-      props.rehypePlugins,
-    ],
+    [animatesBlock, props.rehypePlugins],
+  );
+
+  // Set synchronously before `<Block>` runs its markdown pipeline during render.
+  setActiveStreamingBlockOptions(
+    animatesBlock
+      ? {
+          animationStartOffset: blockAnimationStartOffset,
+          animationTokenStartIndex,
+        }
+      : null,
   );
 
   return <Block {...props} rehypePlugins={rehypePlugins} />;

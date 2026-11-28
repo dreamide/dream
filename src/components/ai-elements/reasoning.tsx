@@ -269,10 +269,12 @@ export const ReasoningContent = memo(
       : renderedChildren.length;
     const markdownAnimationStartOffset = useMemo(
       () =>
-        normalizeCodeFenceLanguageMarkers(
-          renderedChildren.slice(0, rawMarkdownAnimationStartOffset),
-        ).length,
-      [rawMarkdownAnimationStartOffset, renderedChildren],
+        rawMarkdownAnimationStartOffset >= renderedChildren.length
+          ? markdownText.length
+          : normalizeCodeFenceLanguageMarkers(
+              renderedChildren.slice(0, rawMarkdownAnimationStartOffset),
+            ).length,
+      [markdownText.length, rawMarkdownAnimationStartOffset, renderedChildren],
     );
     // Every markdown block consumes this context, so keep it stable while the
     // rendered text and animation are unchanged.

@@ -366,17 +366,28 @@ type UnifiedFile = {
   value?: unknown;
 };
 
-// Streamdown keeps one unified processor per rehype plugin list in a
-// module-level cache keyed by each plugin's function name plus the JSON of its
-// options. Per-block state therefore has to travel as plugin options. A closure
-// over that state is keyed only by its (empty) function name, so the first
-// processor ever built, with the first block's offset, would be served for
-// every block and every later frame, re-animating text that already settled.
-export const dreamStreamingRehypePlugin = ({
-  animationStartOffset,
-  animationTokenStartIndex,
-}: DreamStreamingRehypePluginOptions) => {
+// Active per-block animation offsets read synchronously by the cached
+// rehype transformer during Streamdown's synchronous `processor.runSync` render.
+// Keeping the plugin optionless prevents Streamdown's processor LRU cache from
+// rebuilding a full unified() pipeline on every streaming offset tick.
+let activeStreamingBlockOptions: DreamStreamingRehypePluginOptions | null =
+  null;
+
+export const setActiveStreamingBlockOptions = (
+  options: DreamStreamingRehypePluginOptions | null,
+) => {
+  activeStreamingBlockOptions = options;
+};
+
+export const dreamStreamingRehypePlugin = (
+  options?: DreamStreamingRehypePluginOptions,
+) => {
   return (tree: HastNode, file?: UnifiedFile) => {
+    const resolved = options ?? activeStreamingBlockOptions;
+    if (!resolved) {
+      return;
+    }
+    const { animationStartOffset, animationTokenStartIndex } = resolved;
     const inlineCodeRanges = getInlineCodeRanges(
       typeof file?.value === "string" ? file.value : "",
     );
@@ -1004,11 +1015,13 @@ export const StreamingMessageResponse = ({
     () =>
       renderedText.length > MAX_STREAMDOWN_MARKDOWN_CHARS
         ? 0
-        : normalizeProjectFileLinksInMarkdown(
-            renderedText.slice(0, animationStartOffset),
-            projectPath,
-          ).length,
-    [animationStartOffset, projectPath, renderedText],
+        : animationStartOffset >= renderedText.length
+          ? markdownText.length
+          : normalizeProjectFileLinksInMarkdown(
+              renderedText.slice(0, animationStartOffset),
+              projectPath,
+            ).length,
+    [animationStartOffset, markdownText.length, projectPath, renderedText],
   );
   // Every markdown block consumes this context, so a new value re-renders all
   // of them. Keep it stable while the rendered text and animation are unchanged.

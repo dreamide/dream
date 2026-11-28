@@ -30,7 +30,9 @@ const workersSupported = () => typeof Worker !== "undefined";
 
 const getPoolSize = () => {
   const cores = navigator.hardwareConcurrency || 4;
-  return Math.max(2, Math.min(6, Math.floor(cores / 2)));
+  // Each worker loads its own Shiki + Oniguruma WASM instance; two workers
+  // keep UI diff rendering responsive without multiplying WASM heap 6x.
+  return Math.max(1, Math.min(2, Math.floor(cores / 2)));
 };
 
 const acquire = (): PoolEntry => {
