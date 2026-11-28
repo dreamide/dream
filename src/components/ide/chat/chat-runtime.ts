@@ -503,6 +503,7 @@ const disposeSession = (session: InternalChatSession) => {
     session.evictTimer = null;
   }
   turnFollowing.forget(session.chatId);
+  turnStreams.forget(session.chatId);
   session.unsubscribeMessages();
   flushSession(session);
   session.releaseTranscript();

@@ -49,6 +49,19 @@ interface TrackedQueue {
   controlVersion: number;
 }
 
+const HOST_REFRESH_CONCURRENCY = 6;
+
+const isSameQueueView = (previous: QueueView | undefined, next: QueueView) => {
+  if (!previous || previous.error !== next.error) return false;
+  if (previous.queue === next.queue) return true;
+  if (!previous.queue || !next.queue) return false;
+  return (
+    previous.queue.paused === next.queue.paused &&
+    previous.queue.runs.length === 0 &&
+    next.queue.runs.length === 0
+  );
+};
+
 /** Owns each queue from its first request until its Chat leaves this Host. */
 export const createChatQueues = (
   api: Pick<ApiClient, "chatQueue" | "controlChatQueue">,
@@ -56,6 +69,7 @@ export const createChatQueues = (
   const views = createStore<ReadonlyMap<string, QueueView>>(() => new Map());
   const tracked = new Map<string, TrackedQueue>();
   const hosts = new Map<string, string>();
+  const openChats = new Set<string>();
 
   const track = (chatId: string, expectedHost?: string) => {
     const hostId = hosts.get(chatId);
@@ -69,8 +83,10 @@ export const createChatQueues = (
     return entry;
   };
 
-  const publish = (chatId: string, view: QueueView) =>
+  const publish = (chatId: string, view: QueueView) => {
+    if (isSameQueueView(views.getState().get(chatId), view)) return;
     views.setState((current) => new Map(current).set(chatId, view), true);
+  };
   const reportError = (chatId: string, error: unknown) =>
     publish(chatId, {
       ...views.getState().get(chatId),
@@ -109,9 +125,31 @@ export const createChatQueues = (
     views,
     refresh,
     refreshHost(hostId: string) {
+      const targets: [string, TrackedQueue][] = [];
       for (const [chatId, entry] of tracked) {
-        if (entry.hostId === hostId) void read(chatId, entry);
+        if (entry.hostId !== hostId) continue;
+        // Skip idle closed-project chats (unpaused, empty, no error, settled) on reconnect.
+        const currentView = views.getState().get(chatId);
+        const isIdleClosed =
+          !openChats.has(chatId) &&
+          currentView !== undefined &&
+          !currentView.error &&
+          !currentView.queue?.paused &&
+          (currentView.queue?.runs.length ?? 0) === 0;
+        if (isIdleClosed) {
+          continue;
+        }
+        targets.push([chatId, entry]);
       }
+      if (targets.length === 0) return;
+      let cursor = 0;
+      const runNext = () => {
+        if (cursor >= targets.length) return;
+        const [chatId, entry] = targets[cursor++];
+        void read(chatId, entry).finally(runNext);
+      };
+      const initial = Math.min(HOST_REFRESH_CONCURRENCY, targets.length);
+      for (let i = 0; i < initial; i += 1) runNext();
     },
     async control(input: Parameters<ApiClient["controlChatQueue"]>[0]) {
       const { chatId } = input;
@@ -141,6 +179,9 @@ export const createChatQueues = (
         state.closedProjects === previous.closedProjects
       )
         return;
+      const openProjectIds = new Set(
+        state.projects.map((project) => project.id),
+      );
       const projects = new Map(
         [...state.projects, ...state.closedProjects].map((project) => [
           project.id,
@@ -148,9 +189,13 @@ export const createChatQueues = (
         ]),
       );
       hosts.clear();
+      openChats.clear();
       for (const chat of state.chats) {
         const hostId = projects.get(chat.projectId);
-        if (hostId) hosts.set(chat.id, hostId);
+        if (hostId) {
+          hosts.set(chat.id, hostId);
+          if (openProjectIds.has(chat.projectId)) openChats.add(chat.id);
+        }
       }
 
       const retired: string[] = [];

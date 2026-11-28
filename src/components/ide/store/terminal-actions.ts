@@ -416,9 +416,14 @@ export const createTerminalSessionOwner = (
     followDiscovery: (subscribe: (listener: () => void) => () => void) => {
       if (!isDetached()) return () => {};
       let known = "";
+      let lastProjects: readonly ProjectConfig[] | null = null;
+      let wasHydrated = false;
       const discover = () => {
         const state = get();
         if (!state.stateHydrated) return;
+        if (wasHydrated && state.projects === lastProjects) return;
+        wasHydrated = true;
+        lastProjects = state.projects;
         const key = JSON.stringify(state.projects.map((project) => project.id));
         if (key === known) return;
         known = key;

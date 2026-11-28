@@ -100,28 +100,46 @@ export const createTranscriptCache = (
     let bytes = 0;
     for (const entry of entries.values()) bytes += entry.bytes;
     let messagesByChatId = state.messagesByChatId;
+    let transcriptPageByChatId = state.transcriptPageByChatId;
     for (const [id, entry] of [...entries].sort(
       (a, b) => a[1].used - b[1].used,
     )) {
+      const isClosed = closed(id);
       if (
         protectedChat(id, state) ||
-        !entry.persisted ||
         saves.has(id) ||
-        (!closed(id) &&
-          count <= MAX_TRANSCRIPTS &&
-          bytes <= MAX_TRANSCRIPT_BYTES)
+        (!isClosed && !entry.persisted) ||
+        (!isClosed && count <= MAX_TRANSCRIPTS && bytes <= MAX_TRANSCRIPT_BYTES)
       )
         continue;
       if (messagesByChatId === state.messagesByChatId) {
         messagesByChatId = { ...messagesByChatId };
       }
       delete messagesByChatId[id];
+      if (Object.hasOwn(transcriptPageByChatId, id)) {
+        if (transcriptPageByChatId === state.transcriptPageByChatId) {
+          transcriptPageByChatId = { ...transcriptPageByChatId };
+        }
+        delete transcriptPageByChatId[id];
+      }
       entries.delete(id);
       loads.delete(id);
       count--;
       bytes -= entry.bytes;
     }
-    if (messagesByChatId !== state.messagesByChatId) set({ messagesByChatId });
+    if (
+      messagesByChatId !== state.messagesByChatId ||
+      transcriptPageByChatId !== state.transcriptPageByChatId
+    ) {
+      set({
+        ...(messagesByChatId !== state.messagesByChatId
+          ? { messagesByChatId }
+          : {}),
+        ...(transcriptPageByChatId !== state.transcriptPageByChatId
+          ? { transcriptPageByChatId }
+          : {}),
+      });
+    }
   };
 
   const schedulePrune = () => {
@@ -173,7 +191,8 @@ export const createTranscriptCache = (
           // Approximate UTF-16 payload size, not a claim about total JS heap.
           bytes: estimateBytes(messages),
           used: ++clock,
-          persisted: false,
+          // An empty draft holds no unsaved messages and should not pin a slot.
+          persisted: messages.length === 0,
         });
       }
     }
@@ -239,28 +258,40 @@ export const createTranscriptCache = (
               messages,
               previousMessages ?? [],
             );
+            const nextCount = page?.total ?? messages.length;
+            const currentChat = state.chats.find((chat) => chat.id === id);
             set({
               messagesByChatId: { ...state.messagesByChatId, [id]: retained },
               transcriptPageByChatId: {
                 ...state.transcriptPageByChatId,
                 [id]: {
                   before: page?.before ?? null,
-                  total: page?.total ?? messages.length,
+                  total: nextCount,
                 },
               },
-              chats: state.chats.map((chat) =>
-                chat.id === id
-                  ? { ...chat, messageCount: page?.total ?? messages.length }
-                  : chat,
-              ),
+              ...(currentChat && currentChat.messageCount !== nextCount
+                ? {
+                    chats: state.chats.map((chat) =>
+                      chat.id === id
+                        ? { ...chat, messageCount: nextCount }
+                        : chat,
+                    ),
+                  }
+                : {}),
             });
           } else if (previousMessages === undefined) {
+            const nextCount = messages.length;
+            const currentChat = state.chats.find((chat) => chat.id === id);
             set({
-              chats: state.chats.map((chat) =>
-                chat.id === id
-                  ? { ...chat, messageCount: messages.length }
-                  : chat,
-              ),
+              ...(currentChat && currentChat.messageCount !== nextCount
+                ? {
+                    chats: state.chats.map((chat) =>
+                      chat.id === id
+                        ? { ...chat, messageCount: nextCount }
+                        : chat,
+                    ),
+                  }
+                : {}),
               messagesByChatId: { ...state.messagesByChatId, [id]: messages },
             });
           } else {

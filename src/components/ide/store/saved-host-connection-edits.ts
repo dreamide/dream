@@ -1,9 +1,11 @@
 // Saved connection edits own verification, publication and retirement. An
 // accepted edit or removal invalidates older verification; transports and
 // catalog recovery remain with host-actions and the connection runtime.
+import { forgetCatalogEventsClient } from "@/lib/catalog-events";
 import { connectionSupervisor } from "@/lib/connections/runtime";
 import { getDesktopApi } from "@/lib/electron";
 import { forgetHostSocketClient } from "@/lib/host-socket";
+import { terminalClient } from "@/lib/terminal-client";
 import type {
   HostRoute,
   SavedHostConnection,
@@ -276,6 +278,8 @@ export const createSavedHostConnectionEdits = (
         );
         // Out of this window only: the host's catalog is not told.
         catalogBaselines.forget(hostId);
+        forgetCatalogEventsClient(hostId);
+        terminalClient.forgetHost(hostId);
         forgetHostSocketClient(hostId);
         connectionSupervisor.forget(hostId);
         set((state) => {

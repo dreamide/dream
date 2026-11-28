@@ -1,24 +1,40 @@
 import type { UIMessage } from "ai";
 import { preserveAskUserQuestionAnswers } from "./chat/ask-user-question-answers";
 
+const partTextLengthCache = new WeakMap<UIMessage["parts"][number], number>();
+const messageScoreCache = new WeakMap<UIMessage, number>();
+
 const getPartTextLength = (part: UIMessage["parts"][number]) => {
+  const cached = partTextLengthCache.get(part);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  let length = 0;
   if ("text" in part && typeof part.text === "string") {
-    return part.text.length;
+    length = part.text.length;
+  } else if ("output" in part && part.output !== undefined) {
+    length = JSON.stringify(part.output).length;
+  } else if ("input" in part && part.input !== undefined) {
+    length = JSON.stringify(part.input).length;
   }
 
-  if ("output" in part && part.output !== undefined) {
-    return JSON.stringify(part.output).length;
-  }
-
-  if ("input" in part && part.input !== undefined) {
-    return JSON.stringify(part.input).length;
-  }
-
-  return 0;
+  partTextLengthCache.set(part, length);
+  return length;
 };
 
-const getMessageScore = (message: UIMessage) =>
-  message.parts.reduce((score, part) => score + 1 + getPartTextLength(part), 0);
+const getMessageScore = (message: UIMessage) => {
+  const cached = messageScoreCache.get(message);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const score = message.parts.reduce(
+    (total, part) => total + 1 + getPartTextLength(part),
+    0,
+  );
+  messageScoreCache.set(message, score);
+  return score;
+};
 
 const getMessageText = (message: UIMessage) =>
   message.parts
@@ -40,6 +56,10 @@ const isDuplicateUserMessage = (
   getMessageText(previous) === getMessageText(next);
 
 const canReplaceMessage = (previous: UIMessage, next: UIMessage) => {
+  if (previous === next) {
+    return true;
+  }
+
   if (isSameMessageIdentity(previous, next)) {
     return getMessageScore(next) >= getMessageScore(previous);
   }
@@ -93,12 +113,17 @@ const mergeMessageHistoriesByContent = (
 
   let changed = false;
   const mergedMessages = [...previousMessages];
+  const indexById = new Map<string, number>();
+  for (let i = 0; i < mergedMessages.length; i += 1) {
+    const id = mergedMessages[i].id;
+    if (!indexById.has(id)) {
+      indexById.set(id, i);
+    }
+  }
 
   for (let index = 0; index < nextMessages.length; index++) {
     const nextMessage = nextMessages[index];
-    const existingIndex = mergedMessages.findIndex(
-      (message) => message.id === nextMessage.id,
-    );
+    const existingIndex = indexById.get(nextMessage.id) ?? -1;
 
     if (existingIndex !== -1) {
       const previousMessage = mergedMessages[existingIndex];
@@ -115,13 +140,20 @@ const mergeMessageHistoriesByContent = (
         continue;
       }
 
+      indexById.set(nextMessage.id, mergedMessages.length);
       mergedMessages.push(nextMessage);
       changed = true;
       continue;
     }
 
     if (canReplaceMessage(previousMessage, nextMessage)) {
+      if (indexById.get(previousMessage.id) === index) {
+        indexById.delete(previousMessage.id);
+      }
       mergedMessages[index] = nextMessage;
+      if (!indexById.has(nextMessage.id)) {
+        indexById.set(nextMessage.id, index);
+      }
       changed = changed || previousMessage !== nextMessage;
     }
   }

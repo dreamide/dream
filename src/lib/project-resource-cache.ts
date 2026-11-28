@@ -109,6 +109,8 @@ const entryId = (key: ResourceKey) =>
     ),
   )}`;
 
+const MAX_IDLE_ENTRIES = 128;
+
 export const createProjectResourceCache = <Kind extends string>({
   getVersion,
   now = Date.now,
@@ -119,10 +121,52 @@ export const createProjectResourceCache = <Kind extends string>({
   specs: Record<Kind, ResourceSpec>;
 }) => {
   const entries = new Map<string, Entry>();
+  const entriesByScope = new Map<string, Map<string, Entry>>();
+  const entryAccessOrder = new Map<string, number>();
+  let accessClock = 0;
   /** Per kind with a limit: loads running, and loads waiting to start. */
   const lanes = new Map<string, { running: number; waiting: (() => void)[] }>();
 
   const specOf = (key: ResourceKey): ResourceSpec => specs[key.kind as Kind];
+
+  const deleteEntry = (entry: Entry) => {
+    entries.delete(entry.id);
+    entryAccessOrder.delete(entry.id);
+    const sId = scopeId(entry.key);
+    const bucket = entriesByScope.get(sId);
+    if (bucket) {
+      bucket.delete(entry.id);
+      if (bucket.size === 0) entriesByScope.delete(sId);
+    }
+  };
+
+  const touchEntry = (entry: Entry) => {
+    entryAccessOrder.set(entry.id, ++accessClock);
+  };
+
+  const evictIdleEntries = () => {
+    let idleCount = 0;
+    for (const entry of entries.values()) {
+      if (entry.listeners.size === 0 && entry.pending === null) {
+        idleCount += 1;
+      }
+    }
+    if (idleCount <= MAX_IDLE_ENTRIES) return;
+    const candidates: Entry[] = [];
+    for (const entry of entries.values()) {
+      if (entry.listeners.size === 0 && entry.pending === null) {
+        candidates.push(entry);
+      }
+    }
+    candidates.sort(
+      (a, b) =>
+        (entryAccessOrder.get(a.id) ?? 0) - (entryAccessOrder.get(b.id) ?? 0),
+    );
+    const excess = candidates.length - MAX_IDLE_ENTRIES;
+    for (let i = 0; i < excess; i += 1) {
+      deleteEntry(candidates[i]);
+    }
+  };
 
   /** Starts a load now, or when its kind has room (`maxConcurrentLoads`). */
   const load = (key: ResourceKey): Promise<unknown> => {
@@ -184,6 +228,17 @@ export const createProjectResourceCache = <Kind extends string>({
         version: null,
       };
       entries.set(id, entry);
+      const sId = scopeId(entry.key);
+      let bucket = entriesByScope.get(sId);
+      if (!bucket) {
+        bucket = new Map();
+        entriesByScope.set(sId, bucket);
+      }
+      bucket.set(id, entry);
+      touchEntry(entry);
+      evictIdleEntries();
+    } else {
+      touchEntry(entry);
     }
     return entry;
   };
@@ -220,11 +275,12 @@ export const createProjectResourceCache = <Kind extends string>({
     const spec = specOf(entry.key);
     if (!spec.serves || !spec.serve) return null;
     const want = entry.key.params ?? EMPTY_PARAMS;
-    for (const other of entries.values()) {
+    const bucket = entriesByScope.get(scopeId(entry.key));
+    if (!bucket) return null;
+    for (const other of bucket.values()) {
       if (
         other === entry ||
         other.key.kind !== entry.key.kind ||
-        scopeId(other.key) !== scopeId(entry.key) ||
         !spec.serves(other.key.params ?? EMPTY_PARAMS, want)
       ) {
         continue;
@@ -335,6 +391,10 @@ export const createProjectResourceCache = <Kind extends string>({
         unsubscribe: () => {
           setActive(false);
           entry.listeners.delete(listener);
+          if (entry.listeners.size === 0 && entry.pending === null) {
+            touchEntry(entry);
+            evictIdleEntries();
+          }
         },
       };
     },
@@ -344,9 +404,10 @@ export const createProjectResourceCache = <Kind extends string>({
      * and those being shown are read again.
      */
     invalidate: (scope: ProjectScope, group: ResourceGroup) => {
-      const id = scopeId(scope);
-      for (const entry of entries.values()) {
-        if (scopeId(entry.key) !== id || specOf(entry.key).group !== group) {
+      const bucket = entriesByScope.get(scopeId(scope));
+      if (!bucket) return;
+      for (const entry of bucket.values()) {
+        if (specOf(entry.key).group !== group) {
           continue;
         }
         if (entry.activeCount > 0 && !isFresh(entry)) {
@@ -377,19 +438,41 @@ export const createProjectResourceCache = <Kind extends string>({
 
     /** Expires selected kinds on one project, including reads before a write. */
     expireScope: (scope: ProjectScope, kinds: readonly Kind[]) => {
-      const id = scopeId(scope);
-      for (const entry of entries.values()) {
-        if (
-          scopeId(entry.key) === id &&
-          kinds.includes(entry.key.kind as Kind)
-        ) {
+      const bucket = entriesByScope.get(scopeId(scope));
+      if (!bucket) return;
+      for (const entry of bucket.values()) {
+        if (kinds.includes(entry.key.kind as Kind)) {
           cache.expire(entry.key);
         }
       }
     },
 
+    /** Drops cached entries for a closed or removed project scope. */
+    dropScope: (scope: ProjectScope) => {
+      const bucket = entriesByScope.get(scopeId(scope));
+      if (!bucket) return;
+      for (const entry of [...bucket.values()]) {
+        if (entry.listeners.size > 0) continue;
+        entry.pending = null;
+        deleteEntry(entry);
+      }
+    },
+
+    /** Drops cached entries belonging to a forgotten host. */
+    dropHost: (hostId: string) => {
+      for (const entry of [...entries.values()]) {
+        if (entry.key.hostId !== hostId || entry.listeners.size > 0) continue;
+        entry.pending = null;
+        deleteEntry(entry);
+      }
+    },
+
     /** Drops everything (tests, sign-out). */
-    clear: () => entries.clear(),
+    clear: () => {
+      entries.clear();
+      entriesByScope.clear();
+      entryAccessOrder.clear();
+    },
   };
   return cache;
 };

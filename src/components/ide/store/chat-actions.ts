@@ -275,8 +275,17 @@ export const createChatActions = (
       })
       .map((chat) => chat.id);
 
-    for (const chatId of chatIds) {
-      get().deleteChat(chatId);
+    if (chatIds.length) {
+      const doc = workspace.archiveChats(
+        state,
+        state.settings,
+        new Set(chatIds),
+      );
+      void commitWorkspaceRemoval(
+        set,
+        terminals,
+        workspace.removalBetween(state, doc),
+      );
     }
 
     return chatIds.length;
@@ -364,36 +373,46 @@ export const createChatActions = (
       );
 
       // A draft stops being one once it has messages.
-      const nextDraftChatIdByProject = { ...state.draftChatIdByProject };
-      if (
+      const clearsDraft =
         mergedMessages.length > 0 &&
-        nextDraftChatIdByProject[chat.projectId] === chatId
-      ) {
-        nextDraftChatIdByProject[chat.projectId] = null;
-      }
+        state.draftChatIdByProject[chat.projectId] === chatId;
+      const nextMessageCount = state.transcriptPageByChatId[chatId]?.before
+        ? Math.max(
+            state.transcriptPageByChatId[chatId].total,
+            mergedMessages.length,
+          )
+        : mergedMessages.length;
+      const updatesChatRow =
+        chat.messageCount !== nextMessageCount || touchUpdatedAt;
 
       return {
-        draftChatIdByProject: nextDraftChatIdByProject,
+        ...(clearsDraft
+          ? {
+              draftChatIdByProject: {
+                ...state.draftChatIdByProject,
+                [chat.projectId]: null,
+              },
+            }
+          : {}),
         messagesByChatId: {
           ...state.messagesByChatId,
           [chatId]: mergedMessages,
         },
-        chats: state.chats.map((item) =>
-          item.id === chatId
-            ? {
-                ...item,
-                messageCount: state.transcriptPageByChatId[chatId]?.before
-                  ? Math.max(
-                      state.transcriptPageByChatId[chatId].total,
-                      mergedMessages.length,
-                    )
-                  : mergedMessages.length,
-                ...(touchUpdatedAt
-                  ? { updatedAt: new Date().toISOString() }
-                  : {}),
-              }
-            : item,
-        ),
+        ...(updatesChatRow
+          ? {
+              chats: state.chats.map((item) =>
+                item.id === chatId
+                  ? {
+                      ...item,
+                      messageCount: nextMessageCount,
+                      ...(touchUpdatedAt
+                        ? { updatedAt: new Date().toISOString() }
+                        : {}),
+                    }
+                  : item,
+              ),
+            }
+          : {}),
       };
     });
   },

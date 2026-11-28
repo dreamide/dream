@@ -7,6 +7,8 @@ import {
   subscribeToProviderSkills,
 } from "./provider-skills";
 
+const EMPTY_SKILLS: ProviderSkill[] = [];
+
 /**
  * Skills the selected provider can invoke for this project on its Host.
  * Loaded lazily (`enabled`) because Codex discovery starts its app-server.
@@ -25,15 +27,20 @@ export const useProviderSkills = ({
 }) => {
   const scope = useMemo(() => ({ hostId, projectPath }), [hostId, projectPath]);
   const [skills, setSkills] = useState<ProviderSkill[]>(
-    () => getCachedProviderSkills(provider, scope)?.skills ?? [],
+    () => getCachedProviderSkills(provider, scope)?.skills ?? EMPTY_SKILLS,
   );
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    setSkills(getCachedProviderSkills(provider, scope)?.skills ?? []);
-    return subscribeToProviderSkills(() => {
-      setSkills(getCachedProviderSkills(provider, scope)?.skills ?? []);
-    });
+    setSkills(getCachedProviderSkills(provider, scope)?.skills ?? EMPTY_SKILLS);
+    return subscribeToProviderSkills(
+      () => {
+        setSkills(
+          getCachedProviderSkills(provider, scope)?.skills ?? EMPTY_SKILLS,
+        );
+      },
+      { provider, scope },
+    );
   }, [provider, scope]);
 
   useEffect(() => {

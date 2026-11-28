@@ -43,6 +43,12 @@ export interface ConnectionState {
   since: number;
 }
 
+const OFFLINE_CONNECTION_STATE: ConnectionState = Object.freeze({
+  error: null,
+  since: 0,
+  status: "offline",
+});
+
 /** What one request found out about its host. */
 export type RequestOutcome = "ok" | "unauthorized" | "unreachable";
 
@@ -96,7 +102,7 @@ export const createConnectionSupervisor = ({
   return {
     /** The host's state; `offline` for one never seen. */
     get: (hostId: string): ConnectionState =>
-      states.get(hostId) ?? { error: null, since: 0, status: "offline" },
+      states.get(hostId) ?? OFFLINE_CONNECTION_STATE,
 
     /** Calls `listener` with each change; returns its removal. */
     subscribe(listener: (hostId: string, state: ConnectionState) => void) {

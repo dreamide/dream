@@ -99,10 +99,17 @@ const updateUi = (
   projects: ProjectConfig[],
   projectId: string,
   update: (ui: ProjectUiState) => ProjectUiState,
-) =>
-  projects.map((project) =>
-    project.id === projectId ? { ...project, ui: update(project.ui) } : project,
-  );
+) => {
+  let changed = false;
+  const next = projects.map((project) => {
+    if (project.id !== projectId) return project;
+    const nextUi = update(project.ui);
+    if (nextUi === project.ui) return project;
+    changed = true;
+    return { ...project, ui: nextUi };
+  });
+  return changed ? next : projects;
+};
 
 const sameRecord = (
   left: Record<string, unknown>,
@@ -265,20 +272,21 @@ const withHost = (project: Record<string, unknown>, hostId: string) =>
  * Takes a chat out of a project's open chats. When it was the active one,
  * the open chat that took its place (else the one before it) becomes active.
  */
-const withoutOpenChat = (
+const withoutOpenChats = (
   ui: ProjectUiState,
-  chatId: string,
+  archived: ReadonlySet<string>,
 ): ProjectUiState => {
-  const index = ui.openChatIds.indexOf(chatId);
-  const openChatIds = ui.openChatIds.filter((openId) => openId !== chatId);
-  return {
-    ...ui,
-    activeChatId:
-      ui.activeChatId === chatId
-        ? (openChatIds[index] ?? openChatIds[index - 1] ?? null)
-        : ui.activeChatId,
-    openChatIds,
-  };
+  const openChatIds = ui.openChatIds.filter((id) => !archived.has(id));
+  if (openChatIds.length === ui.openChatIds.length) return ui;
+  let activeChatId = ui.activeChatId;
+  if (activeChatId && archived.has(activeChatId)) {
+    const index = ui.openChatIds.indexOf(activeChatId);
+    activeChatId =
+      ui.openChatIds.slice(index + 1).find((id) => !archived.has(id)) ??
+      openChatIds.at(-1) ??
+      null;
+  }
+  return { ...ui, activeChatId, openChatIds };
 };
 
 /** Shows one chat alone: the single-column focus. */
@@ -1189,36 +1197,54 @@ export const toggleMultiChat = (
     settings,
   );
 
-/**
- * Soft-deletes a chat. Where it was showing, the neighbouring open chat
- * takes its place; a project left with no live chat gets a fresh one.
- */
+/** Archives a chat and the delegated tasks nested beneath it in history. */
 export const deleteChat = (
   doc: WorkspaceDocument,
   settings: AppSettings,
   chatId: string,
 ): WorkspaceDocument => {
-  const chat = doc.chats.find((item) => item.id === chatId);
-  if (!chat) {
-    return doc;
+  if (!doc.chats.some((chat) => chat.id === chatId)) return doc;
+
+  const children = new Map<string, string[]>();
+  for (const chat of doc.chats) {
+    if (!chat.delegatedByChatId) continue;
+    const siblings = children.get(chat.delegatedByChatId);
+    if (siblings) siblings.push(chat.id);
+    else children.set(chat.delegatedByChatId, [chat.id]);
   }
 
-  const deletedAt = new Date().toISOString();
-  const withoutChat = (ui: ProjectUiState) => withoutOpenChat(ui, chatId);
-  const draftChatIdByProject =
-    doc.draftChatIdByProject[chat.projectId] === chatId
-      ? { ...doc.draftChatIdByProject, [chat.projectId]: null }
-      : doc.draftChatIdByProject;
+  const chatIds = new Set([chatId]);
+  for (const id of chatIds) {
+    for (const child of children.get(id) ?? []) chatIds.add(child);
+  }
+  return archiveChats(doc, settings, chatIds);
+};
 
+/** Soft-deletes the selected chats, settling focus once for the whole batch. */
+export const archiveChats = (
+  doc: WorkspaceDocument,
+  settings: AppSettings,
+  chatIds: ReadonlySet<string>,
+): WorkspaceDocument => {
+  const deletedAt = new Date().toISOString();
+  const draftChatIdByProject = { ...doc.draftChatIdByProject };
+  const chats = doc.chats.map((chat) => {
+    if (!chatIds.has(chat.id) || chat.deletedAt !== null) return chat;
+    if (draftChatIdByProject[chat.projectId] === chat.id)
+      draftChatIdByProject[chat.projectId] = null;
+    return { ...chat, deletedAt };
+  });
+  const closeColumns = (project: ProjectConfig) => {
+    const ui = withoutOpenChats(project.ui, chatIds);
+    return ui === project.ui ? project : { ...project, ui };
+  };
   return settle(
     {
       ...doc,
-      chats: doc.chats.map((item) =>
-        item.id === chatId ? { ...item, deletedAt } : item,
-      ),
-      closedProjects: updateUi(doc.closedProjects, chat.projectId, withoutChat),
+      chats,
+      closedProjects: doc.closedProjects.map(closeColumns),
       draftChatIdByProject,
-      projects: updateUi(doc.projects, chat.projectId, withoutChat),
+      projects: doc.projects.map(closeColumns),
     },
     settings,
   );
@@ -1246,7 +1272,7 @@ export const closeChatColumn = (
     {
       ...doc,
       projects: updateUi(doc.projects, projectId, (ui) =>
-        withoutOpenChat(ui, chatId),
+        withoutOpenChats(ui, new Set([chatId])),
       ),
     },
     settings,

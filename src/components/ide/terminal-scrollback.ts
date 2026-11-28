@@ -65,6 +65,9 @@ const appendToBuffer = (buffer: TerminalScrollbackBuffer, chunk: string) => {
       return;
     }
 
+    // Clear the discarded slot immediately so large chunks become GC-eligible
+    // before the 1,024-slot array compaction triggers.
+    buffer.chunks[buffer.firstChunkIndex] = "";
     buffer.firstChunkIndex += 1;
     buffer.firstChunkOffset = 0;
     buffer.length -= availableCharacters;

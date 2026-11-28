@@ -34,6 +34,7 @@ import {
   type ResourceSpec,
 } from "@/lib/project-resource-cache";
 import type {
+  ProjectConfig,
   ProjectGitBranchesResponse,
   ProjectGitChangeStatus,
   ProjectGitDiffResponse,
@@ -171,16 +172,49 @@ const REFRESH_KEYS = {
   git: "projectGitRefreshKeys",
 } as const;
 
+/** Cached scope -> projectId index rebuilt only when project lists change. */
+let cachedOpenProjects: readonly ProjectConfig[] | null = null;
+let cachedClosedProjects: readonly ProjectConfig[] | null = null;
+let projectIdByScopeKey = new Map<string, string>();
+let projectById = new Map<string, ProjectConfig>();
+
+const scopeLookupKey = (hostId: string, projectPath: string) =>
+  `${hostId}\0${normalizeProjectPathKey(projectPath)}`;
+
+const syncProjectIndexes = () => {
+  const { projects, closedProjects } = useIdeStore.getState();
+  if (
+    projects === cachedOpenProjects &&
+    closedProjects === cachedClosedProjects
+  ) {
+    return;
+  }
+  cachedOpenProjects = projects;
+  cachedClosedProjects = closedProjects;
+  const nextScopeMap = new Map<string, string>();
+  const nextIdMap = new Map<string, ProjectConfig>();
+  for (const project of projects) {
+    nextIdMap.set(project.id, project);
+    nextScopeMap.set(
+      scopeLookupKey(projectScope(project).hostId, project.path),
+      project.id,
+    );
+  }
+  for (const project of closedProjects) {
+    nextIdMap.set(project.id, project);
+    const key = scopeLookupKey(projectScope(project).hostId, project.path);
+    if (!nextScopeMap.has(key)) nextScopeMap.set(key, project.id);
+  }
+  projectIdByScopeKey = nextScopeMap;
+  projectById = nextIdMap;
+};
+
 /** The store's project at `scope`, open or closed. */
 const findProjectId = (scope: ProjectScope) => {
-  const state = useIdeStore.getState();
-  const pathKey = normalizeProjectPathKey(scope.projectPath);
+  syncProjectIndexes();
   return (
-    [...state.projects, ...state.closedProjects].find(
-      (project) =>
-        normalizeProjectPathKey(project.path) === pathKey &&
-        projectScope(project).hostId === scope.hostId,
-    )?.id ?? null
+    projectIdByScopeKey.get(scopeLookupKey(scope.hostId, scope.projectPath)) ??
+    null
   );
 };
 
@@ -196,22 +230,37 @@ export const projectResources = createProjectResourceCache({
   specs,
 });
 
-// A bumped refresh key invalidates that project's resources of its group.
+// A bumped refresh key invalidates that project's resources of its group,
+// and closing a project drops its unsubscribed cached payloads.
 // Started on first use, not at import: the store may still be loading then.
 let watching = false;
 const watchRefreshKeys = () => {
   if (watching) return;
   watching = true;
   useIdeStore.subscribe((state, previous) => {
+    if (state.hosts !== previous.hosts) {
+      for (const hostId of Object.keys(previous.hosts)) {
+        if (!Object.hasOwn(state.hosts, hostId)) {
+          projectResources.dropHost(hostId);
+        }
+      }
+    }
+    if (state.projects !== previous.projects) {
+      const openIds = new Set(state.projects.map((project) => project.id));
+      for (const project of previous.projects) {
+        if (!openIds.has(project.id)) {
+          projectResources.dropScope(projectScope(project));
+        }
+      }
+    }
     for (const group of ["git", "files"] as const) {
       const keys = state[REFRESH_KEYS[group]];
       const previousKeys = previous[REFRESH_KEYS[group]];
       if (keys === previousKeys) continue;
+      syncProjectIndexes();
       for (const [projectId, version] of Object.entries(keys)) {
         if (previousKeys[projectId] === version) continue;
-        const project = [...state.projects, ...state.closedProjects].find(
-          (item) => item.id === projectId,
-        );
+        const project = projectById.get(projectId);
         if (!project) continue;
         projectResources.invalidate(projectScope(project), group);
       }

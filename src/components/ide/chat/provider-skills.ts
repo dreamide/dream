@@ -17,8 +17,9 @@ type SkillCacheEntry = {
 };
 
 const SKILL_CACHE_TTL_MS = 30_000;
+const MAX_SKILL_CACHE_ENTRIES = 64;
 const skillCache = new Map<string, SkillCacheEntry>();
-const skillCacheListeners = new Set<() => void>();
+const skillCacheListeners = new Set<(changedKey: string | null) => void>();
 
 // The same path on two Hosts is two projects, with two catalogs.
 const cacheKey = (
@@ -26,17 +27,38 @@ const cacheKey = (
   { hostId, projectPath }: ProjectScope,
 ) => `${provider}\0${hostId}\0${projectPath}`;
 
-const notifySkillCacheListeners = () => {
+const notifySkillCacheListeners = (changedKey: string | null) => {
   for (const listener of skillCacheListeners) {
-    listener();
+    listener(changedKey);
   }
 };
 
-export const subscribeToProviderSkills = (listener: () => void) => {
-  skillCacheListeners.add(listener);
-  return () => {
-    skillCacheListeners.delete(listener);
+export const subscribeToProviderSkills = (
+  listener: () => void,
+  filter?: { provider: AiProvider; scope: ProjectScope },
+) => {
+  const expectedKey = filter ? cacheKey(filter.provider, filter.scope) : null;
+  const wrapped = (changedKey: string | null) => {
+    if (
+      expectedKey === null ||
+      changedKey === null ||
+      changedKey === expectedKey
+    ) {
+      listener();
+    }
   };
+  skillCacheListeners.add(wrapped);
+  return () => {
+    skillCacheListeners.delete(wrapped);
+  };
+};
+
+const pruneSkillCache = () => {
+  if (skillCache.size <= MAX_SKILL_CACHE_ENTRIES) return;
+  for (const [key, entry] of skillCache) {
+    if (skillCache.size <= MAX_SKILL_CACHE_ENTRIES) break;
+    if (!entry.pending) skillCache.delete(key);
+  }
 };
 
 export const getCachedProviderSkills = (
@@ -86,12 +108,14 @@ export const fetchProviderSkills = async (
     value: cached?.value ?? null,
   });
   const value = await pending;
+  skillCache.delete(key);
   skillCache.set(key, { at: Date.now(), pending: null, value });
-  notifySkillCacheListeners();
+  pruneSkillCache();
+  notifySkillCacheListeners(key);
   return value;
 };
 
 export const invalidateProviderSkills = () => {
   skillCache.clear();
-  notifySkillCacheListeners();
+  notifySkillCacheListeners(null);
 };

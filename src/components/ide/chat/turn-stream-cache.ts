@@ -32,6 +32,8 @@ export interface TurnResumeCursor {
 
 export class TurnStreamMismatchError extends Error {}
 
+const MAX_KEPT_TURN_BYTES = 16 * 1024 * 1024;
+
 export function createTurnStreamCache() {
   const kept = new Map<string, KeptTurn>();
 
@@ -120,8 +122,13 @@ export function createTurnStreamCache() {
             return;
           }
           if (kept.get(chatId) === entry) {
-            entry.chunks.push(value);
-            entry.length += value.length;
+            if (entry.length + value.length <= MAX_KEPT_TURN_BYTES) {
+              entry.chunks.push(value);
+              entry.length += value.length;
+            } else {
+              // Stop buffering oversized turns; reconnect falls back to full replay.
+              kept.delete(chatId);
+            }
           }
           controller.enqueue(value);
         } catch (error) {

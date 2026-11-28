@@ -185,7 +185,10 @@ export const createMultiHostTerminalClient = (
       hostId,
       socket: getHostSocketClient(hostId),
     }),
-): TerminalClient & { forHost(hostId: string): TerminalClient } => {
+): TerminalClient & {
+  forHost(hostId: string): TerminalClient;
+  forgetHost(hostId: string): void;
+} => {
   const clients = new Map<string, TerminalClient>();
   const dataListeners = new Map<
     (event: TerminalDataEvent) => void,
@@ -214,8 +217,22 @@ export const createMultiHostTerminalClient = (
     forHost(resolveRequestHost({ sessionId }));
   forHost(LOCAL_HOST_ID);
 
+  const forgetHost = (hostId: string) => {
+    if (hostId === LOCAL_HOST_ID) return;
+    clients.delete(hostId);
+    for (const removers of dataListeners.values()) {
+      removers.get(hostId)?.();
+      removers.delete(hostId);
+    }
+    for (const removers of statusListeners.values()) {
+      removers.get(hostId)?.();
+      removers.delete(hostId);
+    }
+  };
+
   return {
     forHost,
+    forgetHost,
     detectShells: () => forHost(LOCAL_HOST_ID).detectShells(),
     start: (payload) => forSession(payload.sessionId).start(payload),
     stop: (sessionId) => forSession(sessionId).stop(sessionId),

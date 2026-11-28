@@ -18,6 +18,7 @@
  * with main's reports.
  */
 
+import { forgetCatalogEventsClient } from "@/lib/catalog-events";
 import {
   connectionRecovery,
   connectionSupervisor,
@@ -26,6 +27,7 @@ import type { ConnectionStatus } from "@/lib/connections/supervisor";
 import { desktopErrorMessage, getDesktopApi } from "@/lib/electron";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import { forgetHostSocketClient } from "@/lib/host-socket";
+import { terminalClient } from "@/lib/terminal-client";
 import type {
   HostConnectionState,
   HostRefusal,
@@ -220,8 +222,11 @@ export const createHostActions = (
           if (merged) {
             await desktopApi.disconnectHost(hostId);
             catalogBaselines.forget(hostId);
+            forgetCatalogEventsClient(hostId);
+            terminalClient.forgetHost(hostId);
             forgetHostSocketClient(hostId);
             connectionSupervisor.forget(hostId);
+            stopped.delete(hostId);
             await merged.refresh();
             return false;
           }

@@ -12,8 +12,20 @@ const getProjectIconCacheKey = (
 // Object URLs are cached across mounts so a tab icon that is swapped out for
 // a status dot and back again renders synchronously instead of flashing while
 // it refetches the image.
+const MAX_CACHED_PROJECT_ICONS = 64;
+const getProjectIconScopePrefix = (hostId: string, projectPath: string) =>
+  `${hostId}\x00${projectPath}\x00`;
+
 const projectIconObjectUrls = new Map<string, string>();
 const projectIconLoads = new Map<string, Promise<string>>();
+
+const revokeProjectIconUrl = (url: string) => {
+  try {
+    URL.revokeObjectURL(url);
+  } catch {
+    // Best-effort cleanup.
+  }
+};
 
 const loadProjectIcon = (
   hostId: string,
@@ -23,6 +35,9 @@ const loadProjectIcon = (
   const cacheKey = getProjectIconCacheKey(hostId, projectPath, icon);
   const cachedUrl = projectIconObjectUrls.get(cacheKey);
   if (cachedUrl) {
+    // Refresh LRU order.
+    projectIconObjectUrls.delete(cacheKey);
+    projectIconObjectUrls.set(cacheKey, cachedUrl);
     return Promise.resolve(cachedUrl);
   }
 
@@ -36,7 +51,21 @@ const loadProjectIcon = (
   )
     .then((blob) => {
       const objectUrl = URL.createObjectURL(blob);
+      // Revoke any superseded icon URL for the same project.
+      const prefix = getProjectIconScopePrefix(hostId, projectPath);
+      for (const [existingKey, existingUrl] of projectIconObjectUrls) {
+        if (existingKey !== cacheKey && existingKey.startsWith(prefix)) {
+          projectIconObjectUrls.delete(existingKey);
+          revokeProjectIconUrl(existingUrl);
+        }
+      }
       projectIconObjectUrls.set(cacheKey, objectUrl);
+      while (projectIconObjectUrls.size > MAX_CACHED_PROJECT_ICONS) {
+        const oldest = projectIconObjectUrls.entries().next().value;
+        if (!oldest) break;
+        projectIconObjectUrls.delete(oldest[0]);
+        revokeProjectIconUrl(oldest[1]);
+      }
       return objectUrl;
     })
     .finally(() => {

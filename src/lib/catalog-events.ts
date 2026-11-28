@@ -107,5 +107,10 @@ export const getCatalogEventsClient = (hostId: string = LOCAL_HOST_ID) => {
   return client;
 };
 
+/** Drops the cached catalog events client for a forgotten host. */
+export const forgetCatalogEventsClient = (hostId: string) => {
+  catalogEventsClients.delete(hostId);
+};
+
 /** The app's catalog events, from the local host. */
 export const catalogEventsClient = getCatalogEventsClient(LOCAL_HOST_ID);
