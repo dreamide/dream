@@ -360,20 +360,23 @@ export const WriteFileChip = ({
   const editNext = edit?.next ?? null;
   const diffCode = useMemo(
     () =>
-      getWriteDiffCode({
-        content,
-        editNext,
-        editPrevious,
-        filePath,
-        mode,
-        previousContent,
-        savedDiff,
-      }),
+      isRunning
+        ? null
+        : getWriteDiffCode({
+            content,
+            editNext,
+            editPrevious,
+            filePath,
+            mode,
+            previousContent,
+            savedDiff,
+          }),
     [
       content,
       editNext,
       editPrevious,
       filePath,
+      isRunning,
       mode,
       previousContent,
       savedDiff,
@@ -381,13 +384,22 @@ export const WriteFileChip = ({
   );
   const siblingCommandDiffCode = useMemo(
     () =>
-      findSiblingCommandDiff({
-        filePath,
-        messageParts,
-        partIndex,
-        projectRelativeFilePath,
-      }),
-    [filePath, messageParts, partIndex, projectRelativeFilePath],
+      isRunning || diffCode !== null
+        ? null
+        : findSiblingCommandDiff({
+            filePath,
+            messageParts,
+            partIndex,
+            projectRelativeFilePath,
+          }),
+    [
+      diffCode,
+      filePath,
+      isRunning,
+      messageParts,
+      partIndex,
+      projectRelativeFilePath,
+    ],
   );
   const hasFetchedGitDiff =
     Boolean(gitDiff) && gitDiff?.filePath === projectRelativeFilePath;

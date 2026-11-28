@@ -236,7 +236,7 @@ export const WorkspaceSlidingPanel = ({
         pointerEvents: open ? "auto" : "none",
         transition,
         width: open ? slotWidth : 0,
-        willChange: "opacity",
+        willChange: open ? "opacity" : undefined,
         ...style,
       }}
     >
@@ -251,7 +251,7 @@ export const WorkspaceSlidingPanel = ({
           transform: open ? "translateX(0)" : closedTransform,
           transition: trackTransition,
           width: slotWidth,
-          willChange: "transform",
+          willChange: open ? "transform" : undefined,
         }}
       >
         {side === "right" ? (

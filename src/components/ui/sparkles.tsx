@@ -38,6 +38,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import {
   DEFAULT_SPARKLES_PALETTE,
@@ -150,8 +151,13 @@ function ensureSparklesStyles() {
       position: absolute;
       left: 6%; right: 6%;
       height: 50px;
+      opacity: 0;
+      display: none;
+    }
+    .sparkles-field.sparkles-glow-active::after {
+      display: block;
       filter: blur(10px);
-      opacity: var(--sp-glow-op, 0);
+      opacity: var(--sp-glow-op, .9);
       animation: sparkles-glow-pulse 2.4s ease-in-out infinite;
     }
     .sparkles-field.sparkles-field-top::after {
@@ -235,10 +241,23 @@ function Sparkles(props: SparklesProps) {
 
   useLayoutEffect(ensureSparklesStyles, []);
 
-  /* ---- The canvas exists only while sparkles are enabled ---- */
+  const [documentVisible, setDocumentVisible] = useState(
+    () => typeof document === "undefined" || !document.hidden,
+  );
+  useEffect(() => {
+    if (disabled || typeof document === "undefined") return;
+    const sync = () => setDocumentVisible(!document.hidden);
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    return () => document.removeEventListener("visibilitychange", sync);
+  }, [disabled]);
+
+  const canvasActive = !disabled && documentVisible;
+
+  /* ---- The canvas exists only while sparkles are enabled and window visible ---- */
   useEffect(() => {
     const field = fieldRef.current;
-    if (!field || disabled) return;
+    if (!field || !canvasActive) return;
 
     const surface = attachSparklesCanvas(
       field,
@@ -250,7 +269,7 @@ function Sparkles(props: SparklesProps) {
       surface?.detach();
       surfaceRef.current = null;
     };
-  }, [disabled]);
+  }, [canvasActive]);
 
   useEffect(() => {
     surfaceRef.current?.setConfig(fieldConfig);
@@ -265,17 +284,16 @@ function Sparkles(props: SparklesProps) {
     const field = fieldRef.current;
     if (!field) return;
 
+    const showGlow = canvasActive && groundGlow;
     field.style.setProperty("--sp-h", `${height}px`);
     field.style.setProperty(
       "--sp-glow",
       sparklesHexToRGBA(paletteArr[0], 0.45),
     );
-    field.style.setProperty(
-      "--sp-glow-op",
-      !disabled && groundGlow ? ".9" : "0",
-    );
+    field.style.setProperty("--sp-glow-op", showGlow ? ".9" : "0");
+    field.classList.toggle("sparkles-glow-active", showGlow);
     field.style.pointerEvents = cycleOnClick ? "auto" : "none";
-  }, [height, groundGlow, paletteArr, disabled, cycleOnClick]);
+  }, [height, groundGlow, paletteArr, canvasActive, cycleOnClick]);
 
   useEffect(() => {
     const field = fieldRef.current;

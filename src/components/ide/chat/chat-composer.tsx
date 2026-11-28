@@ -70,11 +70,7 @@ import type {
 } from "@/types/ide";
 import { PromptAttachments } from "../chat";
 import { MaterialFileIcon, MaterialFolderIcon } from "../material-file-icon";
-import {
-  projectResourceKey,
-  readProjectResource,
-  useProjectResource,
-} from "../project-resources";
+import { projectResourceKey, useProjectResource } from "../project-resources";
 import { ProviderIcon } from "../provider-presentation";
 import { ChatComposerInsertContext } from "./chat-composer-insert-context";
 import { appendDraftText } from "./chat-drafts";
@@ -109,6 +105,20 @@ import { useProviderSkills } from "./use-provider-skills";
 export type { ChatPanelModelOption } from "./chat-model-selection";
 
 const PROJECT_REFERENCE_FILE_LIMIT = 2500;
+const EMPTY_PROJECT_FILES: string[] = [];
+const projectReferenceIndexCache = new WeakMap<
+  readonly string[],
+  ReturnType<typeof buildProjectReferenceIndex>
+>();
+
+const getSharedProjectReferenceIndex = (files: readonly string[]) => {
+  let cached = projectReferenceIndexCache.get(files);
+  if (!cached) {
+    cached = buildProjectReferenceIndex(files as string[]);
+    projectReferenceIndexCache.set(files, cached);
+  }
+  return cached;
+};
 
 const modelSelectorIconClassName = (provider: AiProvider) =>
   cn(
@@ -119,9 +129,9 @@ const modelSelectorIconClassName = (provider: AiProvider) =>
   );
 
 /**
- * The project's files and folders, for the `@` menu: read once when the
- * composer mounts (or taken from a longer list the file explorer already
- * read), and kept fresh after writes only while a mention is being typed.
+ * The project's files and folders, for the `@` menu: loaded lazily when a
+ * mention is opened (or reused from a list the file explorer already read),
+ * respecting `ProjectResourcesShown` so background projects do not walk disk.
  */
 const useProjectReferenceIndex = (
   hostId: string,
@@ -136,12 +146,12 @@ const useProjectReferenceIndex = (
       }),
     [hostId, projectPath],
   );
-  useEffect(() => {
-    void readProjectResource(key).catch(() => undefined);
-  }, [key]);
   const resource = useProjectResource(key, { active: needed });
-  const files = resource.error === undefined ? resource.data?.files : undefined;
-  return useMemo(() => buildProjectReferenceIndex(files ?? []), [files]);
+  const files =
+    resource.error === undefined
+      ? (resource.data?.files ?? EMPTY_PROJECT_FILES)
+      : EMPTY_PROJECT_FILES;
+  return useMemo(() => getSharedProjectReferenceIndex(files), [files]);
 };
 
 const MENTION_CLASS_NAME =
@@ -627,9 +637,9 @@ export const ChatComposer = ({
         <div className="relative z-10">
           <Sparkles
             cyclePalette={sparklesPalette}
-            cycleOnClick={isProcessing}
+            cycleOnClick={isProcessing && isActive}
             density={70}
-            disabled={!isProcessing}
+            disabled={!isProcessing || !isActive}
             height={30}
             onPaletteChange={onSparklesPaletteChange}
             palette={resolvedSparklesPalette}

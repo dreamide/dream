@@ -45,13 +45,20 @@ export const CollapsibleUserMessage = ({
       return () => window.removeEventListener("resize", updateCollapsibleState);
     }
 
-    const resizeObserver = new ResizeObserver(updateCollapsibleState);
+    const resizeObserver = new ResizeObserver((entries) => {
+      const height =
+        entries[0]?.contentRect.height ??
+        contentElement.getBoundingClientRect().height;
+      const shouldCollapse = height > COLLAPSED_USER_MESSAGE_HEIGHT_PX + 1;
+      setIsCollapsible(shouldCollapse);
+      if (!shouldCollapse) {
+        setIsExpanded(false);
+      }
+    });
     resizeObserver.observe(contentElement);
-    window.addEventListener("resize", updateCollapsibleState);
 
     return () => {
       resizeObserver.disconnect();
-      window.removeEventListener("resize", updateCollapsibleState);
     };
   }, [contentElement]);
 

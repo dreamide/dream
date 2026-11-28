@@ -20,6 +20,22 @@ const SessionFilesContext = createContext(NO_SESSION_FILES);
 
 export const useSessionFiles = () => useContext(SessionFilesContext);
 
+/** The session file one tool part saves, worked out once per part object. */
+const partSessionFiles = new WeakMap<
+  UIMessage["parts"][number],
+  [string, string] | null
+>();
+
+const sessionFileOfPart = (part: UIMessage["parts"][number]) => {
+  let entry = partSessionFiles.get(part);
+  if (entry === undefined) {
+    const file = isToolLikePart(part) ? describeSessionFile(part) : null;
+    entry = file ? [file.sessionPath, file.path] : null;
+    partSessionFiles.set(part, entry);
+  }
+  return entry;
+};
+
 /** The session files one message saves, worked out once per message object. */
 const declaredFiles = new WeakMap<UIMessage, ReadonlyArray<[string, string]>>();
 
@@ -28,8 +44,8 @@ const filesSavedBy = (message: UIMessage) => {
   if (!files) {
     const found: [string, string][] = [];
     for (const part of message.parts) {
-      const file = isToolLikePart(part) ? describeSessionFile(part) : null;
-      if (file) found.push([file.sessionPath, file.path]);
+      const file = sessionFileOfPart(part);
+      if (file) found.push(file);
     }
     files = found;
     declaredFiles.set(message, files);

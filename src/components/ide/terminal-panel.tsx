@@ -446,7 +446,6 @@ export const TerminalPanel = ({
 
     const resizeObserver = new ResizeObserver(scheduleFitAndSyncSize);
     resizeObserver.observe(host);
-    window.addEventListener("resize", scheduleFitAndSyncSize);
 
     return () => {
       if (resizeFrame !== null) {
@@ -455,7 +454,6 @@ export const TerminalPanel = ({
       removeTerminalData();
       inputSubscription.dispose();
       resizeObserver.disconnect();
-      window.removeEventListener("resize", scheduleFitAndSyncSize);
       terminalInstanceRef.current = null;
       fitTerminalRef.current = null;
       webgl?.dispose();

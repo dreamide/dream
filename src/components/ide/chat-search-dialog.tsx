@@ -108,6 +108,14 @@ const openChat = ({ chat }: ChatSearchRow) => {
 };
 
 export const ChatSearchDialog = () => {
+  const open = useChatSearchStore((s) => s.open);
+  if (!open) {
+    return null;
+  }
+  return <ChatSearchDialogBody />;
+};
+
+const ChatSearchDialogBody = () => {
   const locale = useLocale();
   const t = useTranslations("workspace");
   const commonT = useTranslations("common");

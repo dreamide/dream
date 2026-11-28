@@ -1,5 +1,13 @@
 import { useTranslations } from "next-intl";
-import { lazy, Suspense, useDeferredValue, useEffect } from "react";
+import {
+  lazy,
+  Suspense,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { useShallow } from "zustand/react/shallow";
 import { AppLoadingScreen } from "@/components/dream-loading-screen";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
@@ -72,6 +80,46 @@ export const IdeShell = () => {
     projects.some((project) => project.id === deferredActiveProjectId)
       ? deferredActiveProjectId
       : activeProjectId;
+  const agentBrowserProjectIds = useIdeStore(
+    useShallow((s) =>
+      Object.entries(s.agentBrowserTabIdsByProject)
+        .filter(([, ids]) => ids.length > 0)
+        .map(([id]) => id),
+    ),
+  );
+  // Mount each Project lazily on first activation (or when an agent drives its
+  // browser), then keep it mounted at z-0 so subsequent tab switches stay instant.
+  const [visitedProjectIds, setVisitedProjectIds] = useState<string[]>(() =>
+    activeProjectId ? [activeProjectId] : [],
+  );
+  useEffect(() => {
+    const openIds = new Set(projects.map((project) => project.id));
+    setVisitedProjectIds((current) => {
+      const next = current.filter((id) => openIds.has(id));
+      let changed = next.length !== current.length;
+      if (
+        renderedActiveProjectId &&
+        openIds.has(renderedActiveProjectId) &&
+        !next.includes(renderedActiveProjectId)
+      ) {
+        next.push(renderedActiveProjectId);
+        changed = true;
+      }
+      for (const id of agentBrowserProjectIds) {
+        if (openIds.has(id) && !next.includes(id)) {
+          next.push(id);
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [agentBrowserProjectIds, projects, renderedActiveProjectId]);
+  const mountedProjectIdSet = useMemo(() => {
+    const set = new Set(visitedProjectIds);
+    if (renderedActiveProjectId) set.add(renderedActiveProjectId);
+    for (const id of agentBrowserProjectIds) set.add(id);
+    return set;
+  }, [agentBrowserProjectIds, renderedActiveProjectId, visitedProjectIds]);
   const settingsOpen = useIdeStore((s) => s.settingsOpen);
   const settingsSection = useIdeStore((s) => s.settingsSection);
 
@@ -262,36 +310,38 @@ export const IdeShell = () => {
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         {!stateHydrated ? null : (
           <>
-            {projects.map((project) => {
-              // Keep the outgoing surface painted while React prepares the
-              // incoming workspace, then reveal and activate it atomically.
-              const selected = project.id === renderedActiveProjectId;
-              // Project workspaces stay mounted so switching back is instant,
-              // but only the visible surface owns shortcuts and native
-              // webviews. (Chats run in the chat runtime, not in these
-              // panels.)
-              const active = selected && !settingsOpen;
+            {projects
+              .filter((project) => mountedProjectIdSet.has(project.id))
+              .map((project) => {
+                // Keep the outgoing surface painted while React prepares the
+                // incoming workspace, then reveal and activate it atomically.
+                const selected = project.id === renderedActiveProjectId;
+                // Project workspaces stay mounted so switching back is instant,
+                // but only the visible surface owns shortcuts and native
+                // webviews. (Chats run in the chat runtime, not in these
+                // panels.)
+                const active = selected && !settingsOpen;
 
-              return (
-                <div
-                  aria-hidden={!active}
-                  className={cn(
-                    "absolute inset-0 min-h-0 bg-surface-50 dark:bg-surface-900",
-                    selected
-                      ? "z-10 pointer-events-auto"
-                      : // Keep inactive workspaces painted beneath the active
-                        // one. Hiding or moving them offscreen makes Chromium
-                        // rebuild the layer when a project is selected, which
-                        // produces a blank frame during the tab switch.
-                        "z-0 pointer-events-none",
-                  )}
-                  inert={!active}
-                  key={project.id}
-                >
-                  <ProjectWorkspace active={active} project={project} />
-                </div>
-              );
-            })}
+                return (
+                  <div
+                    aria-hidden={!active}
+                    className={cn(
+                      "absolute inset-0 min-h-0 bg-surface-50 dark:bg-surface-900",
+                      selected
+                        ? "z-10 pointer-events-auto"
+                        : // Keep inactive workspaces painted beneath the active
+                          // one. Hiding or moving them offscreen makes Chromium
+                          // rebuild the layer when a project is selected, which
+                          // produces a blank frame during the tab switch.
+                          "z-0 pointer-events-none",
+                    )}
+                    inert={!active}
+                    key={project.id}
+                  >
+                    <ProjectWorkspace active={active} project={project} />
+                  </div>
+                );
+              })}
             {!renderedActiveProjectId ? (
               <div
                 className="absolute inset-0 z-20 bg-surface-50 p-3 dark:bg-surface-900"

@@ -1,5 +1,7 @@
 import { parsePatchFiles } from "@pierre/diffs";
 
+const MAX_LCS_CELLS = 250_000;
+
 export const buildLineDiff = (previousContent: string, nextContent: string) => {
   const allPreviousLines = previousContent.replace(/\r\n/g, "\n").split("\n");
   const allNextLines = nextContent.replace(/\r\n/g, "\n").split("\n");
@@ -31,6 +33,24 @@ export const buildLineDiff = (previousContent: string, nextContent: string) => {
     prefixLength,
     allNextLines.length - suffixLength,
   );
+  const lines = allPreviousLines
+    .slice(0, prefixLength)
+    .map((line) => ` ${line}`);
+
+  // Guard against quadratic memory/CPU spikes on huge full-file rewrites.
+  if (previousLines.length * nextLines.length > MAX_LCS_CELLS) {
+    for (const line of previousLines) lines.push(`-${line}`);
+    for (const line of nextLines) lines.push(`+${line}`);
+    for (
+      let index = allPreviousLines.length - suffixLength;
+      index < allPreviousLines.length;
+      index += 1
+    ) {
+      lines.push(` ${allPreviousLines[index]}`);
+    }
+    return lines.join("\n");
+  }
+
   const lengths = Array.from({ length: previousLines.length + 1 }, () =>
     Array<number>(nextLines.length + 1).fill(0),
   );
@@ -44,9 +64,6 @@ export const buildLineDiff = (previousContent: string, nextContent: string) => {
     }
   }
 
-  const lines = allPreviousLines
-    .slice(0, prefixLength)
-    .map((line) => ` ${line}`);
   let previousIndex = 0;
   let nextIndex = 0;
 

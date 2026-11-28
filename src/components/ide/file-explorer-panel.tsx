@@ -1069,6 +1069,7 @@ const FileExplorerPanelImpl = ({
               )}
             >
               <ProjectSearchView
+                active={active && treeMode === "search"}
                 focusRequest={projectSearchFocusRequest}
                 hostId={hostId}
                 toolbarSlot={treeMode === "search" ? treeToolbarSlot : null}

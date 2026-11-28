@@ -50,7 +50,9 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
   const chats = useIdeStore(
     useShallow((s) => s.chats.filter((chat) => chat.projectId === projectId)),
   );
-  const unreadChatIds = useChatTurnOutcomes((s) => s.unread);
+  const historyHasUnseenChats = useChatTurnOutcomes((s) =>
+    chats.some((chat) => chat.deletedAt === null && Boolean(s.unread[chat.id])),
+  );
   const projectTerminalSessionIds = useIdeStore(
     (s) => s.projectTerminalSessionIds[projectId] ?? EMPTY_TERMINAL_SESSION_IDS,
   );
@@ -99,12 +101,6 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
     openChatIds,
     projectId,
   });
-  const historyHasUnseenChats = chats.some(
-    (chat) =>
-      chat.projectId === projectId &&
-      chat.deletedAt === null &&
-      Boolean(unreadChatIds[chat.id]),
-  );
   const hasProjectTerminalSessions = projectTerminalSessionIds.length > 0;
   const terminalPanelVisible =
     rightVisible && rightPanelView === "terminal" && hasProjectTerminalSessions;
@@ -553,6 +549,7 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
   ]);
 
   useEffect(() => {
+    if (!active) return;
     let rafId: number | null = null;
     const update = () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
@@ -581,7 +578,7 @@ const CodeWorkspaceComponent = ({ active, project }: CodeWorkspaceProps) => {
       observer.disconnect();
       window.removeEventListener("resize", update);
     };
-  }, [syncHorizontalPanelWidths]);
+  }, [active, syncHorizontalPanelWidths]);
 
   const rightPanelMaxWidth = getRightPanelMaxWidth();
   const boundedRightPanelMaxWidth = Number.isFinite(rightPanelMaxWidth)

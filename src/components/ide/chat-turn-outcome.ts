@@ -372,8 +372,11 @@ export const createChatTurnOutcomes = ({
   };
 
   const see = (chatIds: string[]) => {
+    if (chatIds.length === 0) return;
     const state = current();
-    write({ ...state, unread: without(state.unread, chatIds) });
+    const nextUnread = without(state.unread, chatIds);
+    if (nextUnread === state.unread) return;
+    write({ ...state, unread: nextUnread });
   };
 
   /** Chats gone from the store take their whole outcome with them. */
@@ -381,11 +384,17 @@ export const createChatTurnOutcomes = ({
     if (chatIds.length === 0) return;
     for (const chatId of chatIds) live.delete(chatId);
     const state = current();
-    write({
-      errors: without(state.errors, chatIds),
-      turns: without(state.turns, chatIds),
-      unread: without(state.unread, chatIds),
-    });
+    const errors = without(state.errors, chatIds);
+    const turns = without(state.turns, chatIds);
+    const unread = without(state.unread, chatIds);
+    if (
+      errors === state.errors &&
+      turns === state.turns &&
+      unread === state.unread
+    ) {
+      return;
+    }
+    write({ errors, turns, unread });
   };
 
   const followHost = (state: WatchedIdeState, previous: WatchedIdeState) => {
@@ -447,7 +456,9 @@ export const createChatTurnOutcomes = ({
         if (state.errors[chatId] === message) return;
         write({ ...state, errors: { ...state.errors, [chatId]: message } });
       } else {
-        write({ ...state, errors: without(state.errors, [chatId]) });
+        const nextErrors = without(state.errors, [chatId]);
+        if (nextErrors === state.errors) return;
+        write({ ...state, errors: nextErrors });
       }
     },
     seen: (chatIds) => see([...chatIds]),

@@ -92,13 +92,14 @@ const countMatches = (file: ProjectSearchFile) =>
  * lines grouped by file. Opening a line is the parent's job.
  */
 export const ProjectSearchView = ({
+  active = true,
   focusRequest,
   hostId,
   onOpenResult,
   projectPath,
   refreshVersion,
   toolbarSlot,
-}: ProjectSearchViewProps) => {
+}: ProjectSearchViewProps & { active?: boolean }) => {
   const t = useTranslations("fileSearch");
   const panelsT = useTranslations("panels");
   const editorSearchT = useTranslations("editorSearch");
@@ -124,6 +125,9 @@ export const ProjectSearchView = ({
 
   useEffect(() => {
     void refreshVersion;
+    if (!active) {
+      return;
+    }
     if (!query) {
       setSearch({ status: "idle" });
       return;
@@ -171,6 +175,7 @@ export const ProjectSearchView = ({
       controller.abort();
     };
   }, [
+    active,
     caseSensitive,
     exclude,
     hostId,

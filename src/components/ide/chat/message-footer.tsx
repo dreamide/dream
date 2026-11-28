@@ -146,7 +146,8 @@ export const MessageHoverFooter = ({
           ),
         })
       : null;
-  const text = getMessageText(message);
+  // Avoid joining all text parts on every 50ms streaming tick while copy is hidden.
+  const text = isRunning ? "" : getMessageText(message);
   const continueChatContext =
     message.role === "assistant" ? continueChat : undefined;
   const checkpointId =

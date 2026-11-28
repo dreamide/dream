@@ -153,7 +153,7 @@ type BrowserWebviewProps = {
   active: boolean;
   onError: (tabId: string, event: WebviewFailEvent) => void;
   onLoadingChange: (tabId: string, loading: boolean) => void;
-  onRef: RefCallback<ElectronWebviewElement>;
+  onRef: (tabId: string, node: ElectronWebviewElement | null) => void;
   onStateChange: (
     tabId: string,
     webview: ElectronWebviewElement,
@@ -216,9 +216,9 @@ const BrowserWebview = memo(
     const setWebviewRef = useCallback<RefCallback<ElectronWebviewElement>>(
       (node) => {
         webviewRef.current = node;
-        onRef(node);
+        onRef(tab.id, node);
       },
-      [onRef],
+      [onRef, tab.id],
     );
 
     useEffect(() => {
@@ -446,15 +446,14 @@ const BrowserPanelImpl = ({
   );
 
   const handleWebviewRef = useCallback(
-    (tabId: string): RefCallback<ElectronWebviewElement> =>
-      (node) => {
-        if (node) {
-          webviewRefs.current.set(tabId, node);
-          return;
-        }
+    (tabId: string, node: ElectronWebviewElement | null) => {
+      if (node) {
+        webviewRefs.current.set(tabId, node);
+        return;
+      }
 
-        webviewRefs.current.delete(tabId);
-      },
+      webviewRefs.current.delete(tabId);
+    },
     [],
   );
 
@@ -1084,7 +1083,7 @@ const BrowserPanelImpl = ({
               key={tab.id}
               onError={handleWebviewError}
               onLoadingChange={handleWebviewLoadingChange}
-              onRef={handleWebviewRef(tab.id)}
+              onRef={handleWebviewRef}
               hostId={project.hostId}
               onStateChange={handleWebviewStateChange}
               projectId={projectId}

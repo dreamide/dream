@@ -14,33 +14,34 @@ export const normalizeProjectSearchQuery = (value: string) => {
   return trimmed.replace(/\\/g, "/").toLowerCase();
 };
 
-const getPathName = (path: string) => {
-  const index = path.lastIndexOf("/");
-  return index === -1 ? path : path.slice(index + 1);
-};
-
-const getSearchScore = (path: string, name: string, query: string) => {
-  if (name === query) {
+const getSearchScore = (
+  lowerPath: string,
+  nameOffset: number,
+  query: string,
+) => {
+  const nameLength = lowerPath.length - nameOffset;
+  const queryLength = query.length;
+  if (nameLength === queryLength && lowerPath.startsWith(query, nameOffset)) {
     return 0;
   }
-  if (name.startsWith(query)) {
+  if (lowerPath.startsWith(query, nameOffset)) {
     return 1;
   }
-  if (path.startsWith(query)) {
+  if (lowerPath.startsWith(query)) {
     return 2;
   }
-  if (name.includes(query)) {
+  if (lowerPath.indexOf(query, nameOffset) !== -1) {
     return 3;
   }
-  if (path.includes(query)) {
+  if (lowerPath.includes(query)) {
     return 4;
   }
   return null;
 };
 
 interface IndexedPath {
-  lowerName: string;
   lowerPath: string;
+  nameOffset: number;
   path: string;
 }
 
@@ -90,8 +91,8 @@ export class ProjectFileSearchIndex {
           const path = file.replace(/\\/g, "/");
           const lowerPath = path.toLowerCase();
           entries.push({
-            lowerName: getPathName(lowerPath),
             lowerPath,
+            nameOffset: lowerPath.lastIndexOf("/") + 1,
             path,
           });
         }
@@ -120,7 +121,7 @@ export class ProjectFileSearchIndex {
     for (const entry of this.#entries) {
       const score = getSearchScore(
         entry.lowerPath,
-        entry.lowerName,
+        entry.nameOffset,
         normalizedQuery,
       );
       if (score !== null) {
