@@ -505,6 +505,13 @@ const SEARCH_ROW_LIMIT = 2000;
 /** A LIKE pattern matching `value` anywhere, its wildcards taken literally. */
 const likePatternFor = (value) => `%${value.replace(/[\\%_]/g, "\\$&")}%`;
 
+/** An FTS5 phrase matching `value` literally inside a trigram index. */
+const ftsTrigramQueryFor = (value) => `"${value.replace(/"/g, '""')}"`;
+
+/** Trigram indexes match substrings of at least 3 Unicode code points. */
+const canUseFtsTrigram = (value) =>
+  !value.includes("\0") && Array.from(value).length >= 3;
+
 const collapse = (text) => text.replace(/\s+/g, " ");
 
 /** The match with some of the text around it, or null without a match. */
@@ -545,26 +552,49 @@ export function searchChatMessages(database, query, { limit = 50 } = {}) {
   if (!needle) return { results: [], truncated: false };
 
   // Only the messages' prose is read (chat_message_text), never their
-  // payloads. LIKE narrows the rows (it folds ASCII case only, and may
-  // match across two parts); each text part decides.
-  const rows = database
-    .prepare(
-      `
-        SELECT
-          chat_messages.chat_id AS chat_id,
-          chat_messages.role AS role,
-          chat_message_text.message_id AS message_id,
-          chat_message_text.text AS text
-        FROM chat_message_text
-        INNER JOIN chat_messages
-          ON chat_messages.id = chat_message_text.message_row
-        INNER JOIN chats ON chats.id = chat_messages.chat_id
-        WHERE chat_message_text.text LIKE ? ESCAPE '\\'
-        ORDER BY chats.updated_at DESC, chats.id, chat_messages.sort_order DESC
-        LIMIT ?
-      `,
-    )
-    .all(likePatternFor(needle), SEARCH_ROW_LIMIT + 1);
+  // payloads. Queries of 3+ characters narrow rows via the trigram FTS5
+  // index; shorter queries fall back to LIKE because trigrams require 3 code
+  // points. Either way, each text part decides the final snippet so matches
+  // never span across parts.
+  const rows = canUseFtsTrigram(needle)
+    ? database
+        .prepare(
+          `
+            SELECT
+              chat_messages.chat_id AS chat_id,
+              chat_messages.role AS role,
+              chat_message_text.message_id AS message_id,
+              chat_message_text.text AS text
+            FROM chat_message_text_fts
+            INNER JOIN chat_message_text
+              ON chat_message_text.rowid = chat_message_text_fts.rowid
+            INNER JOIN chat_messages
+              ON chat_messages.id = chat_message_text.message_row
+            INNER JOIN chats ON chats.id = chat_messages.chat_id
+            WHERE chat_message_text_fts MATCH ?
+            ORDER BY chats.updated_at DESC, chats.id, chat_messages.sort_order DESC
+            LIMIT ?
+          `,
+        )
+        .all(ftsTrigramQueryFor(needle), SEARCH_ROW_LIMIT + 1)
+    : database
+        .prepare(
+          `
+            SELECT
+              chat_messages.chat_id AS chat_id,
+              chat_messages.role AS role,
+              chat_message_text.message_id AS message_id,
+              chat_message_text.text AS text
+            FROM chat_message_text
+            INNER JOIN chat_messages
+              ON chat_messages.id = chat_message_text.message_row
+            INNER JOIN chats ON chats.id = chat_messages.chat_id
+            WHERE chat_message_text.text LIKE ? ESCAPE '\\'
+            ORDER BY chats.updated_at DESC, chats.id, chat_messages.sort_order DESC
+            LIMIT ?
+          `,
+        )
+        .all(likePatternFor(needle), SEARCH_ROW_LIMIT + 1);
 
   let truncated = rows.length > SEARCH_ROW_LIMIT;
   /** @type {Map<string, any>} */

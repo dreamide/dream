@@ -427,3 +427,60 @@ test("a transcript reads back as the JSON it was saved as", async () => {
     database.close();
   }
 });
+
+test("FTS5 trigram search handles operators, quotes, Unicode, short queries, and stays synced across mutations", async () => {
+  const db = await open();
+  db.apply({
+    chats: [chat("c1", "a"), chat("c2", "a")],
+    projects: [project("a")],
+  });
+  db.saveMessages("c1", [
+    message("m1", "user", 'Check "quoted" AND foo-bar: Café 日本語テスト xy'),
+  ]);
+  db.saveMessages("c2", [message("m2", "assistant", "temporary draft text")]);
+
+  // 3+ character queries use the trigram FTS5 index, handling quotes, operators,
+  // Unicode case-folding, and CJK substrings literally.
+  assert.equal(db.search('"quoted"').results[0]?.chatId, "c1");
+  assert.equal(db.search("AND foo-bar:").results[0]?.chatId, "c1");
+  assert.equal(db.search("café").results[0]?.chatId, "c1");
+  assert.equal(db.search("日本語").results[0]?.chatId, "c1");
+
+  // 1-2 character queries fall back to LIKE cleanly.
+  assert.equal(db.search("xy").results[0]?.chatId, "c1");
+  assert.equal(db.search("日本").results[0]?.chatId, "c1");
+
+  // Overwriting a message and cascading a chat deletion both update the FTS5 index.
+  db.saveMessages("c1", [message("m1", "user", "rewritten final prose")]);
+  assert.deepEqual(db.search("quoted").results, []);
+  assert.equal(db.search("rewritten").results[0]?.chatId, "c1");
+
+  db.apply({ removedChatIds: ["c2"] });
+  assert.deepEqual(db.search("temporary").results, []);
+
+  closePersistedStateDatabase();
+  const database = new DatabaseSync(db.databasePath);
+  try {
+    // Built-in FTS5 integrity check confirms triggers kept FTS5 and content table in sync.
+    database.exec(
+      "INSERT INTO chat_message_text_fts(chat_message_text_fts) VALUES('integrity-check')",
+    );
+    const plan = database
+      .prepare(
+        `
+          EXPLAIN QUERY PLAN
+          SELECT chat_message_text.message_row
+          FROM chat_message_text_fts
+          INNER JOIN chat_message_text
+            ON chat_message_text.rowid = chat_message_text_fts.rowid
+          WHERE chat_message_text_fts MATCH ?
+        `,
+      )
+      .all('"rewritten"')
+      .map((row) => row.detail)
+      .join("\n");
+    assert.match(plan, /chat_message_text_fts/i);
+  } finally {
+    database.close();
+  }
+});
