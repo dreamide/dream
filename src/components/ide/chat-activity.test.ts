@@ -23,7 +23,13 @@ const none: ChatActivityState = {
 /** The store with one signal set for chat `c`. */
 const only = (signal: keyof ChatActivityState): ChatActivityState => ({
   ...none,
-  [signal]: { c: true },
+  [signal]: {
+    c:
+      signal === "hostRunningChatIds" ||
+      signal === "hostAwaitingApprovalChatIds"
+        ? "local"
+        : true,
+  },
 });
 
 test("each signal answers each question", () => {
@@ -67,7 +73,7 @@ test("a project runs while any chat in it runs, here or on the host", () => {
   ];
   const state = {
     ...none,
-    hostRunningChatIds: { b: true as const },
+    hostRunningChatIds: { b: "local" },
     streamingChatIds: { a: true as const },
   };
   assert.deepEqual([...projectIdsWithRunningChats(state, chats)].sort(), [
@@ -83,7 +89,7 @@ test("the chats waiting on their user are this window's and the host's together"
     chatIdsWaitingOnUser({
       ...none,
       awaitingAnswerChatIds: { a: true, gone: false },
-      hostAwaitingApprovalChatIds: { a: true, b: true },
+      hostAwaitingApprovalChatIds: { a: "local", b: "local" },
     }),
     { a: true, b: true },
   );

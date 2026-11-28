@@ -128,7 +128,7 @@ test("branch failures and streaming leave chat state unchanged", () => {
   // A turn on the host, which no session here follows, changes the
   // transcript just the same.
   store.setState({
-    hostRunningChatIds: { [sourceChat.id]: true },
+    hostRunningChatIds: { [sourceChat.id]: "local" },
     streamingChatIds: {},
   });
   assert.throws(
@@ -219,7 +219,7 @@ test("auto-archive leaves a chat whose turn runs, here or on the host", () => {
         chats: [idle, streaming, onHost],
         deleteChat: (chatId: string) => deleted.push(chatId),
         hostAwaitingApprovalChatIds: {},
-        hostRunningChatIds: { [onHost.id]: true },
+        hostRunningChatIds: { [onHost.id]: "local" },
         sendingChatIds: {},
         settings: { ...DEFAULT_SETTINGS, archiveChatsAfterDays: 7 },
         streamingChatIds: { [streaming.id]: true },

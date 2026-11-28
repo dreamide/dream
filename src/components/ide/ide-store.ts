@@ -25,6 +25,7 @@ import {
 } from "./store/helpers";
 import { createHostActions } from "./store/host-actions";
 import { watchHostCatalog } from "./store/host-catalog-watch";
+import { replaceHostActivity } from "./store/host-chat-activity";
 import { createHostReach } from "./store/host-reach";
 import {
   getLoadedWorkspace,
@@ -265,10 +266,6 @@ export const useIdeStore = create<IdeState>((set, get) => ({
     // workspace is restored: a default chat restoring adds is new to the
     // host, and must be sent to it.
     if (homeCatalog) catalogBaselines.adopt(LOCAL_HOST_ID, loaded);
-    const chatSet = (chatIds: string[] | undefined) =>
-      Object.fromEntries(
-        (chatIds ?? []).map((chatId) => [chatId, true as const]),
-      );
     const restored = workspace.restore(
       {
         activeProjectId: loaded.activeProjectId,
@@ -288,10 +285,7 @@ export const useIdeStore = create<IdeState>((set, get) => ({
       savedPrompts: loaded.savedPrompts,
       activeBrowserTabIdByProject: loaded.activeBrowserTabIdByProject,
       browserTabsByProject: loaded.browserTabsByProject,
-      hostRunningChatIds: chatSet(homeCatalog?.runningChatIds),
-      hostAwaitingApprovalChatIds: chatSet(
-        homeCatalog?.awaitingApprovalChatIds,
-      ),
+      ...replaceHostActivity(get(), LOCAL_HOST_ID, homeCatalog ?? {}),
       stateHydrated: true,
       persistenceBlocked: !workspaceLoaded,
     });

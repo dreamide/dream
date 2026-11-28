@@ -50,6 +50,8 @@ export const BROWSER_TAB_KEYED_STATE = [
 /** Maps keyed by chat id, runtime and persisted alike. */
 export const CHAT_KEYED_STATE = [
   "awaitingAnswerChatIds",
+  "hostRunningChatIds",
+  "hostAwaitingApprovalChatIds",
   "messagesByChatId",
   "transcriptPageByChatId",
   "sendingChatIds",

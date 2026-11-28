@@ -54,7 +54,7 @@ const setUp = ({ storage = null }: { storage?: TurnStorage | null } = {}) => {
         hostAwaitingApprovalChatIds: running
           ? state.hostAwaitingApprovalChatIds
           : notAwaiting,
-        hostRunningChatIds: running ? { ...rest, [chatId]: true } : rest,
+        hostRunningChatIds: running ? { ...rest, [chatId]: "local" } : rest,
       });
     },
     awaiting: (chatId: string, awaiting: boolean) => {
@@ -62,7 +62,7 @@ const setUp = ({ storage = null }: { storage?: TurnStorage | null } = {}) => {
         ide.getState().hostAwaitingApprovalChatIds;
       ide.setState({
         hostAwaitingApprovalChatIds: awaiting
-          ? { ...rest, [chatId]: true }
+          ? { ...rest, [chatId]: "local" }
           : rest,
       });
     },
@@ -248,8 +248,8 @@ test("a host already running a turn when watching starts counts it", () => {
   const ide = createStore<WatchedIdeState>(() => ({
     activeProjectId: null,
     chats: [otherChat],
-    hostAwaitingApprovalChatIds: { [otherChat.id]: true },
-    hostRunningChatIds: { [otherChat.id]: true },
+    hostAwaitingApprovalChatIds: { [otherChat.id]: "local" },
+    hostRunningChatIds: { [otherChat.id]: "local" },
     projects: [project],
   }));
   const outcomes = createChatTurnOutcomes({ storage: null });

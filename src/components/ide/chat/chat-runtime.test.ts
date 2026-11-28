@@ -275,7 +275,7 @@ test("a dropped response body reconnects to the host turn without a refresh or r
       );
     }),
   );
-  useIdeStore.setState({ hostRunningChatIds: { [chat.id]: true } });
+  useIdeStore.setState({ hostRunningChatIds: { [chat.id]: "local" } });
   const session = getChatSession(chat.id);
   await vi.waitFor(() => assert.equal(session.chat.status, "streaming"));
   controller.error(new TypeError("network connection lost"));
@@ -337,7 +337,7 @@ test("a stream that stalls after its turn ends settles on the saved transcript",
       );
     }),
   );
-  useIdeStore.setState({ hostRunningChatIds: { [chat.id]: true } });
+  useIdeStore.setState({ hostRunningChatIds: { [chat.id]: "local" } });
   const session = getChatSession(chat.id);
   await vi.waitFor(() => assert.equal(session.chat.status, "streaming"));
 
@@ -410,7 +410,7 @@ test.each([
   );
   useIdeStore.setState({
     stateHydrated: true,
-    hostRunningChatIds: { [chat.id]: true },
+    hostRunningChatIds: { [chat.id]: "local" },
   });
   const session = getChatSession(chat.id);
 
@@ -449,7 +449,7 @@ test.each([
           );
     }),
   );
-  useIdeStore.setState({ hostRunningChatIds: { [chat.id]: true } });
+  useIdeStore.setState({ hostRunningChatIds: { [chat.id]: "local" } });
   const session = getChatSession(chat.id);
   await vi.waitFor(() => assert.equal(session.chat.status, "error"));
   await vi.advanceTimersByTimeAsync(10_000);
@@ -474,7 +474,7 @@ test("recovery retries back off, deduplicate lifecycle resumes, and stop when th
       throw new TypeError("Failed to fetch");
     }),
   );
-  useIdeStore.setState({ hostRunningChatIds: { [chat.id]: true } });
+  useIdeStore.setState({ hostRunningChatIds: { [chat.id]: "local" } });
   const session = getChatSession(chat.id);
   await vi.waitFor(() => assert.equal(session.chat.status, "error"));
   await vi.advanceTimersByTimeAsync(250);
@@ -499,11 +499,11 @@ test("the commit message is generated once the project's last running turn ends"
     requests.filter(({ url }) => url === "/api/project-git-commit-message");
 
   // Neither chat has a session here: their turns ran from elsewhere.
-  useIdeStore.setState({ hostRunningChatIds: { [chat.id]: true } });
+  useIdeStore.setState({ hostRunningChatIds: { [chat.id]: "local" } });
   useIdeStore.setState({
-    hostRunningChatIds: { [chat.id]: true, [other.id]: true },
+    hostRunningChatIds: { [chat.id]: "local", [other.id]: "local" },
   });
-  useIdeStore.setState({ hostRunningChatIds: { [other.id]: true } });
+  useIdeStore.setState({ hostRunningChatIds: { [other.id]: "local" } });
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.equal(generations().length, 0, "another turn is still running");
 

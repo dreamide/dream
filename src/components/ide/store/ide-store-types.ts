@@ -136,12 +136,12 @@ export interface IdeStateFields {
    * Chats with a turn running on their host, whoever started it. A session
    * for one resumes the turn's stream (chat-runtime.ts).
    */
-  hostRunningChatIds: Record<string, true>;
+  hostRunningChatIds: Record<string, string>;
   /**
    * Chats whose turn waits on a tool approval on their host, whether this
    * window follows the turn or not (host catalog `approval` events).
    */
-  hostAwaitingApprovalChatIds: Record<string, true>;
+  hostAwaitingApprovalChatIds: Record<string, string>;
   /** SSH hosts' connection state (the local host is always there). */
   hosts: Record<string, HostRuntimeState>;
   awaitingAnswerChatIds: Record<string, boolean>;

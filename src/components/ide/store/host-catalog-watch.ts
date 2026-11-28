@@ -72,12 +72,14 @@ export const watchHostCatalog = (
       });
     } else if (event.kind === "turn" && typeof event.chatId === "string") {
       catalog.setHostTurnRunning(
+        hostId,
         event.chatId,
         event.running === true,
         readAgentTurnEnding(event.ending),
       );
     } else if (event.kind === "approval" && typeof event.chatId === "string") {
       catalog.setHostChatAwaitingApproval(
+        hostId,
         event.chatId,
         event.awaiting === true,
       );

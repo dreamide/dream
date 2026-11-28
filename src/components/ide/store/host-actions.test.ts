@@ -12,6 +12,7 @@ import type { HostConnectionState, SavedHostConnection } from "@/types/ide";
 import { catalogBaselines } from "./catalog-baselines";
 import { connectionStatusOf, createHostActions } from "./host-actions";
 import { createHostCatalogLifecycle } from "./host-catalog-lifecycle";
+import { replaceHostActivity } from "./host-chat-activity";
 import type { IdeState } from "./ide-store-types";
 import {
   BROWSER_TAB_KEYED_STATE,
@@ -241,6 +242,38 @@ test("a saved connection connects over its routes to dial, pinned to its host", 
   });
 });
 
+test("merging two connections retains activity until the surviving Host replaces it", async () => {
+  const { store } = createTestStore();
+  const identity = { hostId: "same-host", fingerprint: "fp" };
+  store.setState({
+    closedProjects: [],
+    hostConnections: [
+      {
+        ...identity,
+        id: "b",
+        routes: [{ id: "ssh:b", kind: "ssh", sshHostId: "b" }],
+        verifiedAt: null,
+        version: 1,
+      },
+    ],
+    hostRunningChatIds: { running: "a", unrelated: "c" },
+    hostAwaitingApprovalChatIds: { waiting: "a" },
+  });
+  desktop.connectHost.mockResolvedValueOnce(identity);
+  await store.getState().connectHost("a");
+
+  expect(store.getState().hostRunningChatIds).toEqual({
+    running: "b",
+    unrelated: "c",
+  });
+  expect(store.getState().hostAwaitingApprovalChatIds).toEqual({
+    waiting: "b",
+  });
+  store.setState((state) => replaceHostActivity(state, "b", {}));
+  expect(store.getState().hostRunningChatIds).toEqual({ unrelated: "c" });
+  expect(store.getState().hostAwaitingApprovalChatIds).toEqual({});
+});
+
 test("a connection with nothing to dial is not sent to main", async () => {
   const { store } = createTestStore();
 
@@ -354,6 +387,10 @@ const createStoreWithHostProject = (hostState: HostConnectionState) => {
 test("removing an SSH host stops its terminals before disconnecting, and takes its projects out with their runtime state", async () => {
   const { events, local, localChat, store } =
     createStoreWithHostProject("connected");
+  store.setState({
+    hostRunningChatIds: { orphan: "a", [localChat.id]: "local" },
+    hostAwaitingApprovalChatIds: { orphan: "a" },
+  });
 
   await store.getState().removeSshHost("a");
 
@@ -367,6 +404,8 @@ test("removing an SSH host stops its terminals before disconnecting, and takes i
   expect(state.terminalStatus).toEqual({});
   expect(state.hosts).toEqual({});
   expect(state.settings.sshHosts.map((item) => item.id)).not.toContain("a");
+  expect(state.hostRunningChatIds).toEqual({ [localChat.id]: "local" });
+  expect(state.hostAwaitingApprovalChatIds).toEqual({});
 });
 
 test("removing an SSH host that is not connected does not ask it to stop anything", async () => {

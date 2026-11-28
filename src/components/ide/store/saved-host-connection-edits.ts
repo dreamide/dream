@@ -21,6 +21,10 @@ import {
 } from "../../../../electron/shared/routes-to-dial.js";
 import { catalogBaselines } from "./catalog-baselines";
 import { HostIdentityError } from "./host-catalog-lifecycle";
+import {
+  reassignHostActivity,
+  replaceHostActivity,
+} from "./host-chat-activity";
 import type {
   HostPairing,
   IdeState,
@@ -282,6 +286,7 @@ export const createSavedHostConnectionEdits = (
           );
           return {
             ...removed,
+            ...replaceHostActivity({ ...state, ...removed }, hostId, {}),
             ...settleSettings(
               { ...state, ...removed },
               {
@@ -561,6 +566,7 @@ export const createSavedHostConnectionEdits = (
       invalidate(id);
       const version = publish(other.id, (state) => ({
         ...workspace.reassignHost(state, id, other.id),
+        ...reassignHostActivity(state, id, other.id),
         hostConnections: (state.hostConnections ?? [])
           .filter((host) => host.id !== id)
           .map((host) => (host.id === other.id ? { ...host, routes } : host)),

@@ -31,7 +31,12 @@ const registeredMaps = Object.fromEntries(
 );
 
 const hostState = vi.hoisted(() => ({
-  catalog: { chats: [] as unknown[], projects: [] as unknown[] },
+  catalog: { chats: [], projects: [] } as {
+    chats: unknown[];
+    projects: unknown[];
+    runningChatIds?: string[];
+    awaitingApprovalChatIds?: string[];
+  },
   workspaceProjects: [] as unknown[],
 }));
 
@@ -40,7 +45,7 @@ vi.mock("./ide-store-persistence", async (importOriginal) => ({
   getLoadedWorkspace: () => ({
     workspaceProjects: hostState.workspaceProjects,
   }),
-  loadCatalog: async () => ({ ...hostState.catalog, runningChatIds: [] }),
+  loadCatalog: async () => ({ runningChatIds: [], ...hostState.catalog }),
 }));
 
 /** The store's host catalogs over `store`, its action in the store. */
@@ -186,6 +191,57 @@ test("a project the host refused (it has one at that path) becomes the host's pr
     state.chats.find((chat) => chat.id === refusedChat.id)?.projectId,
   ).toBe(kept.id);
   expect(saves).toBe(1);
+});
+
+test("a Host snapshot replaces just its own activity, even when the Chat rows are gone", async () => {
+  const remote = onDevbox("/srv/app", "App");
+  const remoteChat = createChatConfig(remote, {});
+  const store = createStore<IdeState>(
+    () =>
+      ({
+        ...registeredMaps,
+        activeProjectId: remote.id,
+        chats: [remoteChat],
+        closedProjects: [],
+        projects: [remote],
+        settings: DEFAULT_SETTINGS,
+        stateHydrated: true,
+        hostRunningChatIds: {},
+        hostAwaitingApprovalChatIds: {},
+      }) as unknown as IdeState,
+  );
+  const catalog = createTestCatalog(store);
+  hostState.workspaceProjects = [];
+  for (const id of [remoteChat.id, "before-row"]) {
+    catalog.setHostTurnRunning("devbox", id, true);
+    catalog.setHostChatAwaitingApproval("devbox", id, true);
+  }
+  hostState.catalog = {
+    projects: [],
+    chats: [],
+    runningChatIds: ["other"],
+    awaitingApprovalChatIds: ["other"],
+  };
+  await catalog.loadHostCatalog("second");
+  expect(store.getState().hostRunningChatIds).toEqual({
+    [remoteChat.id]: "devbox",
+    "before-row": "devbox",
+    other: "second",
+  });
+  hostState.catalog = { projects: [], chats: [] };
+  await catalog.loadHostCatalog("devbox");
+  expect(store.getState().chats.some((chat) => chat.id === remoteChat.id)).toBe(
+    false,
+  );
+  expect(store.getState().hostRunningChatIds).toEqual({ other: "second" });
+  expect(store.getState().hostAwaitingApprovalChatIds).toEqual({
+    other: "second",
+  });
+  catalog.setHostTurnRunning("devbox", "other", false);
+  expect(store.getState().hostRunningChatIds).toEqual({ other: "second" });
+  expect(store.getState().hostAwaitingApprovalChatIds).toEqual({
+    other: "second",
+  });
 });
 
 test("the local host's reload never removes an SSH host's project", async () => {

@@ -217,7 +217,7 @@ test.each([
       return new Response("{}", { status: 404 });
     }),
   );
-  useIdeStore.setState({ hostRunningChatIds: { [chat.id]: true } });
+  useIdeStore.setState({ hostRunningChatIds: { [chat.id]: "local" } });
   const session = getChatSession(chat.id);
   await vi.waitFor(() => assert.equal(session.chat.status, "streaming"));
   await vi.advanceTimersByTimeAsync(200);

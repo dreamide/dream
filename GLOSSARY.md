@@ -176,6 +176,10 @@ Whether this window's own session is busy, and which transcripts it keeps, are
 about this window rather than the chat, so the chat runtime and the
 transcript cache answer them.
 
+The running and approval flags reported by a Host retain its connection ID.
+Its next catalog replaces its own flags, including flags received before a
+Chat row arrived. Other Hosts keep theirs. Purging a Chat removes its flags.
+
 ## Chat submission
 
 How a message is sent to a Chat, whoever sends it: the composer, a stash

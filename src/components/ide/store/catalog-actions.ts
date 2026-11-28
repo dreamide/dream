@@ -14,10 +14,10 @@
  */
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { AgentTurnEnding } from "../../../../electron/shared/agent-turn-contract.js";
-import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { chatTurnOutcomes } from "../chat-turn-outcome";
 import { catalogBaselines } from "./catalog-baselines";
 import { createHostCatalogLifecycle } from "./host-catalog-lifecycle";
+import { replaceHostActivity, setHostFlag } from "./host-chat-activity";
 import { getLoadedWorkspace } from "./ide-store-persistence";
 import type { IdeStoreGet, IdeStoreSet } from "./ide-store-types";
 import { commitWorkspaceRemoval } from "./project-runtime-state";
@@ -100,50 +100,10 @@ export const createCatalogActions = (
     });
   };
 
-  /**
-   * Replaces this host's chats in one of the host chat sets (running turns,
-   * awaiting approvals), keeping other hosts' entries.
-   */
-  const replaceHostChats = (
-    field: "hostRunningChatIds" | "hostAwaitingApprovalChatIds",
-    hostId: string,
-    chatIds: string[],
-  ) => {
-    const state = get();
-    const projectsById = new Map(
-      [...state.projects, ...state.closedProjects].map((project) => [
-        project.id,
-        project,
-      ]),
-    );
-    const hostOfChat = (chatId: string) => {
-      const chat = state.chats.find((item) => item.id === chatId);
-      const project = chat ? projectsById.get(chat.projectId) : undefined;
-      return project ? getProjectHostId(project) : LOCAL_HOST_ID;
-    };
-    const next: Record<string, true> = {};
-    for (const chatId of Object.keys(state[field])) {
-      if (hostOfChat(chatId) !== hostId) next[chatId] = true;
-    }
-    for (const chatId of chatIds) next[chatId] = true;
-    set({ [field]: next });
-  };
-  /** What a host's catalog says is running and waiting on it now. */
   const setRunning = (
     hostId: string,
-    catalog: { runningChatIds?: string[]; awaitingApprovalChatIds?: string[] },
-  ) => {
-    replaceHostChats(
-      "hostRunningChatIds",
-      hostId,
-      catalog.runningChatIds ?? [],
-    );
-    replaceHostChats(
-      "hostAwaitingApprovalChatIds",
-      hostId,
-      catalog.awaitingApprovalChatIds ?? [],
-    );
-  };
+    catalog: Parameters<typeof replaceHostActivity>[2],
+  ) => set((state) => replaceHostActivity(state, hostId, catalog));
 
   /**
    * Projects a host refused because it already has a project at that path:
@@ -187,41 +147,36 @@ export const createCatalogActions = (
       });
   };
 
-  /** A turn started or ended on the host. */
+  /** A turn's settled ending reaches the outcome before its running flag clears. */
   const setHostTurnRunning = (
+    hostId: string,
     chatId: string,
     running: boolean,
     ending?: AgentTurnEnding,
   ) => {
-    const current = get().hostRunningChatIds;
-    if (Boolean(current[chatId]) === running) return;
-    const next = { ...current };
-    if (running) next[chatId] = true;
-    else {
-      if (ending) chatTurnOutcomes.reportHostEnding(chatId, ending);
-      delete next[chatId];
-    }
-    // A turn that ended waits on nothing.
-    if (!running && get().hostAwaitingApprovalChatIds[chatId]) {
-      const awaiting = { ...get().hostAwaitingApprovalChatIds };
-      delete awaiting[chatId];
-      set({
-        hostAwaitingApprovalChatIds: awaiting,
-        hostRunningChatIds: next,
-      });
+    const state = get();
+    const next = setHostFlag(state.hostRunningChatIds, hostId, chatId, running);
+    const awaiting = running
+      ? state.hostAwaitingApprovalChatIds
+      : setHostFlag(state.hostAwaitingApprovalChatIds, hostId, chatId, false);
+    if (
+      next === state.hostRunningChatIds &&
+      awaiting === state.hostAwaitingApprovalChatIds
+    )
       return;
-    }
-    set({ hostRunningChatIds: next });
+    if (!running && ending && state.hostRunningChatIds[chatId] === hostId)
+      chatTurnOutcomes.reportHostEnding(chatId, ending);
+    set({ hostRunningChatIds: next, hostAwaitingApprovalChatIds: awaiting });
   };
 
-  /** A chat started or stopped waiting on a tool approval on its host. */
-  const setHostChatAwaitingApproval = (chatId: string, awaiting: boolean) => {
+  const setHostChatAwaitingApproval = (
+    hostId: string,
+    chatId: string,
+    awaiting: boolean,
+  ) => {
     const current = get().hostAwaitingApprovalChatIds;
-    if (Boolean(current[chatId]) === awaiting) return;
-    const next = { ...current };
-    if (awaiting) next[chatId] = true;
-    else delete next[chatId];
-    set({ hostAwaitingApprovalChatIds: next });
+    const next = setHostFlag(current, hostId, chatId, awaiting);
+    if (next !== current) set({ hostAwaitingApprovalChatIds: next });
   };
 
   /** Loads a just-connected host's catalog into the store. */
