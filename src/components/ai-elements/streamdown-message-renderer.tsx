@@ -6,7 +6,7 @@ import {
   type StreamdownProps,
 } from "streamdown";
 import { StreamdownCodePre } from "@/components/ai-elements/streamdown-code-block";
-import { streamdownPlugins } from "@/components/ai-elements/streamdown-plugins";
+import { useStreamdownPlugins } from "@/components/ai-elements/streamdown-plugins";
 
 const lineBreakRemarkPlugins = [
   ...Object.values(defaultRemarkPlugins),
@@ -23,6 +23,7 @@ const StreamdownMessageRenderer = ({
   lineBreaks = false,
   ...props
 }: StreamdownMessageRendererProps) => {
+  const plugins = useStreamdownPlugins(props.children);
   const mergedComponents = useMemo(
     () => ({ pre: StreamdownCodePre, ...components }),
     [components],
@@ -31,7 +32,7 @@ const StreamdownMessageRenderer = ({
   return (
     <Streamdown
       components={mergedComponents}
-      plugins={streamdownPlugins}
+      plugins={plugins}
       {...(lineBreaks ? { remarkPlugins: lineBreakRemarkPlugins } : {})}
       {...props}
     />

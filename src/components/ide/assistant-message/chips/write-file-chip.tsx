@@ -1,6 +1,6 @@
 import { ExternalLinkIcon, PenLineIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   CodeBlock,
   CodeBlockActions,
@@ -26,7 +26,6 @@ import {
   type MessagePart,
   type ToolLikePart,
 } from "../../assistant-message-tools";
-import { IdeDiffViewer } from "../../diff-viewer";
 import { MaterialFileIcon } from "../../material-file-icon";
 import {
   gitDiffResourceKey,
@@ -52,6 +51,12 @@ import {
   parseSingleDiff,
   type ToolApprovalHandler,
 } from "../shared";
+
+const LazyIdeDiffViewer = lazy(() =>
+  import("../../diff-viewer").then((module) => ({
+    default: module.IdeDiffViewer,
+  })),
+);
 
 const getWriteDiffCode = ({
   content,
@@ -703,7 +708,15 @@ export const WriteFileChip = ({
                       <CodeBlockCopyButton text={displayDiffCode} />
                     </CodeBlockActions>
                   </CodeBlockHeader>
-                  <IdeDiffViewer fileDiff={parsedDiff} />
+                  <Suspense
+                    fallback={
+                      <p className="px-3 py-2 text-muted-foreground text-xs">
+                        {assistantT("loadingDiff")}
+                      </p>
+                    }
+                  >
+                    <LazyIdeDiffViewer fileDiff={parsedDiff} />
+                  </Suspense>
                 </div>
               ) : (
                 <CodeBlock

@@ -11,7 +11,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { memo, useCallback, useMemo, useState } from "react";
+import { lazy, memo, Suspense, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,14 +39,17 @@ import { CreatePrDialog } from "../git-actions/create-pr-dialog";
 import { PullDialog } from "../git-actions/pull-dialog";
 import { PushDialog } from "../git-actions/push-dialog";
 import { GitMenuDeltaSummary } from "../git-actions/summary";
-import {
-  WorktreeActionDialog,
-  type WorktreeDialogAction,
-} from "../git-actions/worktree-action-dialog";
+import type { WorktreeDialogAction } from "../git-actions/worktree-action-dialog";
 import { useIdeStore } from "../ide-store";
 import { usePullRequestContext } from "../pull-requests/api";
 import { SourceControlIcon } from "../source-control-icon";
 import { useShowGitPanel } from "./show-git-panel";
+
+const WorktreeActionDialog = lazy(() =>
+  import("../git-actions/worktree-action-dialog").then((module) => ({
+    default: module.WorktreeActionDialog,
+  })),
+);
 
 type WorktreeProject = ProjectConfig & { worktree: ProjectWorktreeInfo };
 
@@ -125,6 +128,7 @@ const GitFooterActionsImpl = ({
     null,
   );
   const [worktreeDialogOpen, setWorktreeDialogOpen] = useState(false);
+  const [worktreeDialogMounted, setWorktreeDialogMounted] = useState(false);
   // Kept after close, so a closing dialog does not switch modes mid-animation.
   const [worktreeAction, setWorktreeAction] =
     useState<WorktreeDialogAction>("merge");
@@ -233,6 +237,7 @@ const GitFooterActionsImpl = ({
 
   const openWorktreeDialog = useCallback((action: WorktreeDialogAction) => {
     setWorktreeAction(action);
+    setWorktreeDialogMounted(true);
     setWorktreeDialogOpen(true);
   }, []);
 
@@ -417,13 +422,15 @@ const GitFooterActionsImpl = ({
         open={pullOpen}
         result={pullResult}
       />
-      {worktreeProject ? (
-        <WorktreeActionDialog
-          action={worktreeAction}
-          onOpenChange={setWorktreeDialogOpen}
-          open={worktreeDialogOpen}
-          project={worktreeProject}
-        />
+      {worktreeProject && (worktreeDialogOpen || worktreeDialogMounted) ? (
+        <Suspense fallback={null}>
+          <WorktreeActionDialog
+            action={worktreeAction}
+            onOpenChange={setWorktreeDialogOpen}
+            open={worktreeDialogOpen}
+            project={worktreeProject}
+          />
+        </Suspense>
       ) : null}
     </>
   );

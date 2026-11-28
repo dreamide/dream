@@ -1,15 +1,27 @@
 import type { UIMessage } from "ai";
 import { CheckIcon, CopyIcon, HistoryIcon } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
-import { Fragment, useCallback, useEffect, useState } from "react";
+import {
+  Fragment,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import type { ChatMessageMetadata } from "../../../../electron/shared/agent-turn-contract.js";
-import { CheckpointChangesDialog } from "./checkpoint-changes-dialog";
 import {
   ContinueChatPopover,
   type ContinueChatPopoverContext,
 } from "./continue-chat-popover";
 import { getMessageText } from "./message-content";
+
+const CheckpointChangesDialog = lazy(() =>
+  import("./checkpoint-changes-dialog").then((module) => ({
+    default: module.CheckpointChangesDialog,
+  })),
+);
 
 // The metadata contract is owned by the shared agent-turn contract.
 export type { ChatMessageMetadata };
@@ -246,15 +258,17 @@ export const MessageHoverFooter = ({
             <HistoryIcon className="size-3.5" />
           </button>
           {checkpointOpen ? (
-            <CheckpointChangesDialog
-              chatId={checkpoint.chatId}
-              checkpointId={checkpointId}
-              disabled={checkpoint.isProcessing}
-              onOpenChange={setCheckpointOpen}
-              open={checkpointOpen}
-              projectId={checkpoint.projectId}
-              projectPath={checkpoint.projectPath}
-            />
+            <Suspense fallback={null}>
+              <CheckpointChangesDialog
+                chatId={checkpoint.chatId}
+                checkpointId={checkpointId}
+                disabled={checkpoint.isProcessing}
+                onOpenChange={setCheckpointOpen}
+                open={checkpointOpen}
+                projectId={checkpoint.projectId}
+                projectPath={checkpoint.projectPath}
+              />
+            </Suspense>
           ) : null}
         </>
       ) : null}

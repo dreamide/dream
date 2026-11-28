@@ -117,6 +117,10 @@ export const hostReach = createHostReach(() => useIdeStore.getState(), {
     watchHostCatalog(hostId, store, hostCatalog, chatQueues),
 });
 
+// Deduplicates concurrent hydration requests (e.g. App pre-warming hydration in
+// parallel with locale messages before IdeShell mounts).
+let activeHydration: Promise<void> | null = null;
+
 // ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
@@ -260,62 +264,76 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   ...createTerminalActions(set, get, terminalSessionOwner),
 
   // ── Actions: hydration & persistence ────────────────────────────────
-  hydrate: async () => {
-    const {
-      homeCatalog,
-      state: loaded,
-      workspaceLoaded,
-    } = await loadPersistedIdeState();
-    // The home host's baseline is its catalog as loaded, taken before the
-    // workspace is restored: a default chat restoring adds is new to the
-    // host, and must be sent to it.
-    if (homeCatalog) catalogBaselines.adopt(LOCAL_HOST_ID, loaded);
-    const restored = workspace.restore(
-      {
-        activeProjectId: loaded.activeProjectId,
-        chats: loaded.chats,
-        closedProjects: loaded.closedProjects,
-        messagesByChatId: loaded.messagesByChatId,
-        projects: loaded.projects,
-      },
-      loaded.settings,
-    );
-
-    set({
-      ...restored,
-      // Models the loaded settings no longer offer move on load.
-      ...settleSettings(restored, loaded.settings),
-      ...plainPersistedFieldsOf(loaded),
-      savedPrompts: loaded.savedPrompts,
-      activeBrowserTabIdByProject: loaded.activeBrowserTabIdByProject,
-      browserTabsByProject: loaded.browserTabsByProject,
-      ...replaceHostActivity(get(), LOCAL_HOST_ID, homeCatalog ?? {}),
-      stateHydrated: true,
-      persistenceBlocked: !workspaceLoaded,
-    });
-    transcriptCache.markHydrated(restored.messagesByChatId);
-    // Saves the local host's identity as this client's `local` connection.
-    // Its catalog is already in: the local host is this app's own, so it
-    // is never refused, only recorded.
-    // A browser client whose home host was away at startup records it
-    // when its catalog comes in (store/connection-follow.ts).
-    if (homeCatalog) {
-      try {
-        hostCatalog.lifecycle.accept(LOCAL_HOST_ID, {
-          host: homeCatalog.host,
-        });
-      } catch (error) {
-        console.warn("Unable to record the local host's identity.", error);
-      }
+  hydrate: () => {
+    if (get().stateHydrated) {
+      return Promise.resolve();
+    }
+    if (activeHydration) {
+      return activeHydration;
     }
 
-    void hostConnections.resumeHosts(
-      getLoadedWorkspace()
-        .workspaceProjects.filter(
-          (entry) => entry.status === "open" && entry.hostId !== LOCAL_HOST_ID,
-        )
-        .map((entry) => entry.hostId),
-    );
+    activeHydration = (async () => {
+      const {
+        homeCatalog,
+        state: loaded,
+        workspaceLoaded,
+      } = await loadPersistedIdeState();
+      // The home host's baseline is its catalog as loaded, taken before the
+      // workspace is restored: a default chat restoring adds is new to the
+      // host, and must be sent to it.
+      if (homeCatalog) catalogBaselines.adopt(LOCAL_HOST_ID, loaded);
+      const restored = workspace.restore(
+        {
+          activeProjectId: loaded.activeProjectId,
+          chats: loaded.chats,
+          closedProjects: loaded.closedProjects,
+          messagesByChatId: loaded.messagesByChatId,
+          projects: loaded.projects,
+        },
+        loaded.settings,
+      );
+
+      set({
+        ...restored,
+        // Models the loaded settings no longer offer move on load.
+        ...settleSettings(restored, loaded.settings),
+        ...plainPersistedFieldsOf(loaded),
+        savedPrompts: loaded.savedPrompts,
+        activeBrowserTabIdByProject: loaded.activeBrowserTabIdByProject,
+        browserTabsByProject: loaded.browserTabsByProject,
+        ...replaceHostActivity(get(), LOCAL_HOST_ID, homeCatalog ?? {}),
+        stateHydrated: true,
+        persistenceBlocked: !workspaceLoaded,
+      });
+      transcriptCache.markHydrated(restored.messagesByChatId);
+      // Saves the local host's identity as this client's `local` connection.
+      // Its catalog is already in: the local host is this app's own, so it
+      // is never refused, only recorded.
+      // A browser client whose home host was away at startup records it
+      // when its catalog comes in (store/connection-follow.ts).
+      if (homeCatalog) {
+        try {
+          hostCatalog.lifecycle.accept(LOCAL_HOST_ID, {
+            host: homeCatalog.host,
+          });
+        } catch (error) {
+          console.warn("Unable to record the local host's identity.", error);
+        }
+      }
+
+      void hostConnections.resumeHosts(
+        getLoadedWorkspace()
+          .workspaceProjects.filter(
+            (entry) =>
+              entry.status === "open" && entry.hostId !== LOCAL_HOST_ID,
+          )
+          .map((entry) => entry.hostId),
+      );
+    })().finally(() => {
+      activeHydration = null;
+    });
+
+    return activeHydration;
   },
 
   ...transcriptCache.actions,

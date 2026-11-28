@@ -1,5 +1,4 @@
 import { CheckIcon, TriangleAlertIcon, XIcon } from "lucide-react";
-import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import {
   type ComponentProps,
@@ -310,33 +309,25 @@ export const ChipAnimateProvider = ChipAnimateContext.Provider;
 export const useChipAnimate = () => useContext(ChipAnimateContext);
 export const CHIP_SUBTEXT_CLASSES = "opacity-70";
 export const CHIP_ERROR_SUBTEXT_CLASSES = "text-destructive-muted";
-export const CHIP_LAYOUT_TRANSITION = {
-  damping: 32,
-  duration: 0.18,
-  stiffness: 520,
-  type: "spring",
-} as const;
 
 export const ChipButton = ({
   className,
   hasError = false,
   tone,
   ...props
-}: ComponentProps<typeof motion.button> & {
+}: ComponentProps<"button"> & {
   hasError?: boolean;
   tone?: ChipTone;
 }) => {
   const animate = useChipAnimate();
   return (
-    <motion.button
+    <button
       className={cn(
         CHIP_BUTTON_BASE_CLASSES,
         animate && CHIP_ENTER_ANIMATION_CLASS,
         tone ? getChipToneClasses(tone, hasError) : undefined,
         className,
       )}
-      layout="size"
-      transition={CHIP_LAYOUT_TRANSITION}
       {...props}
     />
   );

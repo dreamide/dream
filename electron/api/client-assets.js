@@ -20,6 +20,11 @@
 import { createHash } from "node:crypto";
 import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
+import { brotliCompress, gzip, constants as zlibConstants } from "node:zlib";
+
+const gzipAsync = promisify(gzip);
+const brotliAsync = promisify(brotliCompress);
 
 const TYPES = {
   ".css": "text/css; charset=utf-8",
@@ -37,6 +42,21 @@ const TYPES = {
   ".woff": "font/woff",
   ".woff2": "font/woff2",
 };
+
+const COMPRESSIBLE_EXTENSIONS = new Set([
+  ".css",
+  ".html",
+  ".js",
+  ".json",
+  ".map",
+  ".mjs",
+  ".svg",
+  ".wasm",
+]);
+
+const MIN_COMPRESS_BYTES = 1024;
+const MAX_COMPRESSED_CACHE_ENTRIES = 64;
+const MAX_COMPRESSED_CACHE_BYTES = 16 * 1024 * 1024;
 
 const IMMUTABLE = "public, max-age=31536000, immutable";
 const REVALIDATE = "no-cache";
@@ -65,9 +85,38 @@ export const clientContentSecurityPolicy = (html) =>
     "object-src 'none'",
   ].join("; ");
 
+const makeEtag = (fileStat) =>
+  `W/"${fileStat.size.toString(16)}-${Math.trunc(fileStat.mtimeMs).toString(16)}"`;
+
+const etagMatches = (ifNoneMatch, etag) => {
+  if (!ifNoneMatch) return false;
+  const normalizedTarget = etag.replace(/^W\//, "");
+  return ifNoneMatch.split(",").some((candidate) => {
+    const trimmed = candidate.trim();
+    return trimmed === "*" || trimmed.replace(/^W\//, "") === normalizedTarget;
+  });
+};
+
+const selectEncoding = (acceptEncoding) => {
+  if (!acceptEncoding) return null;
+  const normalized = acceptEncoding.toLowerCase();
+  if (/\bbr\b/.test(normalized)) return "br";
+  if (/\bgzip\b/.test(normalized)) return "gzip";
+  return null;
+};
+
+const compressBuffer = (body, encoding) => {
+  if (encoding === "br") {
+    return brotliAsync(body, {
+      params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 4 },
+    });
+  }
+  return gzipAsync(body, { level: 6 });
+};
+
 /**
- * The file under `root` that `requestPath` names, or null. Refuses anything
- * that would leave `root` or name a hidden file.
+ * The file under `root` that `requestPath` names, plus its stat, or null.
+ * Refuses anything that would leave `root` or name a hidden file.
  */
 const resolveClientFile = async (root, requestPath) => {
   let decoded;
@@ -87,7 +136,8 @@ const resolveClientFile = async (root, requestPath) => {
     // Through any symlink, still inside the directory, and a plain file.
     const real = await realpath(candidate);
     if (!real.startsWith(`${root}${path.sep}`)) return null;
-    return (await stat(real)).isFile() ? real : null;
+    const fileStat = await stat(real);
+    return fileStat.isFile() ? { file: real, fileStat } : null;
   } catch {
     return null;
   }
@@ -109,6 +159,47 @@ export const createClientAssets = async (directory) => {
     return null;
   }
 
+  const assetsPrefix = `${path.join(root, "assets")}${path.sep}`;
+  const indexPath = path.join(root, "index.html");
+
+  /** @type {Map<string, { csp: string, etag: string }>} */
+  const htmlCspCache = new Map();
+
+  /** @type {Map<string, Buffer>} */
+  const compressedCache = new Map();
+  let compressedCacheBytes = 0;
+
+  const getCachedCompressed = (key) => {
+    const cached = compressedCache.get(key);
+    if (!cached) return null;
+    compressedCache.delete(key);
+    compressedCache.set(key, cached);
+    return cached;
+  };
+
+  const setCachedCompressed = (key, value) => {
+    if (value.byteLength > MAX_COMPRESSED_CACHE_BYTES / 2) return;
+    const existing = compressedCache.get(key);
+    if (existing) {
+      compressedCacheBytes -= existing.byteLength;
+      compressedCache.delete(key);
+    }
+    compressedCache.set(key, value);
+    compressedCacheBytes += value.byteLength;
+    for (const oldestKey of compressedCache.keys()) {
+      if (
+        compressedCache.size <= MAX_COMPRESSED_CACHE_ENTRIES &&
+        compressedCacheBytes <= MAX_COMPRESSED_CACHE_BYTES
+      ) {
+        break;
+      }
+      const evicted = compressedCache.get(oldestKey);
+      if (evicted && compressedCache.delete(oldestKey)) {
+        compressedCacheBytes -= evicted.byteLength;
+      }
+    }
+  };
+
   /** @param {import("hono").Context} c */
   return async (c) => {
     const { method } = c.req;
@@ -121,30 +212,93 @@ export const createClientAssets = async (directory) => {
       return c.text("Not found.", 404);
     }
 
-    let file = await resolveClientFile(root, requestPath);
-    if (!file) {
+    let resolved = await resolveClientFile(root, requestPath);
+    if (!resolved) {
       // A page of the app (no extension): the app itself. A missing file
       // with an extension is missing, not the app.
       if (path.posix.extname(requestPath)) return c.text("Not found.", 404);
-      file = path.join(root, "index.html");
+      try {
+        const fileStat = await stat(indexPath);
+        if (!fileStat.isFile()) return c.text("Not found.", 404);
+        resolved = { file: indexPath, fileStat };
+      } catch {
+        return c.text("Not found.", 404);
+      }
     }
 
-    const body = await readFile(file);
+    const { file, fileStat } = resolved;
     const extension = path.extname(file).toLowerCase();
+    const isImmutableAsset = file.startsWith(assetsPrefix);
+    const etag = makeEtag(fileStat);
+    const compressible =
+      COMPRESSIBLE_EXTENSIONS.has(extension) &&
+      fileStat.size >= MIN_COMPRESS_BYTES;
+    const encoding = compressible
+      ? selectEncoding(c.req.header("accept-encoding"))
+      : null;
+
     const headers = {
-      "Cache-Control": file.startsWith(
-        `${path.join(root, "assets")}${path.sep}`,
-      )
-        ? IMMUTABLE
-        : REVALIDATE,
+      "Cache-Control": isImmutableAsset ? IMMUTABLE : REVALIDATE,
       "Content-Type": TYPES[extension] ?? "application/octet-stream",
+      ETag: etag,
       "X-Frame-Options": "DENY",
     };
-    if (extension === ".html") {
-      headers["Content-Security-Policy"] = clientContentSecurityPolicy(
-        body.toString("utf8"),
-      );
+    if (compressible) {
+      headers.Vary = "Accept-Encoding";
     }
+
+    if (etagMatches(c.req.header("if-none-match"), etag)) {
+      if (extension === ".html") {
+        const cached = htmlCspCache.get(file);
+        if (cached && cached.etag === etag) {
+          headers["Content-Security-Policy"] = cached.csp;
+        }
+      }
+      return c.body(null, 304, headers);
+    }
+
+    let body = null;
+    const cacheKey =
+      isImmutableAsset && encoding ? `${file}:${etag}:${encoding}` : null;
+
+    if (cacheKey) {
+      const cached = getCachedCompressed(cacheKey);
+      if (cached) {
+        body = cached;
+        headers["Content-Encoding"] = encoding;
+      }
+    }
+
+    if (!body) {
+      const raw = await readFile(file);
+      if (extension === ".html") {
+        let cached = htmlCspCache.get(file);
+        if (!cached || cached.etag !== etag) {
+          cached = {
+            csp: clientContentSecurityPolicy(raw.toString("utf8")),
+            etag,
+          };
+          htmlCspCache.set(file, cached);
+        }
+        headers["Content-Security-Policy"] = cached.csp;
+      }
+
+      if (encoding) {
+        const compressed = await compressBuffer(raw, encoding);
+        if (compressed.byteLength < raw.byteLength) {
+          body = compressed;
+          headers["Content-Encoding"] = encoding;
+          if (cacheKey) {
+            setCachedCompressed(cacheKey, compressed);
+          }
+        } else {
+          body = raw;
+        }
+      } else {
+        body = raw;
+      }
+    }
+
     return c.body(method === "HEAD" ? null : body, 200, headers);
   };
 };

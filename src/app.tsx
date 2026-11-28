@@ -1,5 +1,6 @@
 import { NextIntlClientProvider } from "next-intl";
 import { useEffect, useState } from "react";
+import { loadLocaleFonts, loadWebFonts } from "@/app/fonts";
 import { IdeShell } from "@/components/ide/ide-shell";
 import { PairingScreen } from "@/components/remote/pairing-screen";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -8,6 +9,7 @@ import { loadMessages, type Messages } from "@/i18n/messages";
 import { getClientPlatform } from "@/lib/connections/platform";
 import { useConnectionState } from "@/lib/connections/use-connection-state";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
+import { useUiStore } from "@/lib/ui-store";
 import { useIdeStore } from "./components/ide/ide-store";
 
 /**
@@ -28,6 +30,24 @@ export const App = () => {
     locale: AppLocale;
     messages: Messages;
   } | null>(null);
+
+  useEffect(() => {
+    loadWebFonts();
+  }, []);
+
+  // Overlap persisted workspace hydration with locale message loading so the
+  // IDE does not wait for messages before reading the home host catalog.
+  useEffect(() => {
+    if (needsPairing) {
+      return;
+    }
+    void useIdeStore.getState().hydrate();
+    useUiStore.getState().hydrateUi();
+  }, [needsPairing]);
+
+  useEffect(() => {
+    loadLocaleFonts(locale);
+  }, [locale]);
 
   useEffect(() => {
     let cancelled = false;
