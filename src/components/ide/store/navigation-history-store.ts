@@ -65,7 +65,9 @@ let traversing = false;
  * wherever it came from (a tab click, opening a project, a new chat, ...).
  * Returns the unsubscribe function.
  */
-export const startNavigationHistoryTracking = () => {
+export const startNavigationHistoryTracking = (
+  store: Pick<typeof useIdeStore, "getState" | "subscribe"> = useIdeStore,
+) => {
   let lastActiveProjectId: string | null | undefined;
   let lastProjects: IdeState["projects"] | undefined;
   let lastChats: IdeState["chats"] | undefined;
@@ -96,8 +98,8 @@ export const startNavigationHistoryTracking = () => {
     setHistory(pruneNavHistory(history, createNavLocationValidator(state)));
   };
 
-  observe(useIdeStore.getState());
-  return useIdeStore.subscribe(observe);
+  observe(store.getState());
+  return store.subscribe(observe);
 };
 
 /** Goes one step back (-1) or forward (1). Does nothing at either end. */
@@ -118,11 +120,12 @@ export const navigateHistory = (direction: -1 | 1) => {
 
   traversing = true;
   try {
-    // Focus the chat first so the project opens straight onto it.
     if (target.chatId) {
-      ide.setActiveChatId(target.projectId, target.chatId);
+      // A live, open destination is selected synchronously while traversing.
+      void ide.revealChat(target.chatId, "open");
+    } else {
+      ide.setActiveProjectId(target.projectId);
     }
-    ide.setActiveProjectId(target.projectId);
     // Settings covers the workspace; going back or forward means leaving it.
     if (ide.settingsOpen) {
       ide.setSettingsOpen(false);

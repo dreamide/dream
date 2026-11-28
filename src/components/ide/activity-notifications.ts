@@ -42,12 +42,9 @@ export type TranslateActivityNotification = (
 /** Opens the chat a notification was about. */
 const showChat = (chatId: string) => {
   const state = useIdeStore.getState();
-  const chat = state.chats.find((item) => item.id === chatId);
-  if (!chat || chat.deletedAt !== null) return;
-  if (!state.projects.some((project) => project.id === chat.projectId)) return;
-  state.setSettingsOpen(false);
-  state.setActiveProjectId(chat.projectId);
-  state.setActiveChatId(chat.projectId, chatId);
+  void state.revealChat(chatId, "open").then((shown) => {
+    if (shown) state.setSettingsOpen(false);
+  });
 };
 
 /**

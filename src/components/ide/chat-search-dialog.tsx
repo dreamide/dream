@@ -101,33 +101,10 @@ const useTranscriptSearch = (query: string, enabled: boolean) => {
   return { search, searching };
 };
 
-const openChat = ({ chat, project }: ChatSearchRow) => {
+const openChat = ({ chat }: ChatSearchRow) => {
   const state = useIdeStore.getState();
-  if (chat.deletedAt !== null) {
-    state.restoreChats([chat.id]);
-  }
   state.setSettingsOpen(false);
-  // A standalone chat opens behind the Chats tab, closing the one there.
-  if (project.standalone) {
-    void state.showStandaloneChat(chat.id);
-    return;
-  }
-  const show = () => {
-    const current = useIdeStore.getState();
-    current.setActiveProjectId(project.id);
-    current.setActiveChatId(project.id, chat.id);
-  };
-  if (state.projects.some((item) => item.id === project.id)) {
-    show();
-    return;
-  }
-  // A closed project reopens with its chats, on its own host (connected
-  // first when that is an SSH host).
-  void state
-    .openProject(project.path, { activate: true, hostId: project.hostId })
-    .then((opened) => {
-      if (opened) show();
-    });
+  void state.revealChat(chat.id, "search");
 };
 
 export const ChatSearchDialog = () => {

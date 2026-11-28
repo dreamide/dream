@@ -1124,6 +1124,49 @@ export const focusChat = (
     settings,
   );
 
+export type ChatReveal = "search" | "standalone" | "open";
+
+/**
+ * Search and the Chats tab may restore a Chat. Notifications and history
+ * visit live Chats in open Projects.
+ */
+export const chatDestination = (
+  doc: WorkspaceDocument,
+  chatId: string,
+  intent: ChatReveal,
+) => {
+  const chat = doc.chats.find((item) => item.id === chatId);
+  if (!chat || (intent === "open" && chat.deletedAt !== null)) return null;
+  const open = doc.projects.find((item) => item.id === chat.projectId);
+  const project =
+    open ??
+    (intent !== "open" &&
+      doc.closedProjects.find((item) => item.id === chat.projectId));
+  if (!project || (intent === "standalone" && !project.standalone)) return null;
+  return { chat, project, open: Boolean(open) };
+};
+
+/** Select both IDs in the same published document, after any Host reach. */
+export const revealChat = (
+  doc: WorkspaceDocument,
+  settings: AppSettings,
+  target: NonNullable<ReturnType<typeof chatDestination>>,
+) => {
+  const { chat, project, open } = target;
+  let next =
+    chat.deletedAt === null ? doc : restoreChats(doc, settings, [chat.id]);
+  if (project.standalone || !open) {
+    const options = { hostId: getProjectHostId(project) };
+    const opened = project.standalone
+      ? showStandaloneProject(next, settings, project.path, options)
+      : openProject(next, settings, project.path, options);
+    next = opened.doc;
+  } else if (next.activeProjectId !== project.id) {
+    next = activateProject(next, project.id);
+  }
+  return removalBetween(doc, focusChat(next, settings, project.id, chat.id));
+};
+
 /** Switches a project between one chat at a time and chats side by side. */
 export const toggleMultiChat = (
   doc: WorkspaceDocument,

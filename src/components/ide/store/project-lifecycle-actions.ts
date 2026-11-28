@@ -1,5 +1,6 @@
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { ProjectConfig, ProjectWorktreeInfo } from "@/types/ide";
+import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { chatTurnOutcomes } from "../chat-turn-outcome";
 import { createHostReach, type HostReach } from "./host-reach";
 import type { IdeStoreGet, IdeStoreSet } from "./ide-store-types";
@@ -14,6 +15,10 @@ import * as workspace from "./workspace-document";
 export interface ProjectLifecycleActions {
   setProjects: (projects: ProjectConfig[]) => void;
   setActiveProjectId: (id: string | null) => void;
+  revealChat: (
+    chatId: string,
+    intent: workspace.ChatReveal,
+  ) => Promise<boolean>;
   addProject: (
     path: string,
     options?: {
@@ -84,6 +89,33 @@ export const createProjectLifecycleActions = (
           .filter((chat) => chat.projectId === activeProjectId)
           .map((chat) => chat.id),
       );
+  },
+
+  revealChat: async (chatId, intent) => {
+    const before = workspace.chatDestination(get(), chatId, intent);
+    if (!before) return false;
+    const hostId = getProjectHostId(before.project);
+    if (intent !== "open" && (before.project.standalone || !before.open)) {
+      if (!(await hosts.reach(hostId))) return false;
+    }
+    const state = get();
+    const target = workspace.chatDestination(state, chatId, intent);
+    if (!target || getProjectHostId(target.project) !== hostId) return false;
+    const removal = workspace.revealChat(state, state.settings, target);
+    void commitWorkspaceRemoval(set, terminals, removal);
+    if (
+      intent === "standalone" ||
+      (intent === "search" && target.project.standalone)
+    ) {
+      chatTurnOutcomes.seen([chatId]);
+    } else {
+      chatTurnOutcomes.seen(
+        removal.doc.chats
+          .filter((chat) => chat.projectId === target.project.id)
+          .map((chat) => chat.id),
+      );
+    }
+    return true;
   },
 
   addProject: (

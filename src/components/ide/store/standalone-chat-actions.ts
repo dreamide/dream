@@ -5,7 +5,6 @@
 import { apiClient } from "@/lib/api-client";
 import { LOCAL_HOST_ID } from "@/lib/host-routing";
 import type { ProjectConfig } from "@/types/ide";
-import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import { createHostReach, type HostReach } from "./host-reach";
 import type {
   IdeStoreGet,
@@ -33,12 +32,6 @@ export interface StandaloneChatActions {
     | { ok: true; chatId: string | null; projectId: string }
     | { ok: false; error: unknown }
   >;
-  /**
-   * Shows a standalone chat, restoring it when deleted. Its project opens
-   * and the standalone project that was open closes. False when the chat
-   * is not a standalone chat or its Host could not be reached.
-   */
-  showStandaloneChat: (chatId: string) => Promise<boolean>;
   /**
    * Turns a standalone chat's project into an ordinary one where its folder
    * is, named after the chat, and shows it as its own tab. Its other chats
@@ -111,21 +104,6 @@ export const createStandaloneChatActions = (
           standalone: { createdAt },
         })),
       };
-    },
-
-    showStandaloneChat: async (chatId) => {
-      const state = get();
-      const chat = state.chats.find((item) => item.id === chatId);
-      const project = [...state.projects, ...state.closedProjects].find(
-        (item) => item.id === chat?.projectId,
-      );
-      if (!chat || !project?.standalone) return false;
-      const hostId = getProjectHostId(project);
-      if (!(await reachHost(hostId))) return false;
-      if (chat.deletedAt !== null) get().restoreChats([chat.id]);
-      show(project.path, hostId);
-      get().setActiveChatId(project.id, chat.id);
-      return true;
     },
 
     promoteStandaloneChat: (chatId) => {

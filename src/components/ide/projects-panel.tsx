@@ -110,7 +110,7 @@ export const ProjectSidebar = ({
     (s) => s.projects.find((item) => item.id === project.id)?.ui ?? project.ui,
   );
   const setActiveChatId = useIdeStore((s) => s.setActiveChatId);
-  const showStandaloneChat = useIdeStore((s) => s.showStandaloneChat);
+  const revealChat = useIdeStore((s) => s.revealChat);
   const promoteStandaloneChat = useIdeStore((s) => s.promoteStandaloneChat);
   const openProjects = useIdeStore((s) => s.projects);
   const closedProjects = useIdeStore((s) => s.closedProjects);
@@ -193,12 +193,12 @@ export const ProjectSidebar = ({
   const handleChatSelect = useCallback(
     (chat: ChatConfig) => {
       if (chat.projectId !== project.id && project.standalone) {
-        void showStandaloneChat(chat.id);
+        void revealChat(chat.id, "standalone");
         return;
       }
       setActiveChatId(project.id, chat.id);
     },
-    [project.id, project.standalone, setActiveChatId, showStandaloneChat],
+    [project.id, project.standalone, setActiveChatId, revealChat],
   );
 
   const handleWorktreeSelect = useCallback(

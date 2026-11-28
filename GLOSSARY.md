@@ -247,6 +247,12 @@ list whose rows all held keeps its identity: a host's change to one chat
 replaces that chat alone, and a catalog reloaded unchanged changes nothing
 the store or the save scheduler would notice.
 
+Revealing an existing Chat resolves its ID against the current document after
+any required Host reach. Search may reopen its Project and restore a deleted
+Chat. The Chats tab may swap standalone Projects. Notifications and navigation
+history visit live Chats in open Projects. The Project and Chat become active
+in one published document, so the navigation history records one visit.
+
 ## Provider session
 
 The provider-side identity of a chat's conversation, used to resume it:

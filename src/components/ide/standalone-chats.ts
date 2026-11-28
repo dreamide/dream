@@ -85,7 +85,7 @@ export const useOpenChatsTab = () => {
       state.chats,
       standaloneProjectsById(state.projects, state.closedProjects),
     );
-    if (latest && (await state.showStandaloneChat(latest.id))) return;
+    if (latest && (await state.revealChat(latest.id, "standalone"))) return;
     await startChat();
   }, [startChat]);
 };

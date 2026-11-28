@@ -8,14 +8,22 @@ import {
   fakeApiError,
 } from "@/lib/api-client-fake";
 import { createProjectConfig, DEFAULT_SETTINGS } from "@/lib/ide-defaults";
+import { createCatalogActions } from "./catalog-actions";
 import { createChatActions } from "./chat-actions";
 import type { IdeState } from "./ide-store-types";
+import {
+  startNavigationHistoryTracking,
+  useNavigationHistoryStore,
+} from "./navigation-history-store";
 import { createProjectLifecycleActions } from "./project-lifecycle-actions";
 import { createStandaloneChatActions } from "./standalone-chat-actions";
 
 const CHATS_ROOT = "/home/me/.dream/chats";
 
-const createTestStore = (handlers: FakeApiHandlers = {}) => {
+const createTestStore = (
+  handlers: FakeApiHandlers = {},
+  reach?: (hostId: string) => Promise<boolean>,
+) => {
   const api = createFakeApiClient({
     createChatFolder: ({ projectId }) => ({
       path: `${CHATS_ROOT}/2026-11-16-${projectId.slice(0, 8)}`,
@@ -70,6 +78,7 @@ const createTestStore = (handlers: FakeApiHandlers = {}) => {
   );
   store.setState({
     ...createProjectLifecycleActions(store.setState, store.getState, {
+      hosts: reach ? { reach } : undefined,
       persist,
       terminals,
     }),
@@ -158,7 +167,7 @@ test("a new chat after one with messages closes it, stopping its terminals", asy
 
   // Showing the first chat again swaps them back.
   assert.equal(
-    await store.getState().showStandaloneChat(first.chatId as string),
+    await store.getState().revealChat(first.chatId as string, "standalone"),
     true,
   );
   const shown = store.getState();
@@ -219,9 +228,63 @@ test("showing a chat that is not standalone does nothing", async () => {
   const plainChat = store.getState().chats[0];
 
   assert.equal(
-    await store.getState().showStandaloneChat(plainChat?.id as string),
+    await store.getState().revealChat(plainChat?.id as string, "standalone"),
     false,
   );
+});
+
+test("a catalog purge during Host reach leaves the current selection intact", async () => {
+  const ready = Promise.withResolvers<boolean>();
+  const { store } = createTestStore({}, () => ready.promise);
+  const target = await created(store);
+  giveMessage(store, target.chatId as string);
+  const current = await created(store);
+  store.setState({ stateHydrated: true });
+  const opening = store
+    .getState()
+    .revealChat(target.chatId as string, "standalone");
+  const catalog = createCatalogActions(store.setState, store.getState, {
+    persist: () => {},
+    terminals: { dropProject: async () => {} },
+  });
+  catalog.applyCatalogChanges({ removedProjectIds: [target.projectId] });
+  const afterPurge = store.getState();
+  ready.resolve(true);
+  assert.equal(await opening, false);
+  assert.equal(store.getState(), afterPurge);
+  assert.equal(afterPurge.activeProjectId, current.projectId);
+});
+
+test("search restores a closed Project's deleted Chat in one navigation visit", async () => {
+  const { store } = createTestStore();
+  const firstProject = store.getState().projects[0];
+  const targetId = store
+    .getState()
+    .addChat(firstProject.id, undefined, { forceNew: true });
+  assert.ok(targetId);
+  giveMessage(store, targetId);
+  store.getState().deleteChat(targetId);
+  store.getState().addProject("/workspace/second");
+  store.getState().closeProject(firstProject.id);
+  store.setState({ stateHydrated: true });
+  const originalHistory = useNavigationHistoryStore.getState().history;
+  const stop = startNavigationHistoryTracking(store);
+  try {
+    assert.equal(await store.getState().revealChat(targetId, "open"), false);
+    const visits = useNavigationHistoryStore.getState().history.entries.length;
+    assert.equal(await store.getState().revealChat(targetId, "search"), true);
+    assert.deepEqual(
+      useNavigationHistoryStore.getState().history.entries.slice(visits),
+      [{ projectId: firstProject.id, chatId: targetId }],
+    );
+    assert.equal(
+      store.getState().chats.find((chat) => chat.id === targetId)?.deletedAt,
+      null,
+    );
+  } finally {
+    stop();
+    useNavigationHistoryStore.setState({ history: originalHistory });
+  }
 });
 
 test("turning a standalone chat into a project names it after the chat and shows it", async () => {
