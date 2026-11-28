@@ -262,15 +262,7 @@ export const getProjectGitMetadata = async (
   };
 };
 
-const isBinaryBuffer = (buffer) => {
-  for (const byte of buffer) {
-    if (byte === 0) {
-      return true;
-    }
-  }
-
-  return false;
-};
+const isBinaryBuffer = (buffer) => buffer.includes(0);
 
 /** `projectRoot` is the project's `canonicalProjectRoot`. */
 const toProjectRelativeGitPath = (projectRoot, repoRoot, gitPath) => {
@@ -826,22 +818,38 @@ const getGitDiffBaseRef = async (repoRoot) => {
   return headResult.ok ? headResult.stdout.trim() : EMPTY_GIT_TREE_HASH;
 };
 
+const UNTRACKED_STATS_MAX_BYTES = 5 * 1024 * 1024;
+const UNTRACKED_DIFF_MAX_BYTES = 2 * 1024 * 1024;
+const UNTRACKED_READ_CONCURRENCY = 8;
+
 const countUntrackedFileLines = async (projectPath, filePath) => {
   const absolutePath = resolveProjectPath(projectPath, filePath);
+  const stats = await fs.stat(absolutePath);
+  if (
+    !stats.isFile() ||
+    stats.size === 0 ||
+    stats.size > UNTRACKED_STATS_MAX_BYTES
+  ) {
+    return { addedLines: 0, removedLines: 0 };
+  }
+
   const contents = await fs.readFile(absolutePath);
-
-  if (isBinaryBuffer(contents)) {
+  if (contents.length === 0 || isBinaryBuffer(contents)) {
     return { addedLines: 0, removedLines: 0 };
   }
 
-  const text = contents.toString("utf8");
-  if (!text) {
-    return { addedLines: 0, removedLines: 0 };
+  let addedLines = 0;
+  for (let index = 0; index < contents.length; index += 1) {
+    if (contents[index] === 0x0a) {
+      addedLines += 1;
+    }
+  }
+  if (contents[contents.length - 1] !== 0x0a) {
+    addedLines += 1;
   }
 
-  const lines = text.split(/\r?\n/);
   return {
-    addedLines: text.endsWith("\n") ? lines.length - 1 : lines.length,
+    addedLines,
     removedLines: 0,
   };
 };
@@ -903,20 +911,41 @@ const getProjectGitChangeStats = async (
     }
   }
 
+  const untrackedToCount = [];
   for (const change of changes) {
     if (statsByPath.has(change.path)) {
       continue;
     }
 
     if (change.status === "untracked") {
-      statsByPath.set(
-        change.path,
-        await countUntrackedFileLines(projectPath, change.path),
-      );
+      untrackedToCount.push(change.path);
       continue;
     }
 
     statsByPath.set(change.path, { addedLines: 0, removedLines: 0 });
+  }
+
+  for (
+    let offset = 0;
+    offset < untrackedToCount.length;
+    offset += UNTRACKED_READ_CONCURRENCY
+  ) {
+    const batch = untrackedToCount.slice(
+      offset,
+      offset + UNTRACKED_READ_CONCURRENCY,
+    );
+    const counted = await Promise.all(
+      batch.map(async (filePath) => [
+        filePath,
+        await countUntrackedFileLines(projectPath, filePath).catch(() => ({
+          addedLines: 0,
+          removedLines: 0,
+        })),
+      ]),
+    );
+    for (const [filePath, stat] of counted) {
+      statsByPath.set(filePath, stat);
+    }
   }
 
   return statsByPath;
@@ -924,6 +953,15 @@ const getProjectGitChangeStats = async (
 
 const buildUntrackedFileDiff = async (projectPath, filePath) => {
   const absolutePath = resolveProjectPath(projectPath, filePath);
+  const stats = await fs.stat(absolutePath);
+  if (stats.size > UNTRACKED_DIFF_MAX_BYTES) {
+    return [
+      `diff --git a/${filePath} b/${filePath}`,
+      "new file mode 100644",
+      `Binary files /dev/null and b/${filePath} differ`,
+    ].join("\n");
+  }
+
   const contents = await fs.readFile(absolutePath);
 
   if (isBinaryBuffer(contents)) {
@@ -1207,24 +1245,34 @@ export const getProjectGitBulkDiff = async (projectPath, changes) => {
     }
   }
 
-  // Batch untracked file diffs (no git subprocess needed, just file reads)
+  // Batch untracked file diffs with bounded concurrency (no git subprocess needed)
   if (untrackedChanges.length > 0) {
-    const untrackedDiffs = await Promise.all(
-      untrackedChanges.map(async (c) => {
-        try {
-          return await buildUntrackedFileDiff(
-            projectPath,
-            normalizePath(c.path),
-          );
-        } catch {
-          return "";
-        }
-      }),
-    );
+    for (
+      let offset = 0;
+      offset < untrackedChanges.length;
+      offset += UNTRACKED_READ_CONCURRENCY
+    ) {
+      const batch = untrackedChanges.slice(
+        offset,
+        offset + UNTRACKED_READ_CONCURRENCY,
+      );
+      const untrackedDiffs = await Promise.all(
+        batch.map(async (c) => {
+          try {
+            return await buildUntrackedFileDiff(
+              projectPath,
+              normalizePath(c.path),
+            );
+          } catch {
+            return "";
+          }
+        }),
+      );
 
-    for (const diff of untrackedDiffs) {
-      if (diff) {
-        parts.push(diff);
+      for (const diff of untrackedDiffs) {
+        if (diff) {
+          parts.push(diff);
+        }
       }
     }
   }

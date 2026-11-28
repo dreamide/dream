@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 import { stopChildProcess } from "../../process-tree.js";
 import { readCodexChatGptAuthTokens } from "../providers/codex-auth.js";
 import {
@@ -16,10 +17,34 @@ import {
 } from "./mcp-servers.js";
 
 const MAX_STDERR_CHARS = 20_000;
+const CODEX_IDLE_SHUTDOWN_MS = 10 * 60_000;
 
 let sharedClient = null;
 let sharedClientPromise = null;
+let idleShutdownTimer = null;
 const skillsChangedListeners = new Set();
+
+const cancelIdleShutdown = () => {
+  if (idleShutdownTimer !== null) {
+    clearTimeout(idleShutdownTimer);
+    idleShutdownTimer = null;
+  }
+};
+
+const scheduleIdleShutdown = () => {
+  cancelIdleShutdown();
+  if (!sharedClient || sharedClient.isClosed()) {
+    return;
+  }
+  if (sharedClient.getActiveThreadCount() > 0) {
+    return;
+  }
+  idleShutdownTimer = setTimeout(() => {
+    idleShutdownTimer = null;
+    void stopIdleCodexAppServer();
+  }, CODEX_IDLE_SHUTDOWN_MS);
+  idleShutdownTimer.unref?.();
+};
 
 /**
  * Runs `listener` whenever the app-server reports that a watched skill file
@@ -198,9 +223,21 @@ const createCodexAppServerClient = async ({
       return;
     }
 
-    const rateLimits = findRateLimitsObject(message);
-    if (rateLimits) {
-      storeProviderUsageLimitSnapshot("openai", rateLimits, "codex");
+    // Only rate-limit/account/turn notifications and responses carry usage
+    // snapshots; avoid scanning every streaming text/command delta object.
+    const method = typeof message.method === "string" ? message.method : "";
+    const mayCarryRateLimits =
+      !method ||
+      method.includes("rateLimit") ||
+      method.includes("rate_limit") ||
+      method.includes("account") ||
+      method.includes("usage") ||
+      method === "turn/completed";
+    if (mayCarryRateLimits) {
+      const rateLimits = findRateLimitsObject(message);
+      if (rateLimits) {
+        storeProviderUsageLimitSnapshot("openai", rateLimits, "codex");
+      }
     }
 
     if (Object.hasOwn(message, "id") && message.method) {
@@ -254,21 +291,28 @@ const createCodexAppServerClient = async ({
     }
   };
 
+  const stdoutDecoder = new StringDecoder("utf8");
   const handleStdoutChunk = (chunk) => {
-    stdoutBuffer += chunk.toString();
-    const lines = stdoutBuffer.split(/\r?\n/);
-    stdoutBuffer = lines.pop() ?? "";
+    stdoutBuffer +=
+      typeof chunk === "string" ? chunk : stdoutDecoder.write(chunk);
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) {
+    let start = 0;
+    let newlineIndex = stdoutBuffer.indexOf("\n", start);
+    while (newlineIndex !== -1) {
+      const line = stdoutBuffer.slice(start, newlineIndex).trim();
+      start = newlineIndex + 1;
+      newlineIndex = stdoutBuffer.indexOf("\n", start);
+      if (!line) {
         continue;
       }
       try {
-        handleMessage(JSON.parse(trimmed));
+        handleMessage(JSON.parse(line));
       } catch {
-        appendStderr(`${trimmed}\n`);
+        appendStderr(`${line}\n`);
       }
+    }
+    if (start > 0) {
+      stdoutBuffer = stdoutBuffer.slice(start);
     }
   };
 
@@ -312,6 +356,7 @@ const createCodexAppServerClient = async ({
     isClosed: () => closed,
     registerThread: (threadId, handler) => {
       knownThreadIds.add(threadId);
+      cancelIdleShutdown();
       const handlers = threadHandlers.get(threadId) ?? new Set();
       handlers.add(handler);
       threadHandlers.set(threadId, handlers);
@@ -320,6 +365,9 @@ const createCodexAppServerClient = async ({
         handlers.delete(handler);
         if (handlers.size === 0) {
           threadHandlers.delete(threadId);
+          if (threadHandlers.size === 0) {
+            scheduleIdleShutdown();
+          }
         }
       };
     },
@@ -407,6 +455,7 @@ export const getCodexAppServerClient = async ({ mcpServers = [] } = {}) => {
       configOverrideArgs: toCodexConfigOverrides(mcpServers),
       fingerprint,
       onClosed: (client) => {
+        cancelIdleShutdown();
         if (sharedClient === client) {
           sharedClient = null;
         }
@@ -415,6 +464,7 @@ export const getCodexAppServerClient = async ({ mcpServers = [] } = {}) => {
     })
       .then((client) => {
         sharedClient = client;
+        scheduleIdleShutdown();
         return client;
       })
       .catch((error) => {
@@ -427,6 +477,7 @@ export const getCodexAppServerClient = async ({ mcpServers = [] } = {}) => {
 };
 
 export const stopCodexAppServer = async () => {
+  cancelIdleShutdown();
   const clientPromise = sharedClientPromise;
   sharedClient = null;
   sharedClientPromise = null;

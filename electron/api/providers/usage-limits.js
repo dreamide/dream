@@ -276,40 +276,80 @@ export const findRateLimitsObject = (value, depth = 0) => {
   return null;
 };
 
+const SESSION_SCAN_CONCURRENCY = 16;
+const SESSION_TAIL_MAX_BYTES = 256 * 1024;
+
+const readFileTailUtf8 = async (
+  filePath,
+  maxBytes = SESSION_TAIL_MAX_BYTES,
+) => {
+  const handle = await fs.open(filePath, "r");
+  try {
+    const stats = await handle.stat();
+    if (stats.size <= maxBytes) {
+      return await handle.readFile("utf8");
+    }
+    const offset = stats.size - maxBytes;
+    const buffer = Buffer.allocUnsafe(maxBytes);
+    const { bytesRead } = await handle.read(buffer, 0, maxBytes, offset);
+    const text = buffer.subarray(0, bytesRead).toString("utf8");
+    // Drop the likely truncated first line when starting mid-file.
+    const firstNewline = text.indexOf("\n");
+    return firstNewline >= 0 ? text.slice(firstNewline + 1) : text;
+  } finally {
+    await handle.close();
+  }
+};
+
 const collectRecentJsonFiles = async (rootPath, maxFiles) => {
   const files = [];
+  const queue = [rootPath];
 
-  const walk = async (directory) => {
-    let entries;
-    try {
-      entries = await fs.readdir(directory, { withFileTypes: true });
-    } catch {
-      return;
-    }
-
+  while (queue.length > 0) {
+    const directories = queue.splice(0, SESSION_SCAN_CONCURRENCY);
     await Promise.all(
-      entries.map(async (entry) => {
-        const entryPath = path.join(directory, entry.name);
-        if (entry.isDirectory()) {
-          await walk(entryPath);
-          return;
-        }
-
-        if (!entry.isFile() || !/\.(jsonl|json)$/i.test(entry.name)) {
-          return;
-        }
-
+      directories.map(async (directory) => {
+        let entries;
         try {
-          const stats = await fs.stat(entryPath);
-          files.push({ mtimeMs: stats.mtimeMs, path: entryPath });
+          entries = await fs.readdir(directory, { withFileTypes: true });
         } catch {
-          // Ignore files that disappear while scanning.
+          return;
+        }
+
+        const candidateFiles = [];
+        for (const entry of entries) {
+          const entryPath = path.join(directory, entry.name);
+          if (entry.isDirectory()) {
+            queue.push(entryPath);
+          } else if (entry.isFile() && /\.(jsonl|json)$/i.test(entry.name)) {
+            candidateFiles.push(entryPath);
+          }
+        }
+
+        for (
+          let offset = 0;
+          offset < candidateFiles.length;
+          offset += SESSION_SCAN_CONCURRENCY
+        ) {
+          const batch = candidateFiles.slice(
+            offset,
+            offset + SESSION_SCAN_CONCURRENCY,
+          );
+          await Promise.all(
+            batch.map(async (entryPath) => {
+              try {
+                const stats = await fs.stat(entryPath);
+                files.push({ mtimeMs: stats.mtimeMs, path: entryPath });
+              } catch {
+                // Ignore files that disappear while scanning.
+              }
+            }),
+          );
         }
       }),
     );
-  };
+  }
 
-  await walk(rootPath);
   return files.sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, maxFiles);
 };
 
@@ -328,13 +368,18 @@ const readLatestRateLimitsFromFiles = async (rootPaths) => {
   for (const file of files) {
     let contents;
     try {
-      contents = await fs.readFile(file.path, "utf8");
+      contents = file.path.toLowerCase().endsWith(".jsonl")
+        ? await readFileTailUtf8(file.path)
+        : await fs.readFile(file.path, "utf8");
     } catch {
       continue;
     }
 
     const lines = contents.split(/\r?\n/).filter(Boolean).reverse();
     for (const line of lines) {
+      if (!line.includes("{")) {
+        continue;
+      }
       try {
         const parsed = JSON.parse(line);
         const rateLimits = findRateLimitsObject(parsed);

@@ -8,7 +8,7 @@ import path from "node:path";
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import ignore from "ignore";
 import { RouteError } from "../shared/json-route.js";
-import { isLikelyBinaryBuffer, walkProjectFiles } from "./files.js";
+import { decodeTextBuffer, walkProjectFiles } from "./files.js";
 
 export const SEARCH_MAX_FILE_BYTES = 1024 * 1024;
 /** Longest line preview sent back; long (minified) lines are cut around the match. */
@@ -201,8 +201,7 @@ export const searchProjectFiles = async (
       const data = await fs.readFile(absolutePath, { signal: searchSignal });
       if (searchSignal.aborted || data.length > SEARCH_MAX_FILE_BYTES)
         return null;
-      if (isLikelyBinaryBuffer(data)) return null;
-      return data.toString("utf8");
+      return decodeTextBuffer(data);
     } catch (error) {
       if (searchSignal.aborted && error?.name === "AbortError") return null;
       // Removed or unreadable since the walk listed it.

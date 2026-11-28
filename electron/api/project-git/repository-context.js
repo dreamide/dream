@@ -183,7 +183,12 @@ export const createGitRepositoryContext = ({
       const promise = read();
       const entry = { at: now(), promise };
       reads.set(key, entry);
+      const expire = setTimeout(() => {
+        if (reads.get(key) === entry) reads.delete(key);
+      }, joinWindowMs + 1);
+      expire.unref?.();
       promise.catch(() => {
+        clearTimeout(expire);
         if (reads.get(key) === entry) reads.delete(key);
       });
       return promise;

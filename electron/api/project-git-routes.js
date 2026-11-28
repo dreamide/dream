@@ -1,5 +1,9 @@
-import { promises as fs, constants as fsConstants } from "node:fs";
-import { TextDecoder } from "node:util";
+import {
+  createReadStream,
+  promises as fs,
+  constants as fsConstants,
+} from "node:fs";
+import { Readable } from "node:stream";
 import { HOST_ROUTES } from "../shared/host-routes.js";
 import {
   commitProjectGitChanges,
@@ -25,8 +29,8 @@ import {
   revertProjectGitFile,
 } from "./project-git/core.js";
 import {
+  decodeTextBuffer,
   ensureProjectDirectory,
-  isLikelyBinaryBuffer,
   listProjectDirectory,
   listProjectFiles,
   MIME_TYPES,
@@ -83,7 +87,6 @@ import {
 import { registerRoute } from "./shared/register-route.js";
 
 const PROJECT_FILE_PREVIEW_MAX_BYTES = 1024 * 1024;
-const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
 
 export const detectProjectFileLineEnding = (content) =>
   content.includes("\r\n") ? "crlf" : "lf";
@@ -138,11 +141,10 @@ const readProjectFile = async ({
   }
 
   const fullData = await fs.readFile(absolutePath);
-  if (isLikelyBinaryBuffer(fullData)) {
+  const fullText = decodeTextBuffer(fullData);
+  if (fullText === null) {
     throw new RouteError("Binary files cannot be previewed.", 415);
   }
-
-  const fullText = utf8Decoder.decode(fullData);
   const lineEnding = detectProjectFileLineEnding(fullText);
   const writability = await getProjectFileWritability(absolutePath);
 
@@ -208,11 +210,10 @@ const writeProjectFile = async ({
   }
 
   const currentData = await fs.readFile(realAbsolutePath);
-  if (isLikelyBinaryBuffer(currentData)) {
+  const currentContent = decodeTextBuffer(currentData);
+  if (currentContent === null) {
     throw new RouteError("Binary files cannot be edited.", 415);
   }
-
-  const currentContent = utf8Decoder.decode(currentData);
   if (currentContent !== expectedContent) {
     throw new RouteError(
       "The file changed on disk after editing began. Reopen it before saving.",
@@ -530,10 +531,13 @@ export const registerProjectGitRoutes = (app) => {
 
       const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
       const contentType = MIME_TYPES[ext] ?? "application/octet-stream";
-      const data = await fs.readFile(absolutePath);
+      const stream = Readable.toWeb(createReadStream(absolutePath));
 
-      return new Response(data, {
-        headers: { "Content-Type": contentType },
+      return new Response(/** @type {ReadableStream} */ (stream), {
+        headers: {
+          "Content-Length": String(stats.size),
+          "Content-Type": contentType,
+        },
       });
     } catch (error) {
       const message =

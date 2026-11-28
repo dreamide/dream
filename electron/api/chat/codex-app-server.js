@@ -294,28 +294,36 @@ const buildFileChangeOutput = async ({ item, projectPath }) => {
     // Codex just changed files outside git: read past anything remembered.
     gitRepositories.forget();
     const gitStatus = await listProjectGitChanges(projectPath);
-    const enrichedChanges = await Promise.all(
-      changes.map(async (change) => {
-        if (!isRecord(change)) {
-          return change;
-        }
+    const enrichedChanges = new Array(changes.length);
+    const DIFF_CONCURRENCY = 6;
+    for (let offset = 0; offset < changes.length; offset += DIFF_CONCURRENCY) {
+      const slice = changes.slice(offset, offset + DIFF_CONCURRENCY);
+      const batch = await Promise.all(
+        slice.map(async (change) => {
+          if (!isRecord(change)) {
+            return change;
+          }
 
-        const diff = await loadFileChangeDiff({
-          change,
-          gitChanges: gitStatus.changes,
-          projectPath,
-        }).catch(() => null);
+          const diff = await loadFileChangeDiff({
+            change,
+            gitChanges: gitStatus.changes,
+            projectPath,
+          }).catch(() => null);
 
-        return diff
-          ? {
-              ...change,
-              diff: diff.diff,
-              previousPath: diff.previousPath,
-              status: diff.status,
-            }
-          : change;
-      }),
-    );
+          return diff
+            ? {
+                ...change,
+                diff: diff.diff,
+                previousPath: diff.previousPath,
+                status: diff.status,
+              }
+            : change;
+        }),
+      );
+      for (let i = 0; i < batch.length; i += 1) {
+        enrichedChanges[offset + i] = batch[i];
+      }
+    }
     const diffs = enrichedChanges
       .map((change) => (isRecord(change) ? getString(change.diff) : null))
       .filter((diff) => diff?.trim());
@@ -613,14 +621,14 @@ export const streamCodexAppServerResponse = ({
 
         if (item.type === "commandExecution") {
           ensureCommandToolStarted(item);
+          const bufferedOutput = commandOutputs.get(item.id);
+          commandOutputs.delete(item.id);
           turn.toolOutput(item.id, {
             command: item.command ?? "",
             durationMs: item.durationMs ?? null,
             exitCode: typeof item.exitCode === "number" ? item.exitCode : null,
             output:
-              item.aggregatedOutput ??
-              commandOutputs.get(item.id)?.join("") ??
-              "",
+              item.aggregatedOutput ?? bufferedOutput?.chunks.join("") ?? "",
             status: item.status ?? "completed",
           });
           return;
@@ -922,9 +930,25 @@ export const streamCodexAppServerResponse = ({
         }
 
         if (method === "item/commandExecution/outputDelta" && params?.itemId) {
-          const output = commandOutputs.get(params.itemId) ?? [];
-          output.push(params.delta ?? "");
-          commandOutputs.set(params.itemId, output);
+          const MAX_COMMAND_OUTPUT_CHARS = 512 * 1024;
+          const delta = typeof params.delta === "string" ? params.delta : "";
+          const entry = commandOutputs.get(params.itemId) ?? {
+            chunks: [],
+            length: 0,
+          };
+          entry.chunks.push(delta);
+          entry.length += delta.length;
+          while (
+            entry.length > MAX_COMMAND_OUTPUT_CHARS &&
+            entry.chunks.length > 1
+          ) {
+            entry.length -= entry.chunks.shift().length;
+          }
+          if (entry.length > MAX_COMMAND_OUTPUT_CHARS) {
+            entry.chunks[0] = entry.chunks[0].slice(-MAX_COMMAND_OUTPUT_CHARS);
+            entry.length = entry.chunks[0].length;
+          }
+          commandOutputs.set(params.itemId, entry);
           return;
         }
 

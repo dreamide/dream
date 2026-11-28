@@ -318,6 +318,8 @@ const quoteFastImportPath = (filePath) =>
  * under `text=auto`, filters). It only adds objects: the snapshot is still
  * whatever `add` decides.
  */
+const PREPACK_READ_CONCURRENCY = 16;
+
 const prepackWorkTree = async (projectPath) => {
   const listed = await runShadowGit(
     projectPath,
@@ -331,19 +333,32 @@ const prepackWorkTree = async (projectPath) => {
     .filter((filePath) => filePath && !filePath.endsWith("/"));
   if (files.length === 0) return;
   await fastImportIntoShadow(projectPath, async (write) => {
-    for (const filePath of files) {
-      const absolutePath = path.join(projectPath, filePath);
-      let data;
-      try {
-        const stats = await fs.lstat(absolutePath);
-        if (!stats.isFile() || stats.size > PREPACK_MAX_FILE_BYTES) continue;
-        data = await fs.readFile(absolutePath);
-      } catch {
-        continue;
+    for (
+      let offset = 0;
+      offset < files.length;
+      offset += PREPACK_READ_CONCURRENCY
+    ) {
+      const batch = files.slice(offset, offset + PREPACK_READ_CONCURRENCY);
+      const blobs = await Promise.all(
+        batch.map(async (filePath) => {
+          const absolutePath = path.join(projectPath, filePath);
+          try {
+            const stats = await fs.lstat(absolutePath);
+            if (!stats.isFile() || stats.size > PREPACK_MAX_FILE_BYTES) {
+              return null;
+            }
+            return await fs.readFile(absolutePath);
+          } catch {
+            return null;
+          }
+        }),
+      );
+      for (const data of blobs) {
+        if (!data) continue;
+        await write(`blob\ndata ${data.length}\n`);
+        await write(data);
+        await write("\n");
       }
-      await write(`blob\ndata ${data.length}\n`);
-      await write(data);
-      await write("\n");
     }
   });
 };
@@ -623,25 +638,27 @@ const listTreeChanges = async (
   pathspecs = [],
 ) => {
   const pathArgs = pathspecs.length > 0 ? ["--", ...pathspecs] : [];
-  const nameStatus = await runShadowGit(projectPath, [
-    "diff-tree",
-    "-r",
-    "-M",
-    "--name-status",
-    "-z",
-    fromTree,
-    toTree,
-    ...pathArgs,
-  ]);
-  const numstat = await runShadowGit(projectPath, [
-    "diff-tree",
-    "-r",
-    "-M",
-    "--numstat",
-    "-z",
-    fromTree,
-    toTree,
-    ...pathArgs,
+  const [nameStatus, numstat] = await Promise.all([
+    runShadowGit(projectPath, [
+      "diff-tree",
+      "-r",
+      "-M",
+      "--name-status",
+      "-z",
+      fromTree,
+      toTree,
+      ...pathArgs,
+    ]),
+    runShadowGit(projectPath, [
+      "diff-tree",
+      "-r",
+      "-M",
+      "--numstat",
+      "-z",
+      fromTree,
+      toTree,
+      ...pathArgs,
+    ]),
   ]);
   const stats = parseNumstat(numstat.stdout);
   return parseNameStatus(nameStatus.stdout).map((entry) => ({
@@ -963,10 +980,20 @@ export const deleteChatCheckpoints = ({ chatId, projectPath }) =>
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean);
-    for (const ref of refs) {
-      await runShadowGit(projectPath, ["update-ref", "-d", ref], {
-        allowFailure: true,
-      });
+    if (refs.length > 0) {
+      const batch = refs.map((ref) => `delete ${ref}\n`).join("");
+      const deleted = await runShadowGitWithInput(
+        projectPath,
+        ["update-ref", "--stdin"],
+        batch,
+      );
+      if (!deleted.ok) {
+        for (const ref of refs) {
+          await runShadowGit(projectPath, ["update-ref", "-d", ref], {
+            allowFailure: true,
+          });
+        }
+      }
     }
     return refs.length;
   });

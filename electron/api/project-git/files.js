@@ -64,32 +64,54 @@ const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
 const isAllowedTextControlByte = (byte) =>
   byte === 9 || byte === 10 || byte === 12 || byte === 13;
 
+const BINARY_SAMPLE_BYTES = 8_192;
+
 /**
- * Whether a file's bytes are binary rather than UTF-8 text: a NUL byte, too
- * many control characters, or invalid UTF-8.
+ * Decodes `buffer` as UTF-8 text in a single pass, returning null when the
+ * buffer looks binary (NUL byte, excessive control bytes, or invalid UTF-8).
  */
-export const isLikelyBinaryBuffer = (buffer) => {
-  if (buffer.length === 0) return false;
+export const decodeTextBuffer = (buffer) => {
+  if (buffer.length === 0) return "";
+
+  const sample =
+    buffer.length > BINARY_SAMPLE_BYTES
+      ? buffer.subarray(0, BINARY_SAMPLE_BYTES)
+      : buffer;
+  if (sample.includes(0)) return null;
 
   let controlByteCount = 0;
-  for (const byte of buffer) {
-    if (byte === 0) return true;
+  for (let i = 0; i < sample.length; i += 1) {
+    const byte = sample[i];
     if (byte < 32 && !isAllowedTextControlByte(byte)) {
       controlByteCount += 1;
     }
   }
 
-  if (controlByteCount / buffer.length > BINARY_CONTROL_CHAR_RATIO) {
-    return true;
+  if (controlByteCount / sample.length > BINARY_CONTROL_CHAR_RATIO) {
+    return null;
+  }
+
+  // Also catch NUL bytes beyond the prefix sample via native memchr.
+  if (
+    buffer.length > BINARY_SAMPLE_BYTES &&
+    buffer.includes(0, BINARY_SAMPLE_BYTES)
+  ) {
+    return null;
   }
 
   try {
-    utf8Decoder.decode(buffer);
-    return false;
+    return utf8Decoder.decode(buffer);
   } catch {
-    return true;
+    return null;
   }
 };
+
+/**
+ * Whether a file's bytes are binary rather than UTF-8 text: a NUL byte, too
+ * many control characters, or invalid UTF-8.
+ */
+export const isLikelyBinaryBuffer = (buffer) =>
+  decodeTextBuffer(buffer) === null;
 
 export const normalizePath = (value) => value.replace(/\\/g, "/");
 
@@ -163,12 +185,19 @@ export async function* walkProjectFiles(projectRoot, options = {}) {
 
   async function* walk(absoluteDirectory, relativeDirectory, matchers) {
     if (signal?.aborted) return;
-    let ignoreText;
+    let ignoreText = null;
     let entries;
     try {
-      ignoreText = await readIgnoreFile(absoluteDirectory);
-      if (signal?.aborted) return;
       entries = await fs.readdir(absoluteDirectory, { withFileTypes: true });
+      if (signal?.aborted) return;
+      if (
+        entries.some(
+          (entry) => entry.name === ".gitignore" && !entry.isDirectory(),
+        )
+      ) {
+        ignoreText = await readIgnoreFile(absoluteDirectory);
+        if (signal?.aborted) return;
+      }
     } catch (error) {
       // A directory removed or unreadable mid-walk is skipped, not fatal.
       if (error?.code === "ENOENT" || error?.code === "EACCES") return;
