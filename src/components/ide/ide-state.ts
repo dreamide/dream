@@ -62,6 +62,17 @@ export const getChatsForProject = (chats: ChatConfig[], projectId: string) =>
     (chat) => chat.projectId === projectId && chat.deletedAt === null,
   );
 
+export const byPinnedThenRecent = (left: ChatConfig, right: ChatConfig) => {
+  const pinnedOrder = Number(right.pinned) - Number(left.pinned);
+  if (pinnedOrder !== 0) return pinnedOrder;
+  const leftUpdated = Date.parse(left.updatedAt || left.createdAt);
+  const rightUpdated = Date.parse(right.updatedAt || right.createdAt);
+  if (Number.isNaN(leftUpdated) || Number.isNaN(rightUpdated)) {
+    return right.title.localeCompare(left.title);
+  }
+  return rightUpdated - leftUpdated;
+};
+
 export const stringifyPart = (
   value:
     | UIMessage

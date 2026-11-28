@@ -683,6 +683,7 @@
     "projectFinishedProcessing": "Dự án đã xử lý xong",
     "projects": "Dự án",
     "searchHistory": "Tìm trong lịch sử...",
+    "subagentChatsFor": "Cuộc trò chuyện của các tác tử con của {name}",
     "chats": "Trò chuyện",
     "unableToStartChat": "Không thể bắt đầu cuộc trò chuyện.",
     "noStandaloneChats": "Chưa có cuộc trò chuyện nào.",

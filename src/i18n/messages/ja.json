@@ -683,6 +683,7 @@
     "projectFinishedProcessing": "プロジェクトの処理が完了しました",
     "projects": "プロジェクト",
     "searchHistory": "履歴を検索...",
+    "subagentChatsFor": "{name} のサブエージェントのチャット",
     "chats": "チャット",
     "unableToStartChat": "チャットを開始できません。",
     "noStandaloneChats": "まだチャットがありません。",

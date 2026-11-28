@@ -20,7 +20,12 @@ const delegateSchema = z.object({
     .max(200)
     .describe("Stable task key. Reuse it when retrying the same delegation."),
   provider: providerId,
-  model: z.string().min(1),
+  model: z
+    .string()
+    .min(1)
+    .describe(
+      "Exact model ID from orchestration_capabilities with the target provider.",
+    ),
   prompt: z
     .string()
     .min(1)
@@ -95,25 +100,53 @@ export function createDelegationService({
       });
       const tools = {
         orchestration_capabilities: define(
-          "List agent providers, readiness and whether they can delegate. Use explicit model IDs supported by the chosen provider.",
-          z.object({}),
-          async () =>
-            Promise.all(
-              providers.list().map(async (provider) => ({
-                provider: provider.id,
-                canDelegate: provider.mcp,
-                unavailable: (await provider.checkReady())?.message ?? null,
-              })),
-            ),
+          "List agent providers, readiness and whether they can delegate. Pass a provider to look up its available model IDs and names before delegating.",
+          z.object({ provider: providerId.optional() }),
+          async ({ provider: target }) => {
+            const selected = target
+              ? [providers.get(target)]
+              : providers.list();
+            return Promise.all(
+              selected.map(async (provider) => {
+                const unavailable =
+                  (await provider.checkReady())?.message ?? null;
+                const capabilities = {
+                  provider: provider.id,
+                  canDelegate: provider.mcp,
+                  unavailable,
+                };
+                if (!target || unavailable) return capabilities;
+
+                const { models, error } = await provider.fetchModels();
+                return {
+                  ...capabilities,
+                  models: models.map(({ id, label }) => ({ id, label })),
+                  modelError: error ?? null,
+                };
+              }),
+            );
+          },
         ),
         delegate_task: define(
           "Start a durable task on another agent provider in this project. Tasks share files: give independent scopes to avoid conflicts. Returns an ID immediately; use task_status for results. Parent Stop stops children. Child permissions cannot exceed the parent.",
           delegateSchema,
           async (input) => {
-            const unavailable = await providers
-              .get(input.provider)
-              .checkReady();
+            const provider = providers.get(input.provider);
+            const unavailable = await provider.checkReady();
             if (unavailable) throw new Error(unavailable.message);
+            if (input.provider === "antigravity") {
+              const { models } = await provider.fetchModels();
+              const model = input.model.trim().toLowerCase();
+              const known = models.some(
+                ({ id, label }) =>
+                  id.toLowerCase() === model || label.toLowerCase() === model,
+              );
+              if (models.length > 0 && !known) {
+                throw new Error(
+                  `Invalid Antigravity model ${JSON.stringify(input.model)}. Available model IDs: ${models.map(({ id }) => id).join(", ")}.`,
+                );
+              }
+            }
             active();
             const receipt = await catalog.mutateRunQueue({
               type: "delegate",

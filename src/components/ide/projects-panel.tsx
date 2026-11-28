@@ -36,14 +36,14 @@ import {
   isChatWaitingOnUser,
   selectChatActivity,
 } from "./chat-activity";
+import { ChatHistoryList } from "./chat-history-list";
 import { useChatTurnOutcomes } from "./chat-turn-outcome";
 import { RemoveWorktreeDialog } from "./git-actions/remove-worktree-dialog";
-import { normalizeProjectPathKey } from "./ide-state";
+import { byPinnedThenRecent, normalizeProjectPathKey } from "./ide-state";
 import { useIdeStore } from "./ide-store";
 import { projectResourceKey, useProjectResource } from "./project-resources";
 import { useHostChoices } from "./ssh/use-host-choices";
 import {
-  listStandaloneChats,
   standaloneProjectsById,
   useStartStandaloneChat,
 } from "./standalone-chats";
@@ -153,40 +153,16 @@ export const ProjectSidebar = ({
     useState<ProjectGitWorktreeInfo | null>(null);
 
   const activeProjectChats = useMemo<ChatConfig[]>(() => {
-    if (standaloneProjects) {
-      return listStandaloneChats(allChats, standaloneProjects);
-    }
     return allChats
       .filter(
         (chat) =>
-          chat.projectId === project.id &&
           chat.deletedAt === null &&
-          (chat.messageCount > 0 || chat.pinned),
+          (standaloneProjects
+            ? standaloneProjects.has(chat.projectId)
+            : chat.projectId === project.id),
       )
-      .sort((left, right) => {
-        const pinnedOrder =
-          Number(Boolean(right.pinned)) - Number(Boolean(left.pinned));
-        if (pinnedOrder !== 0) return pinnedOrder;
-        const leftUpdated = Date.parse(left.updatedAt);
-        const rightUpdated = Date.parse(right.updatedAt);
-        if (Number.isNaN(leftUpdated) || Number.isNaN(rightUpdated)) {
-          return right.title.localeCompare(left.title);
-        }
-
-        return rightUpdated - leftUpdated;
-      });
+      .sort(byPinnedThenRecent);
   }, [allChats, project.id, standaloneProjects]);
-
-  const filteredChats = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) {
-      return activeProjectChats;
-    }
-
-    return activeProjectChats.filter((chat) =>
-      chat.title.toLowerCase().includes(query),
-    );
-  }, [activeProjectChats, searchQuery]);
 
   const activeChatId = projectUi.activeChatId;
 
@@ -358,19 +334,19 @@ export const ProjectSidebar = ({
             </section>
           ) : null}
 
-          <section className="space-y-1">
-            {filteredChats.length === 0 ? (
-              <div className="flex min-h-32 items-center justify-center p-4 text-center text-muted-foreground text-sm">
-                <p>
-                  {searchQuery.trim()
-                    ? projectsT("noMatchingChats")
-                    : project.standalone
-                      ? projectsT("noStandaloneChats")
-                      : projectsT("noChatsForProject")}
-                </p>
-              </div>
-            ) : (
-              filteredChats.map((chat) => {
+          <section>
+            <ChatHistoryList
+              chats={activeProjectChats}
+              query={searchQuery}
+              activeChatId={activeChatId}
+              emptyLabel={
+                searchQuery.trim()
+                  ? projectsT("noMatchingChats")
+                  : project.standalone
+                    ? projectsT("noStandaloneChats")
+                    : projectsT("noChatsForProject")
+              }
+              renderChat={(chat, { disclosure, reserveDisclosureSpace }) => {
                 const isActiveChat = chat.id === activeChatId;
                 const isOpenChat = projectUi.openChatIds.includes(chat.id);
                 // Running or waiting, here or on the host, whether or not
@@ -418,10 +394,17 @@ export const ProjectSidebar = ({
                         ? "bg-muted"
                         : "hover:bg-surface-50 dark:hover:bg-surface-900",
                     )}
-                    key={chat.id}
                   >
+                    {disclosure && (
+                      <div className="-translate-y-1/2 absolute start-1 top-1/2 z-10 flex">
+                        {disclosure}
+                      </div>
+                    )}
                     <button
-                      className="w-full rounded-[inherit] px-3 py-2 text-left"
+                      className={cn(
+                        "w-full rounded-[inherit] pe-3 py-2 text-left",
+                        reserveDisclosureSpace ? "ps-9" : "ps-3",
+                      )}
                       onClick={(event) => {
                         handleChatSelect(chat);
                         onChatSelect?.();
@@ -530,8 +513,8 @@ export const ProjectSidebar = ({
                     </div>
                   </div>
                 );
-              })
-            )}
+              }}
+            />
           </section>
         </div>
       </ScrollArea>

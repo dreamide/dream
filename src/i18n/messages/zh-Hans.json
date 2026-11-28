@@ -683,6 +683,7 @@
     "projectFinishedProcessing": "项目处理完成",
     "projects": "项目",
     "searchHistory": "搜索历史记录...",
+    "subagentChatsFor": "{name} 的子智能体对话",
     "chats": "聊天",
     "unableToStartChat": "无法开始聊天。",
     "noStandaloneChats": "还没有聊天。",

@@ -211,13 +211,15 @@ test("auto-archive leaves a chat whose turn runs, here or on the host", () => {
   const idle = old("Idle");
   const streaming = old("Streaming here");
   const onHost = old("Running on the host");
-  const deleted: string[] = [];
+  streaming.delegatedByChatId = idle.id;
   const store = createStore<IdeState>(
     () =>
       ({
         awaitingAnswerChatIds: {},
         chats: [idle, streaming, onHost],
-        deleteChat: (chatId: string) => deleted.push(chatId),
+        projects: [project],
+        closedProjects: [],
+        draftChatIdByProject: {},
         hostAwaitingApprovalChatIds: {},
         hostRunningChatIds: { [onHost.id]: "local" },
         sendingChatIds: {},
@@ -233,5 +235,11 @@ test("auto-archive leaves a chat whose turn runs, here or on the host", () => {
   );
 
   assert.equal(archiveInactiveChats(), 1);
-  assert.deepEqual(deleted, [idle.id]);
+  assert.deepEqual(
+    store
+      .getState()
+      .chats.filter((chat) => chat.deletedAt)
+      .map((chat) => chat.id),
+    [idle.id],
+  );
 });

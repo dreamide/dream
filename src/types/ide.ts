@@ -46,6 +46,8 @@ export interface ChatBranchPoint {
 
 export interface ChatConfig {
   branchedFrom: ChatBranchPoint | null;
+  /** The Chat that launched this delegated task, as reported by its Host. */
+  delegatedByChatId?: string;
   id: string;
   messageCount: number;
   permissionMode: ChatPermissionMode;

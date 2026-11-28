@@ -683,6 +683,7 @@
     "projectFinishedProcessing": "프로젝트 처리가 완료되었습니다.",
     "projects": "프로젝트",
     "searchHistory": "기록 검색...",
+    "subagentChatsFor": "{name}의 하위 에이전트 채팅",
     "chats": "채팅",
     "unableToStartChat": "채팅을 시작할 수 없습니다.",
     "noStandaloneChats": "아직 채팅이 없습니다.",

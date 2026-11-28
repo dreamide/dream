@@ -683,6 +683,7 @@
     "projectFinishedProcessing": "專案處理完成",
     "projects": "專案",
     "searchHistory": "搜尋記錄...",
+    "subagentChatsFor": "{name} 的子代理程式對話",
     "chats": "聊天",
     "unableToStartChat": "無法開始聊天。",
     "noStandaloneChats": "還沒有聊天。",

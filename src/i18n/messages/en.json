@@ -683,6 +683,7 @@
     "projectFinishedProcessing": "Project finished processing",
     "projects": "Projects",
     "searchHistory": "Search history...",
+    "subagentChatsFor": "Subagent chats for {name}",
     "chats": "Chats",
     "unableToStartChat": "Unable to start a chat.",
     "noStandaloneChats": "No chats yet.",

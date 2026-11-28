@@ -727,8 +727,10 @@ const normalizeChat = (value, projectsById, legacyPermissionMode) => {
   const branchChatId = asNullableString(branchedFrom.chatId);
   const branchMessageId = asNullableString(branchedFrom.messageId);
   const remoteModelSpeed = asNullableString(value.remoteConversationModelSpeed);
+  const delegatedByChatId = asNullableString(value.delegatedByChatId);
 
   return {
+    ...(delegatedByChatId ? { delegatedByChatId } : {}),
     branchedFrom:
       branchChatId && branchMessageId
         ? { chatId: branchChatId, messageId: branchMessageId }
@@ -1755,7 +1757,7 @@ export const chatToRow = (chat) => {
 /**
  * The raw chat a row describes, for decodePersistedState. `messageCount` is
  * the live count from the messages table when the caller supplies it.
- * @param {{ id: unknown, project_id: unknown, title: unknown, metadata: unknown, created_at: unknown, updated_at: unknown, deleted_at: unknown, message_count?: unknown }} row
+ * @param {{ id: unknown, project_id: unknown, title: unknown, metadata: unknown, created_at: unknown, updated_at: unknown, deleted_at: unknown, message_count?: unknown, parent_chat_id?: unknown }} row
  * @returns {UnknownRecord}
  */
 export const chatFromRow = (row) => {
@@ -1767,6 +1769,9 @@ export const chatFromRow = (row) => {
     // The retired Plan/Build switch, kept so an old Standard mode reads right.
     agentMode: modelSelection.agentMode,
     branchedFrom: metadata.branchedFrom,
+    ...(typeof row.parent_chat_id === "string"
+      ? { delegatedByChatId: row.parent_chat_id }
+      : {}),
     createdAt: row.created_at,
     deletedAt: row.deleted_at,
     id: row.id,

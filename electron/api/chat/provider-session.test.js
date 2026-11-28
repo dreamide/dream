@@ -3,6 +3,7 @@
 // keeps for the next turn. The capability rows are the real ones.
 import assert from "node:assert/strict";
 import { describe, test, vi } from "vitest";
+import { ORCHESTRATION_TOOLS_VERSION } from "../../shared/agent-turn-contract.js";
 import { getProviderCapabilities } from "../../shared/provider-capabilities.js";
 import { startProviderSession } from "./provider-session.js";
 import {
@@ -254,6 +255,15 @@ describe("resuming a saved session", () => {
     assert.equal(await resumes("openai", savedSession()), null);
     assert.equal(
       await resumes("openai", savedSession({ orchestrationToolsVersion: 1 })),
+      null,
+    );
+    assert.equal(
+      await resumes(
+        "openai",
+        savedSession({
+          orchestrationToolsVersion: ORCHESTRATION_TOOLS_VERSION,
+        }),
+      ),
       "native",
     );
     assert.equal(await resumes("anthropic", savedSession()), "native");

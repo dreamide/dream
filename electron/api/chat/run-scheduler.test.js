@@ -35,7 +35,7 @@ const request = (id, text = id) => ({
   message: { id, role: "user", parts: [{ type: "text", text }] },
 });
 
-async function setup() {
+async function setup(publish = () => {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "dream-run-queue-"));
   cleanups.push(() => rm(directory, { recursive: true, force: true }));
   const databasePath = path.join(directory, "state.db");
@@ -44,7 +44,7 @@ async function setup() {
   const reader = createStateReadPool({ databasePath, whenReady: writer.ready });
   cleanups.push(() => reader.close());
   const catalog = createHostCatalog({
-    events: { publish() {} },
+    events: { publish },
     getWriter: () => writer,
     getReader: () => reader,
   });
@@ -439,7 +439,8 @@ test("a failed or interrupted run can be removed instead of retried; a running o
 });
 
 test("delegated tasks deduplicate, retain results across service restart, and enforce scope and permissions", async () => {
-  const { catalog } = await setup();
+  const events = [];
+  const { catalog } = await setup((event) => events.push(event));
   let parentScope;
   const { scheduler } = schedulerFor(
     catalog,
@@ -511,6 +512,11 @@ test("delegated tasks deduplicate, retain results across service restart, and en
   );
   const child = await call("delegate_task", input);
   assert.equal(child.isError, false);
+  const latestChildEvent = () =>
+    events
+      .flatMap((event) => event.chats ?? [])
+      .findLast((chat) => chat.id === child.childChatId);
+  assert.equal(latestChildEvent().delegatedByChatId, "c");
   assert.equal((await call("delegate_task", input)).duplicate, true);
   assert.equal(
     (await call("delegate_task", { ...input, prompt: "Different work" }))
@@ -526,6 +532,16 @@ test("delegated tasks deduplicate, retain results across service restart, and en
     "Review complete.",
   );
   assert.equal((await call("task_status", { id: "unrelated" })).isError, true);
+  // Catalog snapshots and ordinary edits carry the same Host-owned link.
+  const stored = (await catalog.list()).chats.find(
+    (chat) => chat.id === child.childChatId,
+  );
+  assert.equal(stored.delegatedByChatId, "c");
+  await catalog.applyChanges({
+    chats: [{ ...stored, title: "Reviewed", delegatedByChatId: "unrelated" }],
+  });
+  assert.equal(latestChildEvent().title, "Reviewed");
+  assert.equal(latestChildEvent().delegatedByChatId, "c");
   assert.equal((await catalog.getChat(child.childChatId)).provider, "openai");
   assert.equal(
     (await catalog.getChat(child.childChatId)).permissionMode,
@@ -563,6 +579,84 @@ test("delegated tasks deduplicate, retain results across service restart, and en
     (await call("delegate_task", { ...input, key: "late" })).isError,
     true,
   );
+});
+
+test("an unknown Antigravity model cannot leave behind a failed delegated task", async () => {
+  const { catalog } = await setup();
+  let parentScope;
+  const { scheduler } = schedulerFor(
+    catalog,
+    async (data, { signal, orchestration }) => {
+      if (data.chatId !== "c") {
+        if (data.model === "gemini-neon") {
+          throw new Error('invalid model selection (--model "gemini-neon")');
+        }
+        assert.equal(data.model, "gemini-4-neon-medium");
+        return new Response("data: [DONE]\n\n");
+      }
+      parentScope = orchestration;
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            signal.addEventListener("abort", () => controller.close(), {
+              once: true,
+            });
+          },
+        }),
+      );
+    },
+  );
+  const models = [
+    { id: "gemini-4-neon-medium", label: "Gemini 4 Neon (Medium)" },
+  ];
+  const providers = {
+    get: (id) => ({
+      id,
+      mcp: id !== "antigravity",
+      checkReady: async () => null,
+      fetchModels: async () => ({ models }),
+    }),
+    list: () => [providers.get("openai"), providers.get("antigravity")],
+  };
+  scheduler.setDelegation(
+    createDelegationService({ catalog, scheduler, providers }),
+  );
+  await scheduler.submit(request("parent"));
+  await until(() => Promise.resolve(parentScope), Boolean);
+  try {
+    const input = {
+      key: "review",
+      provider: "antigravity",
+      model: "gemini-neon",
+      prompt: "Review the change",
+    };
+    const invalid = await parentScope.tools.delegate_task.handler(input);
+    assert.equal(invalid.isError, true);
+    assert.match(invalid.content[0].text, /gemini-4-neon-medium/);
+    assert.deepEqual(await catalog.delegatedTasks("c"), []);
+
+    const capabilities =
+      await parentScope.tools.orchestration_capabilities.handler({
+        provider: "antigravity",
+      });
+    assert.deepEqual(
+      JSON.parse(capabilities.content[0].text)[0].models,
+      models,
+    );
+
+    const corrected = await parentScope.tools.delegate_task.handler({
+      ...input,
+      model: models[0].id,
+    });
+    assert.equal(corrected.isError, undefined);
+    const { childChatId } = JSON.parse(corrected.content[0].text);
+    await until(
+      () => scheduler.list(childChatId),
+      (queue) => queue.runs[0]?.status === "completed",
+    );
+  } finally {
+    await scheduler.control({ chatId: "c", action: "stop" });
+  }
 });
 
 test("parent Stop reaches running descendants and cancels their queued work", async () => {

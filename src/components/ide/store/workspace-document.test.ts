@@ -455,6 +455,60 @@ test("deleteChat hands focus to the neighbour, and the last chat's deletion make
   assert.equal(workspace.deleteChat(afterAll, SETTINGS, "missing"), afterAll);
 });
 
+test("archiving a parent archives every delegated descendant, including through an archived child", () => {
+  const { chat: parent, doc, project } = seededDoc();
+  const child = { ...parent, id: "child", delegatedByChatId: parent.id };
+  const archivedChild = {
+    ...child,
+    id: "archived-child",
+    deletedAt: "2026-01-01T00:00:00.000Z",
+  };
+  const grandchild = {
+    ...child,
+    id: "grandchild",
+    delegatedByChatId: archivedChild.id,
+  };
+  const branch = {
+    ...parent,
+    id: "branch",
+    branchedFrom: { chatId: parent.id, messageId: "m1" },
+  };
+  const before = {
+    ...doc,
+    chats: [grandchild, child, parent, archivedChild, branch],
+    projects: [
+      {
+        ...project,
+        ui: {
+          ...project.ui,
+          multiChat: true,
+          activeChatId: grandchild.id,
+          openChatIds: [parent.id, grandchild.id, child.id, branch.id],
+        },
+      },
+    ],
+    draftChatIdByProject: { [project.id]: child.id },
+  };
+
+  const after = workspace.deleteChat(before, SETTINGS, parent.id);
+  assertInvariant(after);
+  const archivedAt = after.chats.find(
+    (chat) => chat.id === parent.id,
+  )?.deletedAt;
+  assert.ok(archivedAt);
+  for (const id of [child.id, grandchild.id]) {
+    assert.equal(
+      after.chats.find((chat) => chat.id === id)?.deletedAt,
+      archivedAt,
+    );
+  }
+  assert.ok(after.chats.includes(archivedChild));
+  assert.deepEqual(liveChatsOf(after, project.id), [branch]);
+  assert.equal(after.projects[0].ui.activeChatId, branch.id);
+  assert.equal(after.draftChatIdByProject[project.id], null);
+  assert.equal(after.messagesByChatId, before.messagesByChatId);
+});
+
 test("deleting a chat of a closed project trims its UI without creating a chat", () => {
   const { chat, doc: initial, project } = seededDoc();
   const other = workspace.openProject(initial, SETTINGS, "/workspace/other");

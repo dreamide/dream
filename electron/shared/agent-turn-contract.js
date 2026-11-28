@@ -65,7 +65,7 @@ export const readAgentTurnEnding = (value) => {
  * fixed when its session starts. A session with another version cannot carry
  * a turn that needs them.
  */
-export const ORCHESTRATION_TOOLS_VERSION = 1;
+export const ORCHESTRATION_TOOLS_VERSION = 2;
 
 const APPROVAL_ID_SEPARATOR = ":";
 
