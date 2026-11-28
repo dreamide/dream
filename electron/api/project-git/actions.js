@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import path from "node:path";
 import {
   ensureProjectGitRepository,
@@ -38,8 +39,26 @@ export const fetchProjectGitChanges = async (projectPath) => {
   return { remote };
 };
 
-export const pullProjectGitChanges = async (projectPath) => {
+/**
+ * Pulls the branch's upstream. `strategy` says how diverged work is joined:
+ * a merge (`merge`), a merge that settles conflicting hunks with the local
+ * side (`ours`) or the remote side (`theirs`), or replaying the local commits
+ * on the remote branch (`rebase`). Whatever still conflicts is undone, and
+ * the branch is left exactly as it was.
+ */
+export const pullProjectGitChanges = async (
+  projectPath,
+  { strategy = "merge" } = {},
+) => {
   const repoInfo = await ensureProjectGitRepository(projectPath);
+  // A rebase detaches HEAD, so it is named before the detached HEAD it left.
+  // A conflicted pull aborts the merge or rebase it started; it must never
+  // abort one the user already has in progress.
+  if (await isRebaseInProgress(repoInfo.repoRoot)) {
+    throw new Error(
+      "A rebase is already in progress. Finish or abort it before pulling.",
+    );
+  }
   const branch = getGitActionBranchName(repoInfo.branch);
   if (!branch) {
     throw new Error("Cannot pull from a detached HEAD.");
@@ -65,46 +84,52 @@ export const pullProjectGitChanges = async (projectPath) => {
     repoInfo.repoRoot,
     upstream.ref,
   );
-  // A conflicted pull aborts the merge it started; it must never abort one
-  // the user already has in progress.
   if (await gitRepositories.ref(repoInfo.repoRoot, "MERGE_HEAD")) {
     throw new Error(
       "A merge is already in progress. Finish or abort it before pulling.",
     );
   }
   const previousHead = await gitRepositories.ref(repoInfo.repoRoot, "HEAD");
-  const merging = aheadCount > 0 && behindCount > 0;
-  // Fetch followed by an explicit merge is a pull without implicit rebasing or
-  // auto-stashing from the user's Git configuration. `--ff` fast-forwards when
-  // the branch is only behind and makes a merge commit when it has diverged,
-  // whatever `merge.ff` says.
-  const mergeResult = await runGitCommand(
+  const diverged = aheadCount > 0 && behindCount > 0;
+  const rebasing = strategy === "rebase";
+  // Fetch followed by an explicit merge or rebase is a pull without the
+  // user's Git configuration choosing rebasing or auto-stashing for it.
+  // `--ff` fast-forwards when the branch is only behind and makes a merge
+  // commit when it has diverged, whatever `merge.ff` says.
+  const joinResult = await runGitCommand(
     repoInfo.repoRoot,
-    [
-      "merge",
-      "--ff",
-      "--no-edit",
-      "--no-autostash",
-      "--no-squash",
-      upstream.ref,
-    ],
+    rebasing
+      ? ["rebase", "--no-autostash", upstream.ref]
+      : [
+          "merge",
+          "--ff",
+          "--no-edit",
+          "--no-autostash",
+          "--no-squash",
+          ...(strategy === "ours" || strategy === "theirs"
+            ? ["-X", strategy]
+            : []),
+          upstream.ref,
+        ],
     { allowFailure: true },
   );
-  if (!mergeResult.ok) {
+  if (!joinResult.ok) {
     if (
-      merging &&
-      (await gitRepositories.ref(repoInfo.repoRoot, "MERGE_HEAD"))
+      diverged &&
+      (rebasing
+        ? await isRebaseInProgress(repoInfo.repoRoot)
+        : await gitRepositories.ref(repoInfo.repoRoot, "MERGE_HEAD"))
     ) {
-      // The UI has nowhere to resolve conflicts, so the merge is undone and
-      // the branch is left exactly as it was.
       const conflicts = await runGitCommand(
         repoInfo.repoRoot,
         ["diff", "--name-only", "--diff-filter=U"],
         { allowFailure: true },
       );
-      await runGitCommand(repoInfo.repoRoot, ["merge", "--abort"], {
-        allowFailure: true,
-      });
+      await runGitCommand(
+        repoInfo.repoRoot,
+        [rebasing ? "rebase" : "merge", "--abort"],
+        { allowFailure: true },
+      );
       return {
         commitCount: 0,
         conflictingFiles: conflicts.ok
@@ -115,44 +140,60 @@ export const pullProjectGitChanges = async (projectPath) => {
               .map(normalizePath)
           : [],
         status: "conflict",
+        strategy,
         upstreamBranch: upstream.upstream,
       };
     }
-    throw new Error(getGitCommandErrorMessage(mergeResult.error));
+    throw new Error(getGitCommandErrorMessage(joinResult.error));
   }
   return {
     commitCount: behindCount,
-    merged: merging,
+    merged: diverged && !rebasing,
+    rebased: diverged && rebasing,
     status: "pulled",
     upstreamBranch: upstream.upstream,
     ...(await readPulledChanges(
       repoInfo.repoRoot,
       previousHead,
+      upstream.ref,
       behindCount,
-      merging,
     )),
   };
+};
+
+/** Whether git is part way through a rebase, stopped or not. */
+const isRebaseInProgress = async (repoRoot) => {
+  const result = await runGitCommand(
+    repoRoot,
+    ["rev-parse", "--git-path", "rebase-merge", "--git-path", "rebase-apply"],
+    { allowFailure: true },
+  );
+  if (!result.ok) return false;
+  return result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .some((gitPath) => existsSync(path.resolve(repoRoot, gitPath)));
 };
 
 /**
  * What a pull from `previousHead` brought in: the incoming commits, newest
  * first, and the files the pull changed in the branch, like the summary
- * `git pull` prints. After a merge the incoming commits are the merge's
- * second parent's side, so the merge commit itself is not counted.
+ * `git pull` prints. The incoming commits are the upstream's that the branch
+ * did not have, so a merge commit or replayed local commits are not counted.
  * A branch with no commits before the pull has nothing to compare against.
  */
 const readPulledChanges = async (
   repoRoot,
   previousHead,
+  upstreamRef,
   commitCount,
-  merged,
 ) => {
   if (!previousHead || commitCount === 0) {
     return { commits: [], files: [], truncated: false };
   }
-  const incoming = merged ? "HEAD^2" : "HEAD";
   const [commits, files] = await Promise.all([
-    readGitPushPreviewCommits(repoRoot, `${previousHead}..${incoming}`),
+    readGitPushPreviewCommits(repoRoot, `${previousHead}..${upstreamRef}`),
     readGitRangeFiles(repoRoot, previousHead, "HEAD"),
   ]);
   return { commits, files, truncated: commits.length < commitCount };

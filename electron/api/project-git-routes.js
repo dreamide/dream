@@ -400,7 +400,8 @@ export const registerProjectGitRoutes = (app) => {
     app,
     HOST_ROUTES.gitPull,
     projectGitPullRequestSchema,
-    ({ projectPath }) => pullProjectGitChanges(projectPath),
+    ({ projectPath, strategy }) =>
+      pullProjectGitChanges(projectPath, { strategy }),
     { errorMessage: "Unable to pull changes." },
   );
 

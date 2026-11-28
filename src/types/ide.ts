@@ -895,6 +895,8 @@ export type ProjectGitPullResponse =
       upstreamBranch: string;
       /** A merge commit joined local and remote work that had diverged. */
       merged?: boolean;
+      /** Local work that had diverged was replayed on the remote branch. */
+      rebased?: boolean;
       /**
        * The commits the pull brought in, newest first and capped like the push
        * preview, and the files they changed. Absent from older hosts.
@@ -904,12 +906,17 @@ export type ProjectGitPullResponse =
       truncated?: boolean;
     }
   | {
-      /** The merge conflicted and was aborted; nothing changed. */
+      /** The merge or rebase conflicted and was aborted; nothing changed. */
       status: "conflict";
       commitCount: 0;
       upstreamBranch: string;
       conflictingFiles: string[];
+      /** The strategy that conflicted. Absent from older hosts, which merge. */
+      strategy?: ProjectGitPullStrategy;
     };
+
+/** How a pull joins diverged work: merge, merge favouring a side, or rebase. */
+export type ProjectGitPullStrategy = "merge" | "ours" | "theirs" | "rebase";
 
 export type ProjectGitPulledResponse = Extract<
   ProjectGitPullResponse,

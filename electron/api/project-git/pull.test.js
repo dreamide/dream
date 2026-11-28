@@ -153,3 +153,101 @@ test("a pull refuses to touch a merge already in progress", async () => {
   // The user's merge is still there to finish.
   assert.ok(git(repo, "rev-parse", "--verify", "MERGE_HEAD"));
 });
+
+/** A repo whose local and remote commits both changed the same line. */
+const createConflict = () => {
+  const clones = createClones();
+  commitFile(clones.other, "app.txt", "one\nremote\n", "Remote change");
+  commitFile(clones.other, "notes.txt", "a\n", "Add notes");
+  git(clones.other, "push", "-q", "origin", "main");
+  commitFile(clones.repo, "app.txt", "one\nlocal\n", "Local change");
+  return clones;
+};
+
+const readApp = (repo) => git(repo, "show", "HEAD:app.txt");
+
+test("keeping mine merges and settles conflicting lines with the local side", async () => {
+  const { repo } = createConflict();
+
+  const result = await pullProjectGitChanges(repo, { strategy: "ours" });
+
+  assert.equal(result.status, "pulled");
+  assert.equal(result.merged, true);
+  assert.equal(result.commitCount, 2);
+  assert.equal(readApp(repo), "one\nlocal");
+  // Changes that did not conflict still come in.
+  assert.equal(git(repo, "show", "HEAD:notes.txt"), "a");
+  assert.equal(
+    git(repo, "rev-parse", "HEAD^2"),
+    git(repo, "rev-parse", "origin/main"),
+  );
+});
+
+test("taking theirs merges and settles conflicting lines with the remote side", async () => {
+  const { repo } = createConflict();
+
+  const result = await pullProjectGitChanges(repo, { strategy: "theirs" });
+
+  assert.equal(result.status, "pulled");
+  assert.equal(result.merged, true);
+  assert.equal(readApp(repo), "one\nremote");
+  assert.equal(git(repo, "log", "-1", "--format=%s", "HEAD^1"), "Local change");
+});
+
+test("a rebase pull replays local commits on the remote branch", async () => {
+  const { other, repo } = createClones();
+  commitFile(other, "notes.txt", "a\nb\n", "Add notes");
+  git(other, "push", "-q", "origin", "main");
+  commitFile(repo, "local.txt", "local\n", "Local work");
+
+  const result = await pullProjectGitChanges(repo, { strategy: "rebase" });
+
+  assert.equal(result.status, "pulled");
+  assert.equal(result.rebased, true);
+  assert.equal(result.merged, false);
+  assert.equal(result.commitCount, 1);
+  assert.deepEqual(
+    result.commits.map((commit) => commit.subject),
+    ["Add notes"],
+  );
+  assert.deepEqual(
+    result.files.map((file) => file.path),
+    ["notes.txt"],
+  );
+  // No merge commit: the local commit sits on top of the remote branch.
+  assert.equal(git(repo, "log", "-1", "--format=%s", "HEAD"), "Local work");
+  assert.equal(
+    git(repo, "rev-parse", "HEAD^"),
+    git(repo, "rev-parse", "origin/main"),
+  );
+});
+
+test("a conflicting rebase pull is aborted and reports the conflicting files", async () => {
+  const { repo } = createConflict();
+  const headBefore = git(repo, "rev-parse", "HEAD");
+
+  const result = await pullProjectGitChanges(repo, { strategy: "rebase" });
+
+  assert.equal(result.status, "conflict");
+  assert.equal(result.strategy, "rebase");
+  assert.deepEqual(result.conflictingFiles, ["app.txt"]);
+  assert.equal(git(repo, "rev-parse", "HEAD"), headBefore);
+  assert.equal(git(repo, "status", "--porcelain"), "");
+  assert.equal(git(repo, "symbolic-ref", "--short", "HEAD"), "main");
+});
+
+test("a pull refuses to touch a rebase already in progress", async () => {
+  const { repo } = createConflict();
+  git(repo, "fetch", "-q", "origin");
+  try {
+    git(repo, "rebase", "origin/main");
+  } catch {
+    // The conflict is the point: the user is now mid-rebase.
+  }
+
+  await assert.rejects(
+    pullProjectGitChanges(repo, { strategy: "merge" }),
+    /rebase is already in progress/,
+  );
+  assert.ok(git(repo, "rev-parse", "--verify", "REBASE_HEAD"));
+});

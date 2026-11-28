@@ -65,7 +65,18 @@ export const projectGitBranchesRequestSchema = z.object({
 });
 
 export const projectGitFetchRequestSchema = projectGitBranchesRequestSchema;
-export const projectGitPullRequestSchema = projectGitBranchesRequestSchema;
+/** How a pull joins diverged work; see `pullProjectGitChanges`. */
+export const projectGitPullStrategySchema = z.enum([
+  "merge",
+  "ours",
+  "theirs",
+  "rebase",
+]);
+
+export const projectGitPullRequestSchema = z.object({
+  projectPath: z.string().min(1),
+  strategy: projectGitPullStrategySchema.default("merge"),
+});
 export const projectGitRemoteUrlRequestSchema = projectGitBranchesRequestSchema;
 
 export const projectGitCheckoutRequestSchema = z.object({

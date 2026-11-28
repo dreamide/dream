@@ -28,6 +28,7 @@ import { getDefaultGitGenerationModelSelection } from "@/lib/ide-defaults";
 import type {
   ProjectConfig,
   ProjectGitPulledResponse,
+  ProjectGitPullStrategy,
   ProjectWorktreeInfo,
 } from "@/types/ide";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
@@ -57,6 +58,29 @@ type WorktreeProject = ProjectConfig & { worktree: ProjectWorktreeInfo };
 const PULL_TOAST_DURATION_MS = 8000;
 /** Conflicting files a pull toast names before summing up the rest. */
 const PULL_CONFLICT_FILES_SHOWN = 5;
+
+/** The ways a conflicted pull toast offers to pull again. */
+const PULL_RETRY_STRATEGIES = [
+  {
+    description: "pullKeepMineDescription",
+    label: "pullKeepMine",
+    strategy: "ours",
+  },
+  {
+    description: "pullTakeTheirsDescription",
+    label: "pullTakeTheirs",
+    strategy: "theirs",
+  },
+  {
+    description: "pullRebaseDescription",
+    label: "pullRebase",
+    strategy: "rebase",
+  },
+] as const satisfies readonly {
+  description: string;
+  label: string;
+  strategy: ProjectGitPullStrategy;
+}[];
 
 /** A commit count on the right of a git menu item, e.g. "↑ 2". */
 const MenuCommitCount = ({
@@ -143,26 +167,37 @@ const GitFooterActionsImpl = ({
 
   const handleSync = async (action: "fetch" | "pull") => {
     if (gitBusy) return;
-    const store = useIdeStore.getState();
-    if (action === "fetch") {
-      const outcome = await store.fetchProject(projectId);
-      if (outcome.ok) {
-        toast.success(gitT("fetchedFrom", { target: outcome.result.remote }));
-      } else {
-        toast.error(getApiErrorMessage(outcome.error, gitT("unableToFetch")));
-      }
+    if (action === "pull") {
+      await handlePull("merge");
       return;
     }
-    const outcome = await store.pullProject(projectId);
+    const outcome = await useIdeStore.getState().fetchProject(projectId);
+    if (outcome.ok) {
+      toast.success(gitT("fetchedFrom", { target: outcome.result.remote }));
+    } else {
+      toast.error(getApiErrorMessage(outcome.error, gitT("unableToFetch")));
+    }
+  };
+
+  const handlePull = async (strategy: ProjectGitPullStrategy) => {
+    const outcome = await useIdeStore
+      .getState()
+      .pullProject(projectId, { strategy });
     if (outcome.ok) {
       const result = outcome.result;
       if (result.status === "conflict") {
         const files = result.conflictingFiles;
+        // Older hosts ignore the strategy and do not name one.
+        const tried = result.strategy ?? strategy;
+        const id = crypto.randomUUID();
         toast.error(
-          gitT("pullConflict", { target: result.upstreamBranch }),
-          files.length > 0
-            ? {
-                description: (
+          gitT(tried === "rebase" ? "rebaseConflict" : "pullConflict", {
+            target: result.upstreamBranch,
+          }),
+          {
+            description: (
+              <div className="space-y-2">
+                {files.length > 0 ? (
                   <div className="space-y-0.5">
                     {files.slice(0, PULL_CONFLICT_FILES_SHOWN).map((file) => (
                       <div className="truncate font-mono text-xs" key={file}>
@@ -177,10 +212,30 @@ const GitFooterActionsImpl = ({
                       </div>
                     ) : null}
                   </div>
-                ),
-                duration: PULL_TOAST_DURATION_MS,
-              }
-            : undefined,
+                ) : null}
+                <div className="flex flex-wrap gap-1.5">
+                  {PULL_RETRY_STRATEGIES.filter(
+                    (retry) => retry.strategy !== tried,
+                  ).map((retry) => (
+                    <Button
+                      key={retry.strategy}
+                      onClick={() => {
+                        toast.dismiss(id);
+                        void handlePull(retry.strategy);
+                      }}
+                      size="sm"
+                      title={gitT(retry.description)}
+                      variant="outline"
+                    >
+                      {gitT(retry.label)}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ),
+            duration: PULL_TOAST_DURATION_MS,
+            id,
+          },
         );
         return;
       }
@@ -189,10 +244,17 @@ const GitFooterActionsImpl = ({
         toast.success(gitT("alreadyUpToDate", { target: upstreamBranch }));
         return;
       }
-      const title = gitT(result.merged ? "mergedFrom" : "pulledFrom", {
-        count: commitCount,
-        target: upstreamBranch,
-      });
+      const title = gitT(
+        result.rebased
+          ? "rebasedFrom"
+          : result.merged
+            ? "mergedFrom"
+            : "pulledFrom",
+        {
+          count: commitCount,
+          target: upstreamBranch,
+        },
+      );
       // Older hosts answer with the count alone.
       if (!result.commits?.length && !result.files?.length) {
         toast.success(title);

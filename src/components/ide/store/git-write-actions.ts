@@ -16,7 +16,11 @@ import {
   type ApiResponseOf,
   apiClient,
 } from "@/lib/api-client";
-import type { ProjectConfig, ProjectGitStatusEntry } from "@/types/ide";
+import type {
+  ProjectConfig,
+  ProjectGitPullStrategy,
+  ProjectGitStatusEntry,
+} from "@/types/ide";
 import { getProjectHostId } from "../../../../electron/shared/persisted-state-codec.js";
 import type {
   GitWrite,
@@ -50,6 +54,7 @@ export interface GitWriteActions {
   ) => Promise<GitWriteOutcome<ApiResponseOf<"gitPush">>>;
   pullProject: (
     projectId: string,
+    options?: { strategy?: ProjectGitPullStrategy },
   ) => Promise<GitWriteOutcome<ApiResponseOf<"gitPull">>>;
   fetchProject: (
     projectId: string,
@@ -158,9 +163,9 @@ export const createGitWriteActions = (
         ),
       ),
 
-    pullProject: (projectId) =>
+    pullProject: (projectId, { strategy = "merge" } = {}) =>
       run(projectId, "pull", (project, host) =>
-        api.gitPull({ projectPath: project.path }, host),
+        api.gitPull({ projectPath: project.path, strategy }, host),
       ),
 
     fetchProject: (projectId) =>
