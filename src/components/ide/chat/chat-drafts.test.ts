@@ -55,8 +55,41 @@ test("text added from outside goes after the draft, a blank line between", () =>
 test("a sent draft empties, references and all", () => {
   const drafts = createChatDrafts();
   drafts.set("a", draft("Send me", [reference]));
-  drafts.clear("a");
+  drafts.sent("a", drafts.get("a"));
   assert.deepEqual(drafts.get("a"), draft(""));
+});
+
+test("a receipt preserves deliberate edits, including newly picked references", () => {
+  const drafts = createChatDrafts();
+  drafts.append("a", "Original");
+  const submitted = drafts.get("a");
+  const edited = draft("Original\n\nKeep this", [reference]);
+  drafts.set("a", edited);
+  drafts.append("a", "Feedback");
+  drafts.sent("a", submitted);
+  assert.deepEqual(
+    drafts.get("a"),
+    draft("Original\n\nKeep this\n\nFeedback", [reference]),
+  );
+});
+
+test("a receipt retires the submitted references with their text", () => {
+  const drafts = createChatDrafts();
+  const submitted = draft("First  ", [reference]);
+  drafts.set("a", submitted);
+  drafts.append("a", "Feedback");
+  drafts.sent("a", submitted);
+  assert.deepEqual(drafts.get("a"), draft("Feedback"));
+});
+
+test("clearing the composer separates two drafts built from returned text", () => {
+  const drafts = createChatDrafts();
+  drafts.append("a", "First");
+  const submitted = drafts.get("a");
+  drafts.set("a", draft(""));
+  drafts.append("a", "First\n\nKeep this");
+  drafts.sent("a", submitted);
+  assert.equal(drafts.get("a").text, "First\n\nKeep this");
 });
 
 const sent = (...texts: string[]): UIMessage[] =>
@@ -116,7 +149,7 @@ test("Up does nothing with nothing sent, and sending ends the walk", () => {
 
   const history = ["first"];
   drafts.stepHistory("a", "ArrowUp", { caretAtStart: true, history });
-  drafts.clear("a");
+  drafts.sent("a", drafts.get("a"));
   assert.equal(
     drafts.stepHistory("a", "ArrowDown", { caretAtStart: true, history }),
     false,

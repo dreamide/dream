@@ -138,7 +138,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   for (const chatId of chatIds) {
-    chatDrafts.clear(chatId);
+    chatDrafts.sent(chatId, chatDrafts.get(chatId));
     chatTurnOutcomes.reportError(chatId, null);
   }
   chatIds = [];
@@ -206,6 +206,53 @@ test("the composer's message is its chat's draft, emptied once sent", async () =
       .metadata.skillMentions,
     ["review"],
   );
+});
+
+test.each([
+  true,
+  false,
+])("feedback survives an overlapping composer send (accepted %s)", async (accepted) => {
+  const { chat } = setUp();
+  const transport = globalThis.fetch;
+  const receipt = Promise.withResolvers<void>();
+  vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+    if (String(url) === "/api/chat/submit") {
+      await receipt.promise;
+      if (!accepted) return new Response("Refused", { status: 400 });
+    }
+    return transport(url, init);
+  });
+  const draft = { text: "First", references: [] };
+  chatDrafts.set(chat.id, draft);
+  const first = sendChatMessage(chat.id, draft, { origin: "composer", draft });
+  const feedback = await sendChatMessage(
+    chat.id,
+    { text: "Review this line", references: [] },
+    { origin: "feedback" },
+  );
+  assert.equal(feedback.status === "refused" && feedback.reason, "busy");
+  assert.equal(chatDrafts.get(chat.id).text, "First\n\nReview this line");
+
+  receipt.resolve();
+  assert.equal((await first).status, accepted ? "sent" : "failed");
+  assert.equal(
+    chatDrafts.get(chat.id).text,
+    accepted ? "Review this line" : "First\n\nReview this line",
+  );
+});
+
+test("an edit made during Chat submission is still the live draft after success", async () => {
+  const { chat } = setUp();
+  const draft = { text: "Original", references: [] };
+  const revised = { text: "Original, revised", references: [] };
+  chatDrafts.set(chat.id, draft);
+  const sending = sendChatMessage(chat.id, draft, {
+    origin: "composer",
+    draft,
+  });
+  chatDrafts.set(chat.id, revised);
+  assert.deepEqual(await sending, { status: "sent" });
+  assert.equal(chatDrafts.get(chat.id), revised);
 });
 
 test("each refusal is a value, says why on the banner, and sends nothing", async () => {

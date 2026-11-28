@@ -9,8 +9,8 @@
  * outcome), except a busy one, since the banner is the message's being sent.
  * Callers read the answer, never the banner.
  *
- * The composer's message is the chat's draft: it is emptied once sent and
- * left as it is otherwise. Every other sender lets go of its message when it
+ * A composer's receipt retires the submitted draft version. Later edits and
+ * returned messages stay in the draft. Every other sender lets go of its message when it
  * calls `sendChatMessage`, so a message from one that is not sent is added to
  * the chat's draft, whether or not a panel shows the chat.
  *
@@ -44,6 +44,7 @@ import {
   startChatTurn,
 } from "./chat-runtime";
 import {
+  type ComposerDraft,
   hasPossibleSkillMention,
   type SerializedComposerDraft,
   serializeComposerDraft,
@@ -97,7 +98,7 @@ export type ChatSendResult =
 export type SendChatMessage = (
   chatId: string,
   submission: ChatSubmission,
-  options: { origin: ChatSubmissionOrigin },
+  options: { origin: ChatSubmissionOrigin; draft?: ComposerDraft },
 ) => Promise<ChatSendResult>;
 
 type Refusal = Extract<ChatSendResult, { status: "refused" }>;
@@ -202,7 +203,7 @@ const returnToDraft = (
 export const sendChatMessage: SendChatMessage = async (
   chatId,
   submission,
-  { origin },
+  { origin, draft },
 ) => {
   const refusal = refusalOf(chatId, submission);
   if (refusal?.reason === "busy") {
@@ -217,6 +218,8 @@ export const sendChatMessage: SendChatMessage = async (
   }
 
   const store = useIdeStore.getState();
+  const submittedDraft =
+    origin === "composer" ? (draft ?? chatDrafts.get(chatId)) : undefined;
   store.setChatSending(chatId, true);
   const projectId = store.chats.find((chat) => chat.id === chatId)?.projectId;
   if (projectId) store.setActiveChatId(projectId, chatId);
@@ -229,7 +232,7 @@ export const sendChatMessage: SendChatMessage = async (
       files: submission.files ?? [],
       ...serialized,
     });
-    if (origin === "composer") chatDrafts.clear(chatId);
+    if (submittedDraft) chatDrafts.sent(chatId, submittedDraft);
     return { status: "sent" };
   } catch (cause) {
     const error =

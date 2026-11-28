@@ -53,6 +53,9 @@ interface Entry {
 export const createChatDrafts = () => {
   const entries = new Map<string, Entry>();
   const listeners = new Map<string, Set<() => void>>();
+  // Drafts connected only by returned messages share the same original edit.
+  // A user edit or a history selection starts a different draft.
+  const appendedTo = new WeakMap<ComposerDraft, ComposerDraft>();
 
   const write = (chatId: string, entry: Entry) => {
     const empty =
@@ -95,18 +98,31 @@ export const createChatDrafts = () => {
     append(chatId: string, text: string) {
       if (!text) return;
       const entry = entryOf(chatId);
-      write(chatId, {
-        ...entry,
-        draft: {
-          ...entry.draft,
-          text: appendDraftText(entry.draft.text, text),
-        },
-      });
+      const draft = {
+        ...entry.draft,
+        text: appendDraftText(entry.draft.text, text),
+      };
+      // Each append onto an empty composer begins its own chain.
+      const original = entry.draft === EMPTY_DRAFT ? draft : entry.draft;
+      appendedTo.set(draft, appendedTo.get(entry.draft) ?? original);
+      write(chatId, { ...entry, draft });
     },
 
-    /** It was sent: the draft empties and history navigation starts over. */
-    clear(chatId: string) {
-      write(chatId, { draft: EMPTY_DRAFT, history: null });
+    /** Retire the submitted version. A subsequent deliberate edit wins in full. */
+    sent(chatId: string, submitted: ComposerDraft) {
+      const current = entryOf(chatId).draft;
+      if (current === submitted) {
+        write(chatId, { draft: EMPTY_DRAFT, history: null });
+        return;
+      }
+      if (appendedTo.get(current) !== (appendedTo.get(submitted) ?? submitted))
+        return;
+      const prefix = appendDraftText(submitted.text, "");
+      if (!current.text.startsWith(prefix)) return;
+      write(chatId, {
+        draft: { text: current.text.slice(prefix.length), references: [] },
+        history: null,
+      });
     },
 
     /**

@@ -189,7 +189,8 @@ enabled. A chat that streams or runs a turn still takes one; the host queues
 it. A message that passes is serialized with its skills and the chat runtime
 starts its turn. The answer is a value: sent, refused with its reason, or
 failed with its error; the chat's banner says the same, except when busy.
-The composer's message is the chat's draft, emptied only once sent. Other
+The composer's message is the submitted version of the chat's draft. Its receipt
+retires that version, keeping newer edits and returned messages. Other
 senders let go of theirs when they send, so one that is not sent joins the
 chat's draft. Store actions reach it through the submitter it registers with
 the store.
@@ -1096,7 +1097,9 @@ A chat's **live draft** is held outside React by
 references together, since a mention's path lives only in its reference, and
 where prompt history navigation stands. It outlives the panel that shows it.
 A message from outside the composer that the chat did not take is appended to
-it, whether or not a panel shows the chat. Sending empties it. The composer edits a draft through
+it, whether or not a panel shows the chat. A send retires the submitted text
+and references once confirmed. Messages appended during the send remain, and
+a draft the user edited meanwhile is kept whole. The composer edits a draft through
 one value, `{ text, references }`, that its owner holds: the chat's draft for
 a chat panel, or the stash composer's own. The composer keeps only the token
 at the caret.

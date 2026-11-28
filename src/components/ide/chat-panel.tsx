@@ -407,9 +407,10 @@ export const ChatPanel = ({
       if (readOnly) return;
       handleActivateChat();
 
-      // Chat submission decides and sends, and empties the draft once sent.
+      // The receipt retires the draft captured before attachment conversion.
       const result = await sendChatMessage(chat.id, prompt, {
         origin: "composer",
+        draft,
       });
       if (result.status === "failed") throw new Error(result.error);
       // Rejecting keeps the composer's text, references and attachments.
@@ -417,7 +418,7 @@ export const ChatPanel = ({
 
       scrollConversationToBottom();
     },
-    [chat.id, handleActivateChat, readOnly, scrollConversationToBottom],
+    [chat.id, draft, handleActivateChat, readOnly, scrollConversationToBottom],
   );
 
   const closeEditDialog = useCallback(() => {
