@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { desc, sql } from "drizzle-orm";
 import {
   check,
   index,
@@ -186,7 +186,11 @@ export const delegatedTasks = sqliteTable(
       .notNull()
       .references(() => chats.id, { onDelete: "cascade" }),
   },
-  (table) => [index("idx_delegated_tasks_parent").on(table.parentChatId)],
+  (table) => [
+    index("idx_delegated_tasks_parent").on(table.parentChatId),
+    index("idx_delegated_tasks_parent_run").on(table.parentRunId),
+    index("idx_delegated_tasks_child").on(table.childChatId),
+  ],
 );
 
 export const chatRuns = sqliteTable(
@@ -205,6 +209,10 @@ export const chatRuns = sqliteTable(
   },
   (table) => [
     index("idx_chat_runs_queue").on(table.chatId, table.status, table.position),
+    index("idx_chat_runs_chat_position").on(table.chatId, desc(table.position)),
+    index("idx_chat_runs_live")
+      .on(table.status)
+      .where(sql`${table.status} IN ('running', 'waiting')`),
     check("chat_runs_request_json", sql`json_valid(${table.request})`),
   ],
 );

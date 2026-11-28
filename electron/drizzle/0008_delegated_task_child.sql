@@ -1,0 +1,1 @@
+CREATE INDEX `idx_delegated_tasks_child` ON `delegated_tasks` (`child_chat_id`);

@@ -57,6 +57,20 @@
       "when": 1792388644672,
       "tag": "0007_loving_mach_iv",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795835036148,
+      "tag": "0008_delegated_task_child",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795838293318,
+      "tag": "0009_chat_runs_indexes",
+      "breakpoints": true
     }
   ]
 }
