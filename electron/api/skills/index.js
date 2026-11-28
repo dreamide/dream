@@ -8,6 +8,7 @@
 
 import path from "node:path";
 import { onCodexSkillsChanged } from "../chat/codex-app-server-client.js";
+import { discoverAntigravitySkills } from "./antigravity-skills.js";
 import { discoverClaudeSkills } from "./claude-skills.js";
 import { discoverCodexSkills } from "./codex-skills.js";
 import { discoverCursorSkills } from "./cursor-skills.js";
@@ -21,6 +22,7 @@ const cacheKey = (provider, projectPath) =>
   `${provider}::${projectPath ? projectPath.trim() : ""}`;
 
 const DISCOVERERS = {
+  antigravity: discoverAntigravitySkills,
   anthropic: discoverClaudeSkills,
   cursor: discoverCursorSkills,
   openai: discoverCodexSkills,

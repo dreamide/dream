@@ -33,9 +33,15 @@ export const findSkillMentions = (text, skills) => {
     return [];
   }
 
-  const byName = new Map(
-    skills.map((skill) => [String(skill.name).toLowerCase(), skill]),
-  );
+  // Keep the first skill seen for each name so higher-precedence catalog
+  // entries cannot be overwritten by later duplicates.
+  const byName = new Map();
+  for (const skill of skills) {
+    const key = String(skill.name).toLowerCase();
+    if (!byName.has(key)) {
+      byName.set(key, skill);
+    }
+  }
   const pattern = new RegExp(SKILL_MENTION_PATTERN.source, "g");
   const mentions = [];
   let match = pattern.exec(text);

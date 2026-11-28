@@ -94,9 +94,8 @@ written. The originals are in git history:
 - Antigravity's `ask` permission mode runs `--mode plan`; interactive mid-turn
   approval was deferred. (was AGY-01, antigravity-provider.md)
 - Antigravity gets attachments only as text descriptions, not files it can
-  open; nothing probes its `--conversation` before sending, so a resume is
-  reported without being checked; and it has no skills discoverer, so Settings >
-  Skills does not list it. (was ARC14-07 and ARC14-08, review-20261114.md)
+  open; and nothing probes its `--conversation` before sending, so a resume is
+  reported without being checked. (was ARC14-07 and ARC14-08, review-20261114.md)
 - Reconstructed history is bounded to Codex's limits (about 175,000 tokens) for
   every text adapter; bounds sized to each Provider's context window were
   deferred. (was ARC14-07, review-20261114.md)

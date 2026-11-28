@@ -120,3 +120,78 @@ test("applySkillDispatchToMessages appends a text part to the latest user messag
   ]);
   assert.equal(applySkillDispatchToMessages(messages, null), messages);
 });
+
+test("findSkillMentions preserves first-wins precedence for duplicate names", () => {
+  const duplicateCatalog = [
+    {
+      enabled: true,
+      name: "deploy",
+      path: "/project/deploy/SKILL.md",
+      scope: "project",
+    },
+    {
+      enabled: true,
+      name: "deploy",
+      path: "/user/deploy/SKILL.md",
+      scope: "user",
+    },
+  ];
+  const mentions = findSkillMentions("run $deploy", duplicateCatalog);
+  assert.equal(mentions.length, 1);
+  assert.equal(mentions[0].skill.scope, "project");
+  assert.equal(mentions[0].skill.path, "/project/deploy/SKILL.md");
+});
+
+test("Antigravity plan resolves qualified plugin skills distinctly from project skills", () => {
+  const catalog = [
+    {
+      enabled: true,
+      name: "deploy",
+      path: "/project/deploy/SKILL.md",
+      scope: "project",
+    },
+    {
+      enabled: true,
+      name: "plugin-a:deploy",
+      path: "/plugins/plugin-a/deploy/SKILL.md",
+      pluginId: "plugin-a",
+      scope: "plugin",
+    },
+    {
+      enabled: true,
+      name: "plugin-b:deploy",
+      path: "/plugins/plugin-b/deploy/SKILL.md",
+      pluginId: "plugin-b",
+      scope: "plugin",
+    },
+  ];
+
+  const pluginPlan = planSkillDispatch({
+    provider: "antigravity",
+    skills: catalog,
+    text: "run $deploy then $plugin-a:deploy",
+  });
+  assert.deepEqual(
+    pluginPlan.skills.map((s) => s.name),
+    ["deploy", "plugin-a:deploy"],
+  );
+  assert.equal(pluginPlan.slashCommand, "plugin-a:deploy");
+  assert.equal(
+    applySkillSlashPrefix(
+      "run $deploy then $plugin-a:deploy",
+      pluginPlan.slashCommand,
+    ),
+    "/plugin-a:deploy run $deploy then $plugin-a:deploy",
+  );
+
+  const projectPlan = planSkillDispatch({
+    provider: "antigravity",
+    skills: catalog,
+    text: "run $plugin-b:deploy then $deploy",
+  });
+  assert.deepEqual(
+    projectPlan.skills.map((s) => s.name),
+    ["plugin-b:deploy", "deploy"],
+  );
+  assert.equal(projectPlan.slashCommand, "deploy");
+});

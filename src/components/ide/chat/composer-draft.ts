@@ -100,9 +100,13 @@ export const findSkillMentions = (
     return [];
   }
 
-  const byName = new Map(
-    skills.map((skill) => [skill.name.toLowerCase(), skill] as const),
-  );
+  const byName = new Map<string, ProviderSkill>();
+  for (const skill of skills) {
+    const key = skill.name.toLowerCase();
+    if (!byName.has(key)) {
+      byName.set(key, skill);
+    }
+  }
   const ranges: SkillMentionRange[] = [];
   const pattern = new RegExp(SKILL_MENTION_PATTERN.source, "g");
   let match: RegExpExecArray | null = pattern.exec(text);
