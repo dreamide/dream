@@ -21,6 +21,8 @@ const LOAD_TIMEOUT_MS = 20_000;
 const CONSOLE_BUFFER_LIMIT = 300;
 const NETWORK_BUFFER_LIMIT = 400;
 const CDP_PROTOCOL_VERSION = "1.3";
+const CDP_MAX_TOTAL_BUFFER_BYTES = 8 * 1024 * 1024;
+const CDP_MAX_RESOURCE_BUFFER_BYTES = 1 * 1024 * 1024;
 
 const createId = () =>
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -28,8 +30,9 @@ const createId = () =>
 const pushBounded = (list, entry, limit) => {
   list.push(entry);
   if (list.length > limit) {
-    list.splice(0, list.length - limit);
+    return list.splice(0, list.length - limit);
   }
+  return [];
 };
 
 export function createBrowserAgentBridge({ sendToRenderer }) {
@@ -96,7 +99,12 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
         previous.finished = true;
       }
       meta.networkById.set(params.requestId, entry);
-      pushBounded(meta.network, entry, NETWORK_BUFFER_LIMIT);
+      const evicted = pushBounded(meta.network, entry, NETWORK_BUFFER_LIMIT);
+      for (const old of evicted) {
+        if (meta.networkById.get(old.id) === old) {
+          meta.networkById.delete(old.id);
+        }
+      }
       return;
     }
     const entry = params?.requestId
@@ -142,6 +150,8 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
       }
       await guest.debugger.sendCommand("Network.enable", {
         maxPostDataSize: 0,
+        maxResourceBufferSize: CDP_MAX_RESOURCE_BUFFER_BYTES,
+        maxTotalBufferSize: CDP_MAX_TOTAL_BUFFER_BYTES,
       });
       meta.debuggerState = "attached";
       meta.debuggerError = null;
@@ -237,14 +247,8 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
       networkById: new Map(),
     });
 
-    // An agent may drive a tab while it is hidden; keep its timers and
-    // rendering running at full speed so pages behave as when shown.
-    try {
-      guest.setBackgroundThrottling(false);
-    } catch {
-      // Older guests without the API keep the default.
-    }
-
+    // Keep background throttling enabled by default; beginActivity disables
+    // it only while an agent is actively driving a project's browser tabs.
     // Attach eagerly so requests made during the first load are captured.
     void attachDebugger(guest);
   };
@@ -292,6 +296,7 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
       }
       guests.set(tabId, { attachedAt: Date.now(), webContentsId });
       hookGuest(webContentsId);
+      syncProjectBackgroundThrottling(projectId);
       notifyGuestWaiters();
     },
   );
@@ -376,6 +381,25 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
   // Main -> renderer: activity indicator
   // -------------------------------------------------------------------------
 
+  function syncProjectBackgroundThrottling(projectId) {
+    const guests = guestsByProject.get(projectId);
+    if (!guests) {
+      return;
+    }
+    const agentActive = (activityByProject.get(projectId)?.size ?? 0) > 0;
+    for (const entry of guests.values()) {
+      const guest = liveGuest(entry.webContentsId);
+      if (!guest) {
+        continue;
+      }
+      try {
+        guest.setBackgroundThrottling(!agentActive);
+      } catch {
+        // Older guests without the API keep the default.
+      }
+    }
+  }
+
   /**
    * Track a running tool so the panel can show that an agent is driving the
    * browser. Returns a function that marks the tool finished.
@@ -385,11 +409,15 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
       return () => {};
     }
     let counts = activityByProject.get(projectId);
+    const wasIdle = !counts || counts.size === 0;
     if (!counts) {
       counts = new Map();
       activityByProject.set(projectId, counts);
     }
     counts.set(tool, (counts.get(tool) ?? 0) + 1);
+    if (wasIdle) {
+      syncProjectBackgroundThrottling(projectId);
+    }
     publishActivity(projectId, tool);
     let ended = false;
     return () => {
@@ -409,6 +437,7 @@ export function createBrowserAgentBridge({ sendToRenderer }) {
       }
       if (current.size === 0) {
         activityByProject.delete(projectId);
+        syncProjectBackgroundThrottling(projectId);
       }
       publishActivity(projectId, tool);
     };

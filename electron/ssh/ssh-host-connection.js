@@ -175,10 +175,14 @@ export function createSshHostConnection({
     return child;
   };
 
-  // A held-open session reads nothing from Dream; the pipe exists so it
-  // ends when Dream does.
+  // A held-open session reads nothing from Dream; the stdin pipe exists so it
+  // ends when Dream does, while stdout is ignored so an unread pipe cannot stall.
   const spawnSsh = (args, { holdOpen = false } = {}) =>
-    spawnTracked(args, [holdOpen ? "pipe" : "ignore", "pipe", "pipe"]);
+    spawnTracked(args, [
+      holdOpen ? "pipe" : "ignore",
+      holdOpen ? "ignore" : "pipe",
+      "pipe",
+    ]);
 
   // Managed: the runtime of this app's version, installed by Dream.
   const managed = Boolean(runtimeVersion);
@@ -219,18 +223,30 @@ export function createSshHostConnection({
     });
 
   /** Starts a long-lived ssh process; resolves once `ready` says so. */
+  const MAX_HELD_STDERR_CHARS = 16_384;
   const startHeldSession = (args, ready, timeoutMs) =>
     new Promise((resolve, reject) => {
       const child = spawnSsh(args, { holdOpen: true });
       let stderr = "";
       let settled = false;
-      child.stderr?.setEncoding("utf8");
-      child.stderr?.on("data", (chunk) => {
+      const onStderr = (chunk) => {
+        if (settled) return;
         stderr += chunk;
-      });
+        if (stderr.length > MAX_HELD_STDERR_CHARS) {
+          stderr = stderr.slice(-MAX_HELD_STDERR_CHARS);
+        }
+      };
+      const releaseStderr = () => {
+        child.stderr?.off("data", onStderr);
+        stderr = "";
+        child.stderr?.resume();
+      };
+      child.stderr?.setEncoding("utf8");
+      child.stderr?.on("data", onStderr);
       const fail = (error) => {
         if (settled) return;
         settled = true;
+        releaseStderr();
         child.kill();
         reject(error);
       };
@@ -248,6 +264,7 @@ export function createSshHostConnection({
         }
         if (await ready()) {
           settled = true;
+          releaseStderr();
           resolve(child);
           return;
         }

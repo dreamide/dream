@@ -76,6 +76,9 @@ export function registerHostProxyRoutes(
   });
 }
 
+const MAX_PENDING_WS_MESSAGES = 256;
+const MAX_PENDING_WS_BYTES = 1_048_576;
+
 /**
  * Shared HTTP/stream and socket forwarding for SSH routes and desktop attach.
  * `route` forwards requests and `socketRoute` the host socket, each
@@ -88,6 +91,7 @@ export function registerEndpointProxyRoutes(
     socketRoute,
     targetPath,
     resolveEndpoint,
+    onEndpointError,
     upgradeWebSocket,
     fetchImpl = (...args) => fetch(...args),
   },
@@ -107,24 +111,56 @@ export function registerEndpointProxyRoutes(
         const remoteUrl = `${endpoint.baseUrl.replace(/^http/, "ws")}${HOST_ROUTES.hostSocket.path}?ticket=${encodeURIComponent(c.req.query("ticket") ?? "")}`;
         let remote = null;
         const pending = [];
+        let pendingBytes = 0;
         return {
           onOpen: (_event, ws) => {
             remote = new WebSocket(remoteUrl, endpoint.socketOptions);
             remote.on("open", () => {
+              pendingBytes = 0;
               for (const text of pending.splice(0)) remote.send(text);
             });
-            remote.on("message", (data) => ws.send(String(data)));
+            remote.on("message", (data) => {
+              try {
+                ws.send(String(data));
+              } catch {
+                // Socket already closing.
+              }
+            });
             remote.on("close", () => ws.close());
-            remote.on("error", () => ws.close());
-            remote.on("unexpected-response", () => ws.close());
+            remote.on("error", () => {
+              onEndpointError?.();
+              ws.close();
+            });
+            remote.on("unexpected-response", () => {
+              onEndpointError?.();
+              ws.close();
+            });
           },
           onMessage: (event) => {
             if (typeof event.data !== "string") return;
-            if (remote?.readyState === WebSocket.OPEN) remote.send(event.data);
-            else pending.push(event.data);
+            if (remote?.readyState === WebSocket.OPEN) {
+              remote.send(event.data);
+              return;
+            }
+            if (
+              pending.length >= MAX_PENDING_WS_MESSAGES ||
+              pendingBytes + event.data.length > MAX_PENDING_WS_BYTES
+            ) {
+              return;
+            }
+            pending.push(event.data);
+            pendingBytes += event.data.length;
           },
-          onClose: () => remote?.close(),
-          onError: () => remote?.close(),
+          onClose: () => {
+            pending.length = 0;
+            pendingBytes = 0;
+            remote?.close();
+          },
+          onError: () => {
+            pending.length = 0;
+            pendingBytes = 0;
+            remote?.close();
+          },
         };
       }),
     );
@@ -161,10 +197,14 @@ export function registerEndpointProxyRoutes(
         signal: c.req.raw.signal,
       });
     } catch (error) {
+      onEndpointError?.();
       return c.text(
         `Host could not be reached: ${error instanceof Error ? error.message : error}`,
         502,
       );
+    }
+    if (upstream.status === 401) {
+      onEndpointError?.();
     }
 
     const responseHeaders = new Headers();

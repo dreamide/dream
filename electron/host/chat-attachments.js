@@ -70,8 +70,9 @@ export const saveChatAttachments = async ({ chatId, messages }) => {
   for (const message of messages) {
     if (message?.role !== "user") continue;
     for (const part of getMessageFileParts(message)) {
+      if (isImageFilePart(part)) continue;
       const parsed = parseAttachmentDataUrl(part.url);
-      if (!parsed || isImageFilePart(part)) continue;
+      if (!parsed) continue;
       // By content, so sending the same file again reuses its path.
       const filePath = path.join(
         directory,

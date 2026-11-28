@@ -32,7 +32,11 @@ export const getAttachmentLabel = (part) => {
   );
 };
 
-export const parseAttachmentDataUrl = (value) => {
+/**
+ * Parses only the header of a `data:` URL (`mediaType` and `isBase64`) without
+ * slicing or decoding the payload bytes.
+ */
+export const parseAttachmentDataUrlMeta = (value) => {
   if (typeof value !== "string" || !value.startsWith("data:")) {
     return null;
   }
@@ -43,17 +47,27 @@ export const parseAttachmentDataUrl = (value) => {
   }
 
   const metadata = value.slice(5, commaIndex);
-  const payload = value.slice(commaIndex + 1);
   const segments = metadata.split(";").filter(Boolean);
   const isBase64 = segments.includes("base64");
   const mediaType = segments.find((segment) => segment !== "base64") || null;
 
+  return { commaIndex, isBase64, mediaType };
+};
+
+export const parseAttachmentDataUrl = (value) => {
+  const meta = parseAttachmentDataUrlMeta(value);
+  if (!meta) {
+    return null;
+  }
+
+  const payload = value.slice(meta.commaIndex + 1);
+
   try {
     return {
-      buffer: isBase64
+      buffer: meta.isBase64
         ? Buffer.from(payload, "base64")
         : Buffer.from(decodeURIComponent(payload), "utf8"),
-      mediaType,
+      mediaType: meta.mediaType,
     };
   } catch {
     return null;
@@ -162,29 +176,33 @@ const getAttachmentMediaType = (part, parsedDataUrl) =>
 /** Whether a provider that forwards images inline will receive this part. */
 export const isImageFilePart = (part) =>
   /^image\//i.test(
-    getAttachmentMediaType(part, parseAttachmentDataUrl(part.url)) ?? "",
+    getAttachmentMediaType(part, parseAttachmentDataUrlMeta(part.url)) ?? "",
   );
 
 /** Whether a summary of this part stands for its contents, not just its name. */
 export const isAttachmentContentInPrompt = (part) => {
-  const parsedDataUrl = parseAttachmentDataUrl(part.url);
-  const mediaType = getAttachmentMediaType(part, parsedDataUrl);
+  const meta = parseAttachmentDataUrlMeta(part.url);
+  const mediaType = getAttachmentMediaType(part, meta);
   return (
     isImageAttachment(mediaType, part.filename) ||
-    (Boolean(parsedDataUrl) && isTextAttachment(mediaType, part.filename))
+    (Boolean(meta) && isTextAttachment(mediaType, part.filename))
   );
 };
 
 export const describeAttachment = (part) => {
   const label = getAttachmentLabel(part);
-  const parsedDataUrl = parseAttachmentDataUrl(part.url);
-  const mediaType = getAttachmentMediaType(part, parsedDataUrl);
+  const meta = parseAttachmentDataUrlMeta(part.url);
+  const mediaType = getAttachmentMediaType(part, meta);
 
   if (isImageAttachment(mediaType, part.filename)) {
     return `[Attached image: ${label}${mediaType ? ` (${mediaType})` : ""}]`;
   }
 
-  if (parsedDataUrl && isTextAttachment(mediaType, part.filename)) {
+  if (meta && isTextAttachment(mediaType, part.filename)) {
+    const parsedDataUrl = parseAttachmentDataUrl(part.url);
+    if (!parsedDataUrl) {
+      return `[Attached file: ${label}${mediaType ? ` (${mediaType})` : ""}]`;
+    }
     const text = parsedDataUrl.buffer.toString("utf8");
     const truncated = text.length > TEXT_ATTACHMENT_CHAR_LIMIT;
     const content = truncated

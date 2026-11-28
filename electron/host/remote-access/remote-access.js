@@ -535,6 +535,12 @@ export function createRemoteAccess({
   const armMonitor = () => {
     clearMonitor();
     if (!watching()) return;
+    // Poll quickly while recovering (`origin === null`), and back off once
+    // verified so healthy routes do not run full TLS+proof probes every 10 s.
+    const delayMs =
+      origin !== null && monitorMs >= 1_000
+        ? Math.max(monitorMs, 60_000)
+        : monitorMs;
     monitor = setTimeout(() => {
       monitor = null;
       void serially(async () => {
@@ -542,7 +548,7 @@ export function createRemoteAccess({
         await check(selected().way, tried);
         armMonitor();
       }).catch(() => {});
-    }, monitorMs);
+    }, delayMs);
     monitor.unref?.();
   };
 

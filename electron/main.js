@@ -1,6 +1,6 @@
 import "./load-env.js";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
+import { readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -124,9 +124,12 @@ const APP_USER_DATA_PATH = path.join(
   app.getPath("appData"),
   APP_USER_DATA_DIR_NAME,
 );
-const APP_SESSION_DATA_PATH = path.join(
+const APP_SESSION_DATA_ROOT = path.join(
   app.getPath("temp"),
   APP_USER_DATA_DIR_NAME,
+);
+const APP_SESSION_DATA_PATH = path.join(
+  APP_SESSION_DATA_ROOT,
   `session-${process.pid}`,
 );
 app.setName(APP_NAME);
@@ -138,6 +141,38 @@ mkdirSync(APP_SESSION_DATA_PATH, { recursive: true });
 app.setPath("userData", APP_USER_DATA_PATH);
 // Keep Chromium caches per process so parallel launches do not lock user data.
 app.setPath("sessionData", APP_SESSION_DATA_PATH);
+
+// Remove orphaned session-<pid> temp folders left by previous exited launches.
+const sweepStaleSessionDataDirs = async () => {
+  try {
+    const entries = await readdir(APP_SESSION_DATA_ROOT, {
+      withFileTypes: true,
+    });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const match = /^session-(\d+)$/.exec(entry.name);
+      if (!match) continue;
+      const pid = Number(match[1]);
+      if (!Number.isInteger(pid) || pid <= 0 || pid === process.pid) continue;
+      let alive = false;
+      try {
+        process.kill(pid, 0);
+        alive = true;
+      } catch (error) {
+        alive = error?.code === "EPERM";
+      }
+      if (!alive) {
+        await rm(path.join(APP_SESSION_DATA_ROOT, entry.name), {
+          force: true,
+          recursive: true,
+        }).catch(() => {});
+      }
+    }
+  } catch {
+    // Best-effort temp cleanup.
+  }
+};
+void sweepStaleSessionDataDirs();
 
 // The launch and quit sequence (desktop-launch.js): the workspace database
 // and its lock, the save queue and the home host here, before either
@@ -496,24 +531,49 @@ async function createMainWindow() {
   await configureRendererProxy(mainWindow.webContents);
 
   if (!isDevelopment && process.env.DREAM_DISABLE_HELLO !== "1") {
-    helloView = new WebContentsView({
+    const view = new WebContentsView({
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
       },
     });
-    helloView.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-    mainWindow.contentView.addChildView(helloView);
-    helloView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
-    helloView.webContents
+    helloView = view;
+    let helloTimer = null;
+    const disposeHelloView = () => {
+      if (helloTimer !== null) {
+        clearTimeout(helloTimer);
+        helloTimer = null;
+      }
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        try {
+          mainWindow.contentView.removeChildView(view);
+        } catch {
+          // Already detached.
+        }
+      }
+      if (!view.webContents.isDestroyed()) {
+        view.webContents.close();
+      }
+      if (helloView === view) {
+        helloView = null;
+      }
+    };
+    view.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    view.webContents.once("did-finish-load", disposeHelloView);
+    view.webContents.once("did-fail-load", disposeHelloView);
+    helloTimer = setTimeout(disposeHelloView, 15_000);
+    helloTimer.unref?.();
+    mainWindow.contentView.addChildView(view);
+    view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+    view.webContents
       .loadURL(
         getHelloUrl({
           currentVersion: app.getVersion(),
           installId,
         }),
       )
-      .catch(() => {});
+      .catch(disposeHelloView);
   }
 
   mainWindow.loadURL(launch.rendererServer().getUrl()).catch((error) => {

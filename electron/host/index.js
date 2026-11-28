@@ -18,6 +18,7 @@ import { executeChatRequest } from "../api/chat-routes.js";
 import { createHostSocket } from "../api/host-socket/host-socket.js";
 import { startRemoteApiServer } from "../api/remote-app.js";
 import { createSocketTickets } from "../api/shared/socket-tickets.js";
+import { stopSkillWatchers } from "../api/skills/watch.js";
 import {
   awaitingApprovalChatIds,
   onToolApprovalsChange,
@@ -342,6 +343,7 @@ export function createHost({
      */
     async close() {
       stopApprovalEvents();
+      stopSkillWatchers();
       await scheduler.close();
       // Codex turns run through one app server per process: the host's.
       await stopCodexAppServer().catch((error) =>

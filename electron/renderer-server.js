@@ -295,10 +295,12 @@ export function createRendererServerManager({
     }
 
     if (productionHttpServer) {
-      await new Promise((resolve) => {
-        productionHttpServer.close(() => resolve(undefined));
-      });
+      const closingServer = productionHttpServer;
       productionHttpServer = null;
+      await new Promise((resolve) => {
+        closingServer.close(() => resolve(undefined));
+        closingServer.closeAllConnections?.();
+      });
     }
   }
 

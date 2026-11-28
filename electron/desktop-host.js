@@ -11,7 +11,7 @@
 // it runs another version; a host the user started is attached to and left
 // running.
 
-import { existsSync } from "node:fs";
+import { existsSync, watch } from "node:fs";
 import path from "node:path";
 import { upgradeWebSocket } from "@hono/node-server";
 import { Hono } from "hono";
@@ -123,14 +123,56 @@ function createHostAttachment({
   let verified = null;
   let checking = null;
   let server = null;
+  let runWatcher = null;
+  let watchedRunDirectory = null;
 
-  const verify = async () => {
+  const invalidateVerified = () => {
+    verified = null;
+  };
+
+  const watchRunDirectory = (runDirectory) => {
+    if (!runDirectory || watchedRunDirectory === runDirectory) return;
+    runWatcher?.close();
+    runWatcher = null;
+    watchedRunDirectory = runDirectory;
+    try {
+      runWatcher = watch(runDirectory, { persistent: false }, () => {
+        verified = null;
+      });
+      runWatcher.on("error", () => {
+        verified = null;
+        runWatcher?.close();
+        runWatcher = null;
+        watchedRunDirectory = null;
+      });
+    } catch {
+      watchedRunDirectory = null;
+    }
+  };
+
+  const verify = async ({ force = false } = {}) => {
     const runDirectory = currentRunDirectory();
-    // Read the record every time: a restart can change both port and token.
-    const record = runDirectory ? readHostRecord(runDirectory) : null;
-    if (!record) throw new Error(unavailableMessage);
+    if (!runDirectory) {
+      verified = null;
+      throw new Error(unavailableMessage);
+    }
+    if (!force && verified && verified.runDirectory === runDirectory) {
+      return verified.endpoint;
+    }
+    watchRunDirectory(runDirectory);
+    const record = readHostRecord(runDirectory);
+    if (!record) {
+      verified = null;
+      throw new Error(unavailableMessage);
+    }
     const key = JSON.stringify(record);
-    if (verified?.key === key) return verified.endpoint;
+    if (
+      !force &&
+      verified?.key === key &&
+      verified.runDirectory === runDirectory
+    ) {
+      return verified.endpoint;
+    }
     if (checking?.key === key) return checking.promise;
     const promise = (async () => {
       const running = await probeDaemon(runDirectory);
@@ -186,7 +228,7 @@ function createHostAttachment({
         );
       }
       identity = expected;
-      verified = { endpoint, key };
+      verified = { endpoint, key, runDirectory };
       return endpoint;
     })();
     checking = { key, promise };
@@ -231,7 +273,8 @@ function createHostAttachment({
       );
       // Everything else, and the host socket, to the host.
       registerEndpointProxyRoutes(app, {
-        resolveEndpoint: verify,
+        onEndpointError: invalidateVerified,
+        resolveEndpoint: () => verify(),
         route: EDGE_FORWARD_ROUTE,
         socketRoute: HOST_ROUTES.hostSocket,
         targetPath: (c) => c.req.path,
@@ -241,6 +284,10 @@ function createHostAttachment({
       return server.port;
     },
     async close() {
+      runWatcher?.close();
+      runWatcher = null;
+      watchedRunDirectory = null;
+      verified = null;
       const closing = server;
       server = null;
       await closing?.close();

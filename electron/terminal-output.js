@@ -56,17 +56,22 @@ export function createTerminalOutput({ sessionId, send, pause, resume }) {
 
   function acknowledge(event) {
     if (disposed || event.generation !== generation) return;
-    const batch = pending.get(event.sequence);
-    if (!batch) return;
-    pending.delete(event.sequence);
-    outstanding -= batch.length;
-    maxAcknowledgmentMs = Math.max(
-      maxAcknowledgmentMs,
-      performance.now() - batch.sentAt,
-    );
+    if (typeof event.sequence !== "number" || event.sequence <= 0) return;
+    // Batches are delivered in order, so acknowledging `event.sequence` also
+    // clears any earlier sequences whose ack was lost or evicted on reconnect.
+    let acked = false;
+    const now = performance.now();
+    for (const [seq, batch] of pending) {
+      if (seq > event.sequence) break;
+      pending.delete(seq);
+      outstanding = Math.max(0, outstanding - batch.length);
+      maxAcknowledgmentMs = Math.max(maxAcknowledgmentMs, now - batch.sentAt);
+      acked = true;
+    }
+    if (!acked) return;
     if (paused && outstanding <= LOW_WATERMARK) {
       paused = false;
-      pauseDurationMs += performance.now() - pausedAt;
+      pauseDurationMs += now - pausedAt;
       resume();
     }
   }

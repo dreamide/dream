@@ -30,16 +30,22 @@ export function createHostSocket({
   /** @type {Set<{ send: (text: string) => void }>} */
   const clients = new Set();
 
-  const sendTo = (client, message) => {
+  const sendRaw = (client, text) => {
     try {
-      client.send(JSON.stringify(message));
+      client.send(text);
     } catch {
       // A client whose socket is closing is dropped by its close handler.
     }
   };
 
+  const sendTo = (client, message) => {
+    sendRaw(client, JSON.stringify(message));
+  };
+
   const broadcast = (message) => {
-    for (const client of clients) sendTo(client, message);
+    if (clients.size === 0) return;
+    const text = JSON.stringify(message);
+    for (const client of clients) sendRaw(client, text);
   };
 
   const terminals = createTerminalStream({
