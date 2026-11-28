@@ -826,6 +826,11 @@ message. The turn's request is prepared once (`turn-transcript.js`): where
 the assistant message goes and every Provider session fingerprint the turn
 needs, read off one pass over it.
 
+The renderer’s `src/lib/chat-queue.ts` tracks a Chat’s queue from its first
+read or control. A Host reset refreshes its tracked queues, including pending
+or failed reads. Removing the Chat retires its requests. Moving its Project
+to a different Host connection reads the queue again on that connection.
+
 ## Delegated task
 
 A **delegated task** is a child chat/run linked to its parent in

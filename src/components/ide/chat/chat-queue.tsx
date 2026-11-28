@@ -1,19 +1,16 @@
 import { useTranslations } from "next-intl";
 import { useEffect } from "react";
+import { useStore } from "zustand";
 import { Button } from "@/components/ui/button";
-import {
-  controlChatQueue,
-  refreshChatQueue,
-  useChatQueueStore,
-  visibleQueueRuns,
-} from "@/lib/chat-queue";
+import { visibleQueueRuns } from "@/lib/chat-queue";
+import { chatQueues } from "../ide-store";
 
 export function ChatQueue({ chatId }: { chatId: string }) {
   const t = useTranslations("chat");
-  const queue = useChatQueueStore((state) => state.queues[chatId]);
-  const error = useChatQueueStore((state) => state.errors[chatId]);
+  const view = useStore(chatQueues.views, (state) => state.get(chatId));
+  const { queue, error } = view ?? {};
   useEffect(() => {
-    void refreshChatQueue(chatId);
+    void chatQueues.refresh(chatId);
   }, [chatId]);
   const runs = visibleQueueRuns(queue?.runs ?? []);
   if (!runs.length && !error) return null;
@@ -28,7 +25,7 @@ export function ChatQueue({ chatId }: { chatId: string }) {
           size="sm"
           variant="outline"
           onClick={() =>
-            void controlChatQueue({
+            void chatQueues.control({
               chatId,
               action: queue?.paused ? "resume" : "pause",
             })
@@ -63,7 +60,7 @@ export function ChatQueue({ chatId }: { chatId: string }) {
                 size="sm"
                 variant="ghost"
                 onClick={() =>
-                  void controlChatQueue({
+                  void chatQueues.control({
                     chatId,
                     action: "cancel",
                     id: run.id,
@@ -78,7 +75,7 @@ export function ChatQueue({ chatId }: { chatId: string }) {
                 size="sm"
                 variant="ghost"
                 onClick={() =>
-                  void controlChatQueue({
+                  void chatQueues.control({
                     chatId,
                     action: "cancel",
                     id: run.id,
@@ -93,7 +90,11 @@ export function ChatQueue({ chatId }: { chatId: string }) {
                 size="sm"
                 variant="outline"
                 onClick={() =>
-                  void controlChatQueue({ chatId, action: "retry", id: run.id })
+                  void chatQueues.control({
+                    chatId,
+                    action: "retry",
+                    id: run.id,
+                  })
                 }
               >
                 {t("queueRetry")}

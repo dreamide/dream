@@ -17,11 +17,6 @@ import { Chat } from "@ai-sdk/react";
 import { DefaultChatTransport, type FileUIPart, type UIMessage } from "ai";
 import { ApiError, apiClient } from "@/lib/api-client";
 import {
-  forgetChatQueue,
-  refreshChatQueue,
-  useChatQueueStore,
-} from "@/lib/chat-queue";
-import {
   fetchFromHost,
   hostRequestOptions,
   isTransientHostStatus,
@@ -47,7 +42,7 @@ import { mergeChatMessageHistories } from "../chat-message-history";
 import { chatTurnOutcomes } from "../chat-turn-outcome";
 import { warmProjectCommitMessage } from "../git-generated-text";
 import { chatIsAwaitingAnswer } from "../header/project-tab-status";
-import { useIdeStore } from "../ide-store";
+import { chatQueues, useIdeStore } from "../ide-store";
 import { normalizeModelSpeed } from "../ide-types";
 import {
   flushProjectPanelRefresh,
@@ -667,7 +662,7 @@ const turnFollowing = createTurnFollowing<InternalChatSession>({
     const projectId = findChatConfig(chatId)?.projectId;
     if (projectId) flushProjectPanelRefresh(projectId);
     void useIdeStore.getState().applyCatalogTranscript(chatId);
-    void refreshChatQueue(chatId);
+    void chatQueues.refresh(chatId);
     scheduleEviction(session);
   },
 });
@@ -946,7 +941,7 @@ export const startChatTurn = async (
     // the host returns its receipt without dispatching it twice.
     await apiClient.submitChat(submission);
   }
-  await refreshChatQueue(chatId);
+  await chatQueues.refresh(chatId, getProjectHostId(project));
   // Very short turns can finish before a stream subscription is established.
   await useIdeStore.getState().applyCatalogTranscript(chatId);
   turnFollowing.follow(session);
@@ -1051,9 +1046,6 @@ export const startChatRuntime = () => {
 
     if (state.chats !== previous.chats) {
       const chatIds = new Set(state.chats.map((chat) => chat.id));
-      for (const chatId of Object.keys(useChatQueueStore.getState().queues)) {
-        if (!chatIds.has(chatId)) forgetChatQueue(chatId);
-      }
       for (const session of [...sessions.values()]) {
         if (!chatIds.has(session.chatId)) {
           // The chat is gone for good (e.g. its worktree was purged).

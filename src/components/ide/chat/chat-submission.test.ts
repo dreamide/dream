@@ -14,7 +14,7 @@ import {
 import type { ChatConfig, ProjectConfig } from "@/types/ide";
 import { chatTurnOutcomes } from "../chat-turn-outcome";
 import { clearGeneratedGitText } from "../git-generated-text";
-import { useIdeStore } from "../ide-store";
+import { chatQueues, useIdeStore } from "../ide-store";
 import { chatDrafts } from "./chat-drafts";
 import {
   getChatSession,
@@ -149,6 +149,7 @@ afterEach(() => {
 
 test("a message from outside the composer is sent and saved with no chat panel mounted", async () => {
   const { chat, project } = setUp();
+  const queueReads = vi.spyOn(chatQueues, "refresh");
 
   const result = await sendChatMessage(
     chat.id,
@@ -157,6 +158,11 @@ test("a message from outside the composer is sent and saved with no chat panel m
   );
 
   assert.deepEqual(result, { status: "sent" });
+  assert.ok(
+    queueReads.mock.calls.some(
+      ([id, hostId]) => id === chat.id && hostId === LOCAL_HOST_ID,
+    ),
+  );
   const [request] = submits();
   assert.equal(request?.body.chatId, chat.id);
   assert.equal(request?.body.projectPath, project.path);

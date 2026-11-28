@@ -6,7 +6,7 @@
  * too long) re-reads the host's catalog, after hydration if it comes first.
  */
 import { getCatalogEventsClient } from "@/lib/catalog-events";
-import { refreshChatQueue, useChatQueueStore } from "@/lib/chat-queue";
+import type { ChatQueues } from "@/lib/chat-queue";
 import { CLIENT_ID } from "@/lib/client-id";
 import { readAgentTurnEnding } from "../../../../electron/shared/agent-turn-contract.js";
 import type { CatalogChanges, HostCatalog } from "./catalog-actions";
@@ -22,13 +22,13 @@ export const watchHostCatalog = (
   hostId: string,
   store: FollowedStore,
   catalog: CatalogEventTarget,
+  queues: Pick<ChatQueues, "refresh" | "refreshHost">,
 ) => {
   const client = getCatalogEventsClient(hostId);
 
   let stopWaiting: (() => void) | null = null;
   const reload = () => {
-    for (const chatId of Object.keys(useChatQueueStore.getState().queues))
-      void refreshChatQueue(chatId);
+    queues.refreshHost(hostId);
     if (store.getState().stateHydrated) {
       void store
         .getState()
@@ -56,7 +56,7 @@ export const watchHostCatalog = (
     if (event.origin === CLIENT_ID) return;
     const state = store.getState();
     if (event.kind === "queue" && typeof event.chatId === "string") {
-      void refreshChatQueue(event.chatId);
+      void queues.refresh(event.chatId, hostId);
       return;
     }
     if (event.kind === "changes") {

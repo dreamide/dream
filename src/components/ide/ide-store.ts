@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { apiClient } from "@/lib/api-client";
+import { createChatQueues } from "@/lib/chat-queue";
 import { LOCAL_HOST_ID, setHostResolver } from "@/lib/host-routing";
 import { DEFAULT_SETTINGS } from "@/lib/ide-defaults";
 import { projectScope } from "@/lib/project-resource-cache";
@@ -66,6 +67,8 @@ const setStore: IdeStoreSet = (update) => useIdeStore.setState(update);
 /** Saves every slice now (the save scheduler, below). */
 const persist = () => saveScheduler.saveAll();
 
+export const chatQueues = createChatQueues(apiClient);
+
 const transcriptCache = createTranscriptCache(
   () => useIdeStore.getState(),
   (state) => useIdeStore.setState(state),
@@ -110,7 +113,8 @@ const hostConnections = createHostActions(setStore, getStore, {
 /** Reaching each Host and following host state (store/host-reach.ts). */
 export const hostReach = createHostReach(() => useIdeStore.getState(), {
   setHostStatus: hostConnections.setHostStatus,
-  watchCatalog: (hostId, store) => watchHostCatalog(hostId, store, hostCatalog),
+  watchCatalog: (hostId, store) =>
+    watchHostCatalog(hostId, store, hostCatalog, chatQueues),
 });
 
 // ---------------------------------------------------------------------------
@@ -319,6 +323,8 @@ export const useIdeStore = create<IdeState>((set, get) => ({
   ...hostConnections.actions,
 }));
 
+chatQueues.observe(useIdeStore.getState());
+useIdeStore.subscribe(chatQueues.observe);
 useIdeStore.subscribe(transcriptCache.observe);
 followConnections(useIdeStore, hostCatalog.lifecycle);
 
