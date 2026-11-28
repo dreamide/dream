@@ -8,6 +8,7 @@ import {
   describeCommand,
   describeList,
   describeMcp,
+  describeOrchestration,
   describeRead,
   describeSearch,
   describeSessionFile,
@@ -58,6 +59,13 @@ const KIND_BY_PROVIDER_TOOL_NAME = {
   },
   // Codex items, as the Codex adapter names them.
   codex: {
+    orchestration_capabilities: "orchestration",
+    delegate_task: "orchestration",
+    "functions.task_status": "orchestration",
+    task_cancel: "orchestration",
+    "mcp__dream-orchestration__task_cancel": "orchestration",
+    mcp__other__task_status: "mcp",
+    dream_orchestration_delegate_task: "orchestration",
     "ask-user-question": "question",
     agent: "agent",
     "functions.update_plan": "todo",
@@ -139,6 +147,35 @@ test("only the chip kinds render as chips", () => {
 });
 
 // ── Reading calls ─────────────────────────────────────────────────────
+
+test("orchestration pills read native and MCP-wrapped task results", () => {
+  const task = { id: "child", status: "completed", result: "Reviewed" };
+  const content = [{ type: "text", text: JSON.stringify(task) }];
+  for (const output of [
+    task,
+    JSON.stringify(task),
+    content,
+    { content },
+    JSON.stringify({ content }),
+  ]) {
+    const call = describeOrchestration({ toolName: "task_status", output });
+    assert.equal(call.rows[0].status, "completed");
+    assert.equal(call.rows[0].result, "Reviewed");
+  }
+  const providers = describeOrchestration({
+    toolName: "orchestration_capabilities",
+    output: {
+      content: [
+        {
+          type: "text",
+          text: '[{"provider":"antigravity","canDelegate":false}]',
+        },
+      ],
+    },
+  });
+  assert.equal(providers.rows[0].provider, "antigravity");
+  assert.equal(providers.rows[0].canDelegate, false);
+});
 
 /**
  * Each row: a provider's call as it arrives, and the fields Dream reads.

@@ -850,6 +850,14 @@
     "usageStats": "사용 통계"
   },
   "assistant": {
+    "orchestration": {
+      "orchestration_capabilities": "공급자 확인",
+      "delegate_task": "작업 위임",
+      "task_status": "작업 상태",
+      "task_cancel": "작업 취소",
+      "cancelled": "취소됨",
+      "canDelegate": "위임 가능"
+    },
     "agent": "에이전트",
     "allowFetching": "가져오기 허용",
     "allowRunning": "실행 허용",
@@ -903,6 +911,7 @@
       "output-error": "오류"
     },
     "toolGroup": {
+      "orchestration": "작업",
       "agent": "에이전트",
       "command": "명령",
       "error": "오류",

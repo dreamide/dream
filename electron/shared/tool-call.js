@@ -18,7 +18,7 @@
 // Adding a tool spelling means adding it here, and nowhere else.
 
 /**
- * @typedef {"agent" | "command" | "list" | "mcp" | "planMode" | "question"
+ * @typedef {"agent" | "command" | "list" | "mcp" | "orchestration" | "planMode" | "question"
  *   | "read" | "search" | "taskCreate" | "taskOutput" | "taskUpdate" | "todo"
  *   | "toolSearch" | "webFetch" | "write"} ToolKind
  */
@@ -26,7 +26,7 @@
 /**
  * The kinds a tool chip renders; every other tool (and every tool of an
  * unknown kind) renders as a generic tool call.
- * @typedef {"agent" | "command" | "list" | "mcp" | "read" | "search"
+ * @typedef {"agent" | "command" | "list" | "mcp" | "orchestration" | "read" | "search"
  *   | "taskOutput" | "toolSearch" | "webFetch" | "write"} ChipToolKind
  */
 
@@ -77,7 +77,7 @@ export const parseMcpToolName = (name) => {
 
 /**
  * Every known spelling of each kind, as `toolNameKey` reduces it.
- * @type {Record<Exclude<ToolKind, "mcp">, readonly string[]>}
+ * @type {Record<Exclude<ToolKind, "mcp" | "orchestration">, readonly string[]>}
  */
 export const TOOL_NAMES_BY_KIND = {
   agent: [
@@ -136,7 +136,11 @@ const KIND_BY_NAME_KEY = new Map(
 );
 
 /** @type {ReadonlySet<string>} */
-const TOOL_KINDS = new Set([...Object.keys(TOOL_NAMES_BY_KIND), "mcp"]);
+const TOOL_KINDS = new Set([
+  ...Object.keys(TOOL_NAMES_BY_KIND),
+  "mcp",
+  "orchestration",
+]);
 
 /** @type {ReadonlySet<string>} */
 const CHIP_TOOL_KINDS = new Set([
@@ -144,6 +148,7 @@ const CHIP_TOOL_KINDS = new Set([
   "command",
   "list",
   "mcp",
+  "orchestration",
   "read",
   "search",
   "taskOutput",
@@ -166,11 +171,81 @@ export const isChipToolKind = (kind) =>
  * @returns {ToolKind | null}
  */
 export const getToolKindForName = (toolName) => {
+  if (getOrchestrationToolName(toolName)) return "orchestration";
   if (isString(toolName) && parseMcpToolName(toolName)) {
     return "mcp";
   }
   return KIND_BY_NAME_KEY.get(toolNameKey(toolName)) ?? null;
 };
+
+/** @param {unknown} name */
+export function getOrchestrationToolName(name) {
+  if (!isString(name)) return null;
+  const command = name.replace(
+    /^(?:functions\.|(?:mcp__)?dream[-_]orchestration_{1,2})/,
+    "",
+  );
+  switch (command) {
+    case "orchestration_capabilities":
+    case "delegate_task":
+    case "task_status":
+    case "task_cancel":
+      return command;
+    default:
+      return null;
+  }
+}
+
+/** @param {unknown} value @returns {unknown} */
+function parseOrchestrationText(value) {
+  if (!isString(value)) return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+/** @param {ToolCallSource} part */
+export function describeOrchestration({ input, output, toolName }) {
+  const operation = getOrchestrationToolName(toolName);
+  const value = parseOrchestrationText(output);
+  const content = isRecord(value) ? value.content : value;
+  const payload =
+    Array.isArray(content) &&
+    content.length === 1 &&
+    content[0]?.type === "text"
+      ? parseOrchestrationText(content[0].text)
+      : value;
+  const rows = (Array.isArray(payload) ? payload : [payload]).filter(isRecord);
+  return {
+    operation,
+    model: getStringFromPaths(input, [["model"]]),
+    provider: getStringFromPaths(input, [["provider"]]),
+    prompt: getStringFromPaths(input, [["prompt"]]),
+    key: getStringFromPaths(input, [["key"]]),
+    taskId: getStringFromPaths(input, [["id"]]),
+    error: getStringFromPaths(payload, [["error"]]),
+    text: stringOrNull(payload),
+    rows: rows.map((row) => ({
+      id: stringOrNull(row.id),
+      provider: stringOrNull(row.provider),
+      status: stringOrNull(row.status),
+      result: stringOrNull(row.result),
+      error:
+        stringOrNull(row.error) ??
+        stringOrNull(row.unavailable) ??
+        stringOrNull(row.modelError),
+      canDelegate: row.canDelegate === true,
+      models: Array.isArray(row.models)
+        ? row.models
+            .filter(isRecord)
+            .map((model) => stringOrNull(model.id) ?? stringOrNull(model.label))
+            .filter(isString)
+        : [],
+    })),
+  };
+}
 
 // ── Probing ───────────────────────────────────────────────────────────
 

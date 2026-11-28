@@ -850,6 +850,14 @@
     "usageStats": "使用統計"
   },
   "assistant": {
+    "orchestration": {
+      "orchestration_capabilities": "檢查供應商",
+      "delegate_task": "委派任務",
+      "task_status": "任務狀態",
+      "task_cancel": "取消任務",
+      "cancelled": "已取消",
+      "canDelegate": "可委派任務"
+    },
     "agent": "代理程式",
     "allowFetching": "允許擷取",
     "allowRunning": "允許執行",
@@ -903,6 +911,7 @@
       "output-error": "錯誤"
     },
     "toolGroup": {
+      "orchestration": "任務",
       "agent": "代理程式",
       "command": "指令",
       "error": "錯誤",

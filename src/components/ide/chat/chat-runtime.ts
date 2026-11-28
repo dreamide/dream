@@ -625,7 +625,14 @@ const turnFollowing = createTurnFollowing<InternalChatSession>({
   hostOf: (chatId) => resolveRequestHost({ chatId }),
   follow: async (session) => {
     const { chatId } = session;
-    await useIdeStore.getState().applyCatalogTranscript(chatId);
+    const state = useIdeStore.getState();
+    // After a reload there may be no transcript yet. Load it before marking
+    // the session as streaming, which prevents the cache from loading it.
+    if (Object.hasOwn(state.messagesByChatId, chatId)) {
+      await state.applyCatalogTranscript(chatId);
+    } else {
+      await state.loadRecentMessagesForChat(chatId);
+    }
     if (
       sessions.get(chatId) !== session ||
       !useIdeStore.getState().hostRunningChatIds[chatId] ||

@@ -3,6 +3,7 @@
 // `adapter` seam (Cursor and Grok today). ACP session updates become calls
 // on the agent turn.
 import path from "node:path";
+import { getOrchestrationToolName } from "../../shared/tool-call.js";
 import { streamAgentTurn } from "./agent-turn.js";
 import { toAcpMcpServers } from "./mcp-servers.js";
 import { buildTurnPrompt } from "./turn-prompt.js";
@@ -20,6 +21,8 @@ const getFirstString = (...values) => {
 export const getDreamToolName = (toolCall) => {
   const kind = String(toolCall?.kind ?? "").toLowerCase();
   const title = String(toolCall?.title ?? "").toLowerCase();
+  const orchestration = getOrchestrationToolName(title);
+  if (orchestration) return orchestration;
 
   if (["edit", "delete", "move"].includes(kind)) return "writeFile";
   if (kind === "read") return "readFile";

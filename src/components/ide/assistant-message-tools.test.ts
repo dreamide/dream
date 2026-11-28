@@ -87,6 +87,15 @@ test("getChipToolKind classifies known tool aliases", () => {
 test("getChipToolKind recognizes mcp tools via dynamic-tool names", () => {
   assert.equal(
     getChipToolKind(
+      createToolPart("dynamic-tool", {
+        toolName: "mcp__dream_orchestration__delegate_task",
+        toolMetadata: { kind: "mcp" },
+      }),
+    ),
+    "orchestration",
+  );
+  assert.equal(
+    getChipToolKind(
       createToolPart("dynamic-tool", { toolName: "mcp__linear__list_issues" }),
     ),
     "mcp",

@@ -920,7 +920,7 @@ carries, the `ChatMessageMetadata` stamped on the response message, and the
 
 What a tool call is, whichever agent made it and whatever it named the
 tool: `read`, `write`, `command`, `search`, `list`, `webFetch`, `agent`,
-`taskOutput`, `toolSearch`, `mcp` (these render as **tool chips**), and
+`taskOutput`, `toolSearch`, `mcp`, `orchestration` (these render as **tool chips**), and
 `question`, `planMode`, `todo`, `taskCreate`, `taskUpdate` (rendered by the
 generic tool call, the question prompt and the todo list). The agent-turn
 writer stamps it on every tool part as `toolMetadata.kind`, from the kind an

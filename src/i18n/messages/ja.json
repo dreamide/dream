@@ -850,6 +850,14 @@
     "usageStats": "使用状況統計"
   },
   "assistant": {
+    "orchestration": {
+      "orchestration_capabilities": "プロバイダーを確認",
+      "delegate_task": "タスクを委任",
+      "task_status": "タスクの状態",
+      "task_cancel": "タスクをキャンセル",
+      "cancelled": "キャンセル済み",
+      "canDelegate": "委任可能"
+    },
     "agent": "エージェント",
     "allowFetching": "フェッチを許可する",
     "allowRunning": "実行を許可する",
@@ -903,6 +911,7 @@
       "output-error": "エラー"
     },
     "toolGroup": {
+      "orchestration": "タスク",
       "agent": "エージェント",
       "command": "コマンド",
       "error": "エラー",

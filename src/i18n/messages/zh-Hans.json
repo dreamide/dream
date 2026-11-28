@@ -850,6 +850,14 @@
     "usageStats": "使用统计"
   },
   "assistant": {
+    "orchestration": {
+      "orchestration_capabilities": "检查提供商",
+      "delegate_task": "委派任务",
+      "task_status": "任务状态",
+      "task_cancel": "取消任务",
+      "cancelled": "已取消",
+      "canDelegate": "可委派任务"
+    },
     "agent": "智能体",
     "allowFetching": "允许提取",
     "allowRunning": "允许运行",
@@ -903,6 +911,7 @@
       "output-error": "错误"
     },
     "toolGroup": {
+      "orchestration": "任务",
       "agent": "智能体",
       "command": "命令",
       "error": "错误",

@@ -21,6 +21,7 @@ export {
   describeCommand,
   describeList,
   describeMcp,
+  describeOrchestration,
   describeRead,
   describeSearch,
   describeSessionFile,
@@ -82,6 +83,11 @@ export const getToolKind = (part: MessagePart): ToolKind | null => {
   const stamped = isRecord(part.toolMetadata)
     ? part.toolMetadata.kind
     : undefined;
+  // Older Dream MCP calls were stamped with the generic MCP kind.
+  if (stamped === "mcp")
+    return getToolKindForName(getToolName(part)) === "orchestration"
+      ? "orchestration"
+      : stamped;
   return isToolKind(stamped) ? stamped : getToolKindForName(getToolName(part));
 };
 

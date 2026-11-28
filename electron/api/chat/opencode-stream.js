@@ -1,6 +1,7 @@
 // The OpenCode translator: OpenCode server events become calls on the agent
 // turn. OpenCode names its own text and tool parts, so those ids are passed
 // through and the turn ends each part when OpenCode does.
+import { getOrchestrationToolName } from "../../shared/tool-call.js";
 import { parseOpenCodeModel } from "../providers/generate-text.js";
 import {
   createOpenCodeSession,
@@ -256,6 +257,8 @@ const getOpenCodeToolStateInput = (part) => {
 };
 
 export const getOpenCodeDreamToolName = (toolName) => {
+  const orchestration = getOrchestrationToolName(toolName);
+  if (orchestration) return orchestration;
   const normalized = normalizeOpenCodeToolName(toolName);
 
   if (
@@ -391,6 +394,7 @@ const parseOpenCodeOutputLines = (output) =>
 
 const normalizeOpenCodeToolOutput = (part, dreamToolName, input) => {
   const outputText = getOpenCodeOutputText(part);
+  if (getOrchestrationToolName(dreamToolName)) return outputText;
   const baseOutput = {
     ...part.state.metadata,
     status: "completed",

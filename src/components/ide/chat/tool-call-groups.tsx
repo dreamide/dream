@@ -23,6 +23,7 @@ import {
   AgentChip,
   ListFilesChip,
   McpToolChip,
+  OrchestrationChip,
   ReadFileChip,
   RunCommandChip,
   SearchInFilesChip,
@@ -113,6 +114,11 @@ const TOOL_GROUP_META: Record<
     labelKey: "mcp",
     tone: "teal",
   },
+  orchestration: {
+    Icon: BotIcon,
+    labelKey: "orchestration",
+    tone: "slate",
+  },
   read: {
     Icon: EyeIcon,
     labelKey: "read",
@@ -168,6 +174,16 @@ const ToolChip = memo(
   }) => {
     const chipPart = part as ToolLikePart;
     const chipToolKind = getChipToolKind(chipPart);
+
+    if (chipToolKind === "orchestration") {
+      return (
+        <OrchestrationChip
+          part={chipPart}
+          defaultExpanded={expandToolCalls}
+          onToolApproval={addToolApprovalResponse}
+        />
+      );
+    }
 
     if (chipToolKind === "command") {
       return (

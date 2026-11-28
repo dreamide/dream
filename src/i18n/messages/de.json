@@ -850,6 +850,14 @@
     "usageStats": "Nutzungsstatistiken"
   },
   "assistant": {
+    "orchestration": {
+      "orchestration_capabilities": "Anbieter prüfen",
+      "delegate_task": "Aufgabe delegieren",
+      "task_status": "Aufgabenstatus",
+      "task_cancel": "Aufgabe abbrechen",
+      "cancelled": "Abgebrochen",
+      "canDelegate": "Kann delegieren"
+    },
     "agent": "Agent",
     "allowFetching": "Abruf zulassen",
     "allowRunning": "Ausführen zulassen",
@@ -903,6 +911,7 @@
       "output-error": "Fehler"
     },
     "toolGroup": {
+      "orchestration": "Aufgaben",
       "agent": "Agent",
       "command": "Befehl",
       "error": "Fehler",

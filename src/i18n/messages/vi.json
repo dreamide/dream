@@ -850,6 +850,14 @@
     "usageStats": "Số liệu thống kê sử dụng"
   },
   "assistant": {
+    "orchestration": {
+      "orchestration_capabilities": "Kiểm tra nhà cung cấp",
+      "delegate_task": "Giao nhiệm vụ",
+      "task_status": "Trạng thái nhiệm vụ",
+      "task_cancel": "Hủy nhiệm vụ",
+      "cancelled": "Đã hủy",
+      "canDelegate": "Có thể giao nhiệm vụ"
+    },
     "agent": "Tác nhân",
     "allowFetching": "Cho phép tìm nạp",
     "allowRunning": "Cho phép chạy",
@@ -903,6 +911,7 @@
       "output-error": "Lỗi"
     },
     "toolGroup": {
+      "orchestration": "Nhiệm vụ",
       "agent": "Tác nhân",
       "command": "Lệnh",
       "error": "Lỗi",

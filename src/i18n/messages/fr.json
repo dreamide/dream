@@ -850,6 +850,14 @@
     "usageStats": "Statistiques d'utilisation"
   },
   "assistant": {
+    "orchestration": {
+      "orchestration_capabilities": "Vérifier les fournisseurs",
+      "delegate_task": "Déléguer une tâche",
+      "task_status": "État de la tâche",
+      "task_cancel": "Annuler la tâche",
+      "cancelled": "Annulée",
+      "canDelegate": "Peut déléguer"
+    },
     "agent": "Agent",
     "allowFetching": "Autoriser la récupération",
     "allowRunning": "Autoriser l'exécution",
@@ -903,6 +911,7 @@
       "output-error": "Erreur"
     },
     "toolGroup": {
+      "orchestration": "Tâches",
       "agent": "Agent",
       "command": "Commande",
       "error": "Erreur",

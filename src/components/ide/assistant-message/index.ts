@@ -2,6 +2,7 @@ export { AssistantMessagePart } from "./assistant-message-part";
 export { AgentChip } from "./chips/agent-chip";
 export { ListFilesChip } from "./chips/list-files-chip";
 export { McpToolChip } from "./chips/mcp-tool-chip";
+export { OrchestrationChip } from "./chips/orchestration-chip";
 export { ReadFileChip } from "./chips/read-file-chip";
 export { RunCommandChip } from "./chips/run-command-chip";
 export { SearchInFilesChip } from "./chips/search-in-files-chip";

@@ -230,6 +230,99 @@ test("a session follows a transcript the store loads later", () => {
   assert.deepEqual(getChatSession(chat.id).chat.messages, loaded);
 });
 
+test("a refreshed chat shows its saved history and follows its running turn", async () => {
+  vi.useFakeTimers();
+  const { chat } = setUp();
+  const transport = globalThis.fetch;
+  const pageReady = Promise.withResolvers<void>();
+  let savedReply = "Work";
+  const encoder = new TextEncoder();
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const body = new ReadableStream<Uint8Array>({
+    start(streamController) {
+      controller = streamController;
+    },
+  });
+  const send = (chunk: object) =>
+    controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url === "/api/catalog/transcript/page") {
+        await pageReady.promise;
+        return Response.json({
+          before: "prompt",
+          total: 41,
+          startIndex: 39,
+          messages: [
+            {
+              id: "prompt",
+              role: "user",
+              parts: [{ type: "text", text: "Go" }],
+            },
+            {
+              id: "reply",
+              role: "assistant",
+              parts: [{ type: "text", text: savedReply }],
+            },
+          ],
+        });
+      }
+      if (url === `/api/chat/${chat.id}/stream`)
+        return new Response(body, {
+          headers: { "content-type": "text/event-stream" },
+        });
+      return transport(url, init);
+    }),
+  );
+  useIdeStore.setState({
+    messagesByChatId: {},
+    hostRunningChatIds: { [chat.id]: "local" },
+  });
+
+  // The panel creates the session during render and asks for the page in an effect.
+  getChatSession(chat.id);
+  await vi.advanceTimersByTimeAsync(0);
+  const loading = useIdeStore.getState().loadRecentMessagesForChat(chat.id);
+  await vi.advanceTimersByTimeAsync(0);
+  pageReady.resolve();
+  send({ type: "start", messageId: "reply" });
+  send({ type: "text-start", id: "text" });
+  send({ type: "text-delta", id: "text", delta: "Working" });
+
+  try {
+    await loading;
+    await vi.waitFor(() => {
+      const view = getChatSessionView(chat.id);
+      assert.equal(view.status, "streaming");
+      assert.equal(view.messages.at(-1)?.id, "reply");
+    });
+    // The panel gates its conversation on the transcript being loaded.
+    const state = useIdeStore.getState();
+    assert.ok(Object.hasOwn(state.messagesByChatId, chat.id));
+    assert.equal(state.transcriptPageByChatId[chat.id]?.before, "prompt");
+    assert.deepEqual(
+      getChatSessionView(chat.id).messages.map((message) => message.id),
+      ["prompt", "reply"],
+    );
+
+    send({ type: "text-delta", id: "text", delta: " on it." });
+    await vi.waitFor(() => {
+      const part = getChatSessionView(chat.id).messages.at(-1)?.parts[0];
+      assert.equal(part?.type === "text" && part.text, "Working on it.");
+    });
+  } finally {
+    savedReply = "Working on it.";
+    send({ type: "text-end", id: "text" });
+    send({ type: "finish" });
+    useIdeStore.setState({ hostRunningChatIds: {} });
+    controller.close();
+    await vi.waitFor(() => {
+      assert.equal(useIdeStore.getState().streamingChatIds[chat.id], undefined);
+    });
+  }
+});
+
 test("a dropped response body reconnects to the host turn without a refresh or resubmission", async () => {
   vi.useFakeTimers();
   const { chat } = setUp();
