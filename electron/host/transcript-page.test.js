@@ -9,7 +9,10 @@ import {
   loadPersistedChatMessages,
 } from "../persisted-state.js";
 import { writeState } from "../state-writes.js";
-import { readTranscriptPage } from "./transcript-page.js";
+import {
+  readTranscriptPage,
+  readTranscriptPageJson,
+} from "./transcript-page.js";
 
 let directory;
 afterEach(async () => {
@@ -124,4 +127,20 @@ test("saving a loaded page preserves an unseen prefix and concurrently appended 
     /History changed/,
   );
   assert.equal(loadPersistedChatMessages("c", options).length, 101);
+});
+
+test("readTranscriptPageJson matches readTranscriptPage without double serialization", async () => {
+  const messages = Array.from({ length: 50 }, (_, index) => message(index));
+  const { db } = await setup(messages);
+  assert.deepEqual(
+    JSON.parse(readTranscriptPageJson(db, { chatId: "c" })),
+    readTranscriptPage(db, { chatId: "c" }),
+  );
+  const first = readTranscriptPage(db, { chatId: "c" });
+  assert.deepEqual(
+    JSON.parse(
+      readTranscriptPageJson(db, { chatId: "c", before: first.before }),
+    ),
+    readTranscriptPage(db, { chatId: "c", before: first.before }),
+  );
 });

@@ -237,11 +237,15 @@ export async function sweepChatFolders(
     );
     if (folders.length === 0) return removed;
 
-    const { projects } = await catalog.list();
-    const owned = new Set(
-      projects.map((project) =>
-        normalizeProjectPathKey(
+    const projectPaths = catalog.listProjectPaths
+      ? await catalog.listProjectPaths()
+      : (await catalog.list()).projects.map((project) =>
           typeof project?.path === "string" ? project.path : "",
+        );
+    const owned = new Set(
+      projectPaths.map((projectPath) =>
+        normalizeProjectPathKey(
+          typeof projectPath === "string" ? projectPath : "",
         ),
       ),
     );

@@ -1,5 +1,5 @@
 // Stable row cursors; paging never copies the entire transcript into a reader.
-export function readTranscriptPage(database, { chatId, before, limit = 40 }) {
+function selectTranscriptPage(database, { chatId, before, limit = 40 }) {
   let end = Number.MAX_SAFE_INTEGER;
   if (before) {
     const boundary = database
@@ -29,9 +29,36 @@ export function readTranscriptPage(database, { chatId, before, limit = 40 }) {
     .get(chatId).count;
   const first = selected[0];
   return {
-    messages: selected.map((row) => JSON.parse(row.payload)),
+    selected,
     total,
     startIndex: first?.sort_order ?? 0,
     before: first?.sort_order > 0 ? first.id : null,
   };
+}
+
+export function readTranscriptPage(database, request) {
+  const { selected, total, startIndex, before } = selectTranscriptPage(
+    database,
+    request,
+  );
+  return {
+    messages: selected.map((row) => JSON.parse(row.payload)),
+    total,
+    startIndex,
+    before,
+  };
+}
+
+/**
+ * Same page as `readTranscriptPage`, assembled directly as JSON text so the
+ * read worker avoids parsing payloads only for the host thread to re-stringify
+ * them into the HTTP response.
+ */
+export function readTranscriptPageJson(database, request) {
+  const { selected, total, startIndex, before } = selectTranscriptPage(
+    database,
+    request,
+  );
+  const messagesJson = selected.map((row) => row.payload).join(",");
+  return `{"messages":[${messagesJson}],"total":${total},"startIndex":${startIndex},"before":${JSON.stringify(before)}}`;
 }

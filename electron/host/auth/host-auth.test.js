@@ -8,17 +8,22 @@ import {
 
 const setup = () => {
   let time = Date.parse("2026-10-30T12:00:00Z");
+  const writes = [];
   const auth = createHostAuth({
     getReader: () => ({ read: async () => [] }),
     getWriter: () => ({
       ready: async () => true,
       settled: async () => true,
-      write: async () => true,
+      write: async (type, payload) => {
+        writes.push({ type, payload });
+        return true;
+      },
     }),
     now: () => time,
   });
   return {
     auth,
+    writes,
     advance: (ms) => {
       time += ms;
     },
@@ -74,4 +79,39 @@ it("code attempts are rate limited across the host", async () => {
   await expect(auth.redeemPairingCode({ code })).resolves.toHaveProperty(
     "token",
   );
+});
+
+it("renew updates in-memory expiry immediately while throttling database touch writes", async () => {
+  const { auth, writes, advance } = setup();
+  const { code } = auth.createPairing(LOCAL_PRINCIPAL, { scopes: ["operate"] });
+  const paired = await auth.redeemPairingCode({
+    code,
+    deviceName: "Laptop",
+    clientKind: "native",
+  });
+  const principal = await auth.authenticate(paired.token);
+  const touchWrites = () =>
+    writes.filter((entry) => entry.payload?.type === "touch");
+  expect(touchWrites()).toHaveLength(0);
+
+  // Frequent liveness renewals extend in-memory timestamps without writing SQLite.
+  advance(15_000);
+  const renewedSoon = await auth.renew(principal);
+  expect(renewedSoon.lastUsedAt).toBe("2026-10-30T12:00:15.000Z");
+  expect(touchWrites()).toHaveLength(0);
+
+  advance(15_000);
+  const renewedAgain = await auth.renew(principal);
+  expect(renewedAgain.lastUsedAt).toBe("2026-10-30T12:00:30.000Z");
+  expect(touchWrites()).toHaveLength(0);
+
+  // Once TOUCH_WRITE_MS (1h) has elapsed since the last persisted touch, write once.
+  advance(60 * 60_000);
+  await auth.renew(principal);
+  expect(touchWrites()).toHaveLength(1);
+
+  // Subsequent quick renewals stay throttled again.
+  advance(15_000);
+  await auth.renew(principal);
+  expect(touchWrites()).toHaveLength(1);
 });

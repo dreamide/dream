@@ -106,11 +106,14 @@ export const sweepChatAttachments = async (catalog) => {
     });
     if (entries.length === 0) return;
 
-    const { chats, runningChatIds } = await catalog.list();
+    const { chatIds, runningChatIds } = catalog.listChatIds
+      ? await catalog.listChatIds()
+      : await catalog.list().then(({ chats, runningChatIds: running }) => ({
+          chatIds: chats.map((chat) => chat.id),
+          runningChatIds: running,
+        }));
     const kept = new Set(
-      [...chats.map((chat) => chat.id), ...runningChatIds].map(
-        chatDirectoryName,
-      ),
+      [...chatIds, ...runningChatIds].map(chatDirectoryName),
     );
     await Promise.all(
       entries

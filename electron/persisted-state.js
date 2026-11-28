@@ -621,6 +621,8 @@ function getStateDatabase(databasePath = resolveStateDatabasePath()) {
     PRAGMA journal_mode = WAL;
     PRAGMA synchronous = NORMAL;
     PRAGMA journal_size_limit = ${JOURNAL_SIZE_LIMIT_BYTES};
+    PRAGMA cache_size = -16384;
+    PRAGMA temp_store = MEMORY;
   `);
   const hadRelationalState = hasRelationalState(database);
   runDrizzleMigrations(database);
@@ -663,6 +665,8 @@ export function openPersistedStateReader(databasePath) {
   database.exec(`
     PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS};
     PRAGMA query_only = ON;
+    PRAGMA cache_size = -8192;
+    PRAGMA temp_store = MEMORY;
   `);
   return database;
 }
@@ -778,6 +782,11 @@ export function closePersistedStateDatabase() {
     return;
   }
 
+  try {
+    stateDatabase.exec("PRAGMA optimize;");
+  } catch {
+    // Closing should still proceed if the database is read-only or busy.
+  }
   stateDatabase.close();
   stateDatabase = null;
   stateDatabasePath = null;

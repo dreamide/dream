@@ -11,8 +11,6 @@
 
 import { getPersistedStateDatabase } from "../persisted-state.js";
 import {
-  chatFromRow,
-  chatToRow,
   projectFromRow,
   projectToCatalogRow,
 } from "../shared/persisted-state-codec.js";
@@ -33,20 +31,6 @@ const catalogProject = (project) =>
     lastUsedAt: null,
     ui: undefined,
   });
-
-/** A chat as the catalog shares it (what a stored row reads back as). */
-const catalogChat = (chat) => {
-  const row = chatToRow(chat);
-  return chatFromRow({
-    created_at: row.createdAt,
-    deleted_at: row.deletedAt,
-    id: row.id,
-    metadata: row.metadata,
-    project_id: row.projectId,
-    title: row.title,
-    updated_at: row.updatedAt,
-  });
-};
 
 /**
  * @param {{
@@ -78,6 +62,7 @@ export function createHostCatalog({
     runQueue: (chatId) => read("run-queue", { chatId }),
     delegatedTasks: (chatId) => read("delegated-tasks", { chatId }),
     transcriptPage: (request) => read("transcript-page", request),
+    transcriptPageJson: (request) => read("transcript-page-json", request),
     providerSession: (chatId, provider) =>
       read("provider-session", { chatId, provider }),
     saveProviderSession: (payload) =>
@@ -116,6 +101,19 @@ export function createHostCatalog({
       };
     },
 
+    listChatIds: async () => {
+      await getWriter().settled();
+      return {
+        chatIds: await read("chat-ids"),
+        runningChatIds: getRunningChatIds(),
+      };
+    },
+
+    listProjectPaths: async () => {
+      await getWriter().settled();
+      return await read("project-paths");
+    },
+
     /**
      * One chat, raw, or null.
      * @param {string} chatId
@@ -134,15 +132,14 @@ export function createHostCatalog({
      * @param {{ origin?: string | null }} [options]
      */
     async applyChanges(changes, { origin = null } = {}) {
-      const result = await getWriter().write("catalog-changes", changes);
+      const { chats, ...result } = await getWriter().write(
+        "catalog-changes",
+        changes,
+      );
       const projectIds = new Set(result.projectIds);
-      const chatIds = new Set(result.chatIds);
       const projects = (Array.isArray(changes.projects) ? changes.projects : [])
         .filter((project) => projectIds.has(project?.id))
         .map(catalogProject);
-      const chats = (Array.isArray(changes.chats) ? changes.chats : [])
-        .filter((chat) => chatIds.has(chat?.id))
-        .map(catalogChat);
       if (
         projects.length > 0 ||
         chats.length > 0 ||
@@ -166,6 +163,14 @@ export function createHostCatalog({
       }
       return result;
     },
+
+    /**
+     * A chat's transcript parsed in the read worker so the host thread does
+     * not block on JSON.parse when preparing a turn.
+     * @param {string} chatId
+     * @returns {Promise<unknown[]>}
+     */
+    getTranscript: (chatId) => read("transcript", { chatId }),
 
     /**
      * A chat's transcript as the JSON text of its message array, to send

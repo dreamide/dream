@@ -19,7 +19,10 @@ import { readDeviceSessions } from "./auth/session-store.js";
 import { readDelegatedTasks } from "./delegation-store.js";
 import { readProviderSession } from "./provider-session-store.js";
 import { readRunQueue } from "./run-store.js";
-import { readTranscriptPage } from "./transcript-page.js";
+import {
+  readTranscriptPage,
+  readTranscriptPageJson,
+} from "./transcript-page.js";
 
 const isRecord = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -42,6 +45,12 @@ const idList = (value) =>
 
 const placeholders = (values) => values.map(() => "?").join(", ");
 
+// Read the Host-owned parent for snapshots and events, including edits by older clients.
+const parentChatColumn =
+  "(SELECT parent_chat_id FROM delegated_tasks WHERE child_chat_id = chats.id) AS parent_chat_id";
+const catalogChat = (row) =>
+  chatFromRow({ ...row, metadata: parseJson(row.metadata, {}) });
+
 /**
  * Every project and chat, raw (decodePersistedState repairs them). Chats
  * carry the live message count.
@@ -61,7 +70,7 @@ export function loadCatalog(database) {
   const chats = database
     .prepare(
       `
-        SELECT chats.*, COUNT(chat_messages.id) AS message_count
+        SELECT chats.*, COUNT(chat_messages.chat_id) AS message_count, ${parentChatColumn}
         FROM chats
         LEFT JOIN chat_messages ON chat_messages.chat_id = chats.id
         GROUP BY chats.id
@@ -69,9 +78,7 @@ export function loadCatalog(database) {
       `,
     )
     .all()
-    .map((row) =>
-      chatFromRow({ ...row, metadata: parseJson(row.metadata, {}) }),
-    );
+    .map(catalogChat);
   return { chats, projects };
 }
 
@@ -82,11 +89,9 @@ export function loadCatalog(database) {
  */
 export function loadChat(database, chatId) {
   const row = database
-    .prepare("SELECT * FROM chats WHERE id = ? LIMIT 1")
+    .prepare(`SELECT *, ${parentChatColumn} FROM chats WHERE id = ? LIMIT 1`)
     .get(chatId);
-  return row
-    ? chatFromRow({ ...row, metadata: parseJson(row.metadata, {}) })
-    : null;
+  return row ? catalogChat(row) : null;
 }
 
 /**
@@ -107,6 +112,7 @@ export function loadChat(database, chatId) {
  * @returns {{
  *   projectIds: string[],
  *   chatIds: string[],
+ *   chats: ReturnType<typeof chatFromRow>[],
  *   removedProjectIds: string[],
  *   removedChatIds: string[],
  *   conflicts: { id: string, existingId: string, path: string }[],
@@ -115,6 +121,7 @@ export function loadChat(database, chatId) {
 export function applyCatalogChanges(database, changes, now) {
   const result = {
     chatIds: [],
+    chats: [],
     conflicts: [],
     projectIds: [],
     removedChatIds: [],
@@ -184,6 +191,7 @@ export function applyCatalogChanges(database, changes, now) {
         metadata = excluded.metadata,
         updated_at = excluded.updated_at,
         deleted_at = excluded.deleted_at
+      RETURNING *, ${parentChatColumn}
     `,
   );
   for (const chat of Array.isArray(changes.chats) ? changes.chats : []) {
@@ -198,7 +206,7 @@ export function applyCatalogChanges(database, changes, now) {
       continue;
     }
     const createdAt = row.createdAt ?? now;
-    upsertChat.run(
+    const stored = upsertChat.get(
       row.id,
       row.projectId,
       row.title,
@@ -207,6 +215,7 @@ export function applyCatalogChanges(database, changes, now) {
       row.updatedAt ?? createdAt,
       row.deletedAt,
     );
+    result.chats.push(catalogChat(stored));
     result.chatIds.push(row.id);
   }
 
@@ -397,6 +406,30 @@ export function loadChatMessages(database, chatId) {
 }
 
 /**
+ * Every chat id in the catalog, without touching chat_messages or row JSON.
+ * @param {import("node:sqlite").DatabaseSync} database
+ * @returns {string[]}
+ */
+export function loadChatIds(database) {
+  return database
+    .prepare("SELECT id FROM chats")
+    .all()
+    .map((row) => row.id);
+}
+
+/**
+ * Every project path in the catalog, without touching chats or metadata JSON.
+ * @param {import("node:sqlite").DatabaseSync} database
+ * @returns {string[]}
+ */
+export function loadProjectPaths(database) {
+  return database
+    .prepare("SELECT path FROM projects")
+    .all()
+    .map((row) => row.path);
+}
+
+/**
  * One chat's transcript, in order, as the JSON text of an array: the
  * stored payloads joined, never re-serialized, so a reader on another
  * thread can hand it to a response as is. A payload that is not a JSON
@@ -406,13 +439,17 @@ export function loadChatMessages(database, chatId) {
  */
 export function loadChatMessagesJson(database, chatId) {
   if (typeof chatId !== "string" || !chatId.trim()) return "[]";
+  // Rows are constrained by CHECK(json_valid(payload)), so a leading "{"
+  // identifies JSON objects without parsing and discarding every payload.
   const payloads = database
     .prepare(
       "SELECT payload FROM chat_messages WHERE chat_id = ? ORDER BY sort_order, id",
     )
     .all(chatId)
     .flatMap((row) =>
-      isRecord(parseJson(row.payload, null)) ? [row.payload] : [],
+      typeof row.payload === "string" && row.payload.trimStart().startsWith("{")
+        ? [row.payload]
+        : [],
     );
   return `[${payloads.join(",")}]`;
 }
@@ -568,8 +605,11 @@ export function searchChatMessages(database, query, { limit = 50 } = {}) {
  * @type {Record<string, (database: import("node:sqlite").DatabaseSync, payload: any) => unknown>}
  */
 export const catalogReads = {
+  "chat-ids": (database) => loadChatIds(database),
   "device-sessions": (database) => readDeviceSessions(database),
+  "project-paths": (database) => loadProjectPaths(database),
   "transcript-page": readTranscriptPage,
+  "transcript-page-json": readTranscriptPageJson,
   "delegated-tasks": (database, { chatId }) =>
     readDelegatedTasks(database, chatId),
   "provider-session": readProviderSession,
@@ -579,6 +619,7 @@ export const catalogReads = {
   "project-path": (database, ids) => resolveProjectPath(database, ids),
   search: (database, { limit, query }) =>
     searchChatMessages(database, query, { limit }),
+  transcript: (database, { chatId }) => loadChatMessages(database, chatId),
   "transcript-json": (database, { chatId }) =>
     loadChatMessagesJson(database, chatId),
 };

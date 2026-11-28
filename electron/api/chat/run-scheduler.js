@@ -44,9 +44,9 @@ export function createRunScheduler({ catalog, turns, execute }) {
               const chat = await catalog.getChat(chatId);
               if (!chat || chat.deletedAt)
                 throw new Error("Chat no longer exists.");
-              const messages = JSON.parse(
-                await catalog.getTranscriptJson(chatId),
-              );
+              const messages = catalog.getTranscript
+                ? await catalog.getTranscript(chatId)
+                : JSON.parse(await catalog.getTranscriptJson(chatId));
               // An explicitly retried interrupted run already has its user message.
               if (
                 !messages.some(

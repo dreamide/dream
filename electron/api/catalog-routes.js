@@ -58,8 +58,12 @@ export const catalogSearchRequestSchema = z.object({
  */
 export function registerCatalogRoutes(app, catalog, { describeHost } = {}) {
   registerRoute(app, HOST_ROUTES.catalogTranscriptPage, (c) =>
-    handleJsonRoute(c, catalogTranscriptPageSchema, (data) =>
-      catalog.transcriptPage(data),
+    handleJsonRoute(c, catalogTranscriptPageSchema, async (data) =>
+      catalog.transcriptPageJson
+        ? c.body(await catalog.transcriptPageJson(data), 200, {
+            "Content-Type": "application/json",
+          })
+        : catalog.transcriptPage(data),
     ),
   );
   const origin = (c) => c.req.header(CLIENT_ID_HEADER) ?? null;

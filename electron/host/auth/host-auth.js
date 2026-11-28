@@ -130,6 +130,9 @@ export function createHostAuth({
 }) {
   /** @type {Map<string, import("./session-store.js").DeviceSessionRecord>} */
   const sessions = new Map();
+  /** Last timestamp (ms) written to SQLite per session, to throttle touches. */
+  /** @type {Map<string, number>} */
+  const persistedTouchAt = new Map();
   /** Open sockets and streams per session, by how to close each. */
   /** @type {Map<string, Set<() => void>>} */
   const live = new Map();
@@ -302,9 +305,12 @@ export function createHostAuth({
       if (!isLive(session) || !sameDigest(session.verifier, secret))
         return null;
       const time = now();
-      if (time - Date.parse(session.lastUsedAt) >= TOUCH_WRITE_MS) {
+      const lastPersisted =
+        persistedTouchAt.get(id) ?? Date.parse(session.lastUsedAt);
+      if (time - lastPersisted >= TOUCH_WRITE_MS) {
         session.lastUsedAt = iso(time);
         session.expiresAt = iso(time + SESSION_IDLE_TTL_MS);
+        persistedTouchAt.set(id, time);
         void write({
           expiresAt: session.expiresAt,
           id,
@@ -326,6 +332,8 @@ export function createHostAuth({
 
     /**
      * Extends a live session from now. The credential stays the same.
+     * Persists the updated timestamps at most once per TOUCH_WRITE_MS so
+     * frequent client liveness polls do not issue constant SQLite writes.
      * @param {Principal} principal
      */
     async renew(principal) {
@@ -333,14 +341,19 @@ export function createHostAuth({
         principal.kind === "session" ? sessions.get(principal.sessionId) : null;
       if (!isLive(session)) throw new AuthError("This session has ended.");
       const time = now();
+      const lastPersisted =
+        persistedTouchAt.get(session.id) ?? Date.parse(session.lastUsedAt);
       session.lastUsedAt = iso(time);
       session.expiresAt = iso(time + SESSION_IDLE_TTL_MS);
-      await write({
-        expiresAt: session.expiresAt,
-        id: session.id,
-        lastUsedAt: session.lastUsedAt,
-        type: "touch",
-      });
+      if (time - lastPersisted >= TOUCH_WRITE_MS) {
+        persistedTouchAt.set(session.id, time);
+        await write({
+          expiresAt: session.expiresAt,
+          id: session.id,
+          lastUsedAt: session.lastUsedAt,
+          type: "touch",
+        });
+      }
       return publicSession(session);
     },
 
@@ -386,6 +399,7 @@ export function createHostAuth({
         }
       }
       live.delete(sessionId);
+      persistedTouchAt.delete(sessionId);
       await write({
         id: sessionId,
         revokedAt: session.revokedAt,
